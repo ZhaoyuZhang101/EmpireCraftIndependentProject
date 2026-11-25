@@ -61,7 +61,6 @@ public static class ReligionFaith
         return BySphere.TryGetValue(culture.GetTianxiaId(), out FaithType type) ? type : FaithType.Folk;
     }
 
-#if EC_PENDING
     public static FaithType Of(Religion religion) => Of(religion, 0);
 
     private static FaithType Of(Religion religion, int depth)
@@ -76,7 +75,6 @@ public static class ReligionFaith
         data.Faith = type.ToString();
         return type;
     }
-#endif
 
     public static void Record(Religion religion, FaithType type)
     {
@@ -84,7 +82,6 @@ public static class ReligionFaith
     }
 
     // 教廷(教宗)、哈里发座
-#if EC_PENDING
     public static bool IsPapal(Religion religion) => Of(religion) == FaithType.Church;
     public static bool IsCaliphal(Religion religion) => Of(religion) == FaithType.Islam;
     public static bool HasHierarchy(Religion religion) => Of(religion) is FaithType.Church or FaithType.Islam;
@@ -92,31 +89,23 @@ public static class ReligionFaith
     public static bool WagesHolyWar(Religion religion) => Of(religion) is FaithType.Church or FaithType.Islam;
 
     public static bool FoundsOrders(Religion religion) => Of(religion) == FaithType.Church;
-#endif
 
     // 排他：异教是异端，按制度定宽容与否；不排他的向来宽容
-#if EC_PENDING
     public static bool IsExclusive(Religion religion) => Of(religion) is FaithType.Church or FaithType.Islam or FaithType.Judaism;
-#endif
 
     // 世界性宗教(成体系、有经典，君主皈依的对象)
-#if EC_PENDING
     public static bool IsWorldFaith(Religion religion) =>
         Of(religion) is FaithType.Church or FaithType.Islam or FaithType.Dharmic or FaithType.Sanjiao;
-#endif
 
     // 普世宗教(向别的文明传教的：教会、伊斯兰、法教)；其余是民族宗教(三教、神道、腾格里、犹太、民间)，几乎不向外传
-#if EC_PENDING
     public static bool IsUniversal(Religion religion) =>
         Of(religion) is FaithType.Church or FaithType.Islam or FaithType.Dharmic;
-#endif
 
     // 一神普世教(教会、伊斯兰)：史上出现得晚，本土立教要再研究冶铁(见 NativeFaithSystem)
     public static bool IsLateFaith(FaithType type) => type is FaithType.Church or FaithType.Islam;
 
     // 传教力、惰性：类型底色 × 教义(本有足额、融来的六成，见 ReligionTenets；用户 2026-11-06 选加成"中")。
     // 本天下的惰性另乘本土加成(×1.5)、本地圣徒，在城的层面算(见 BackgroundReligionSystem)
-#if EC_PENDING
     public static float Mission(Religion religion) => BaseMission(religion) * ReligionTenets.MissionFactor(religion);
 
     public static float Inertia(Religion religion) => BaseInertia(religion) * ReligionTenets.InertiaFactor(religion);
@@ -139,17 +128,14 @@ public static class ReligionFaith
         FaithType.Sanjiao => 0.9f,
         _ => 0.5f
     };
-#endif
 
     // 君主皈依外教的意愿：多神、萨满、无教最易，三教、法教、神道较难，排他的一神教极少
-#if EC_PENDING
     public static float Receptiveness(Religion current) => current?.data == null ? 1f : Of(current) switch
     {
         FaithType.Folk or FaithType.Tengri => 1f,
         FaithType.Dharmic or FaithType.Sanjiao or FaithType.Shinto => 0.15f,
         _ => 0.03f
     };
-#endif
 
     // 从本类型名库里挑一个名字；多神民间没有名库，返回空(用本文化名库)
     public static string PickName(FaithType type)

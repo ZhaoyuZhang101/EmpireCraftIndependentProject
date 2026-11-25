@@ -85,9 +85,7 @@ public static class AdministrativeControlSystem
     private const float LvLingReach = 1.1f, LvLingCapacity = 1.1f;
 
     // 真游牧才低控制(见 KingdomExtension.IsTrueNomad)：阿兹特克、林地部族的游牧政体不算
-#if EC_PENDING
     private static bool NomadRegime(Realm realm) => KingdomExtension.IsTrueNomad(realm);
-#endif
 
     private static readonly Queue<long> Pending = new();
     private static int _cursor;
@@ -127,7 +125,6 @@ public static class AdministrativeControlSystem
     public static bool Known(City city) => city?.Record != null && city.GetOrCreate().admin_control >= 0f;
 
     // 羁縻地区本地首领自治，不因鞭长莫及而失稳；过度扩张时远方再扣(满控扣 3，控制力越低扣得越多，最多 18)
-#if EC_PENDING
     public static float StabilityLoss(City city)
     {
         if (!Known(city) || IsIndirect(city.Realm)) return 0f;
@@ -139,11 +136,9 @@ public static class AdministrativeControlSystem
         float over = realm?.Record == null ? 0f : realm.GetOrCreate().admin_overextension;
         return loss + over * OverextensionPenalty * (1.2f - control);
     }
-#endif
 
     // 间接统治：羁縻地区；自主外交的世袭成员与自治城邦；周制、封建帝国里的诸侯(周制直辖的郡、帝国核心除外)。
     // 水土(ShuiTuSystem)按同一口径分直辖与否
-#if EC_PENDING
     public static bool IsIndirect(Realm kingdom)
     {
         Empire empire = kingdom?.GetEmpire();
@@ -158,7 +153,6 @@ public static class AdministrativeControlSystem
         return template?.indirect_rule == true &&
                template.direct_member_types?.Contains(kingdom.GetKingdomType()) != true;
     }
-#endif
 
     // 青铜时代及以前(时代 ≤ 3)
     private const int EarlyEraTier = 3;
@@ -224,7 +218,6 @@ public static class AdministrativeControlSystem
     public const int KingdomCoresPerGeneration = 3, EmpireCoresPerGeneration = 1;
 
     // 本国(帝国按中央，连同成员)这一代人侵占的王国法理、帝国法理各几个
-#if EC_PENDING
     public static (int kingdoms, int empires) GenerationConquests(Realm kingdom)
     {
         Realm realm = ModRealm(kingdom);
@@ -252,10 +245,8 @@ public static class AdministrativeControlSystem
         }
         return (titles.Count, empires);
     }
-#endif
 
     // 这一代人的侵占已满(统一战争不算)
-#if EC_PENDING
     public static bool GenerationExhausted(War war, Realm attacker, out string why)
     {
         why = null;
@@ -265,7 +256,6 @@ public static class AdministrativeControlSystem
         why = $"{GenerationYears:0} 年内已侵占王国法理 {kingdoms} 个、帝国法理 {empires} 个";
         return true;
     }
-#endif
 
     #endregion
 
@@ -437,7 +427,6 @@ public static class AdministrativeControlSystem
     private static readonly (string tech, float cities)[] CapacityTechs =
         { ("bureaucracy", 4f), ("postal_roads", 4f), ("civil_examination", 4f), ("telegraph", 8f), ("computing", 6f) };
 
-#if EC_PENDING
     private static float Reach(Realm realm)
     {
         int tier = TechnologySystem.GetEraTier(TechnologySystem.GetCultureOf(realm));
@@ -468,10 +457,8 @@ public static class AdministrativeControlSystem
         if (NomadRegime(realm)) capacity *= NomadCapacity;
         return Mathf.Max(3, Mathf.RoundToInt(capacity * RulerFactor(realm)));
     }
-#endif
 
     // 君主：雄主 ×1.15、平庸 ×1、懦弱放纵 ×0.9、昏聩 ×0.85、暴君 ×0.95；帝国再按正统 0.85~1.15 折算
-#if EC_PENDING
     private static float RulerFactor(Realm realm)
     {
         float factor = RulerQualitySystem.Of(realm.Ruler) switch
@@ -503,7 +490,6 @@ public static class AdministrativeControlSystem
         data.admin_direct_cities = direct + cityStates / 2;
         data.admin_overextension = Mathf.Clamp01((float)data.admin_direct_cities / data.admin_capacity - 1f);
     }
-#endif
 
     private static float Control(float distance, float reach) =>
         distance <= reach ? 1f : Mathf.Max(MinControl, 1f - (distance - reach) / (2f * reach));
@@ -889,13 +875,11 @@ public static class AdministrativeControlSystem
     // 除了照旧改投邻国，还会由当地首领自立为独立王国——时代越早越常见(EraSecession)，近代以后不再自立
     private const int PremodernTier = 5;
 
-#if EC_PENDING
     private static float EraSecession(Realm realm)
     {
         int tier = TechnologySystem.IsEnabled ? TechnologySystem.GetEraTier(TechnologySystem.GetCultureOf(realm)) : EarlyEraTier;
         return tier <= EarlyEraTier ? 1.5f : tier <= PremodernTier ? 1f : tier <= PremodernTier + 2 ? 0.3f : 0f;
     }
-#endif
 
     // 飞地自立：这座城连同挨着的、同属一国的飞地城(至多 ReleaseClusterMax 座)由当地首领自立为国，不再安置为附庸、朝贡
 #if EC_PENDING

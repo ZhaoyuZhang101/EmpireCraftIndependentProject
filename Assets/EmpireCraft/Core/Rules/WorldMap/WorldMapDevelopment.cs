@@ -376,8 +376,8 @@ public static class WorldMapDevelopment
             TerrainKind type = tile?.Type;
             if (type == null || type.Liquid || type.Lava) continue;
             land++;
-            Building building = tile.building;
-            if (building?.asset != null && building.asset.building_type == BuildingType.Building_Civ) return false;
+            Building building = tile.Building;
+            if (building?.Asset != null && building.Asset.building_type == BuildingType.Building_Civ) return false;
             if (IsWet(tile.TopType) || Vegetated(tile, out _)) wet++;
         }
         return land >= MinLand && wet >= land * WetShare;

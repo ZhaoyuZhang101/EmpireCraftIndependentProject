@@ -87,7 +87,7 @@ public static class PlateauTerrain
         type.has_biome_tags = false;
         type.biome_build_check = false;
         type.BiomeId = string.Empty;
-        type.biome_asset = null;
+        type.BiomeAsset = null;
         type.CanBeFarm = farm;
         type.can_build_on = true;
         type.freeze_to_id = "frozen_high";

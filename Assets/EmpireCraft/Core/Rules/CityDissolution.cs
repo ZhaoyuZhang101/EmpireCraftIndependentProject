@@ -71,8 +71,8 @@ public static class CityDissolution
         if (!CityPopulationSystem.AbstractPopulationEnabled || city?.Record == null || city.IsGone() ||
             city.Realm == null || city.Realm.IsWild) return false;
         if (WorldLaws.PreventCityDestroy?.IsEnabled() == true) return false;
-        if (city.getPopulationMaximum() > 0 || GameClock.YearsSince(city.FoundedStamp) < 3) return false;
-        if (city.buildings?.Any(building => building != null && building.isUnderConstruction()) == true) return false;
+        if (city.GetPopulationMaximum() > 0 || GameClock.YearsSince(city.FoundedStamp) < 3) return false;
+        if (city.Buildings?.Any(building => building != null && building.IsUnderConstruction()) == true) return false;
         if (CityLedger.Pending(city) != null) return false;
         if (StateSettlementSystem.AwaitingPopulation(city)) return false;
         City destination = Nearest(city);

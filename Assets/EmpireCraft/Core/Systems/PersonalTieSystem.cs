@@ -43,7 +43,6 @@ public static class PersonalTieSystem
         if (kind == Rival && cause == CauseKinKilled) Avengers?.Add(owner.id);
     }
 
-#if EC_PENDING
     public static void MakeRivals(Person a, Person b, string cause)
     {
         PersonalClanIdentity ia = a?.GetPersonalIdentity(), ib = b?.GetPersonalIdentity();
@@ -63,7 +62,6 @@ public static class PersonalTieSystem
         Add(ia, ip, Protege, cause);
         BiographySystem.Note(protege, string.Format(LM.Get("bio_tie_patron"), patron.FullName()), patron);
     }
-#endif
 
     // 要人被杀：死者在世的子与兄弟(至多三人)与凶手结下杀亲之仇
     public static void OnKinKilled(Person victim, Person killer)
@@ -238,7 +236,6 @@ public static class PersonalTieSystem
 #endif
 
     // 投敌：与本国君主有仇，投奔正与本国交战的敌国
-#if EC_PENDING
     private static bool Defect(Person actor, Person ruler)
     {
         Realm home = actor.Realm;
@@ -264,7 +261,6 @@ public static class PersonalTieSystem
         if (empire != null && !empire.IsGone()) EventRecorder.Record(empire, text, actor, kingdom);
         else EventRecorder.Record(kingdom, text, actor);
     }
-#endif
 
     #endregion
 

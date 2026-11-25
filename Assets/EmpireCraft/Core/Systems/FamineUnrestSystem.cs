@@ -88,10 +88,8 @@ public static class FamineUnrestSystem
     }
 
     // 饥民军烈度的民怨系数(用户 2026-10-26 "饥民军规模 = 基础 × 民怨系数")：0.8 + 民怨/100，即 0.8~1.8
-#if EC_PENDING
     public static float FervorFactor(Realm kingdom) =>
         0.8f + Mathf.Clamp(PopularGrievance.Index(kingdom), 0f, 100f) / 100f;
-#endif
 
     // 本国今年还能有几座城卷入饥民起义：上限按年初的城数(现有加上今年已经分出去的)算两成，至少一座、至多六座
     public static int RoomLeft(Realm kingdom)
@@ -221,7 +219,6 @@ public static class FamineUnrestSystem
 #endif
 
     // 大饥荒：记入史书、正统下降；退去再记一笔
-#if EC_PENDING
     private static void Announce(Realm kingdom, Empire empire, int prolonged, int total)
     {
         if (kingdom?.Record == null || total <= 0) return;
@@ -242,15 +239,12 @@ public static class FamineUnrestSystem
             Record(kingdom, empire, string.Format(LM.Get("great_famine_end_history"), name), false);
         }
     }
-#endif
 
     // 大饥荒报世界提示；饥荒退去只记入史书
-#if EC_PENDING
     private static void Record(Realm kingdom, Empire empire, string text, bool announce = true)
     {
         if (empire?.data != null) empire.RecordHistory(directContent: text);
         if (announce) TranslateHelper.LogEventOnly(text, kingdom);
     }
-#endif
 }
 }

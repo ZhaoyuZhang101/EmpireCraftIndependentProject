@@ -75,53 +75,42 @@ public static class ProvincialCollapseSystem
 
     // 君主制，以及古典共和施行了元首制的(用户 2026-10-20 定"罗马元首制也会分裂"：元首家传、行省派总督，与帝制无异；
     // 门槛、机会与君主制一样。以前古典共和不算君主制，元首制帝国从不瓦解)
-#if EC_PENDING
     private static bool Applies(Empire empire) =>
         empire?.data != null && !empire.IsGone() && !empire.IsArchived() && empire.CoreKingdom != null &&
         !empire.CoreKingdom.IsGone() && !RepublicSystem.IsRepublic(empire) && RegimeFactor(empire) > 0f &&
         !TransmigrantSystem.Governs(empire) && !ZhouShielded(empire) && !AncientWarfareCompatibility.Owns(empire.CoreKingdom);
-#endif
 
     // 周制：春秋诸侯尊王，周室不瓦解，正统跌破 ZhouSpringCollapseLegitimacy 例外；战国(只剩王畿诸郡，郡也会割据)、
     // 一统之后照常(用户 2026-10-27 截图西大和朝、赵朝：以前春秋、战国整段豁免，周室正统 0、积弊满额也没有出口)
     private const int ZhouSpringCollapseLegitimacy = 30;
 
-#if EC_PENDING
     private static bool ZhouShielded(Empire empire) =>
         ZhouEraSystem.Era(empire) == ZhouEraSystem.Spring && empire.Legitimacy >= ZhouSpringCollapseLegitimacy;
-#endif
 
     // 首义、响应机会的政体系数：君主制、元首制照常；古典共和(未行元首制)、原始政体也有王朝积弊，以前却没有任何
     // 崩溃出口、成了僵尸国，现在也会瓦解、机会减半，只走古代(各省自立)那一路(用户 2026-10-21 选"古典共和/原始政体能瓦解")
     private const float MinorRegimeFactor = 0.5f;
 
-#if EC_PENDING
     private static float RegimeFactor(Empire empire)
     {
         RegimeType? type = empire?.CoreKingdom?.GetRegime()?.type;
         if (RegimeManager.IsMonarchy(type) || empire.IsPrincipate()) return 1f;
         return type == RegimeType.ClassicalRepublic || RegimeManager.IsPrimitive(type) ? MinorRegimeFactor : 0f;
     }
-#endif
 
     // 瓦解收束时剩下的城不到瓦解前的多少就灭亡：其余四分之一；封建帝国四成(诸侯本就各自为政，名号最难死；用户 2026-10-21 选
     // "西欧能整合、帝国能倒")→ 同样四分之一(同日玩家反馈"帝国容易突然碎一地"，用户选"瓦解收束不再全散"：
     // 以前剩下的城把两年里外战、更替之乱、决议自立丢的都算进去，封建帝国四成的门槛一碰就倒)
-#if EC_PENDING
     private static float FallShareOf(Empire empire) =>
         empire?.CoreKingdom?.GetRegime()?.type == RegimeType.Feudalism ? FeudalFallShare : FallShare;
-#endif
 
     // 以前只看技术进了工业时代：制度还停在三省六部、没立宪的帝国，一次土崩瓦解就成了共和革命，全文化跟着进入现代
-#if EC_PENDING
     private static bool Modern(Empire empire) =>
         !TechnologySystem.NoNewModern && (RepublicSystem.CanAbolish(empire) ||
                                               TechnologySystem.GetEraTier(InstitutionSystem.GetPrimaryCulture(empire)) >= ModernEraTier &&
                                               InstitutionSystem.GetFeature(InstitutionSystem.GetPrimaryCulture(empire), PartySystem.FeaturePartyPolitics) > 0f);
-#endif
 
     // excludeStrain：不算王朝积弊一项(它只增不减，分裂进程的化解不能等它回落，见 SchismSystem.Resolution)
-#if EC_PENDING
     public static float Crisis(Empire empire, bool excludeStrain = false)
     {
         if (empire?.data == null) return 0f;
@@ -141,17 +130,13 @@ public static class ProvincialCollapseSystem
             Mathf.Max(Mathf.Max(usurped, faction), malady));
         return Mathf.Clamp01(top + 0.25f * (legitimacy + strain + fiscal + grievance + usurped + faction + malady - top));
     }
-#endif
 
     // 律令制、王朝积弊适用(立宪等不适用的照旧按内忧，否则积弊恒为零、永不瓦解)
-#if EC_PENDING
     private static bool Centralized(Empire empire) =>
         empire.CoreKingdom?.GetRegime()?.type == RegimeType.LvLing && DynasticCycleSystem.Applies(empire);
-#endif
 
     // 律令制群雄割据的门槛：积弊满额、满额民变已起，或正统崩坏，且 ① 本朝民变/起义最早一场满 10 年还没平定(立的国还在、没回归本帝国)，
     // 或 ② 它们占的城达原有城数的五成(满额的按满额民变起时算，正统崩坏的按眼下帝国连同叛军的城算)。过了返回缘由(日志用)，没过返回 null
-#if EC_PENDING
     private static string WarlordGate(Empire empire)
     {
         ConstitutionalEconomyState state = State(empire);
@@ -172,7 +157,6 @@ public static class ProvincialCollapseSystem
                                               kingdom.HasRuler() && kingdom.Capital != null && kingdom.Cities?.Count > 0 &&
                                               !kingdom.IsFactionRebelling() && !kingdom.IsLocalRebelling() &&
                                               RebellionSystem.CanAttempt(kingdom)).ToList();
-#endif
 
     // 与京畿接壤：省里有城是陪都，或挨着核心王国的城、陪都
     private static bool NearCapital(Empire empire, Realm province)
@@ -242,12 +226,10 @@ public static class ProvincialCollapseSystem
 
     // 元首制的行省军权：确有将领统率的正规军，且中央失信或当地欠饷时，才按军镇计算离心。
     // 与边疆加成只取其一；仍须经过内忧、离心门槛、分裂预警和冷却，不另加随机独立事件。
-#if EC_PENDING
     private static bool MilitaryProvince(Empire empire, Realm province) =>
         empire.IsPrincipate() && province.GetKingdomType() == KingdomType.ClassicalRepublic_province &&
         (empire.Legitimacy < GateLegitimacy || !CorpsSystem.WellPaid(province)) &&
         CorpsSystem.Of(province).Any(corps => !corps.militia && corps.strength > 0f && corps.general_id >= 0);
-#endif
 
     // 每年(ConstitutionalEconomySystem 年度结算)：首义
 #if EC_PENDING

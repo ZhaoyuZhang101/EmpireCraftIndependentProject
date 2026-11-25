@@ -19,7 +19,6 @@ public static partial class BannerSystem
     private const int LeagueMarriageYears = 20;
 
     // 外藩：编旗的王朝治下、别的游牧文化的成员国
-#if EC_PENDING
     public static bool LeagueBound(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || !kingdom.IsInEmpire()) return false;
@@ -29,10 +28,8 @@ public static partial class BannerSystem
         string culture = CultureService.GetRealmCulture(kingdom);
         return culture.IsNomadCulture() && !string.Equals(culture, RulingCultureOf(core), global::System.StringComparison.Ordinal);
     }
-#endif
 
     // 外藩不自立：与中央有姻亲，或八旗战力尚在
-#if EC_PENDING
     public static bool LeagueRestrains(Realm kingdom)
     {
         if (!LeagueBound(kingdom)) return false;
@@ -42,7 +39,6 @@ public static partial class BannerSystem
 
     private static IEnumerable<Realm> LeaguesOf(Empire empire) =>
         (empire?.kingdoms_list ?? new List<Realm>()).Where(LeagueBound);
-#endif
 
     // 每年：满蒙联姻(编旗以后就有，入关前后都算)
 #if EC_PENDING

@@ -30,11 +30,9 @@ public static class ShanrangSystem
     }
 
     // 共主推举而不是父子相传(华夏原始政体，还没施行世袭王权)
-#if EC_PENDING
     public static bool Elective(Empire empire) =>
         DynastyNaming.HuaxiaOriginEmpire(empire) &&
         !InstitutionSystem.IsEnacted(CultureService.GetInstitutionCulture(empire.CoreKingdom), "huaxia_hereditary_kingship");
-#endif
 
     // 每月(TribalFissionService.EnforceOneCity)
 #if EC_PENDING
@@ -111,7 +109,6 @@ public static class ShanrangSystem
 
     // 旧存档：推举共主的部落联盟里，在位 0 年、换下时还活着、没有谥号的几任都是待推举的(推举出来的人年过七十要减分，
     // 不会刚推上去不满一年又让位)
-#if EC_PENDING
     private static void DropInterimReigns(Empire empire)
     {
         List<EmpireCraftHistory> history = empire.data.history;
@@ -128,7 +125,6 @@ public static class ShanrangSystem
         int removed = interim.Count;
         if (removed > 0) LogService.LogInfo($"[EmpireCraft][禅让] {empire.GetEmpireName()} 世系去掉 {removed} 位待推举的");
     }
-#endif
 
     // 推举的分数：威望、所在之部的城数，正当壮年加分、年过七十减分
     internal static float Score(Person actor, Realm tribe)
@@ -143,7 +139,6 @@ public static class ShanrangSystem
         actor?.Record != null && !actor.IsGone() && actor.Alive && actor.IsAdult() && actor.IsFitToRule();
 
     // 候选：共主之部各城的城主、共事它的各部首领(不含 ruler)
-#if EC_PENDING
     internal static List<(Person actor, Realm tribe)> Candidates(Empire empire, Person ruler)
     {
         Realm core = empire.CoreKingdom;
@@ -158,6 +153,7 @@ public static class ShanrangSystem
     private static (Person actor, Realm tribe) Worthiest(Empire empire, Person ruler) =>
         Candidates(empire, ruler).OrderByDescending(entry => Score(entry.actor, entry.tribe)).FirstOrDefault();
 
+#if EC_PENDING
     private static bool Install(Empire empire, Person best, Realm tribe)
     {
         if (tribe == empire.CoreKingdom) return empire.InstallHeadOfState(best);

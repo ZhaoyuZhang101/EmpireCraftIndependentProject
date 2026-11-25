@@ -48,7 +48,6 @@ public static class SouthernGarrisonSystem
     }
 
     // 南明的藩镇：结成过南明的帝国里世袭的军府
-#if EC_PENDING
     public static bool IsGarrison(Realm kingdom)
     {
         if (!Alive(kingdom)) return false;
@@ -56,16 +55,13 @@ public static class SouthernGarrisonSystem
         return Formed(empire) && kingdom != empire.CoreKingdom &&
                EmpireCraftKingdomBehCheckKingdomType.IsHereditaryGarrison(kingdom, kingdom.GetRegime());
     }
-#endif
 
     // 诸镇火并：交战两方都是同一个南明的藩镇
-#if EC_PENDING
     public static bool IsInternalWar(War war)
     {
         Realm attacker = war?.MainAttacker, defender = war?.MainDefender;
         return IsGarrison(attacker) && IsGarrison(defender) && attacker.GetEmpire() == defender.GetEmpire();
     }
-#endif
 
     // 每月(SouthernRetreatSystem.Check)：期内一年结算一次
 #if EC_PENDING
@@ -161,10 +157,10 @@ public static class SouthernGarrisonSystem
 #endif
 
     // 已在和别的藩镇打
-#if EC_PENDING
     private static bool Feuding(Realm kingdom) =>
         kingdom.GetWars().Any(war => war?.Record != null && !war.HasEnded() && IsInternalWar(war));
 
+#if EC_PENDING
     private static bool FeudTarget(Realm attacker, Realm target)
     {
         if (!Alive(target) || target == attacker || target.Capital == null || target.Capital.IsGone() ||

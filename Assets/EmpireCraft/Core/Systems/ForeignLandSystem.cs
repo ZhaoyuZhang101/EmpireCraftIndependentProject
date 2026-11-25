@@ -65,7 +65,6 @@ public static class ForeignLandSystem
 #endif
 
     // 这座城对这个帝国是异族之地：主流文化与统治文化不同族，复合帝国也不是制度文化那一族
-#if EC_PENDING
     public static bool IsForeign(City city, Empire empire)
     {
         string culture = CultureService.GetMainCulture(city, initialize: false);
@@ -76,7 +75,6 @@ public static class ForeignLandSystem
         string institutional = CompositeEmpireService.GetInstitutionalCulture(empire);
         return !CultureService.IsValidCulture(institutional) || !CultureService.SameKin(culture, institutional);
     }
-#endif
 
     // 正统扣分(年度快照，见 MonarchyLegitimacy)
     public static (string key, int value) LegitimacyItem(Empire empire)
@@ -88,7 +86,6 @@ public static class ForeignLandSystem
 
     #region 年度扫描
 
-#if EC_PENDING
     private static void Scan(double now)
     {
         Overdue.Clear();
@@ -129,7 +126,6 @@ public static class ForeignLandSystem
         }
         MonarchyLegitimacy.Invalidate();
     }
-#endif
 
     // 归本帝国的时间：本帝国打下的按打下时，成员国的城按成员入帝国时，都没有的从现在起算
     private static double Since(City city, Realm realm, double now)
@@ -145,7 +141,6 @@ public static class ForeignLandSystem
         return now;
     }
 
-#if EC_PENDING
     private static List<City> OverdueCities(Empire empire)
     {
         var result = new List<City>();
@@ -163,7 +158,6 @@ public static class ForeignLandSystem
         }
         return result;
     }
-#endif
 
     #endregion
 
@@ -203,7 +197,6 @@ public static class ForeignLandSystem
     }
 
     // 付一年驻防军费
-#if EC_PENDING
     private static bool TrySuppress(Empire empire, List<City> cities, int legitimacy, double now)
     {
         Realm core = empire.CoreKingdom;
@@ -223,7 +216,6 @@ public static class ForeignLandSystem
         LogService.LogInfo($"[EmpireCraft][异族之地] {empire.GetEmpireName()} 正统{legitimacy}，出兵镇压三代未附的 {cities.Count} 城，耗银 {cost}");
         return true;
     }
-#endif
 
     private static int YearlyRevenue(Realm kingdom)
     {

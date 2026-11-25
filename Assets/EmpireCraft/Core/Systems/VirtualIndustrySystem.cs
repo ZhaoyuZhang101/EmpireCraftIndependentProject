@@ -30,12 +30,11 @@ public static class VirtualIndustrySystem
 
     public static bool Applies => PureMapMode.Enabled;
 
-#if EC_PENDING
     public static int Factories(City city)
     {
         if (!Applies || city?.Record == null || city.IsGone()) return 0;
         var (_, all, shipyards) = Count(TechnologySystem.GetCultureOf(city) ?? "");
-        if (!city.hasBuildingType("type_docks")) all -= shipyards;
+        if (!city.HasBuildingType("type_docks")) all -= shipyards;
         if (all <= 0) return 0;
         // 工厂要水运与平地：按地利的工业系数(见 CityGeographySystem)
         int capacity = Mathf.FloorToInt(CityPopulationSystem.Households(city) / (float)HouseholdsPerFactory *
@@ -63,19 +62,14 @@ public static class VirtualIndustrySystem
         Unlocked[culture] = entry;
         return entry;
     }
-#endif
 
     // 这座工厂建筑要虚拟(是工厂、资产又不存在)
-#if EC_PENDING
     public static bool IsVirtual(string building) =>
-        FactoryBuildings.Contains(building) && AssetManager.buildings?.get(building) == null;
-#endif
+        FactoryBuildings.Contains(building) && BuildingKinds.Table?.Get(building) == null;
 
     // 科技窗口：这项技术在纯净地图下解锁了几类虚拟工厂
-#if EC_PENDING
     public static int VirtualUnlocks(TechNodeConfig tech) =>
         !Applies || tech?.unlock_buildings == null ? 0 : tech.unlock_buildings.Count(IsVirtual);
-#endif
 
     public static void ResetWorldState() => Unlocked.Clear();
 }

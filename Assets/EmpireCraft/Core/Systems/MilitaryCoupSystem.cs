@@ -25,7 +25,6 @@ public static class MilitaryCoupSystem
     private const int CooldownYears = 20;
     private const float BaseChance = 0.25f;
 
-#if EC_PENDING
     internal static bool Applies(Empire empire)
     {
         RegimeType? regime = empire?.CoreKingdom?.GetRegime()?.type;
@@ -67,16 +66,13 @@ public static class MilitaryCoupSystem
             LogService.LogWarning($"[EmpireCraft][兵变] 失败: {exception.Message}");
         }
     }
-#endif
 
     // 宫廷政变而宗室无人可立：禁军统领自立(见 PalaceArmySystem)
-#if EC_PENDING
     internal static void PalaceSeize(Empire empire, ConstitutionalEconomyState state, Person general, City seat)
     {
         if (!Applies(empire) || general?.Record == null || !Eligible(empire, general)) return;
         Execute(empire, state, general, seat);
     }
-#endif
 
     private static bool Eligible(Empire empire, Person actor) =>
         actor?.Record != null && !actor.IsGone() && actor.Alive && actor.IsAdult() && !actor.IsRuler() &&
@@ -127,7 +123,6 @@ public static class MilitaryCoupSystem
         return (best, bestShare, seat);
     }
 
-#if EC_PENDING
     private static void Execute(Empire empire, ConstitutionalEconomyState state, Person general, City seat)
     {
         Realm core = empire.CoreKingdom;
@@ -169,6 +164,5 @@ public static class MilitaryCoupSystem
         former?.RecordPersonalHistory(string.Format(LM.Get("personal_history_coup_deposed"), general.FullName()),
             relatedActorId: general.Key);
     }
-#endif
 }
 }

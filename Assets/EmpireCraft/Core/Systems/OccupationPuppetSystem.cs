@@ -24,16 +24,13 @@ public static class OccupationPuppetSystem
     // 本文化没有民族主义科技时，城中民族情绪到这么多也算有了民族意识
     public const float NationalSentimentFloor = 30f;
 
-#if EC_PENDING
     private static string RulingCulture(Realm kingdom)
     {
         Empire empire = kingdom?.GetEmpire();
         return empire != null && !empire.IsGone() ? CompositeEmpireService.GetRulingCulture(empire) : CultureService.GetRealmCulture(kingdom);
     }
-#endif
 
     // 城里的民族情绪(0~1)：本文化有民族主义的至少按 PeaceTermRules.NationFloor
-#if EC_PENDING
     public static float Sentiment(City city)
     {
         string culture = CultureService.GetMainCulture(city, initialize: false);
@@ -42,10 +39,8 @@ public static class OccupationPuppetSystem
             value = Math.Max(value, PeaceTermRules.NationFloor);
         return Math.Max(0f, Math.Min(1f, value));
     }
-#endif
 
     // 这座城对占领者 occupier 是不是"他国本土"：有民族意识、不同族；占领者是近代国家
-#if EC_PENDING
     public static bool ForeignNationalCity(City city, Realm occupier)
     {
         if (city?.Record == null || city.IsGone() || occupier?.Record == null || !StateModernization.IsModernPower(occupier)) return false;
@@ -53,30 +48,24 @@ public static class OccupationPuppetSystem
         if (!CultureService.IsValidCulture(culture) || !CultureService.IsValidCulture(ruler) || CultureService.SameKin(culture, ruler)) return false;
         return TechnologySystem.HasTech(culture, "nationalism") || NationalSentimentSystem.GetCity(city) >= NationalSentimentFloor;
     }
-#endif
 
     // 议和割城：giver 出的这座城是 giver 本族之地、对收的一方 receiver 是他国本土(要另记民族意识，能写"割地立傀儡")
-#if EC_PENDING
     public static bool NationalLand(City city, Realm giver, Realm receiver)
     {
         if (!ForeignNationalCity(city, receiver) || PuppetStateSystem.IsPuppet(receiver) || ExileGovernmentSystem.IsExiled(receiver)) return false;
         string culture = CultureService.GetMainCulture(city, initialize: false), own = RulingCulture(giver);
         return CultureService.IsValidCulture(own) && CultureService.SameKin(culture, own);
     }
-#endif
 
     // 民族意识的砝码(失地一方另记)：城价 × 民族情绪 × 大小之比，吞并按全数、立傀儡按四成
-#if EC_PENDING
     public static int Resistance(City city, Realm giver, Realm receiver, bool puppet)
     {
         if (!NationalLand(city, giver, receiver)) return 0;
         float size = PeaceTermRules.SizeFactor(PeaceTermRules.NationValue(giver), PeaceTermRules.NationValue(receiver));
         return PeaceTermRules.NationResistance(PeaceTermRules.CityValue(city), Sentiment(city), size, puppet);
     }
-#endif
 
     // 一国整个立为保护国的民族意识：他国本土各城的城价 × 民族情绪，乘大小之比与倍数(PeaceTermRules.ProtectorateNationFactor)
-#if EC_PENDING
     public static int RealmResistance(Realm giver, Realm receiver, double factor)
     {
         if (giver?.Cities == null || receiver?.Record == null) return 0;
@@ -87,10 +76,8 @@ public static class OccupationPuppetSystem
         float size = PeaceTermRules.SizeFactor(PeaceTermRules.NationValue(giver), PeaceTermRules.NationValue(receiver));
         return (int)Math.Round(weighted * size * factor);
     }
-#endif
 
     // 占领成本(打仗时记进占领方的疲敝)：realm 一方(连同帝国成员)直接管着的他国本土；大小之比按被占的一方(foe)连同已丢的城
-#if EC_PENDING
     public static (int wear, int cities) OccupationCost(Realm realm, Realm foe)
     {
         if (realm?.Record == null || realm.IsGone() || !StateModernization.IsModernPower(realm)) return (0, 0);
@@ -109,7 +96,6 @@ public static class OccupationPuppetSystem
         float size = PeaceTermRules.SizeFactor(nation, PeaceTermRules.NationValue(realm));
         return (PeaceTermRules.OccupationWear((int)Math.Round(weighted * size), PeaceTermRules.NationValue(realm)), resistance);
     }
-#endif
 
     // 一方直接管着的城：本国与帝国成员的(傀儡、殖民地的不算)
     private static IEnumerable<City> DirectCities(Realm realm)

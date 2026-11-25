@@ -132,13 +132,11 @@ public static class EmpireBankruptcySystem
 #endif
 
     // 自主性强：可自募军队、自办外交、不供养中央军
-#if EC_PENDING
     private static bool IsAutonomous(Realm kingdom)
     {
         Regime regime = kingdom.GetRegime();
         return regime != null && regime.IsAllowArmy() && regime.IsAllowDiplomacy() && !regime.IsAllowSupportCenterArmy();
     }
-#endif
 
     // 与本国接壤的叛军优先，其次是首都相距不远的
 #if EC_PENDING

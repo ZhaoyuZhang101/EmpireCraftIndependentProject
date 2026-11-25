@@ -74,7 +74,6 @@ public static class ReligionConversionSystem
     private static int Cities(Realm realm) => Members(realm).Sum(member => member.Cities.Count);
 
     // 每年一次(挂在 ReligiousTension 的年度扫描上)
-#if EC_PENDING
     public static void YearlyPass()
     {
         if (EmpireWorld.Current?.LiveRealms == null || ModClass.IS_CLEAR) return;
@@ -164,10 +163,8 @@ public static class ReligionConversionSystem
         }
         Convert(realm, best, current);
     }
-#endif
 
     // 皈依意愿：类型(多神萨满无教 1、三教法教神道 0.15、一神教 0.03) × 握圣地 0.1 × 本土抗皈依(外天下宗教 ×0.3、神国再折) × 融合
-#if EC_PENDING
     public static float Willingness(Religion current, Religion candidate, string realmSphere, bool holdsHoly)
     {
         float willing = ReligionFaith.Receptiveness(current);
@@ -177,16 +174,12 @@ public static class ReligionConversionSystem
             willing *= ReligionTenets.Home.resist * (1f - ReligionTenets.Resist(current));
         return willing * ReligionTenets.Pull(current, candidate);
     }
-#endif
 
     // 国教是本天下的本土宗教(国家文化的天下)
-#if EC_PENDING
     private static bool HomeFaith(Religion religion, string realmSphere) =>
         !string.IsNullOrEmpty(realmSphere) && ReligionSphere.IsNative(religion) && ReligionSphere.SphereOf(religion) == realmSphere;
-#endif
 
     // 普世宗教君主从俗：国教是外天下的普世宗教(不是自己天下的)，治下过半人口奉本天下正教——复归本土
-#if EC_PENDING
     private static bool TryReturnToNative(Realm realm)
     {
         Person king = realm.Ruler;
@@ -210,10 +203,8 @@ public static class ReligionConversionSystem
         Convert(realm, native, current, "native_revert_log");
         return true;
     }
-#endif
 
     // 入主从俗：民族宗教的君主治下过半人口奉另一个天下的本土大教
-#if EC_PENDING
     private static bool TryAdoptSubjectsFaith(Realm realm)
     {
         Person king = realm.Ruler;
@@ -244,10 +235,8 @@ public static class ReligionConversionSystem
 
     private static bool Candidate(Religion religion) =>
         religion?.data != null && !religion.IsGone() && ReligionFaith.IsWorldFaith(religion) && !ReligionSphere.IsLocalChurch(religion);
-#endif
 
     // 对某天下的君主：世界性宗教，加上本天下的正教、升格了的本天下民族宗教
-#if EC_PENDING
     private static bool Candidate(Religion religion, string realmSphere)
     {
         if (Candidate(religion)) return true;
@@ -255,7 +244,6 @@ public static class ReligionConversionSystem
             ReligionSphere.SphereOf(religion) != realmSphere) return false;
         return ReligionSphere.OrthodoxOf(realmSphere) == religion || ReligionTenets.IsOrganized(religion) && !ReligionSphere.IsLocalChurch(religion);
     }
-#endif
 
     private static void Add(Dictionary<Religion, float> weights, Religion religion, float weight)
     {
@@ -264,7 +252,6 @@ public static class ReligionConversionSystem
     }
 
     // 君主率国皈依(异文明帝国复归本土大教也走这里，见 ReligionSchismSystem.TryNativeTurns)
-#if EC_PENDING
     internal static void Convert(Realm realm, Religion faith, Religion old, string textKey = "ruler_conversion_log")
     {
         Person king = realm.Ruler;
@@ -289,10 +276,8 @@ public static class ReligionConversionSystem
         });
         LogService.LogInfo($"[EmpireCraft][宗教] {realm.GetKingdomName()} 由{old?.Name ?? "无教"}皈依{faith.Name}");
     }
-#endif
 
     // 中央皈依后，成员国君主陆续随之改宗
-#if EC_PENDING
     private static void FollowRealm(Realm realm)
     {
         if (!Within(realm.GetOrCreate().religion_converted_at, ConversionPushYears) || !realm.HasReligion()) return;
@@ -308,10 +293,8 @@ public static class ReligionConversionSystem
                 BackgroundReligionSystem.Convert(member.Capital, realm.Religion, member.Capital.Religion);
         }
     }
-#endif
 
     // 有小人时(没有背景人口传教)：皈依后的国家每年逐城改宗；哈里发国过了皈依期也慢慢改(见 CaliphateFaith)
-#if EC_PENDING
     private static void ManualCityConversion(List<Realm> realms)
     {
         foreach (Realm realm in realms)
@@ -341,6 +324,5 @@ public static class ReligionConversionSystem
             }
         }
     }
-#endif
 }
 }

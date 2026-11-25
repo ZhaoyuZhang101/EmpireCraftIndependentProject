@@ -30,13 +30,11 @@ public static class IndustryBuildingSystem
 
     private static readonly Dictionary<string, int> Tiers = new();
 
-#if EC_PENDING
-    public static int Tier(BuildingAsset asset) =>
-        asset != null && Tiers.TryGetValue(asset.id, out int tier) ? tier : 0;
+    public static int Tier(BuildingKind asset) =>
+        asset != null && Tiers.TryGetValue(asset.Id, out int tier) ? tier : 0;
 
-    public static bool IsMine(BuildingAsset asset) => asset?.type == "type_mine";
-    public static bool IsLumber(BuildingAsset asset) => asset?.type == LumberType;
-#endif
+    public static bool IsMine(BuildingKind asset) => asset?.Type == "type_mine";
+    public static bool IsLumber(BuildingKind asset) => asset?.Type == LumberType;
 
     // ---- 建筑定义(模组加载时) ----
 #if EC_PENDING
@@ -44,13 +42,13 @@ public static class IndustryBuildingSystem
     {
         try
         {
-            BuildingAsset mine = AssetManager.buildings.get("mine");
+            BuildingKind mine = BuildingKinds.Table.Get("mine");
             if (mine == null) return;
             Tiers["mine"] = 1;
             for (int i = 1; i < MineChain.Length; i++)
             {
                 int tier = i + 1;
-                BuildingAsset asset = Clone(MineChain[i], "mine");
+                BuildingKind asset = Clone(MineChain[i], "mine");
                 asset.cost = tier switch
                 {
                     2 => new ConstructionCost(10, 20, 0, 30),
@@ -58,15 +56,15 @@ public static class IndustryBuildingSystem
                     4 => new ConstructionCost(10, 40, 30, 120),
                     _ => new ConstructionCost(0, 60, 60, 200)
                 };
-                asset.construction_progress_needed = 150 + 100 * tier;
+                asset.ConstructionProgressNeeded = 150 + 100 * tier;
                 asset.base_stats["health"] = 200f * tier;
-                Tiers[asset.id] = tier;
+                Tiers[asset.Id] = tier;
             }
             for (int i = 0; i < LumberChain.Length; i++)
             {
                 int tier = i + 1;
-                BuildingAsset asset = Clone(LumberChain[i], "mine");
-                asset.type = LumberType;
+                BuildingKind asset = Clone(LumberChain[i], "mine");
+                asset.Type = LumberType;
                 asset.priority = 45;
                 asset.burnable = tier <= 3;
                 asset.draw_light_area = tier >= 4;
@@ -81,34 +79,34 @@ public static class IndustryBuildingSystem
                     4 => new ConstructionCost(10, 30, 20, 90),
                     _ => new ConstructionCost(0, 40, 40, 160)
                 };
-                asset.construction_progress_needed = 100 + 100 * tier;
+                asset.ConstructionProgressNeeded = 100 + 100 * tier;
                 asset.base_stats["health"] = 150f * tier;
-                Tiers[asset.id] = tier;
+                Tiers[asset.Id] = tier;
             }
             // 牧场(大型建筑)与屠宰场，见 AnimalHusbandrySystem
-            BuildingAsset pasture = Clone("ec_pasture", "mine");
-            pasture.type = AnimalHusbandrySystem.PastureType;
+            BuildingKind pasture = Clone("ec_pasture", "mine");
+            pasture.Type = AnimalHusbandrySystem.PastureType;
             pasture.fundament = new BuildingFundament(3, 3, 3, 1);
             pasture.priority = 40;
             pasture.burnable = true;
             pasture.draw_light_area = false;
             pasture.cost = new ConstructionCost(20, 0, 0, 15);
-            pasture.construction_progress_needed = 200;
+            pasture.ConstructionProgressNeeded = 200;
             pasture.base_stats["health"] = 300f;
             pasture.sound_idle = "event:/SFX/BUILDINGS_IDLE/IdleWindmill";
             pasture.sound_built = "event:/SFX/BUILDINGS/SpawnBuildingWood";
             pasture.sound_destroyed = "event:/SFX/BUILDINGS/DestroyBuildingWood";
-            BuildingAsset slaughterhouse = Clone("ec_slaughterhouse", "mine");
-            slaughterhouse.type = AnimalHusbandrySystem.SlaughterhouseType;
+            BuildingKind slaughterhouse = Clone("ec_slaughterhouse", "mine");
+            slaughterhouse.Type = AnimalHusbandrySystem.SlaughterhouseType;
             slaughterhouse.priority = 42;
             slaughterhouse.burnable = true;
             slaughterhouse.draw_light_area = false;
             slaughterhouse.cost = new ConstructionCost(15, 10, 0, 20);
-            slaughterhouse.construction_progress_needed = 200;
+            slaughterhouse.ConstructionProgressNeeded = 200;
             slaughterhouse.base_stats["health"] = 300f;
             slaughterhouse.sound_built = "event:/SFX/BUILDINGS/SpawnBuildingWood";
             slaughterhouse.sound_destroyed = "event:/SFX/BUILDINGS/DestroyBuildingWood";
-            if (AssetManager.buildings.get(ModernModMine) != null) Tiers[ModernModMine] = 2;
+            if (BuildingKinds.Table.Get(ModernModMine) != null) Tiers[ModernModMine] = 2;
             Link();
         }
         catch (Exception exception)
@@ -117,9 +115,9 @@ public static class IndustryBuildingSystem
         }
     }
 
-    private static BuildingAsset Clone(string id, string from)
+    private static BuildingKind Clone(string id, string from)
     {
-        BuildingAsset asset = AssetManager.buildings.get(id) ?? AssetManager.buildings.clone(id, from);
+        BuildingKind asset = BuildingKinds.Table.Get(id) ?? BuildingKinds.Table.clone(id, from);
         asset.sprite_path = "buildings/" + id;
         // 造型里的屋顶用原版的品红占位色画，游戏里换成王国颜色(和原版民居一样)
         asset.has_kingdom_color = true;
@@ -131,9 +129,9 @@ public static class IndustryBuildingSystem
         asset.has_sprites_main_disabled = false;
         asset.has_sprites_special = false;
         asset.can_be_upgraded = false;
-        asset.upgrade_to = null;
+        asset.UpgradeTo = null;
         asset.upgraded_from = null;
-        asset.upgrade_level = 0;
+        asset.UpgradeLevel = 0;
         return asset;
     }
 #endif
@@ -144,17 +142,17 @@ public static class IndustryBuildingSystem
     {
         try
         {
-            if (AssetManager.buildings.get("ec_mine_2") == null) return;
+            if (BuildingKinds.Table.Get("ec_mine_2") == null) return;
             LinkChain(MineChain);
             LinkChain(LumberChain);
             // Modern Mod 的二级矿场接到第 3 级(老存档里已经升上去的照样能往上升)
-            BuildingAsset modern = AssetManager.buildings.get(ModernModMine);
+            BuildingKind modern = BuildingKinds.Table.Get(ModernModMine);
             if (modern != null)
             {
                 Tiers[ModernModMine] = 2;
                 modern.can_be_upgraded = true;
-                modern.upgrade_to = MineChain[2];
-                modern.upgrade_level = 1;
+                modern.UpgradeTo = MineChain[2];
+                modern.UpgradeLevel = 1;
             }
             AddOrders();
         }
@@ -168,13 +166,13 @@ public static class IndustryBuildingSystem
     {
         for (int i = 0; i < chain.Length; i++)
         {
-            BuildingAsset asset = AssetManager.buildings.get(chain[i]);
+            BuildingKind asset = BuildingKinds.Table.Get(chain[i]);
             if (asset == null) continue;
             bool last = i == chain.Length - 1;
             asset.can_be_upgraded = !last;
-            asset.upgrade_to = last ? null : chain[i + 1];
+            asset.UpgradeTo = last ? null : chain[i + 1];
             asset.upgraded_from = i == 0 ? asset.upgraded_from : chain[i - 1];
-            asset.upgrade_level = i;
+            asset.UpgradeLevel = i;
         }
     }
 #endif
@@ -256,7 +254,6 @@ public static class IndustryBuildingSystem
     public const float WoodPerFactorYear = TreesPerLumberYear * WoodPerTree;
 
     // 本文化(本国采纳了的)科技做到这条链的第几级(0 = 第一级也还没解锁)
-#if EC_PENDING
     public static int UnlockedTier(City city, string[] chain)
     {
         int tier = 0;
@@ -264,7 +261,6 @@ public static class IndustryBuildingSystem
             if (TechnologySystem.CanBuild(city, chain[i])) tier = i + 1;
         return tier;
     }
-#endif
 
     // ---- 伐木：伐木场真的砍本城领地里的树 ----
     // 每座伐木场(按等级、有无工厂折算的产出倍数)每年砍 TreesPerLumberYear 棵，每棵出 WoodPerTree 份木头；
@@ -304,7 +300,7 @@ public static class IndustryBuildingSystem
                 foreach (Building tree in zone.getHashset(BuildingList.Trees))
                 {
                     if (felled.Count >= target) break;
-                    if (tree?.asset == null || tree.chopped || tree.isRuin()) continue;
+                    if (tree?.Asset == null || tree.chopped || tree.isRuin()) continue;
                     felled.Add(tree);
                 }
                 if (felled.Count >= target) break;
@@ -353,10 +349,10 @@ public static class IndustryBuildingSystem
         BarrenYears.Remove(id);
         Building weakest = null;
         int weakestTier = int.MaxValue;
-        foreach (Building building in city.buildings)
+        foreach (Building building in city.Buildings)
         {
-            if (building?.asset == null || !IsLumber(building.asset) || building.isOnRemove()) continue;
-            int tier = Tiers.TryGetValue(building.asset.id, out int value) ? value : 1;
+            if (building?.Asset == null || !IsLumber(building.Asset) || building.IsOnRemove()) continue;
+            int tier = Tiers.TryGetValue(building.Asset.Id, out int value) ? value : 1;
             if (tier >= weakestTier) continue;
             weakest = building;
             weakestTier = tier;
@@ -387,20 +383,18 @@ public static class IndustryBuildingSystem
 #endif
 
     // 本城有工厂时矿场、伐木场产出多两成五(以前是建在工业区里的)
-#if EC_PENDING
-    private static float OutputFactor(City city, Func<BuildingAsset, bool> kind)
+    private static float OutputFactor(City city, Func<BuildingKind, bool> kind)
     {
         float total = 0f;
         float bonus = FactoryBonus(city);
-        if (city?.buildings == null) return 0f;
-        foreach (Building building in city.buildings)
+        if (city?.Buildings == null) return 0f;
+        foreach (Building building in city.Buildings)
         {
-            if (building?.asset == null || !kind(building.asset) || building.isUnderConstruction()) continue;
-            int tier = Mathf.Clamp(Tier(building.asset), 1, TierOutput.Length);
+            if (building?.Asset == null || !kind(building.Asset) || building.IsUnderConstruction()) continue;
+            int tier = Mathf.Clamp(Tier(building.Asset), 1, TierOutput.Length);
             total += TierOutput[tier - 1] * bonus;
         }
         return total;
     }
-#endif
 }
 }

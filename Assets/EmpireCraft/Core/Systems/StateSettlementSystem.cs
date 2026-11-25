@@ -34,7 +34,6 @@ public static class StateSettlementSystem
     private static readonly Queue<long> PendingSearches = new();
     public static bool CreatingCity { get; private set; }
 
-#if EC_PENDING
     public static Realm FundingRealm(Realm owner)
     {
         if (owner == null || owner.IsGone()) return null;
@@ -42,12 +41,10 @@ public static class StateSettlementSystem
         return core != null && !core.IsGone() && !AncientWarfareCompatibility.Owns(core) &&
                owner.IsAdministrativeKingdomType() && !owner.HasMainTitle() ? core : owner;
     }
-#endif
 
     private static StateSettlementData Data(Realm payer) =>
         payer.GetOrCreate().settlement ??= new StateSettlementData();
 
-#if EC_PENDING
     private static IEnumerable<City> Cities(Realm payer)
     {
         foreach (City city in payer.Cities)
@@ -62,12 +59,10 @@ public static class StateSettlementSystem
                 if (ValidCity(city) && city.Realm == member) yield return city;
         }
     }
-#endif
 
     private static bool ValidCity(City city) => city?.Record != null && !city.IsGone() &&
         !AncientWarfareCompatibility.OwnsObject(city) && city.SeatCell() != null;
 
-#if EC_PENDING
     internal static IEnumerable<City> ExpansionCities(Realm payer)
     {
         Empire empire = payer.GetEmpire();
@@ -87,7 +82,6 @@ public static class StateSettlementSystem
 
     private static bool AllCitiesAtLimit(Realm payer) => ModClass.CITY_MAX_ZONES <= 0 ||
         ExpansionCities(payer).All(city => StateSettlementRules.AtZoneLimit(city.Zones.Count, ModClass.CITY_MAX_ZONES));
-#endif
 
     private static bool PopulationMode => CityPopulationSystem.AbstractPopulationEnabled && !ModClass.IS_CLEAR;
     private static bool Enabled => PopulationMode &&
@@ -194,7 +188,7 @@ public static class StateSettlementSystem
         if (ValidCity(lastCity) && (FundingRealm(lastCity.Realm) == payer ||
                 payer.GetEmpire() != null && lastCity.Realm?.GetEmpire() == payer.GetEmpire()) &&
             (lastCity.getTotalFood() < CityPopulationSystem.Households(lastCity) ||
-             lastCity.getPopulationMaximum() < CityPopulationSystem.GetTotal(lastCity)))
+             lastCity.GetPopulationMaximum() < CityPopulationSystem.GetTotal(lastCity)))
         { ReserveForProject(state, 0); state.status = "stabilizing"; return; }
         if (!AllCitiesAtLimit(payer))
         { ReserveForProject(state, 0); state.status = "expanding"; return; }
@@ -237,7 +231,6 @@ public static class StateSettlementSystem
         Math.Max(0, gold);
 
     // 自动科研和升级只用余款；建城仍按完整报价复核和扣款。
-#if EC_PENDING
     public static int DiscretionaryFunds(Realm kingdom)
         => (int)Math.Min(int.MaxValue, DiscretionaryBalance(kingdom));
 
@@ -257,6 +250,7 @@ public static class StateSettlementSystem
         return TreasuryRules.AvailableBalance(money, reserve, projectReserve);
     }
 
+#if EC_PENDING
     private static bool NeedsSettlement(City city, Realm payer, StateSettlementData state)
     {
         if (StateSettlementRules.AtZoneLimit(city.Zones.Count, ModClass.CITY_MAX_ZONES)) return true;
@@ -292,7 +286,7 @@ public static class StateSettlementSystem
         if (actor == null) return false;
         foreach (Cell border in city.border_zones)
             foreach (Cell zone in border.Neighbours)
-                if (zone?.City == null && zone?.Center != null && zone.GroundTiles > 0 &&
+                if (zone?.City == null && zone?.Center != null && zone.GroundCount > 0 &&
                     zone.canBeClaimedByCity(city) && zone.checkCanSettleInThisBiomes(actor.subspecies) &&
                     zone.Center.IsSameIsland(city.SeatCell()) && zone.Center.reachableFrom(city.SeatCell())) return true;
         return false;
@@ -464,7 +458,7 @@ public static class StateSettlementSystem
     {
         if (zone == null) return 0;
         Cell origin = landOrigin ?? source.SeatCell();
-        if (zone.City != null || zone.Center == null || zone.GroundTiles <= 0 ||
+        if (zone.City != null || zone.Center == null || zone.GroundCount <= 0 ||
             !zone.Center.IsSameIsland(origin) || !zone.Center.reachableFrom(origin) ||
             !zone.checkCanSettleInThisBiomes(actor.subspecies)) return 0;
         if (search.terrainScores.TryGetValue(zone.Index, out int score)) return score;
@@ -473,7 +467,7 @@ public static class StateSettlementSystem
             foreach (Cell tile in zone.Tiles)
                 if (tile?.Type?.CanBeFarm == true) fields++;
         // 周围能建设/耕作的土地优先，木石加分设上限，避免一片矿石压过安置条件。
-        score = zone.GroundTiles + fields * 2 + (zone.canStartCityHere() ? 32 : 0) +
+        score = zone.GroundCount + fields * 2 + (zone.canStartCityHere() ? 32 : 0) +
             Math.Min(12, zone.getHashset(BuildingList.Trees)?.Count ?? 0) * 3 +
             Math.Min(4, zone.getHashset(BuildingList.Minerals)?.Count ?? 0) * 8;
         search.terrainScores[zone.Index] = score;
@@ -520,13 +514,13 @@ public static class StateSettlementSystem
             ? 0
             : Math.Max(0, ModClass.SETTLEMENT_PREPARATION_MONTHS);
 
-#if EC_PENDING
     private static bool Ready(StateSettlementProject project) => project.started >= 0d &&
         GameClock.Now >= project.started && GameClock.MonthsSince(project.started) >=
         PreparationMonths(project) +
         (project.overseas ? SettlementSeaSearch.TravelMonths(project.sea_route?.Count ?? 0,
             EmpireWorld.Current?.CityByKey(project.embarkation_city)) : 0);
 
+#if EC_PENDING
     private static bool Prepare(Realm payer, StateSettlementProject project, City source, Cell target, out string reason)
     {
         if (project.spontaneous) return PrepareSpontaneous(project, source, out reason);
@@ -859,7 +853,6 @@ public static class StateSettlementSystem
         state.status = reason;
     }
 
-#if EC_PENDING
     public static bool AwaitingPopulation(City city) => CreatingCity || city?.Realm != null &&
         FundingRealm(city.Realm)?.GetOrCreate().settlement?.project is StateSettlementProject project &&
         project.city == city.Key && project.migrants.Any(move => !move.done);
@@ -870,6 +863,7 @@ public static class StateSettlementSystem
         return LM.Get("state_settlement_" + (payer == null ? "idle" : Data(payer).status));
     }
 
+#if EC_PENDING
     public static bool WantsPort(City city) => PopulationMode && ValidCity(city) &&
         (FundingRealm(city.Realm)?.GetOrCreate().settlement?.status == "resettlement_port" ||
          Enabled && FundingRealm(city.Realm)?.GetOrCreate().settlement?.status == "port") &&

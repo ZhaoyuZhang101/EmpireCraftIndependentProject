@@ -108,6 +108,7 @@ public static class SyncretismSystem
             for (int j = 0; j < list.Count; j++)
                 if (i != j) link(list[i], list[j], weight);
     }
+#endif
 
     private static void Accumulate(Dictionary<(Religion learner, Religion source), float> contacts, ReligionSyncretismConfig config)
     {
@@ -164,7 +165,6 @@ public static class SyncretismSystem
             TryAbsorb(religion, Tolerant(religion), config);
         }
     }
-#endif
 
     private static void Forget(ReligionExtension.ReligionExtraData data, long id)
     {
@@ -172,7 +172,6 @@ public static class SyncretismSystem
         data.ContactYears?.Remove(id);
     }
 
-#if EC_PENDING
     private static void TryAbsorb(Religion religion, bool tolerant, ReligionSyncretismConfig config)
     {
         ReligionExtension.ReligionExtraData data = religion.GetOrCreate();
@@ -212,7 +211,6 @@ public static class SyncretismSystem
         ReligionDiagnostics.Add(ReligionDiagnostics.Syncretism);
         LogService.LogInfo($"[EmpireCraft][宗教] {text}");
     }
-#endif
 
     // 教义名：本地圣徒带上来源的天下
     public static string TenetName(string id, string sphere)
@@ -235,13 +233,10 @@ public static class SyncretismSystem
     #region 皈依事件
 
     // 君主皈依 target 的权重 ≥1 却没成：current 取其仪轨
-#if EC_PENDING
     public static void NoteFailedConversion(Religion current, Religion target) =>
         Bump(current, target, ReligionTenets.Syncretism.failed_conversion);
-#endif
 
     // 改奉之后：新教收旧教的本地圣徒、节庆
-#if EC_PENDING
     public static void NoteConversion(Religion old, Religion faith) => Bump(faith, old, ReligionTenets.Syncretism.after_conversion);
 
     private static void Bump(Religion learner, Religion source, float amount)
@@ -255,7 +250,6 @@ public static class SyncretismSystem
         data.Contact.TryGetValue(source.data.id, out float current);
         data.Contact[source.data.id] = Mathf.Min(config.max_exposure, current + amount);
     }
-#endif
 
     #endregion
 

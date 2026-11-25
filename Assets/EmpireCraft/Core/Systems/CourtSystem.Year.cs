@@ -53,7 +53,6 @@ public static partial class CourtSystem
 
     #region 资本、圣眷、怨望
 
-#if EC_PENDING
     private static void Income(Empire empire, FixedFaction faction, List<Person> council)
     {
         CourtFactionState data = FactionState(empire, faction);
@@ -76,7 +75,6 @@ public static partial class CourtSystem
             data.ally = "";
         }
     }
-#endif
 
     // 皇帝方略：一派独大则制衡；威权不足又有宠信的派系则偏宠；有派系怨望过高而皇帝威权足则打压；否则亲政
 #if EC_PENDING
@@ -97,6 +95,7 @@ public static partial class CourtSystem
         if (angry != null && (legitimacy >= 70 || empire.Emperor.HasTrait("paranoid"))) return ("suppress", angry.GetID());
         return ("personal", "");
     }
+#endif
 
     private static void SetStrategy(Empire empire, CourtState state, string strategy, string target)
     {
@@ -105,7 +104,6 @@ public static partial class CourtSystem
         state.strategy = strategy;
         state.strategy_target = target;
     }
-#endif
 
     // 批红的人变了(幼主成年亲政、新君即位、权臣倒台，或反过来皇帝失势)：方略当月改定，不等年度结算。
     // 以前方略一年才定一次，成年的皇帝亲政后还挂着"摄政"，最长一年(年度结算那时帝位虚悬就更久)。
@@ -208,7 +206,6 @@ public static partial class CourtSystem
     }
 
     // 弹劾对手：内阁制弹劾别派阁臣，其他朝廷弹劾别派的中央官员。罪证(贪腐、近年财政案)越多越容易成，失败反坐
-#if EC_PENDING
     private static bool TryImpeach(Empire empire, CourtState state, FixedFaction faction, CourtFactionState data,
         List<Person> council)
     {
@@ -275,10 +272,8 @@ public static partial class CourtSystem
         }
         return true;
     }
-#endif
 
     // 结盟：找立场相近(各阶层亲和度方向一致；朋党还看利义议题，见 CourtDoctrine)的派系，都不能一家独大
-#if EC_PENDING
     private static bool TryAlly(Empire empire, CourtState state, FixedFaction faction, CourtFactionState data,
         List<FixedFaction> factions)
     {
@@ -297,7 +292,6 @@ public static partial class CourtSystem
         Log(state, "court_log_ally", faction.Name, partner.Name);
         return true;
     }
-#endif
 
     public static float Similarity(FixedFaction a, FixedFaction b)
     {
@@ -468,7 +462,6 @@ public static partial class CourtSystem
 #endif
 
     // 阁席数随皇帝治理能力(3~15 线性对应 1~满员)
-#if EC_PENDING
     public static int CabinetSize(Empire empire)
     {
         Regime regime = empire?.CoreKingdom?.GetRegime();
@@ -489,7 +482,6 @@ public static partial class CourtSystem
                                    actor.CanServeOffice(core))
             .Distinct();
     }
-#endif
 
     public static float Competence(Person actor) => actor == null ? 0f : actor.Stewardship + actor.Intelligence;
 
@@ -523,7 +515,6 @@ public static partial class CourtSystem
 #endif
 
     // 内阁吏治：阁臣才干均值高于 20 时逐年压低中央腐败，低于时推高(每年最多 ±2%)
-#if EC_PENDING
     public static float CabinetEfficiency(Empire empire)
     {
         List<Person> members = Council(empire);
@@ -536,7 +527,6 @@ public static partial class CourtSystem
         float efficiency = CabinetEfficiency(empire);
         if (Mathf.Abs(efficiency) > 0.01f) empire.CoreKingdom.AddCorruptionRate(-0.02d * efficiency);
     }
-#endif
 
     #endregion
 }

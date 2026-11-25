@@ -14,7 +14,6 @@ public static class ConstitutionalSuccessionSystem
     // 万世一系(用户 2026-10-29 "天皇不应该是万世一系的吗""加万世一系")：日本一系的君主国，皇位只在皇室一系里传——
     // 不篡位、不改朝换代、外姓与外家不入继；权臣(摄关)、将军照旧掌实权，只是坐不上皇位(见 MilitaryRegency、Empire 的权臣)；
     // 皇位空缺由公卿在皇族里拥立(TryHandleVacancy)。皇室整个绝了才照常继承，免得皇位一直空着
-#if EC_PENDING
     public static bool Unbroken(Empire empire)
     {
         if (empire?.data == null || empire.data.empire_specific_clan <= 0 || empire.data.constitutional_economy?.is_republic == true) return false;
@@ -22,16 +21,12 @@ public static class ConstitutionalSuccessionSystem
         if (core?.Record == null || core.IsGone() || !RegimeManager.IsMonarchy(core.GetRegime()?.type)) return false;
         return InstitutionSystem.GetCultureLine(CultureService.GetRealmCulture(core)) == "Japan" && DynastyAlive(empire);
     }
-#endif
 
     // 皇位只在原皇室一系里传：立宪保护或万世一系
-#if EC_PENDING
     public static bool ThroneBound(Empire empire) => IsProtected(empire) || Unbroken(empire);
-#endif
 
     // 万世一系：同一天下里已有万世一系的天皇在位，别的日本诸侯不另立天皇称帝(皇族一系另立的不挡，如南北朝)；
     // 打下天下的大名在天皇之下当将军(见 MilitaryRegency)
-#if EC_PENDING
     public static bool BlocksRivalThrone(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.Ruler?.Record == null || ModClass.EMPIRE_MANAGER == null) return false;
@@ -46,7 +41,6 @@ public static class ConstitutionalSuccessionSystem
         }
         return false;
     }
-#endif
 
     // 皇室在世与否几秒才查一次(要扫全部宗族，继承、即位的判断调得很勤)
     private const float AliveCacheSeconds = 5f;
@@ -63,7 +57,6 @@ public static class ConstitutionalSuccessionSystem
         return alive;
     }
 
-#if EC_PENDING
     public static bool IsProtected(Empire empire)
     {
         ConstitutionalEconomyState state = empire?.data?.constitutional_economy;
@@ -73,7 +66,6 @@ public static class ConstitutionalSuccessionSystem
                 state.constitution?.clauses?.form_of_state == ConstitutionFormOfState.ConstitutionalMonarchy ||
                 ParliamentSystem.HasParliament(empire));
     }
-#endif
 
     public static bool CanInherit(Empire empire, Person actor) =>
         actor != null && !actor.IsGone() && actor.Alive && actor.IsFitToRule() &&
@@ -124,11 +116,11 @@ public static class ConstitutionalSuccessionSystem
         Person realized = virtualHeir?.Realize();
         return CanInherit(empire, realized) ? realized : null;
     }
+#endif
 
     public static string SelectionRelation(Empire empire) => LM.Get(!IsProtected(empire) && Unbroken(empire)
         ? "unbroken_succession_court"
         : ParliamentSystem.HasParliament(empire) ? "constitutional_succession_parliament" : "constitutional_succession_cabinet");
-#endif
 
     // 返回 true 表示该空位由宪制处理，禁止再回退到官员、选帝侯或普通王国选举。
 #if EC_PENDING

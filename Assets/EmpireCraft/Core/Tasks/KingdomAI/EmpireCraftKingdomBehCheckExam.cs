@@ -8,7 +8,7 @@ public class EmpireCraftKingdomBehCheckExam: GameAIKingdomBase
 {
     public override Type OriginalBeh => GetType();
 #if EC_PENDING
-    public override BehResult execute(Realm pKingdom)
+    public override BehResult Execute(Realm pKingdom)
     {
         // 旧存档里船只/战争机器当了君主：撤下，由原版另选(新的册立已在 KingdomPatch.before_new_emperor 拦下)
         if (pKingdom.Ruler != null && pKingdom.Ruler.IsWarMachine()) pKingdom.RemoveRuler();

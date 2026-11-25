@@ -96,7 +96,6 @@ public static class WarCatalog
     #region 目标与结局
 
     // 目标说一句话：夺取洛阳、偃师；争河南法理里北燕的 4 城；吞并北燕全境 6 城……
-#if EC_PENDING
     public static string GoalText(War war)
     {
         if (war?.Record == null) return "";
@@ -128,7 +127,6 @@ public static class WarCatalog
                 return string.Format(LM.Get("war_goal_text_" + goal), defender, main);
         }
     }
-#endif
 
     // 拿到目标会怎样(提示框、窗口的"达成"一行)
     public static string Outcome(War war)

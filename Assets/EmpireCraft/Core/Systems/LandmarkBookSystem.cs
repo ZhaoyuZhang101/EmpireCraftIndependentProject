@@ -166,13 +166,13 @@ public static class LandmarkBookSystem
 #if EC_PENDING
     private static void WriteScholarlyBooks(List<City> cities)
     {
-        if (cities == null || EmpireWorld.Current?.books == null) return;
+        if (cities == null || EmpireWorld.Current?.Books == null) return;
         using var timing = new PerfTimer("士人著述");
         int budget = Math.Max(1, cities.Count / 4);
         foreach (City city in cities.OrderBy(_ => EcRandom.value))
         {
             if (budget <= 0) return;
-            if (city == null || city.IsGone() || city.People == null || !city.hasBookSlots()) continue;
+            if (city == null || city.IsGone() || city.People == null || !city.HasBookSlots()) continue;
             // 先掷骰：概率最高 30%，掷不中就不必统计全城人口(概率分布与先算后掷相同)
             float roll = EcRandom.value;
             if (roll >= ScholarMaxChance) continue;
@@ -193,7 +193,7 @@ public static class LandmarkBookSystem
             if (author == null) continue;
             try
             {
-                if (EmpireWorld.Current.books.generateNewBook(author) != null) budget--;
+                if (EmpireWorld.Current.Books.GenerateNewBook(author) != null) budget--;
             }
             catch (Exception exception)
             {
@@ -219,7 +219,7 @@ public static class LandmarkBookSystem
         Book book;
         try
         {
-            book = EmpireWorld.Current.books.generateNewBook(author);
+            book = EmpireWorld.Current.Books.GenerateNewBook(author);
         }
         catch (Exception exception)
         {
@@ -277,7 +277,7 @@ public static class LandmarkBookSystem
         float bestScore = float.MinValue;
         foreach (City city in cities)
         {
-            if (city == null || city.IsGone() || city.getBuildingWithBookSlot() == null) continue;
+            if (city == null || city.IsGone() || city.GetBuildingWithBookSlot() == null) continue;
             foreach (Person actor in city.People)
             {
                 if (actor == null || !actor.Alive || !actor.IsAdult() || actor.language == null ||
@@ -292,7 +292,7 @@ public static class LandmarkBookSystem
         if (best == null && CityPopulationSystem.AbstractPopulationEnabled)
         {
             City city = cities.Where(candidate => candidate != null && !candidate.IsGone() &&
-                                                  candidate.getBuildingWithBookSlot() != null)
+                                                  candidate.GetBuildingWithBookSlot() != null)
                 .OrderByDescending(CityPopulationSystem.Households).FirstOrDefault();
             best = CityPopulationSystem.SpawnScholar(city);
         }
@@ -305,7 +305,6 @@ public static class LandmarkBookSystem
     #region 启发
 
     // 名著被读到：读者所在的文化如果还没受过这本书的启发，就受一次(外来的技术进度减半)
-#if EC_PENDING
     public static void OnRead(Book book, string readerCulture)
     {
         if (!CultureService.IsValidCulture(readerCulture) || !book.TryGetLandmark(out BookExtension.BookExtraData data))
@@ -316,9 +315,9 @@ public static class LandmarkBookSystem
         CultureTechState state = TechnologySystem.GetState(readerCulture);
         state.known_books ??= new List<string>();
         if (state.known_books.Contains(config.id)) return; // 本文化已经有这部书的思想了
-        Inspire(readerCulture, config, ForeignTechFactor, book.name);
+        Inspire(readerCulture, config, ForeignTechFactor, book.Name);
         Announce(readerCulture, null, string.Format(LM.Get("landmark_book_spread_log"),
-            book.name, readerCulture.GetCultureTranslate()), -1L);
+            book.Name, readerCulture.GetCultureTranslate()), -1L);
     }
 
     private static void Inspire(string culture, LandmarkBookConfig config, float techFactor, string title)
@@ -333,7 +332,6 @@ public static class LandmarkBookSystem
             CultureService.GetMainCulture(city) == culture).ToList() ?? new List<City>();
         TryApplyIdeologyEffect(culture, cities, state, config, techFactor, title);
     }
-#endif
 
     // 理念随书流入(边境往来，见 IdeologySpreadSystem)：本文化收到这部奠基名著的一个抄本，
     // 放进一座能藏书的城、算作被读到。没有能藏书的城时传不进来，返回 false；已经有这部书返回 true
@@ -344,13 +342,13 @@ public static class LandmarkBookSystem
         if (config == null || HasFoundingBook(culture, ideology)) return true;
         List<City> cities = EmpireWorld.Current?.Cities?.Where(city => city != null && !city.IsGone() &&
                                                                CultureService.GetMainCulture(city) == culture &&
-                                                               city.getBuildingWithBookSlot() != null).ToList();
+                                                               city.GetBuildingWithBookSlot() != null).ToList();
         if (cities == null || cities.Count == 0) return false;
         string title = GetTitle(config.id, culture);
         try
         {
             Person copyist = PickAuthor(cities);
-            Book book = copyist == null ? null : EmpireWorld.Current.books.generateNewBook(copyist);
+            Book book = copyist == null ? null : EmpireWorld.Current.Books.GenerateNewBook(copyist);
             if (book != null)
             {
                 book.setName(title);
@@ -397,10 +395,9 @@ public static class LandmarkBookSystem
     private static bool TryGetIdeology(LandmarkBookConfig config, out PartyIdeology ideology) =>
         Enum.TryParse(config?.ideology, true, out ideology) && Enum.IsDefined(typeof(PartyIdeology), ideology);
 
-#if EC_PENDING
     private static bool MeetsEnvironment(City city, LandmarkBookConfig config)
     {
-        if (city == null || city.IsGone() || city.Realm == null || city.getBuildingWithBookSlot() == null)
+        if (city == null || city.IsGone() || city.Realm == null || city.GetBuildingWithBookSlot() == null)
             return false;
         string environment = config.environment?.Trim().ToLowerInvariant() ?? "";
         if (string.IsNullOrEmpty(environment)) return true;
@@ -452,7 +449,6 @@ public static class LandmarkBookSystem
         Announce(culture, null, string.Format(LM.Get("landmark_book_ideology_outbreak_log"), title,
             culture.GetCultureTranslate(), PartySystem.GetIdeologyName(ideology), changed), -1L);
     }
-#endif
 
     #region 藏书的持续理念影响
 
@@ -472,7 +468,6 @@ public static class LandmarkBookSystem
     private const float InitialMaturity = 0.25f;
     private const float UnripeSocietyFactor = 0.35f;
 
-#if EC_PENDING
     private static float Maturity(Book book)
     {
         double created = book?.data?.created_time ?? 0d;
@@ -483,19 +478,15 @@ public static class LandmarkBookSystem
 
     private static float Damped(City city, PartyIdeology ideology, float intensity) =>
         intensity * Math.Max(0f, 1f - IdeologyPopulationSystem.GetCityShare(city, ideology) / SaturationShare);
-#endif
 
     public readonly struct CityIdeologyBook
     {
-#if EC_PENDING
         public readonly Book Book;
-#endif
         public readonly PartyIdeology Ideology;
         public readonly float Maturity;       // 0.25~1：成书越久越高
         public readonly bool SocietyReady;    // 本城社会条件是否符合这本书
         public readonly float Strength;
 
-#if EC_PENDING
         public CityIdeologyBook(Book book, PartyIdeology ideology, float maturity, bool societyReady, float strength)
         {
             Book = book;
@@ -504,26 +495,24 @@ public static class LandmarkBookSystem
             SocietyReady = societyReady;
             Strength = strength;
         }
-#endif
     }
 
     // 城里藏着的理念名著(连同发酵程度、社会条件是否成熟)
-#if EC_PENDING
     public static List<CityIdeologyBook> GetCityIdeologyBooks(City city)
     {
         var result = new List<CityIdeologyBook>();
-        if (city?.buildings == null || EmpireWorld.Current?.books == null) return result;
+        if (city?.Buildings == null || EmpireWorld.Current?.Books == null) return result;
         var environmentFit = new Dictionary<string, bool>();
         // 印刷等级决定书印得多不多：无纸时理念书籍传不开，手抄本只有一半影响(见 MediaSystem)
         float media = MediaSystem.BookFactor(city.Realm);
         if (media <= 0f) return result;
-        foreach (Building building in city.buildings)
+        foreach (Building building in city.Buildings)
         {
-            List<long> ids = building?.data?.books?.list_books;
+            List<long> ids = building?.Record?.Books?.Ids;
             if (ids == null) continue;
             foreach (long id in ids)
             {
-                Book book = EmpireWorld.Current.books.get(id);
+                Book book = EmpireWorld.Current.Books.Get(id);
                 if (book == null || book.IsGone()) continue;
                 // 理念著作(见 SpeechFreedomSystem)：影响力比名著小，不看社会条件
                 if (book.TryGetIdeologyTreatise(out BookExtension.BookExtraData treatise) &&
@@ -549,10 +538,8 @@ public static class LandmarkBookSystem
         }
         return result;
     }
-#endif
 
     // 理念 → 强度(多本同理念的书叠加，有上限)
-#if EC_PENDING
     public static Dictionary<PartyIdeology, float> GetCityBookInfluences(City city)
     {
         var result = new Dictionary<PartyIdeology, float>();
@@ -563,17 +550,13 @@ public static class LandmarkBookSystem
         }
         return result;
     }
-#endif
 
     // 以前全图一次算完要 400 ms 左右(每本书都要算城市的就业/土地报告，邻城再算一遍)，年年卡一下。
     // 现在由年度理念交往(IdeologyPopulationSystem.TickContact)处理完后排队，每帧只花约 2 ms；
     // 城市经济形态、书的社会条件每轮各算一次。
-#if EC_PENDING
     private static readonly FrameBudgetQueue<City> InfluenceQueue = new(2d, InfluenceFromCity, "藏书理念影响");
-#endif
     private static readonly Dictionary<(long city, string environment), bool> EnvironmentCache = new();
 
-#if EC_PENDING
     public static void ResetRuntimeState()
     {
         InfluenceQueue.Cancel();
@@ -612,10 +595,8 @@ public static class LandmarkBookSystem
             }
         }
     }
-#endif
 
     // 书的社会条件(繁荣/工业化/工潮……)要算城市的就业和土地报告，很贵；同一轮里同一城同一条件只算一次
-#if EC_PENDING
     private static bool MeetsEnvironmentCached(City city, LandmarkBookConfig config)
     {
         var key = (city.Key, config.environment ?? "");
@@ -624,7 +605,6 @@ public static class LandmarkBookSystem
         EnvironmentCache[key] = result;
         return result;
     }
-#endif
 
     #endregion
 
@@ -654,7 +634,6 @@ public static class LandmarkBookSystem
     }
 
     // 书一出现，本文化正在推行的相关改革立刻往前推一截
-#if EC_PENDING
     private static void PushActiveReforms(string culture, LandmarkBookConfig book)
     {
         if (book.institutions.Count == 0 || book.institution_progress <= 0f) return;
@@ -668,11 +647,9 @@ public static class LandmarkBookSystem
             reform.progress = Math.Min(100f, reform.progress + book.institution_progress);
         }
     }
-#endif
 
     #endregion
 
-#if EC_PENDING
     private static void Announce(string culture, Realm kingdom, string text, long actorId)
     {
         TranslateHelper.LogEventMessage(text, kingdom);
@@ -685,6 +662,5 @@ public static class LandmarkBookSystem
                 actorId: actorId, kingdomId: empire.CoreKingdom?.Key ?? -1L);
         }
     }
-#endif
 }
 }

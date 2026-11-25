@@ -10,7 +10,7 @@ public class EmpireCraftActorAddLover:GameAIActorBase
     public override Type OriginalBeh => GetType();
 
 #if EC_PENDING
-    public override BehResult execute(Person pActor)
+    public override BehResult Execute(Person pActor)
     {
         if (!pActor.IsFitToRule()) return BehResult.Continue;
         // 原版几岁就算成年：到了生养的年纪才纳妾、娶妻(见 RealisticAgeSystem.MinParentAge)

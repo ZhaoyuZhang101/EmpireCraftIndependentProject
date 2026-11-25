@@ -194,6 +194,7 @@ public static class CultureModernizationSystem
         }
         return changed;
     }
+#endif
 
     private static void ReplaceConservativeGovernment(Empire empire)
     {
@@ -213,6 +214,7 @@ public static class CultureModernizationSystem
                              StringComparison.Ordinal))
         .ToList();
 
+#if EC_PENDING
     private static int MoveConservativesIntoModernPolitics(string culture)
     {
         int changed = 0;

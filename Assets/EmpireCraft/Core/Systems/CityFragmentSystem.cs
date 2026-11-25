@@ -108,7 +108,7 @@ public static class CityFragmentSystem
         if (touched.Count == 0) return 0;
         CityDistricts.Reset();
         foreach (City city in touched)
-            if (city?.Record != null && !city.IsGone()) PureMapPatch.Redraw(city);
+            if (city?.Record != null && !city.IsGone()) GameView.Redraw(city);
         calc.setDrawnZonesDirty();
         return count;
     }

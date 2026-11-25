@@ -42,7 +42,6 @@ public static partial class InstitutionSystem
     #region 倾向
 
     // 本派倾向推行的节点，按先后：神力固定的、前置齐的、支持权重高的、基础的
-#if EC_PENDING
     public static List<InstitutionNodeConfig> PreferenceOrder(InstitutionRealm realm, FixedFaction faction)
     {
         var result = new List<InstitutionNodeConfig>();
@@ -67,10 +66,8 @@ public static partial class InstitutionSystem
 
     public static InstitutionNodeConfig PreferredNode(Empire empire, FixedFaction faction) =>
         empire?.CoreKingdom == null ? null : PreferredNode(InstitutionRealm.Of(empire), faction);
-#endif
 
     // 本派想回退的：神力固定的优先，否则本派反对权重最高、可回退的已施行制度
-#if EC_PENDING
     public static InstitutionNodeConfig RevertTarget(InstitutionRealm realm, FixedFaction faction)
     {
         if (realm == null || faction == null) return null;
@@ -87,7 +84,6 @@ public static partial class InstitutionSystem
 
     public static InstitutionNodeConfig RevertTarget(Empire empire, FixedFaction faction) =>
         empire?.CoreKingdom == null ? null : RevertTarget(InstitutionRealm.Of(empire), faction);
-#endif
 
     // 改革线空着时，派系按占比从大到小：先看要不要回退，再走本派倾向的节点(candidates 是这一轮能推、支持也够的)
 #if EC_PENDING
@@ -287,7 +283,6 @@ public static partial class InstitutionSystem
 #endif
 
     // 众怒难犯：回退作罢，倡议的派系在朝堂上折了本钱
-#if EC_PENDING
     private static void CollapseRevert(InstitutionRealm realm, InstitutionNodeConfig node, InstitutionReformState reform)
     {
         EnsureRealmState(realm).active_reform = null;
@@ -302,7 +297,6 @@ public static partial class InstitutionSystem
         realm.Record(content, actorId: realm.Ruler?.Key ?? -1L, kingdomId: realm.Core?.Key ?? -1L);
         EmpireCraft.Core.TranslateHelper.LogEventMessage(content, realm.Core);
     }
-#endif
 
     // 推完：撤下这项(它取代的旧制度恢复，同文化各政权一并同步)，正统 -5，拥护它的阶层怨气上涨
 #if EC_PENDING
@@ -327,14 +321,12 @@ public static partial class InstitutionSystem
 #endif
 
     // 显示用：回退的改革写成"回退「某制」"
-#if EC_PENDING
     public static string ReformName(Empire empire, InstitutionReformState reform)
     {
         if (reform == null) return LM.Get("label_none");
         string name = GetNodeName(empire, InstitutionDefinitionRegistry.Get(reform.node_id));
         return reform.revert ? string.Format(LM.Get("institution_revert_label"), name) : name;
     }
-#endif
 
     public static string ReformName(InstitutionReformState reform, string culture)
     {

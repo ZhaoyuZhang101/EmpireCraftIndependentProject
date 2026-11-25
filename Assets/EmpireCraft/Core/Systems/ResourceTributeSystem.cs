@@ -14,7 +14,6 @@ public static class ResourceTributeSystem
     private const string PastureGoods = "leather";
     private static double _lastScan = -1d;
 
-#if EC_PENDING
     public static void Impose(Realm debtor, Realm creditor, string resource)
     {
         if (debtor?.Record == null || creditor?.Record == null || debtor.IsGone() || creditor.IsGone() || debtor == creditor ||
@@ -28,7 +27,6 @@ public static class ResourceTributeSystem
         TranslateHelper.LogEventMessage(string.Format(LM.Get("war_peace_resource_tribute"), debtor.GetKingdomName(),
             creditor.GetKingdomName(), WarCatalog.ResourceName(resource), Years), creditor);
     }
-#endif
 
     // 每月看一次(挂 WarReparationsSystem 的月度扫描)，各笔满一年送一次
 #if EC_PENDING

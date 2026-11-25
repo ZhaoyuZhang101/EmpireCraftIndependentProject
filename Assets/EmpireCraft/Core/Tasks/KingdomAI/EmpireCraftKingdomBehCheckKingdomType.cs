@@ -45,7 +45,6 @@ public class EmpireCraftKingdomBehCheckKingdomType: GameAIKingdomBase
         return (key, parts.Length > 1 ? parts[1] : "");
     });
 
-#if EC_PENDING
     private static bool MatchConditions(Realm kingdom, Regime regime, List<string> conditions)
     {
         if (conditions == null || conditions.Count == 0) return false;
@@ -90,7 +89,7 @@ public class EmpireCraftKingdomBehCheckKingdomType: GameAIKingdomBase
                 case ConditionType.another_race:
                 {
                     var expect = val.Equals("true", StringComparison.OrdinalIgnoreCase);
-                    var actual = empire is { CoreKingdom: not null } && kingdom.species_id != empire.CoreKingdom.species_id;
+                    var actual = empire is { CoreKingdom: not null } && kingdom.SpeciesId != empire.CoreKingdom.SpeciesId;
                     if (actual != expect) return false;
                     break;
                 }
@@ -259,7 +258,8 @@ public class EmpireCraftKingdomBehCheckKingdomType: GameAIKingdomBase
         }
         return true;
     }
-    public override BehResult execute(Realm pKingdom)
+#if EC_PENDING
+    public override BehResult Execute(Realm pKingdom)
     {
         if (pKingdom.IsGone()) return BehResult.Continue;
         pKingdom.CacheData();
@@ -460,7 +460,6 @@ public class EmpireCraftKingdomBehCheckKingdomType: GameAIKingdomBase
     }
 
     // 省名的正主：控制着所用法理(托管的或自持的)首府的那个政权
-#if EC_PENDING
     private static bool HoldsTitleCapital(Realm kingdom)
     {
         KingdomTitle title = kingdom.GetAdministrativeTitle() ?? kingdom.GetMainTitle();
@@ -487,10 +486,8 @@ public class EmpireCraftKingdomBehCheckKingdomType: GameAIKingdomBase
         if (settings.TryGetValue(regime.default_kingdom, out var fallback) && fallback != null) return fallback;
         return settings.TryGetValue(KingdomType.default_country_post, out var generic) ? generic : null;
     }
-#endif
     
     //依据制度的不同选项动态调整国家后缀
-#if EC_PENDING
     public static KingdomType CalcKingdomType(Realm kingdom)
     {
         var regime = kingdom.GetRegime();
@@ -529,7 +526,6 @@ public class EmpireCraftKingdomBehCheckKingdomType: GameAIKingdomBase
         }
         return  regime.default_kingdom;
     }
-#endif
     // 已是军府、节度使改为世袭(仍有外交与兵权)的藩镇。
     // 读存下的类别，不能用 GetKingdomType：存的类别不在当前政体的配置里时，GetKingdomType 会回头调 CalcKingdomType，
     // CalcKingdomType 又调到这里，无限递归到栈溢出，游戏原生闪退(10-08 起 ntdll 0x4a612 那批闪退就是这个)

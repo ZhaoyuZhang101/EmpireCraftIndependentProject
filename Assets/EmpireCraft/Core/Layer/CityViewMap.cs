@@ -9,8 +9,8 @@ public sealed class CityViewColor : RecordObject<IdeologyMapColorData>
 {
     private Tint _color;
 
+    public override EntityKind KindOfEntity => MetaTypeExtension.CityView;
 #if EC_PENDING
-    public override MetaType meta_type => MetaTypeExtension.CityView;
     public override ColorLibrary getColorLibrary() => AssetManager.culture_colors_library;
 #endif
     public override Tint GetColor() => _color;

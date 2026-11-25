@@ -47,15 +47,12 @@ public static partial class HolyRomanSystem
         return state == null || state.authority < 0 ? ImperialAuthorityRules.NewEmpire : state.authority;
     }
 
-#if EC_PENDING
     public static bool AuthorityTracked(Empire empire) => HasDiet(empire) && State(empire)?.authority >= 0;
-#endif
 
     public static string AuthorityTierText(int authority) =>
         LM.Get("hre_auth_tier_" + ImperialAuthorityRules.Tier(authority));
 
     // 起算：新帝国 50；旧档按现状折算，文化节点已施行的直接记帝国改革已颁行(不扣权威，行为不变)
-#if EC_PENDING
     private static void EnsureAuthority(Empire empire, HolyRomanState state)
     {
         if (state == null || state.authority >= 0) return;
@@ -70,10 +67,8 @@ public static partial class HolyRomanSystem
         LogService.LogInfo($"[EmpireCraft][神罗] {empire.GetEmpireFullName()} 帝国权威起算 {state.authority}" +
                            (legacy ? "(旧档折算)" : "(新帝国)"));
     }
-#endif
 
     // 唯一的加减入口：软顶、夹值、记账、诊断；返回实际变动
-#if EC_PENDING
     public static int ChangeAuthority(Empire empire, int delta, string textKey, params object[] args)
     {
         if (delta == 0 || !HasDiet(empire)) return 0;
@@ -98,21 +93,15 @@ public static partial class HolyRomanSystem
             MonarchyLegitimacy.Invalidate(empire);
         return real;
     }
-#endif
 
     // 够不够门槛(没有帝国议会的帝国不讲权威，一律够)
-#if EC_PENDING
     public static bool CanSpend(Empire empire, int threshold) => !HasDiet(empire) || Authority(empire) >= threshold;
-#endif
 
     // 花权威：照扣，扣到 0 为止
-#if EC_PENDING
     public static void Spend(Empire empire, int cost, string textKey, params object[] args) =>
         ChangeAuthority(empire, -Math.Abs(cost), textKey, args);
-#endif
 
     // 诸侯抗命：每次 −2，每年至多 −8
-#if EC_PENDING
     private static void AuthorityDefiance(Empire empire, HolyRomanState state, Realm kingdom)
     {
         int room = AuthDefianceCap - state.year_defiance_loss;
@@ -121,10 +110,8 @@ public static partial class HolyRomanSystem
         state.year_defiance_loss += loss;
         ChangeAuthority(empire, -loss, "hre_auth_defiance", kingdom.GetKingdomName());
     }
-#endif
 
     // 加冕(PapacySystem.Crown 调用)：教宗加冕、自行加冕都是 +8，每位皇帝只计一次
-#if EC_PENDING
     public static void OnCrowned(Empire empire, Person emperor, bool self)
     {
         try
@@ -141,10 +128,8 @@ public static partial class HolyRomanSystem
             LogService.LogWarning($"[EmpireCraft][神罗] 加冕计权威失败: {exception.Message}");
         }
     }
-#endif
 
     // 护佑诸侯(MemberWarAid.AnswerRequest 调用)：中央应求援加入成员守方，战后结算(见 OnWarEnded)
-#if EC_PENDING
     public static void NoteProtection(Empire empire, War war, Realm member)
     {
         if (war?.Record == null || member?.Record == null || !HasDiet(empire)) return;
@@ -152,10 +137,8 @@ public static partial class HolyRomanSystem
         state.protect_wars ??= new Dictionary<long, long>();
         state.protect_wars[war.Key] = member.Key;
     }
-#endif
 
     // 护佑之战收场：守方胜 +6；议和而成员一方没丢城 +2
-#if EC_PENDING
     private static void SettleProtection(Empire empire, HolyRomanState state, War war, bool defendersWon, int attackerGain,
         WarOutcome winner)
     {
@@ -165,7 +148,6 @@ public static partial class HolyRomanSystem
         if (defendersWon) ChangeAuthority(empire, AuthProtected, "hre_auth_protected", name);
         else if (winner == WarOutcome.Peace && attackerGain <= 0) ChangeAuthority(empire, AuthProtectedPeace, "hre_auth_protected_peace", name);
     }
-#endif
 
     #region 年结
 
@@ -182,7 +164,6 @@ public static partial class HolyRomanSystem
     // 换世界、读档时清掉(SaveManagerPatch)
     public static void ResetWorldState() => Snapshots.Clear();
 
-#if EC_PENDING
     private static MemberSnapshot TakeSnapshot(Empire empire)
     {
         var snapshot = new MemberSnapshot();
@@ -196,10 +177,8 @@ public static partial class HolyRomanSystem
         }
         return snapshot;
     }
-#endif
 
     // 年结(Yearly 最先调)：起算、比对快照、每年漂移、式微年数
-#if EC_PENDING
     private static void AuthorityYearly(Empire empire, HolyRomanState state)
     {
         EnsureAuthority(empire, state);
@@ -212,10 +191,8 @@ public static partial class HolyRomanSystem
         if (state.authority < LowAuthority && state.authority_low_since < 0d) state.authority_low_since = now;
         else if (state.authority >= LowRecover) state.authority_low_since = -1d;
     }
-#endif
 
     // 比对上年快照：成员被外人吞并、离开帝国、城被外人拿走；返回本年失城数(太平判定用)
-#if EC_PENDING
     private static int CompareSnapshot(Empire empire, HolyRomanState state)
     {
         MemberSnapshot now = TakeSnapshot(empire);
@@ -265,10 +242,8 @@ public static partial class HolyRomanSystem
         }
         return lost + annexed.Count;
     }
-#endif
 
     // 每年漂移：合成一笔记账
-#if EC_PENDING
     private static void AuthorityDrift(Empire empire, HolyRomanState state, int citiesLost)
     {
         var items = new List<string>();
@@ -305,7 +280,6 @@ public static partial class HolyRomanSystem
         state.year_turmoil = false;
         if (delta != 0) ChangeAuthority(empire, delta, "hre_auth_drift", string.Join("、", items));
     }
-#endif
 
     // 太平：本年没有禁令战、宗教战，没有成员叛乱，也没失城
     private static bool Tranquil(Empire empire, HolyRomanState state, int citiesLost)

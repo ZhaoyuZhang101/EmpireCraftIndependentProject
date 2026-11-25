@@ -152,7 +152,6 @@ public static class WarMuster
     }
 
     // 集结在哪座城(记事用)：本国离目标最近的军镇，没有就都城
-#if EC_PENDING
     private static City Staging(Realm attacker, Realm target)
     {
         City best = null;
@@ -172,7 +171,6 @@ public static class WarMuster
         }
         return best ?? attacker.Capital;
     }
-#endif
 
     private static void Clear(Realm kingdom)
     {
@@ -185,7 +183,6 @@ public static class WarMuster
     }
 
     // 能集结到前线的兵：定策的国与随同成员动员范围里的正规军
-#if EC_PENDING
     private static float Host(Realm kingdom, List<Realm> followers)
     {
         float total = 0f;
@@ -197,7 +194,6 @@ public static class WarMuster
         }
         return total;
     }
-#endif
 
     // 对方举国之兵(连同它的宗主中央)
     private static float Strength(Realm target)

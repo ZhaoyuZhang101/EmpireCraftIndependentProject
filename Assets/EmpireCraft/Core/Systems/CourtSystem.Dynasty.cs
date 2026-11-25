@@ -38,7 +38,6 @@ public static partial class CourtSystem
         new[] { "court_stage_propose", "court_stage_draft_ming", "court_stage_debate", "court_stage_assent_ming", "court_stage_execute" }
     };
 
-#if EC_PENDING
     public static string StageKey(Empire empire, int step) => StageKeySets[(int)Stage(empire)][step];
 
     public static HuaxiaCourtStage Stage(Empire empire)
@@ -55,7 +54,6 @@ public static partial class CourtSystem
     }
 
     public static bool UsesThreeDepartments(Empire empire) => Stage(empire) == HuaxiaCourtStage.Tang;
-#endif
 
     #region 中央官职
 
@@ -68,7 +66,6 @@ public static partial class CourtSystem
         return null;
     }
 
-#if EC_PENDING
     public static Person DepartmentHead(Empire empire, string pre) => Holder(CentralOffice(empire, pre));
 
     private static Person Holder(OfficeObject office)
@@ -76,7 +73,6 @@ public static partial class CourtSystem
         Person actor = office?.GetActor();
         return actor?.Record != null && !actor.IsGone() ? actor : null;
     }
-#endif
 
     public static List<OfficeObject> CoreOfficeObjects(Empire empire) => OfficeObjects(empire?.data?.centerOffice?.CoreOffices);
 
@@ -91,11 +87,9 @@ public static partial class CourtSystem
     }
 
     // 周、汉、唐的议事会就是中央各官职的长官(三公卿士 / 三公九卿 / 三省长官与六部尚书)
-#if EC_PENDING
     private static List<Person> CentralHolders(Empire empire) =>
         CoreOfficeObjects(empire).Concat(DivisionOfficeObjects(empire)).Select(Holder)
             .Where(actor => actor != null).Distinct().ToList();
-#endif
 
     #endregion
 
@@ -138,7 +132,6 @@ public static partial class CourtSystem
     };
 
     // 律令制核心国在秦汉阶段改用三公九卿、明代改用大九卿；其他情况返回 null(用政体配置)
-#if EC_PENDING
     public static BureauConfig GetBureauOverride(Realm kingdom, BureauConfig fallback)
     {
         Empire empire = kingdom?.GetEmpire();
@@ -165,10 +158,8 @@ public static partial class CourtSystem
             armies = fallback?.armies
         };
     }
-#endif
 
     // 制度阶段变了(施行三省六部制、旧档首次读入)就重建中央机构
-#if EC_PENDING
     public static void EnsureBureau(Empire empire)
     {
         Realm core = empire?.CoreKingdom;
@@ -197,7 +188,6 @@ public static partial class CourtSystem
         empire.RecordHistory(directContent: string.Format(LM.Get("court_history_bureau_" + wanted), empire.GetEmpireName()),
             kingdomId: core.Key);
     }
-#endif
 
     #endregion
 }

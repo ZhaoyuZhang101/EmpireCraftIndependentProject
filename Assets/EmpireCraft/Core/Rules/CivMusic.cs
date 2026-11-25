@@ -320,6 +320,7 @@ public static class CivMusic
             }
         return top >= 3 ? best : null;
     }
+#endif
 
     private static void Vote(float x, float y, int weight)
     {
@@ -333,7 +334,6 @@ public static class CivMusic
         Votes.TryGetValue(family, out int votes);
         Votes[family] = votes + weight;
     }
-#endif
 
     #endregion
 

@@ -55,17 +55,14 @@ public static class RoyalHouseSystem
     public static bool IsRoyal(Person actor) =>
         actor?.Record != null && !actor.IsGone() && (actor.IsRuler() || actor.Realm != null && actor.Realm.GetHeir() == actor);
 
-#if EC_PENDING
     private static bool Has(Person actor, string tech)
     {
         string culture = actor?.Realm == null ? null : TechnologySystem.GetCultureOf(actor.Realm);
         return !string.IsNullOrEmpty(culture) && TechnologySystem.IsActiveFor(culture) && TechnologySystem.HasTech(culture, tech);
     }
-#endif
 
     // 君主、储君的天年：与常人同按科技时代与按人散列(见 RealisticAgeSystem.NaturalDeathAge)，君主再按资质加减
     // (成为君主、储君时已近天年的另定，见 RealisticAgeSystem.RoyalLifespan)
-#if EC_PENDING
     public static int RoyalDeathAge(Person actor) =>
         RealisticAgeSystem.NaturalDeathAge(RealisticAgeSystem.Seed(actor), RoyalMeanDeathAge(actor));
 
@@ -84,7 +81,6 @@ public static class RoyalHouseSystem
             };
         return mean;
     }
-#endif
 
     #region 每年过生日(ActorPatch.UpdateAge)
 
@@ -103,6 +99,7 @@ public static class RoyalHouseSystem
         float infant = InfantMortality(actor);
         if (infant > 0f && EcRandom.value < infant) Pending.Add((actor, Fate.Infant));
     }
+#endif
 
     private static float InfantMortality(Person actor)
     {
@@ -124,6 +121,7 @@ public static class RoyalHouseSystem
         return chance;
     }
 
+#if EC_PENDING
     private static void RepairSurname(Person actor)
     {
         // 华夏宗族的本宗族人姓本族的姓(见 SurnameInheritanceSystem.EnforceClanSurname)
@@ -193,7 +191,6 @@ public static class RoyalHouseSystem
 #endif
 
     // 古代幼儿夭折(出生时掷一次)，工业化、电气、计算机逐级降低
-#if EC_PENDING
     private static float ChildDeathChance(Person royal)
     {
         float death = ChildhoodDeath;
@@ -202,7 +199,6 @@ public static class RoyalHouseSystem
         if (Has(royal, "computing")) death *= 0.5f;
         return death;
     }
-#endif
 
     // 后宫添丁：每位妃嫔(活着、女子、16~45 岁、能生育)按自己的一年半一胎、每年 HaremBirthChance；正妻另算(见上)
 #if EC_PENDING
@@ -260,7 +256,7 @@ public static class RoyalHouseSystem
         {
             if (candidate?.Record == null || candidate == royal || candidate.IsGone() || !candidate.Alive ||
                 candidate.IsRuler() || candidate.Spouse != null && !candidate.Spouse.IsGone() && candidate.Spouse.Alive ||
-                candidate.Sex == royal.Sex || candidate.asset != royal.asset ||
+                candidate.Sex == royal.Sex || candidate.Asset != royal.Asset ||
                 candidate.Age() < RoyalMarryAge || candidate.Age() > ConsortMaxAge || Kin(royal, candidate)) continue;
             if (best == null || candidate.Renown > best.Renown) best = candidate;
         }
@@ -271,7 +267,7 @@ public static class RoyalHouseSystem
             .SelectMany(clan => clan.LivingPeople)
             .Where(person => KinRoster.Virtual(person) && person.sex != royal.Sex && !person.is_concubine &&
                              person.age >= RoyalMarryAge && person.age <= ConsortMaxAge && person.IsFreeToMarry(-2L) &&
-                             person.species == royal.asset?.id && !KinshipRules.AreCloseKin(self, person))
+                             person.species == royal.Asset?.Id && !KinshipRules.AreCloseKin(self, person))
             .OrderByDescending(VirtualGenealogySystem.VirtualRenown).ThenBy(person => person.id);
         return KinRoster.RealizeFirst(pool, candidate => candidate.Alive && candidate.Spouse == null, 1);
     }

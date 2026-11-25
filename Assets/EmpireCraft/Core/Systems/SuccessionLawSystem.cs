@@ -34,9 +34,7 @@ public static class SuccessionLawSystem
     }
 
     // 继承法照制度文化解锁(旧制犹存的照旧制，见 LegacyInstitutionSystem)
-#if EC_PENDING
     public static bool IsSuccessionLawUnlocked(Realm kingdom, SuccessionLawType law) =>
         IsSuccessionLawUnlocked(CultureService.GetInstitutionCulture(kingdom), law);
-#endif
 }
 }

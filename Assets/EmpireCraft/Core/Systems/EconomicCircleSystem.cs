@@ -41,16 +41,13 @@ public static class EconomicCircleSystem
         _world = null;
     }
 
-#if EC_PENDING
     public static bool IsCore(City city)
     {
         Refresh();
         return city?.Record != null && Cores.Contains(city.Key);
     }
-#endif
 
     // 所在经济圈的主城(主城自己返回自己，不在任何经济圈返回 null)
-#if EC_PENDING
     public static City CoreOf(City city)
     {
         Refresh();
@@ -64,27 +61,22 @@ public static class EconomicCircleSystem
         Refresh();
         return core?.Record != null && MemberCount.TryGetValue(core.Key, out int count) ? count : 0;
     }
-#endif
 
     // 城市格局的档位：0 赤贫(几处村子) 1 清贫 2 小康(县城，卫星城至多到这一档) 3 殷实主城 4 富庶主城
-#if EC_PENDING
     public static int RegionTier(City city)
     {
         if (city?.Record == null) return 0;
         int bucket = WealthMap.Bucket(WealthMap.Score(city));
         return IsCore(city) ? (bucket >= 4 ? 4 : 3) : Mathf.Min(bucket, 2);
     }
-#endif
 
     // 建设快慢(见 CityConstructionSystem.Settle)
-#if EC_PENDING
     public static float ConstructionFactor(City city)
     {
         if (city?.Record == null) return 1f;
         if (IsCore(city)) return 1f + Mathf.Min(MaxBoost, Members(city) * BoostPerMember);
         return CoreOf(city) != null ? MemberSlowdown : 1f;
     }
-#endif
 
     // 每月：卫星城的一部分人口迁往同一国家的主城(见 CityPopulationSystem.Migrate)
 #if EC_PENDING
@@ -104,7 +96,6 @@ public static class EconomicCircleSystem
         return empire != null && empire == b.Realm.GetEmpire();
     }
 
-#if EC_PENDING
     private static float Weight(City city) =>
         WealthMap.Score(city) * (city.IsCapital() ? CapitalWeight : 1f) * (Cores.Contains(city.Key) ? Incumbency : 1f);
 
@@ -172,6 +163,5 @@ public static class EconomicCircleSystem
         Cores.Clear();
         foreach (City core in cores) Cores.Add(core.Key);
     }
-#endif
 }
 }

@@ -29,7 +29,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import closure
 import port_tool as tool
 
-DIRS = closure.DEFAULT_DIRS + ["Scripts/GameClassExtensions", "Scripts/AI"]
+# Whole folders of the mod's own logic, and single files of it that live among patches or compat code.
+DIRS = closure.DEFAULT_DIRS + ["Scripts/GameClassExtensions", "Scripts/AI", "Scripts/Compatibility/NuclearDoctrineSystem.cs"]
 
 
 def generated_header(text, path):
@@ -75,6 +76,15 @@ def find(args):
     orbis = os.path.join(tool.ROOT, "Assets", "ORBIS", "Runtime", "FlatWorld", "Core")
     print("%d candidates from mod %s" % (len(candidates), commit[:8]))
     print("by-type member renames: " + tool.semantic_fix(os.path.join(work, "src"), core))
+    if args.graph:
+        # Only the member graph: what every member lacks and which members it uses, before anything is suspended.
+        result = subprocess.run(["dotnet", "run", "--project", os.path.join(tool.ROOT, "Validation", "PortSurvey"), "-c", "Release", "--",
+                                 "graph", os.path.join(work, "src"), args.graph, core, orbis], capture_output=True, text=True, encoding="utf-8", errors="replace")
+        print(result.stdout.strip())
+        if result.returncode != 0:
+            raise SystemExit(result.stderr[-4000:])
+        print("Graph: " + args.graph + "  (read it with Tools/PortTool/entry_needs.py)")
+        return
     raw = os.path.join(work, "suspend.json")
     result = subprocess.run(["dotnet", "run", "--project", os.path.join(tool.ROOT, "Validation", "PortSurvey"), "-c", "Release", "--",
                              "suspend", os.path.join(work, "src"), raw, core, orbis], capture_output=True, text=True, encoding="utf-8", errors="replace")
@@ -157,6 +167,7 @@ def main():
     parser.add_argument("--report", default="members.json")
     parser.add_argument("--work")
     parser.add_argument("--apply")
+    parser.add_argument("--graph", help="stop after the renames and write the member graph here (minutes instead of the full run)")
     args = parser.parse_args()
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")

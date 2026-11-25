@@ -51,7 +51,6 @@ public static partial class CompositeEmpireService
 
     // 多元帝国：完成整合的复合帝国，或治下四分之一以上的城是异族(不同天下的文化)——逃人法、游牧立宪用
     // (以前只认复合帝国，而复合帝国的制度按被征服文化的线走，游牧线上这两样永远到不了)
-#if EC_PENDING
     public static bool IsMultiethnic(Empire empire)
     {
         if (empire?.data == null) return false;
@@ -72,7 +71,6 @@ public static partial class CompositeEmpireService
         }
         return total > 0 && foreign * 4 >= total;
     }
-#endif
 
     public static bool IsComposite(Empire empire)
     {
@@ -98,14 +96,11 @@ public static partial class CompositeEmpireService
     }
 
     // 中央朝廷照哪种文化的制度：分治照本族旧制，兼用、从俗照属地制度
-#if EC_PENDING
     public static string GetCourtCulture(Empire empire) =>
         GetRoute(empire) == RouteDual ? GetRulingCulture(empire) : GetInstitutionalCulture(empire);
-#endif
 
     public static string GetRouteName(Empire empire) => LM.Get("composite_route_" + GetRoute(empire));
 
-#if EC_PENDING
     public static string GetRouteDetail(Empire empire, int route)
     {
         string ruling = GetRulingCulture(empire), institutional = GetInstitutionalCulture(empire);
@@ -114,6 +109,7 @@ public static partial class CompositeEmpireService
             CultureService.IsValidCulture(institutional) ? institutional.GetCultureTranslate() : institutional);
     }
 
+#if EC_PENDING
     private static void UpdateRoute(Empire empire, string ruling, string institutional, float rulingShare)
     {
         int current = empire.data.composite_route;
@@ -146,14 +142,11 @@ public static partial class CompositeEmpireService
 #endif
 
     // 属地文化更先进，或融入派当权
-#if EC_PENDING
     private static bool DrawnToConquered(Empire empire, string ruling, string institutional) =>
         MoreAdvanced(institutional, ruling) ||
         empire.CoreKingdom?.GetRegime()?.GetDominateFaction()?.Type == FactionType.融入;
-#endif
 
     // 本族旧地：主流文化是统治族群文化的城占几成
-#if EC_PENDING
     private static float HomelandCityShare(Empire empire, string ruling)
     {
         int total = 0, home = 0;
@@ -182,7 +175,6 @@ public static partial class CompositeEmpireService
             return empire.data.institutional_culture;
         return CultureService.GetEmpireDefaultCulture(empire);
     }
-#endif
 
     public static bool UsesMilitaryTradition(Empire empire, RegimeType regimeType)
     {
@@ -190,7 +182,6 @@ public static partial class CompositeEmpireService
             out RegimeType saved) && saved == regimeType;
     }
 
-#if EC_PENDING
     public static string GetMilitaryTraditionName(Empire empire)
     {
         string value = empire?.data?.military_tradition;
@@ -211,7 +202,6 @@ public static partial class CompositeEmpireService
         if (AdoptableRegime(culture, out RegimeType adoptable)) regimeType = adoptable;
         return GetRegimeName(regimeType);
     }
-#endif
 
     // 征服王朝采纳某文化的制度时换成的政体(复查 2026-10-17)：按这个文化制度树实际走到的(TryResolveCultureRegime)，
     // 解析不出才用文化配置——以前一律用配置里的静态政体：征服日本、印度、阿兹特克成了原始政体(一城一部落地拆)，
@@ -236,7 +226,6 @@ public static partial class CompositeEmpireService
             : localized;
     }
 
-#if EC_PENDING
     public static string GetRegionalInstitutionSummary(Empire empire)
     {
         if (!IsComposite(empire) || empire.kingdoms_list == null) return LM.Get("label_none");
@@ -260,7 +249,6 @@ public static partial class CompositeEmpireService
         if (groups.Count > 3) entries.Add($"+{groups.Count - 3}");
         return string.Join("\n", entries);
     }
-#endif
 
     public static string GetStageName(Empire empire)
     {
@@ -271,7 +259,6 @@ public static partial class CompositeEmpireService
             : localized;
     }
 
-#if EC_PENDING
     public static bool CanAdoptCentralInstitutions(Person actor)
     {
         Realm kingdom = actor?.Realm;
@@ -336,7 +323,6 @@ public static partial class CompositeEmpireService
                             (status.HasRequiredMandate || scriptedTrigger);
         return status;
     }
-#endif
 
     // 剧本定下的入主国号(用户 10-29 "剧本里面让后金入关后走中华体制百分百叫大清"，见 KingdomExtraData.scripted_conquest_name)
     public static string ScriptedConquestName(Empire empire)
@@ -368,7 +354,6 @@ public static partial class CompositeEmpireService
         return InstitutionSystem.GetCultureLevel(conquered) > InstitutionSystem.GetCultureLevel(ruling);
     }
 
-#if EC_PENDING
     private static bool HoldsMoreAdvancedCulture(Empire empire, string ruling)
     {
         var seen = new HashSet<string>(StringComparer.Ordinal);
@@ -399,7 +384,7 @@ public static partial class CompositeEmpireService
             return;
         }
 
-        int controlled = titles.Count(title => title.getCities().Any(city =>
+        int controlled = titles.Count(title => title.GetCities().Any(city =>
             city != null && !city.IsGone() && city.Realm?.GetEmpire() == empire));
         if (controlled <= 0) return;
 
@@ -476,7 +461,6 @@ public static partial class CompositeEmpireService
         if (CultureService.IsValidCulture(emperorCulture)) return emperorCulture;
         return CultureService.GetRealmCulture(empire?.CoreKingdom);
     }
-#endif
 
     public static bool IsNomadicCulture(string culture)
     {
@@ -498,7 +482,6 @@ public static partial class CompositeEmpireService
         return true;
     }
 
-#if EC_PENDING
     public static string ResolveRegionalInstitutionCulture(Realm member)
     {
         if (member?.Record == null || member.IsGone()) return "";
@@ -528,6 +511,7 @@ public static partial class CompositeEmpireService
         return CultureService.GetRealmCulture(member);
     }
 
+#if EC_PENDING
     public static bool SynchronizeRegionalInstitution(Empire empire, Realm member)
     {
         if (!IsComposite(empire) || member?.Record == null || member.IsGone() || member.GetEmpire() != empire)
@@ -643,7 +627,6 @@ public static partial class CompositeEmpireService
     // 守老家的帝国(编旗的、剧本开局定下朝廷的大清大金)：统治文化；别的返回 null。
     // 本族老家留作直辖，不按当地文化分成游牧封国、也不设省(见 Empire.GetProtectedDirectCityIds)：
     // 以前清开局就把满洲按游牧之地封给五个宗王(连储君都封了出去)，兴京又设了省交给外姓，直辖只剩盛京一片
-#if EC_PENDING
     public static string HomelandCulture(Empire empire)
     {
         Realm core = empire?.CoreKingdom;
@@ -656,7 +639,6 @@ public static partial class CompositeEmpireService
         city?.Record != null && !city.IsGone() &&
         BannerRules.KeepsHome(city.hasTitle() ? CultureService.GetEffectiveTitleCulture(city.GetTitle()) : "", rulingCulture,
             city.GetOrCreate().banner_home);
-#endif
 
     // 剧本开局就定下的朝廷(八旗多元制的大清、天眷新制以后的大金)：
     public static bool FixedCourt(Empire empire) =>
@@ -728,7 +710,7 @@ public static partial class CompositeEmpireService
         bool emperorUsesInstitution = string.Equals(emperorCulture, institutionalCulture, StringComparison.Ordinal);
 
         List<KingdomTitle> titles = GetInstitutionalTitles(institutionalCulture);
-        int controlled = titles.Count(title => title.getCities().Any(city =>
+        int controlled = titles.Count(title => title.GetCities().Any(city =>
             city != null && !city.IsGone() && city.Realm?.GetEmpire() == empire));
         float controlledShare = titles.Count > 0 ? (float)controlled / titles.Count : 0f;
         // 北归(见 CompositeEmpireService.Conquest)：属地丢得差不多了，退回本族旧地
@@ -785,7 +767,6 @@ public static partial class CompositeEmpireService
 
     // 统治族群、制度文化各占治下人口的几成：按各城的文化构成乘城中人口(含无小人模式的背景人口)。
     // 以前数实体小人——无小人模式下几乎没有小人，两个占比都是 0，融合只看皇帝本人的文化
-#if EC_PENDING
     public static void PopulationShares(Empire empire, string rulingCulture, string institutionalCulture,
         out float rulingShare, out float institutionalShare)
     {
@@ -814,11 +795,9 @@ public static partial class CompositeEmpireService
         rulingShare = total > 0d ? (float)(ruling / total) : 0f;
         institutionalShare = total > 0d ? (float)(institutional / total) : 0f;
     }
-#endif
 
     // 朝廷用中原制度的外族王朝(用户 2026-10-27："明明使用了中原制度却又不改国号还顶着游牧名称")：复合帝国走兼用、从俗
     // (分治的朝廷照本族旧制，不算)、制度文化是华夏一系；或不是复合帝国，制度文化是华夏一系而统治文化不是
-#if EC_PENDING
     private static bool CentralPlainsCourt(Empire empire, out string culture)
     {
         culture = null;
@@ -833,7 +812,6 @@ public static partial class CompositeEmpireService
         return InstitutionSystem.GetCultureLine(culture) == "Huaxia" &&
                InstitutionSystem.GetCultureLine(CultureService.GetRealmCulture(core)) != "Huaxia";
     }
-#endif
 
     // 国号是华夏选号规则定的(法理名、复国、起义旗号、篡位者封国、美号；见 RealmNamingSystem)：华夏人在华夏法理下称帝，
     // 文化算出来是游牧也不再改成美号(用户 2026-10-27："华夏人在华夏法理下称帝也会因为文化是游牧……莫名其妙的用美号")
@@ -917,7 +895,6 @@ public static partial class CompositeEmpireService
 
     // 主法理的汉名：主法理在华夏文化里的旧称；或主法理本身就是华夏一系的王国法理(名字出自华夏国名词库、法理文化是华夏一系)。
     // 有现存帝国在用这个名字的不取
-#if EC_PENDING
     private static CulturalNameCandidate HanTitleName(Empire empire, string culture)
     {
         if (InstitutionSystem.GetCultureLine(culture) != "Huaxia") return null;
@@ -936,11 +913,9 @@ public static partial class CompositeEmpireService
             return null;
         return NewNameCandidate(name, "main_title_han");
     }
-#endif
 
     // 入主中原定国号的出处上屏幕(用户 2026-10-27："异族入主华夏取吉祥名字的时候也应该有提示，说明他的国号来源")：
     // 美号写取义，沿用主法理的写沿用旧名，按所据之地改的写以地为号
-#if EC_PENDING
     private static void NoticeConquestName(Empire empire, string oldName, string newName, string culture, string source)
     {
         string text;
@@ -961,6 +936,7 @@ public static partial class CompositeEmpireService
         LogService.LogInfo($"[EmpireCraft][入主定号] {text}({source})");
     }
 
+#if EC_PENDING
     private static CulturalNameCandidate SelectInstitutionalCultureName(Empire empire, string culture)
     {
         KingdomTitle mainTitle = empire.CoreKingdom.GetMainTitle();
@@ -1014,6 +990,7 @@ public static partial class CompositeEmpireService
         string seatName = seat?.GetCityName();
         return string.IsNullOrWhiteSpace(seatName) ? null : NewNameCandidate(seatName, "ruling_seat");
     }
+#endif
 
     private static CulturalNameCandidate SelectTitleName(IEnumerable<KingdomTitle> titles, string culture,
         string source)
@@ -1030,20 +1007,19 @@ public static partial class CompositeEmpireService
         }
         return null;
     }
-#endif
 
     private static CulturalNameCandidate NewNameCandidate(string name, string source)
     {
         return new CulturalNameCandidate { Name = name.Trim(), Source = source };
     }
 
-#if EC_PENDING
     private static bool IsTitleControlledByEmpire(KingdomTitle title, Empire empire)
     {
-        return title.getCities().Any(city => city?.Record != null && !city.IsGone() &&
+        return title.GetCities().Any(city => city?.Record != null && !city.IsGone() &&
                                              city.Realm?.GetEmpire() == empire);
     }
 
+#if EC_PENDING
     private static float DistanceFromSeat(City seat, City target)
     {
         if (seat == null || seat.IsGone() || target == null || target.IsGone()) return float.MaxValue;
@@ -1096,7 +1072,6 @@ public static partial class CompositeEmpireService
 
     // 征服王朝随统治族群带来的诉求：游牧扩张挂在攘夷、融入派上(保留游牧军事传统时)；
     // 国语骑射挂在攘夷、同化派上(统治族群游牧、尚未融完时)。没有这些派系的挂在当权派上
-#if EC_PENDING
     private static void SynchronizeMilitaryTraditionClaims(Empire empire)
     {
         var factions = empire?.CoreKingdom?.GetRegime()?.GetPlayerFactions();
@@ -1138,7 +1113,6 @@ public static partial class CompositeEmpireService
             }
         }
     }
-#endif
 
     private static int Clamp100(int value)
     {

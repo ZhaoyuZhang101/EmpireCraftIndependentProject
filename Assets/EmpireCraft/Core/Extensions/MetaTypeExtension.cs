@@ -5,73 +5,55 @@ namespace EmpireCraft.Core
 
 public static class MetaTypeExtension
 {
-#if EC_PENDING
-    public const MetaType Empire = (MetaType)100;
-    public const MetaType KingdomTitle = (MetaType)101;
-#endif
+    public const EntityKind Empire = (EntityKind)100;
+    public const EntityKind KingdomTitle = (EntityKind)101;
     // 理念图层(独立于原版宗教)
-#if EC_PENDING
-    public const MetaType Ideology = (MetaType)102;
-#endif
+    public const EntityKind Ideology = (EntityKind)102;
     // 民族情绪图层(见 Layer/NationMap.cs)
-#if EC_PENDING
-    public const MetaType Nation = (MetaType)103;
-#endif
+    public const EntityKind Nation = (EntityKind)103;
     // 矿产图层(见 Layer/MineralMap.cs)
-#if EC_PENDING
-    public const MetaType Mineral = (MetaType)104;
-#endif
+    public const EntityKind Mineral = (EntityKind)104;
     // 财富图层(见 Layer/WealthMap.cs)
-#if EC_PENDING
-    public const MetaType Wealth = (MetaType)105;
-#endif
+    public const EntityKind Wealth = (EntityKind)105;
     // 城市图层：只显示模拟的城市(见 Layer/CityViewMap.cs)
-#if EC_PENDING
-    public const MetaType CityView = (MetaType)106;
-#endif
+    public const EntityKind CityView = (EntityKind)106;
     // 教化图层、政令图层(见 Layer/RadianceMap.cs)
-#if EC_PENDING
-    public const MetaType Edification = (MetaType)107;
-    public const MetaType Governance = (MetaType)108;
-#endif
+    public const EntityKind Edification = (EntityKind)107;
+    public const EntityKind Governance = (EntityKind)108;
     // 天下图层(见 Layer/TianxiaMap.cs)
-#if EC_PENDING
-    public const MetaType Tianxia = (MetaType)109;
-#endif
+    public const EntityKind Tianxia = (EntityKind)109;
     // 商品市场图层(见 Layer/MarketMap.cs)
-#if EC_PENDING
-    public const MetaType Market = (MetaType)110;
+    public const EntityKind Market = (EntityKind)110;
     
-    public static string ToMetaString(this MetaType type)
+    public static string ToMetaString(this EntityKind type)
     {
         switch (type)
         {
-            case (MetaType)100:
+            case (EntityKind)100:
                 return "Empire";
-            case (MetaType)101:
+            case (EntityKind)101:
                 return "KingdomTitle";
-            case (MetaType)102:
+            case (EntityKind)102:
                 return "Ideology";
-            case (MetaType)103:
+            case (EntityKind)103:
                 return "Nation";
-            case (MetaType)104:
+            case (EntityKind)104:
                 return "Mineral";
-            case (MetaType)105:
+            case (EntityKind)105:
                 return "Wealth";
-            case (MetaType)106:
+            case (EntityKind)106:
                 return "CityView";
-            case (MetaType)107:
+            case (EntityKind)107:
                 return "Edification";
-            case (MetaType)108:
+            case (EntityKind)108:
                 return "Governance";
-            case (MetaType)109:
+            case (EntityKind)109:
                 return "Tianxia";
-            case (MetaType)110:
+            case (EntityKind)110:
                 return "Market";
             default:
                 return type.ToString();
         }
     }
-#endif
 }
 }

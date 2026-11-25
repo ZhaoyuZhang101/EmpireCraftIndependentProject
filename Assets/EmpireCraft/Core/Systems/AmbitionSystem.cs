@@ -29,13 +29,12 @@ public static class AmbitionSystem
         actor.IsOnOffice() || CorpsSystem.IsGeneral(actor) || actor.IsCityLeader() || FamousTalentSystem.IsFamous(actor) ||
         (actor.GetOwnedTitle()?.Count ?? 0) > 0;
 
-#if EC_PENDING
     public static void Yearly()
     {
         if (EmpireWorld.Current?.Living == null) return;
         foreach (Person actor in EmpireWorld.Current.Living.ToList())
         {
-            if (actor?.Record == null || actor.IsGone() || !actor.Alive || !actor.IsAdult() || actor.asset?.civ != true) continue;
+            if (actor?.Record == null || actor.IsGone() || !actor.Alive || !actor.IsAdult() || actor.Asset?.Civ != true) continue;
             PersonalClanIdentity identity = actor.GetPersonalIdentity();
             if (identity == null) continue;
             try
@@ -110,7 +109,6 @@ public static class AmbitionSystem
                 break;
         }
     }
-#endif
 
     // 列传里的一句：志在什么、得偿所愿或抱憾
     public static string Describe(PersonalClanIdentity person)

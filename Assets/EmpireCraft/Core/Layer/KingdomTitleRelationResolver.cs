@@ -58,6 +58,7 @@ public static class KingdomTitleRelationResolver
 
         return result;
     }
+#endif
 
     public static List<Realm> FindCurrentAdministrations(KingdomTitle title)
     {
@@ -70,6 +71,5 @@ public static class KingdomTitleRelationResolver
             .OrderBy(kingdom => kingdom.Key)
             .ToList();
     }
-#endif
 }
 }

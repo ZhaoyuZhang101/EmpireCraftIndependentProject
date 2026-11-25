@@ -51,17 +51,14 @@ public static class RevolutionSystem
         State(empire) is { post_revolution_since: >= 0d, post_revolution_phase: >= 1 and <= 3 };
 
     // 有"革命形势"可言的国家：本文化已能废除君主制的君主国，或已经是共和国。穿越政权、别国的附从不算
-#if EC_PENDING
     public static bool Applies(Empire empire)
     {
         if (empire?.CoreKingdom == null || empire.IsGone() || empire.IsArchived() || State(empire) == null) return false;
         if (TransmigrantSystem.Governs(empire) || WarlordEraSystem.Dependent(empire.CoreKingdom)) return false;
         return RepublicSystem.IsRepublic(empire) ? !RepublicSystem.IsTransitioning(empire) : RepublicSystem.CanAbolish(empire);
     }
-#endif
 
     // 革命能不能在今年爆发：形势成熟、组织够了、今年有事点火
-#if EC_PENDING
     public static bool Ready(Empire empire)
     {
         ConstitutionalEconomyState state = State(empire);
@@ -70,7 +67,6 @@ public static class RevolutionSystem
                state.revolution_spark_at >= 0d && GameClock.Now >= state.revolution_spark_at &&
                GameClock.YearsSince(state.revolution_spark_at) < 1;
     }
-#endif
 
     #region 年度
 
@@ -141,7 +137,6 @@ public static class RevolutionSystem
 #endif
 
     // 形势该到多高(0~100)，连同最大的那条成因(界面显示)
-#if EC_PENDING
     private static float Target(Empire empire, ConstitutionalEconomyState state, out string cause)
     {
         var parts = new List<(string key, float value)>();
@@ -177,11 +172,9 @@ public static class RevolutionSystem
         cause = parts.OrderByDescending(part => part.value).First().key;
         return Mathf.Clamp(total, 0f, 100f);
     }
-#endif
 
     // 领头的党与它的纲领。君主国：非保守派里本理念民心最盛的合法政党；共和国：不在台上、与立国理念相去甚远的合法政党。
     // 没有这样的党(党禁之下、还没有政党、起事失败被取缔)：秘密结社，纲领取民心最盛的那一种
-#if EC_PENDING
     private static FixedFaction Movement(Empire empire, ConstitutionalEconomyState state, out PartyIdeology ideology)
     {
         bool republic = RepublicSystem.IsRepublic(empire);
@@ -223,12 +216,10 @@ public static class RevolutionSystem
             ? (PartyIdeology)state.revolution_ideology : RepublicSystem.ReformIdeology(empire);
         return MovementName(empire, party, ideology);
     }
-#endif
 
     private static string MovementName(Empire empire, FixedFaction party, PartyIdeology ideology) =>
         party != null ? party.Name : string.Format(LM.Get("revolution_society_name"), PartySystem.GetIdeologyName(ideology));
 
-#if EC_PENDING
     private static void UpdateOrganization(Empire empire, ConstitutionalEconomyState state, FixedFaction party,
         PartyIdeology ideology)
     {
@@ -247,10 +238,8 @@ public static class RevolutionSystem
             ? Mathf.Min(target, state.revolution_org + rise)
             : Mathf.Max(target, state.revolution_org - OrgFall);
     }
-#endif
 
     // 民意的革命浪潮攒够了年头(PublicOpinionSystem)：不再直接起事，给形势再添一把火；形势没成熟时只是一场骚乱
-#if EC_PENDING
     public static void OnOpinionWave(Empire empire, PartyIdeology preferred)
     {
         ConstitutionalEconomyState state = State(empire);
@@ -260,7 +249,6 @@ public static class RevolutionSystem
             EventRecorder.RecordRoutine(empire, string.Format(LM.Get("public_opinion_riot_log"), empire.GetEmpireName(),
                 PartySystem.GetIdeologyName(preferred)));
     }
-#endif
 
     // 外来的震动(战败、冷战落败，见 WorldOrderSystem)：形势陡增
     public static void Shock(Empire empire, float amount)
@@ -271,21 +259,18 @@ public static class RevolutionSystem
     }
 
     // 外国扶持(见"扶持革命党"诉求)
-#if EC_PENDING
     public static void ForeignSupport(Empire target, float amount)
     {
         ConstitutionalEconomyState state = State(target);
         if (state == null || !Applies(target)) return;
         state.revolution_org = Mathf.Clamp(state.revolution_org + amount, 0f, 100f);
     }
-#endif
 
     #endregion
 
     #region 当局应对
 
     // 君主：暴君强压到底，明君、庸弱、冲龄、昏聩让步，其余只在正统很低时让步；共和国照街头抗争的口径
-#if EC_PENDING
     private static bool AiRepresses(Empire empire, ConstitutionalEconomyState state)
     {
         if (RepublicSystem.IsRepublic(empire)) return HarshRuleSystem.AiChoosesRepression(empire, state);
@@ -304,10 +289,8 @@ public static class RevolutionSystem
             _ => empire.Legitimacy < 35
         };
     }
-#endif
 
     // 能否亲自应对：返回不能的原因(语言键)，能则 null
-#if EC_PENDING
     public static string CanPlayerRespond(Empire empire)
     {
         ConstitutionalEconomyState state = State(empire);
@@ -318,6 +301,7 @@ public static class RevolutionSystem
         return null;
     }
 
+#if EC_PENDING
     public static string PlayerRespond(Empire empire, bool repress)
     {
         string reason = CanPlayerRespond(empire);
@@ -393,7 +377,6 @@ public static class RevolutionSystem
     #region 引爆与起事
 
     // 今年有没有一件事点火(返回语言键后缀)；没有返回 null
-#if EC_PENDING
     private static string FindSpark(Empire empire, ConstitutionalEconomyState state)
     {
         if (state.revolution_massacre_at >= 0d && GameClock.YearsSince(state.revolution_massacre_at) < 1) return "massacre";
@@ -414,7 +397,6 @@ public static class RevolutionSystem
         float chance = 0.04f + Mathf.Max(0f, state.revolution_tension - RipeAt) / 150f;
         return EcRandom.value < chance ? "incident" : null;
     }
-#endif
 
     // 点着了：君主国走建立共和(够票的先谈判，不然起兵)，共和国走夺权、垮台、提前大选或现代革命(见 PublicOpinionSystem.Revolt)
 #if EC_PENDING
@@ -562,7 +544,6 @@ public static class RevolutionSystem
 #endif
 
     // 革命党兵败：党被取缔(RepublicSystem)，余党转入地下，组织留下四成
-#if EC_PENDING
     public static void OnDefeat(Empire empire, PartyIdeology ideology)
     {
         ConstitutionalEconomyState state = State(empire);
@@ -576,7 +557,6 @@ public static class RevolutionSystem
         EventRecorder.Record(empire, string.Format(LM.Get("revolution_underground_history"), empire.GetEmpireFullName(),
             PartySystem.GetIdeologyName(ideology)));
     }
-#endif
 
     #endregion
 
@@ -584,7 +564,6 @@ public static class RevolutionSystem
 
     // 和平改制(群众政治转型 route = "mass"、议会三分之二且握有军队 route = "coup")：先谈一年。
     // 已经在谈的返回 false(免得各个入口年年重提)
-#if EC_PENDING
     public static bool BeginTalks(Empire empire, FixedFaction party, string route)
     {
         ConstitutionalEconomyState state = State(empire);
@@ -596,7 +575,6 @@ public static class RevolutionSystem
             empire.Emperor?.FullName() ?? LM.Get("label_none"), empire.GetEmpireFullName()), party.GetLeader());
         return true;
     }
-#endif
 
     public static bool InTalks(Empire empire) => State(empire)?.abdication_talks_since >= 0d;
 
@@ -720,7 +698,6 @@ public static class RevolutionSystem
 #endif
 
     // 清洗：取缔与立国理念相去最远的在野党；没有政党可取缔就清算旧人
-#if EC_PENDING
     private static void Purge(Empire empire, ConstitutionalEconomyState state, PartyIdeology founding)
     {
         FixedFaction governing = PartySystem.GetGovernmentParty(empire);
@@ -742,6 +719,7 @@ public static class RevolutionSystem
         EventRecorder.Record(empire, string.Format(LM.Get("post_revolution_purge_history"), country, name));
     }
 
+#if EC_PENDING
     private static void Thermidor(Empire empire, ConstitutionalEconomyState state)
     {
         state.post_revolution_phase = 2;

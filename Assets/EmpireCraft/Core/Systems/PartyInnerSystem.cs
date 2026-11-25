@@ -74,7 +74,6 @@ public static class PartyInnerSystem
     private static List<Person> LivingMembers(FixedFaction party) =>
         party.AllMembers.Where(actor => actor != null && !actor.IsGone() && actor.Alive).ToList();
 
-#if EC_PENDING
     private static void UpdateWings(FixedFaction party)
     {
         List<Person> members = LivingMembers(party);
@@ -83,7 +82,6 @@ public static class PartyInnerSystem
         party.WingIdeology = wing?.Key.ToString() ?? "";
         party.WingShare = wing == null || members.Count == 0 ? 0f : wing.Count() / (float)members.Count;
     }
-#endif
 
     public static float DisciplineTarget(FixedFaction party, bool leading) =>
         leading ? 80f : IdeologyFamilies.IsAuthoritarian(party.Ideology) || IdeologyFamilies.IsSocialist(party.Ideology) ? 70f : 50f;
@@ -91,7 +89,6 @@ public static class PartyInnerSystem
     private static void UpdateDiscipline(FixedFaction party, bool leading) =>
         party.Discipline = Mathf.Clamp(party.Discipline + (DisciplineTarget(party, leading) - party.Discipline) * 0.2f, 0f, 100f);
 
-#if EC_PENDING
     private static void Expel(Empire empire, FixedFaction party)
     {
         if (party.Discipline < 60f) return;
@@ -104,7 +101,6 @@ public static class PartyInnerSystem
             Record(empire, string.Format(LM.Get("party_expel_history"), party.Name, string.Join("、", expelled.Select(actor => actor.FullName()))),
                 expelled[0]);
     }
-#endif
 
     private static void PartySchool(FixedFaction party)
     {
@@ -113,7 +109,6 @@ public static class PartyInnerSystem
         party.Discipline = Mathf.Min(100f, party.Discipline + 5f);
     }
 
-#if EC_PENDING
     private static void Purge(Empire empire, FixedFaction party)
     {
         if (party.WingShare < 0.3f || !Enum.TryParse(party.WingIdeology, out PartyIdeology wing)) return;
@@ -127,13 +122,11 @@ public static class PartyInnerSystem
         UpdateWings(party);
         Record(empire, string.Format(LM.Get("party_purge_history"), party.Name, PartySystem.GetIdeologyName(wing), purged.Count), leader);
     }
-#endif
 
     #endregion
 
     #region 党代会
 
-#if EC_PENDING
     private static bool NeedsCongress(FixedFaction party)
     {
         if (LivingMembers(party).Count == 0) return false;
@@ -141,13 +134,12 @@ public static class PartyInnerSystem
         if (leader == null || party.ElectedLeaderId != leader.Key) return true;
         return party.LeaderElectedAt < 0d || GameClock.YearsSince(party.LeaderElectedAt) >= CongressYears;
     }
-#endif
 
     // 候选人分：名望 + 政绩/5 + 在任官职 100
-#if EC_PENDING
     private static float Score(Person actor) =>
         (actor.Renown) + (float)((actor.GetIdentity()?.TotalPerformance ?? 0d) / 5d) + (actor.IsOnOffice() ? 100f : 0f);
 
+#if EC_PENDING
     public static void HoldCongress(Empire empire, FixedFaction party, bool defeat)
     {
         Person incumbent = party.GetLeader();
@@ -185,9 +177,7 @@ public static class PartyInnerSystem
 
     #endregion
 
-#if EC_PENDING
     private static void Record(Empire empire, string text, Person actor) =>
         EventRecorder.RecordRoutine(empire, $"{empire.GetEmpireFullName()}：{text}", actor);
-#endif
 }
 }

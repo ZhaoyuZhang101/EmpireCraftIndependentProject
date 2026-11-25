@@ -26,7 +26,6 @@ public static class SuccessionCouncilSystem
         Cadet = "cadet", Minister = "minister", Acclaim = "acclaim", Commoner = "commoner", Union = "union";
     private const int StageMonths = 1, StaleMonths = 6, MaxAttempts = 3, AdultAge = 18, EnthroneMonths = 2;
 
-#if EC_PENDING
     public static bool Applies(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || !kingdom.IsEmpire()) return false;
@@ -36,7 +35,6 @@ public static class SuccessionCouncilSystem
                CourtSystem.Applies(empire) && !RepublicSystem.IsRepublic(empire) &&
                !HolyRomanSystem.IsElective(empire) && !ConstitutionalSuccessionSystem.ThroneBound(empire);
     }
-#endif
 
     public static CourtSuccession Current(Empire empire) => empire?.data?.court?.succession;
 
@@ -79,7 +77,6 @@ public static class SuccessionCouncilSystem
 #endif
 
     // 议立期间不从虚拟族谱里直接落成继承人(见 EmpireCraftKingdomBehCheckKing)
-#if EC_PENDING
     public static bool InSession(Realm kingdom)
     {
         if (!Applies(kingdom)) return false;
@@ -87,7 +84,6 @@ public static class SuccessionCouncilSystem
         CourtSuccession council = Current(empire);
         return council != null && !council.gave_up && Vacant(empire);
     }
-#endif
 
     #region 每月推进(RoyalHouseSystem.Tick)
 
@@ -193,7 +189,6 @@ public static class SuccessionCouncilSystem
 #endif
 
     // 宗室人选：立亲、立长、立贤、立幼各一位(同一人不重复)
-#if EC_PENDING
     private static void Nominate(Realm core, PersonalClanIdentity predecessor, List<CourtSuccessionCandidate> result)
     {
         List<(PersonalClanIdentity person, int kinship)> pool = EmpireCraftKingdomBehCheckHeir.CollateralPool(core, predecessor);
@@ -225,7 +220,6 @@ public static class SuccessionCouncilSystem
             .OrderBy(item => item.kinship).ThenBy(item => item.person.age).FirstOrDefault();
         if (young.person != null) Add(young, Young);
     }
-#endif
 
     private static int Merit(PersonalClanIdentity person)
     {
@@ -517,13 +511,11 @@ public static class SuccessionCouncilSystem
     });
 
     // 朝局纪事 + 世界日志 + 史书(空位期间写进先帝那一朝的末尾，见 HistoryRecordSystem.RecordHistory)
-#if EC_PENDING
     private static void Publish(Empire empire, CourtState state, string text)
     {
         state.log.Insert(0, new CourtLogEntry { time = EmpireWorld.Current?.Now() ?? 0d, text = text });
         if (state.log.Count > 8) state.log.RemoveRange(8, state.log.Count - 8);
         TranslateHelper.LogEventMessage(text, empire.CoreKingdom);
     }
-#endif
 }
 }

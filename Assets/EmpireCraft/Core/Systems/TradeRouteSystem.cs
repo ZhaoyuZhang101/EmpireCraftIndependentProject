@@ -45,10 +45,8 @@ public static class TradeRouteSystem
     private static float Keep(City city) =>
         city?.Record != null && RouteFreight.TryGetValue(city.Key, out var route) ? 1f - route.freight : 1f;
 
-#if EC_PENDING
     private static float TradeValue(City a, City b) =>
         BaseTrade + WealthTrade * (CityConstructionSystem.Wealth(a) + CityConstructionSystem.Wealth(b)) * 0.5f;
-#endif
 
     // 城市悬停提示：有商路时给一行"伙伴城市（+N/月）"，交战中标注禁运
 #if EC_PENDING
@@ -152,7 +150,7 @@ public static class TradeRouteSystem
     private static object SeaOf(City city)
     {
         Building docks = city.getBuildingOfType("type_docks", pCountOnlyFinished: true, pRandom: false);
-        Cell tile = docks?.current_tile;
+        Cell tile = docks?.Cell;
         if (tile == null) return null;
         if (tile.Type?.Ocean == true && tile.region?.island != null) return tile.region.island;
         foreach (Cell next in tile.NeighboursAll ?? Array.Empty<Cell>())
@@ -195,22 +193,18 @@ public static class TradeRouteSystem
     private static bool Treaty(Realm a, Realm b) => TreatyPartner(a) == b || TreatyPartner(b) == a;
 
     // 锁国：不与外国通商(被迫开港的不算)；所在市场定了闭关的也一样(见 CommodityMarketSystem.PolicyOf)
-#if EC_PENDING
     public static bool Closed(Realm kingdom)
     {
         if (TreatyPartner(kingdom) != null) return false;
         return ClosedByLaw(kingdom) || CommodityMarketSystem.PolicyOf(CommodityMarketSystem.RootOf(kingdom)) == TradePolicy.Closed;
     }
-#endif
 
     // 制度定了锁国
-#if EC_PENDING
     public static bool ClosedByLaw(Realm kingdom)
     {
         string culture = CultureService.GetRealmCulture(kingdom);
         return CultureService.IsValidCulture(culture) && InstitutionSystem.GetFeature(culture, "closed_country") > 0f;
     }
-#endif
 
     // 普通商路：每条有向记录给发起的港口记一笔。和约商路：按两端的城结一次，两边各记一笔——
     // A→B、B→A 同时在册也只结一次；同一港口的别条商路照常另算。

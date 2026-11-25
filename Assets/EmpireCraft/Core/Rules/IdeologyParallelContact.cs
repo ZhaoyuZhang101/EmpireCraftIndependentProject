@@ -39,7 +39,6 @@ public static partial class IdeologyPopulationSystem
         ContactWorkerResults=ContactFallbackResults=0;
     }
 
-#if EC_PENDING
     private static void StartParallelContact(City city,Dictionary<PartyIdeology,int> counts,
         Dictionary<PartyIdeology,int> organizers,HashSet<PartyIdeology> available,
         IReadOnlyDictionary<SocialClass,float> grievances,string culture,ContactSettings settings)
@@ -116,7 +115,6 @@ public static partial class IdeologyPopulationSystem
         GameClock.Now>=r.At&&ReferenceEquals(CityPopulationSystem.Get(r.City),r.Data)&&
         !EmpireCraft.Core.AncientWarfareCompatibility.OwnsObject(r.City)&&
         CultureService.GetMainCulture(r.City,initialize:false)==r.Culture;
-#endif
 
     private static bool GroupsMatch(ContactRequest r)
     {
@@ -130,7 +128,6 @@ public static partial class IdeologyPopulationSystem
         return true;
     }
 
-#if EC_PENDING
     private static void CompleteParallelContact(bool flush=false)
     {
         foreach(var pair in PendingContact.ToArray())
@@ -187,6 +184,5 @@ public static partial class IdeologyPopulationSystem
         if(!CityPopulationSystem.AbstractPopulationEnabled){ResetParallelContact();return;}
         CompleteParallelContact(true);
     }
-#endif
 }
 }

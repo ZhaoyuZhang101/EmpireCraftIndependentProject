@@ -82,12 +82,10 @@ public static class HaremSuccessionSystem
         return mother != null && mother.is_alive ? mother : null;
     }
 
-#if EC_PENDING
     private static void Record(Empire empire, Person emperor, string text)
     {
         empire.RecordHistory(directContent: text, actorId: emperor.Key, kingdomId: empire.CoreKingdom.Key);
         TranslateHelper.LogEventMessage(text, empire.CoreKingdom);
     }
-#endif
 }
 }

@@ -19,8 +19,8 @@ public sealed class WealthMapColor : RecordObject<IdeologyMapColorData>
 {
     private Tint _color;
 
+    public override EntityKind KindOfEntity => MetaTypeExtension.Wealth;
 #if EC_PENDING
-    public override MetaType meta_type => MetaTypeExtension.Wealth;
     public override ColorLibrary getColorLibrary() => AssetManager.culture_colors_library;
 #endif
     public override Tint GetColor() => _color;
@@ -47,7 +47,6 @@ public static class WealthMap
     // 富庶度要算经济繁荣，图层每帧重画：每城缓存半秒
     private static readonly Dictionary<long, (float score, float at)> _scores = new();
 
-#if EC_PENDING
     public static float Score(City city)
     {
         if (city?.Record == null) return 0f;
@@ -58,7 +57,6 @@ public static class WealthMap
         _scores[city.Key] = (score, now);
         return score;
     }
-#endif
 
     // 富庶档位的颜色(按图层眼下的显示模式)
 #if EC_PENDING
@@ -91,7 +89,6 @@ public static class WealthMap
     private static float[] _ranked = new float[0];
     private static float _rankedAt = -10f;
 
-#if EC_PENDING
     public static int Bucket(float score)
     {
         float now = Time.unscaledTime;
@@ -106,7 +103,6 @@ public static class WealthMap
         float percentile = below / (float)_ranked.Length;
         return Mathf.Clamp(Mathf.FloorToInt(percentile * 5f), 0, 4);
     }
-#endif
 
     private static WealthMapColor ColorOf(int bucket)
     {
@@ -160,19 +156,17 @@ public static class WealthMap
         };
         asset.click_action_zone = new MetaZoneClickAction((tile, power) => false);
     }
-
-    private static int BucketFor(int mode, float score) => mode == AbsoluteMode ? AbsoluteBucket(score) : Bucket(score);
 #endif
 
+    private static int BucketFor(int mode, float score) => mode == AbsoluteMode ? AbsoluteBucket(score) : Bucket(score);
+
     // 城市边界模式每座城描边；贫富热度、固定档位只描档位交界
-#if EC_PENDING
     private static bool IsBorder(int mode, Cell neighbour, City city, int bucket)
     {
         City other = neighbour?.City;
         if (mode == 1) return other != city;
         return !Shown(other) || BucketFor(mode, Score(other)) != bucket;
     }
-#endif
 
     private static string Percent(float value) => Mathf.RoundToInt(Mathf.Clamp01(value) * 100f) + "%";
 

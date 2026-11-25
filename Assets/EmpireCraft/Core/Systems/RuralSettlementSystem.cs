@@ -226,7 +226,7 @@ public static class RuralSettlementSystem
     // 这块无主之地本城领不领得到(原版的规矩)
 #if EC_PENDING
     public static bool CanClaim(City city, Cell zone) =>
-        zone != null && zone.City == null && zone.GroundTiles > 0 && zone.canBeClaimedByCity(city) &&
+        zone != null && zone.City == null && zone.GroundCount > 0 && zone.canBeClaimedByCity(city) &&
         CityExpansionPatch.Reachable(zone, city) && !CityExpansionPatch.AtLimit(city) &&
         !CityExpansionPatch.AcrossRiver(city, zone);
 #endif
@@ -414,17 +414,14 @@ public static class RuralSettlementSystem
     private const float YurtDryShare = 0.6f;
 
     // 游牧营地的城：立村设镇、城长大添村镇都是毡帐(见 UrbanFabric.PlaceCountryside)；水土改从游牧的城(城池照旧)也是
-#if EC_PENDING
     public static bool YurtCity(City city) =>
         city?.Record != null && !city.IsGone() && (CityStyleSystem.Established(city) == "nomad" || NomadSettlers(city));
-#endif
 
     // 水土改从游牧的城(见 ShuiTuSystem.TurnNomad)：城池不改建，之后新添的村镇按游牧规矩
     public static bool NomadSettlers(City city) => city?.Record != null && city.GetOrCreate().nomad_settlers;
 
     // 毡帐立得住的地方：所在那一格是旱地(荒漠、稀树草原、荒原，见 LandKinds.Dry；海滩沙地算海岸、不算)，
     // 占地范围(村两格，镇按大小)里的陆地六成以上是旱地
-#if EC_PENDING
     public static bool YurtGround(int x, int y, bool town, int size)
     {
         Cell center = EmpireWorld.Current?.CellAt(x, y);
@@ -443,11 +440,9 @@ public static class RuralSettlementSystem
         }
         return land > 0 && dry >= land * YurtDryShare;
     }
-#endif
 
     // 一片地(游牧城的城心，见 PureMapPatch.Layout)是不是旱地：陆地六成以上是旱地，口径同 YurtGround。
     // 不是旱地的游牧城城心画成冬营地(木土小屋、畜栏)，不画毡帐；只管画法，人口上限、牧场保底、不修路照旧
-#if EC_PENDING
     public static bool DryLand(IEnumerable<Cell> zones)
     {
         int land = 0, dry = 0;
@@ -467,7 +462,6 @@ public static class RuralSettlementSystem
         }
         return land > 0 && dry >= land * YurtDryShare;
     }
-#endif
 
     // 记成毡帐村镇：生计定死为牧(见 LivelihoodSystem.Of)
     public static void MarkYurt(RuralSettlement settlement, bool yurt)
@@ -494,7 +488,6 @@ public static class RuralSettlementSystem
 #endif
 
     // 改档位(窗口里的升级、降级)：镇三格见方，有墙大镇四格(城大的五格)；毡帐的也能升到有墙的大营(调用的地方自己定上限)
-#if EC_PENDING
     public static void SetTier(RuralSettlement settlement, int tier)
     {
         if (settlement == null || settlement.cleared) return;
@@ -514,12 +507,10 @@ public static class RuralSettlementSystem
             };
         }
         Revision++;
-        if (city != null) PureMapPatch.Redraw(city);
+        if (city != null) GameView.Redraw(city);
     }
-#endif
 
     // 改生计(窗口里，见 LivelihoodSystem)：手动的毡帐村镇也能改行(AI 立的毡帐只放牧)
-#if EC_PENDING
     public static void SetTrade(RuralSettlement settlement, int trade)
     {
         if (settlement == null || settlement.cleared || settlement.fort) return;
@@ -529,16 +520,13 @@ public static class RuralSettlementSystem
         settlement.trade_manual = true;
         TradeChanged(CityOf(settlement));
     }
-#endif
 
     // 生计改了(窗口里手动改、旧档按新规则重查，见 LivelihoodSystem.RecheckOldRules)：重画本城
-#if EC_PENDING
     internal static void TradeChanged(City city)
     {
         Revision++;
-        if (city != null) PureMapPatch.Redraw(city);
+        if (city != null) GameView.Redraw(city);
     }
-#endif
 
     // 换样式(窗口里，手动)：随所在的城、各文化系的画法、毡帐，任意互换。只换画法——位置、档位、生计、名字都不变
     // (换成毡帐的不再锁死放牧，见 LivelihoodSystem.Of；毡帐换回普通的照旧放牧，要改行在窗口里改)；关城没有样式
@@ -554,7 +542,6 @@ public static class RuralSettlementSystem
         string.IsNullOrEmpty(option) ? LM.Get("settlement_style_city") : option == YurtStyle ? LM.Get("settlement_style_yurt")
         : CityStyleSystem.StyleName(option);
 
-#if EC_PENDING
     public static void SetStyle(RuralSettlement settlement, string option)
     {
         option ??= "";
@@ -565,9 +552,8 @@ public static class RuralSettlementSystem
         settlement.style_by_hand = true;
         Revision++;
         City city = CityOf(settlement);
-        if (city != null) PureMapPatch.Redraw(city);
+        if (city != null) GameView.Redraw(city);
     }
-#endif
 
     // 改官营、民营(窗口里)
     public static void SetState(RuralSettlement settlement, bool state)
@@ -588,6 +574,7 @@ public static class RuralSettlementSystem
         int cost = town ? TownCost + (walled ? WallCost : 0) : VillageCost;
         return EnterpriseSystem.Fund(city, cost, !town, out state);
     }
+#endif
 
     public static void Rename(RuralSettlement settlement, string name)
     {
@@ -597,12 +584,10 @@ public static class RuralSettlementSystem
         settlement.named_by_hand = true;
         Revision++;
         City city = CityOf(settlement);
-        if (city != null) PureMapPatch.Redraw(city);
+        if (city != null) GameView.Redraw(city);
     }
-#endif
 
     // 换个样子：只换这一处的布局种子，位置、档位、名字都不变
-#if EC_PENDING
     public static void Reroll(RuralSettlement settlement)
     {
         if (settlement == null) return;
@@ -612,12 +597,10 @@ public static class RuralSettlementSystem
         settlement.seed = seed;
         Revision++;
         City city = CityOf(settlement);
-        if (city != null) PureMapPatch.Redraw(city);
+        if (city != null) GameView.Redraw(city);
     }
-#endif
 
     // 手动重建废墟
-#if EC_PENDING
     public static void Rebuild(RuralSettlement settlement)
     {
         if (settlement == null || settlement.ruined_at < 0d) return;
@@ -625,9 +608,8 @@ public static class RuralSettlementSystem
         settlement.founded = GameClock.Now;
         Revision++;
         City city = CityOf(settlement);
-        if (city != null) PureMapPatch.Redraw(city);
+        if (city != null) GameView.Redraw(city);
     }
-#endif
 
     // 画法用的种子：按位置，换过样子的再加上它自己的种子(见 UrbanFabric.SettlementKey)
     public static long SeedAt(int x, int y) => At(x, y)?.seed ?? 0L;
@@ -706,7 +688,7 @@ public static class RuralSettlementSystem
             ClaimAround(city, settlement, center?.X ?? tile.X, center?.Y ?? tile.Y, float.MaxValue);
             CityDistricts.Reset();
         }
-        PureMapPatch.Redraw(city);
+        GameView.Redraw(city);
         return string.Format(LM.Get(gate != null ? "settlement_placed_gate" : fort ? "settlement_placed_fort"
             : yurt ? town ? "settlement_placed_yurt_town" : "settlement_placed_yurt_village"
             : town ? "settlement_placed_town" : "settlement_placed_village"), cityName);
@@ -748,11 +730,11 @@ public static class RuralSettlementSystem
             if (city != null) Displace(city, settlement);
             settlement.ruined_at = GameClock.Now;
             Revision++;
-            if (city != null) PureMapPatch.Redraw(city);
+            if (city != null) GameView.Redraw(city);
             return string.Format(LM.Get("settlement_razed"), name);
         }
         Erase(settlement);
-        if (city != null) PureMapPatch.Redraw(city);
+        if (city != null) GameView.Redraw(city);
         return string.Format(LM.Get("settlement_erased"), name);
     }
 #endif
@@ -798,8 +780,8 @@ public static class RuralSettlementSystem
         if (seat.City != target) return string.Format(LM.Get("settlement_assign_failed"), name, targetName);
         Revision++;
         CityDistricts.Reset();
-        PureMapPatch.Redraw(target);
-        if (source != null) PureMapPatch.Redraw(source);
+        GameView.Redraw(target);
+        if (source != null) GameView.Redraw(source);
         return string.Format(LM.Get("settlement_assign_done"), name, targetName);
     }
 #endif

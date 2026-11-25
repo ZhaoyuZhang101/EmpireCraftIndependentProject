@@ -15,9 +15,9 @@ namespace EmpireCraft.Core
 //     以前换政体时各藩照旧世袭、有外交权，明治之后仍是一国诸藩)。
 public static class BakufuSystem
 {
-#if EC_PENDING
     public static bool IsBakufu(Empire empire) => empire?.CoreKingdom?.GetRegime()?.type == RegimeType.Bakufu;
 
+#if EC_PENDING
     public static void OnRegimeChanged(Empire empire, RegimeType? previous, RegimeType current)
     {
         if (empire?.data == null || empire.CoreKingdom == null || previous == current) return;
@@ -112,6 +112,7 @@ public static class BakufuSystem
         if (heir != null) empire.data.court_emperor_id = heir.Key;
         return heir;
     }
+#endif
 
     private static void Record(Empire empire, string content)
     {
@@ -119,6 +120,5 @@ public static class BakufuSystem
         empire.RecordHistory(directContent: content, kingdomId: empire.CoreKingdom.Key);
         TranslateHelper.LogEventMessage(content, empire.CoreKingdom);
     }
-#endif
 }
 }

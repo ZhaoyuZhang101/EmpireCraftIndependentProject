@@ -99,7 +99,6 @@ public static partial class EmpireLawSystem
     #region 宽严
 
     // 一国的宽严(帝国之内按帝国)。refresh：界面要看即时的(换了君主、改了理念)
-#if EC_PENDING
     public static LawStanceInfo GetLawStance(Realm kingdom, bool refresh = false)
     {
         Realm realm = RealmKingdom(kingdom);
@@ -172,7 +171,6 @@ public static partial class EmpireLawSystem
         info.AmnestyChance = info.Tier == LawStanceTier.宽仁 ? 0.15f * -severity : 0f;
         return info;
     }
-#endif
 
     private static float IdeologySeverity(EmpireLawEraConfig config, PartyIdeology ideology) =>
         config.IdeologySeverity != null && config.IdeologySeverity.TryGetValue(ideology, out float value) ? value : 0f;
@@ -182,7 +180,6 @@ public static partial class EmpireLawSystem
     #region 司法
 
     // 一国司法的力量(帝国之内看中央的司法官)。refresh：界面要看即时的
-#if EC_PENDING
     public static JudicialStrengthInfo GetJudicialStrength(Realm kingdom, bool refresh = false)
     {
         Realm realm = RealmKingdom(kingdom);
@@ -204,13 +201,11 @@ public static partial class EmpireLawSystem
         JudicialCache[realm.Key] = (year, info);
         return info;
     }
-#endif
 
     // 有"司法"职权的中央官职(廷尉、大理寺、御史台/都察院、共和国的司法部……)：
     //   发现倍数 = 0.55 + 0.6 × 各官平均得分(空缺 0；在任者 0.4 + 0.6 × 才干，清廉 +0.15、贪婪狡诈 -0.25)。
     //   满员、才干平平时约为 1，全部空缺 0.55，得人 1.15；
     // 没有司法官的国家(独立王国、没设这类官的政体)由君主亲断：0.85 + 0.25 × 君主才干，平常约为 1
-#if EC_PENDING
     private static JudicialStrengthInfo ComputeJudicialStrength(Realm realm)
     {
         var info = new JudicialStrengthInfo();
@@ -243,7 +238,6 @@ public static partial class EmpireLawSystem
             : new LawFactor("law_judicial_none", info.Factor));
         return info;
     }
-#endif
 
     // 才干：智力与管理之和，30 为满
     private static float Ability(Person actor) =>
@@ -264,7 +258,6 @@ public static partial class EmpireLawSystem
     #region 查案
 
     // 某人某年未发之罪被查出的机会与构成(kingdom 为论处的国家)
-#if EC_PENDING
     public static DiscoveryChanceInfo GetDiscoveryChanceInfo(Person actor, Realm kingdom)
     {
         var info = new DiscoveryChanceInfo();
@@ -298,7 +291,6 @@ public static partial class EmpireLawSystem
     }
 
     private static float GetCrimeDiscoveryChance(Person actor, Realm kingdom) => GetDiscoveryChanceInfo(actor, kingdom).Chance;
-#endif
 
     // 吏治：本国与本城腐败率各半，腐败率 0 → 1.1、0.2 → 1.0、1 → 0.6
     private static float CorruptionFactor(Person actor, Realm kingdom)
@@ -353,26 +345,21 @@ public static partial class EmpireLawSystem
     }
 
     // 本国(帝国之内按核心国)文化所处的科技时代档次
-#if EC_PENDING
     public static int GetEraTier(Realm kingdom)
     {
         Realm realm = RealmKingdom(kingdom);
         string culture = realm != null ? TechnologySystem.GetCultureOf(realm) : "";
         return string.IsNullOrEmpty(culture) ? 0 : TechnologySystem.GetEraTier(culture);
     }
-#endif
 
     // 现代政体：现代、穿越政体(ModernStability.IsModern)，以及改制共和的帝国
-#if EC_PENDING
     public static bool IsModernLaw(Realm kingdom)
     {
         if (kingdom == null || kingdom.IsGone()) return false;
         return ModernStability.IsModern(kingdom) || RepublicSystem.IsRepublic(RealmEmpire(kingdom));
     }
-#endif
 
     // 现代政体里保不保留死刑：一党专政、独裁、或由 ModernDeathPenaltyIdeologies 的理念执政的保留，其余(民主共和国)废除
-#if EC_PENDING
     public static bool KeepsDeathPenalty(Realm kingdom)
     {
         if (!IsModernLaw(kingdom)) return true;
@@ -398,7 +385,6 @@ public static partial class EmpireLawSystem
             AbolishDeath = modern && !KeepsDeathPenalty(kingdom)
         };
     }
-#endif
 
     private static void AddNote(ICollection<string> notes, string key)
     {
@@ -406,10 +392,8 @@ public static partial class EmpireLawSystem
     }
 
     // 给界面逐项写"原刑→今刑"用：一种刑罚在这个国家按时代、政体改成什么(notes 收集用到的说明键)
-#if EC_PENDING
     public static PunishmentLevel AdaptPunishment(Realm kingdom, PunishmentLevel punishment, ICollection<string> notes = null) =>
         Adapt(punishment, GetPenalRegime(kingdom), notes);
-#endif
 
     // 一种刑罚按时代、政体改成什么(notes 收集用到的规则)
     private static PunishmentLevel Adapt(PunishmentLevel punishment, PenalRegime regime, ICollection<string> notes)
@@ -470,17 +454,14 @@ public static partial class EmpireLawSystem
     }
 
     // 一条律法在本国现行的刑罚(界面用)
-#if EC_PENDING
     public static List<PunishmentLevel> GetEffectivePunishments(Realm kingdom, LawType type, List<string> notes = null)
     {
         Law law = type.GetConfig();
         if (law == null) return new List<PunishmentLevel>();
         return AdaptPunishments(OrderedPunishments(law.Punishments), GetPenalRegime(kingdom), notes, out _);
     }
-#endif
 
     // 本国现行的律法(政体配置里有、律法表里有的)，含按时代、政体改过的刑罚(界面用)
-#if EC_PENDING
     public static List<EffectiveLawInfo> GetEffectiveLaws(Realm kingdom)
     {
         var result = new List<EffectiveLawInfo>();
@@ -506,17 +487,15 @@ public static partial class EmpireLawSystem
         }
         return result;
     }
-#endif
 
     #endregion
 
     #region 量刑
 
     // 量刑：律文 → 时代与政体 → 量刑天平(宽严、八议都在天平上) → 赎刑。十恶不论情面、不赎；现代政体只论宽仁、不赎
-#if EC_PENDING
     private static void BuildSentence(LawEnforcementContext context)
     {
-        Realm kingdom = context.Kingdom;
+        Realm kingdom = context.Realm;
         PenalRegime regime = GetPenalRegime(kingdom);
         List<PunishmentLevel> grades = AdaptedGrades(regime);
         context.BasePunishments = OrderedPunishments(context.Law?.Punishments);
@@ -532,7 +511,6 @@ public static partial class EmpireLawSystem
         context.Sentence = OrderedPunishments(sentence);
         context.PrisonYears = PrisonTerm(context, stance);
     }
-#endif
 
     // 刑罚里最重的一等在现行刑等里的位置；没有刑等(只有附加处分)为 -1
     private static int HeaviestGrade(List<PunishmentLevel> sentence, List<PunishmentLevel> grades)
@@ -628,7 +606,6 @@ public static partial class EmpireLawSystem
     // 量刑天平的读数(见 SentencingScale)。context 为空是人物页的预览：按寻常罪名(不是十恶)、未发之罪的赃额、没有告发者算
     //   罪责：前科、叛逆、赃额、告发者、严苛之政、与君主有宿怨、暴君从重；
     //   情面：皇室、议贵、议功、政绩、影响力、宠信(昏君偏袒)、宽仁之政。十恶、暴君情面不上秤；现代政体只论宽仁
-#if EC_PENDING
     public static SentencingScaleInfo GetScale(Person actor, Realm kingdom, LawEnforcementContext context = null)
     {
         var info = new SentencingScaleInfo();
@@ -701,7 +678,6 @@ public static partial class EmpireLawSystem
         info.Shift = SentencingScale.Shift(info.Balance);
         return info;
     }
-#endif
 
     // 加减几等的说法：加一等、减三等、按律
     public static string ShiftText(int shift) =>
@@ -716,14 +692,13 @@ public static partial class EmpireLawSystem
 
     // 量刑：天平定加减几等。减两等以上免抄家(改罚金)、减三等免削爵；皇室交宗人府议处(见 RoyalCourtSentence)，
     // 罢官不禁锢子孙(子孙是皇位所系)
-#if EC_PENDING
     private static void ApplyScale(LawEnforcementContext context, List<PunishmentLevel> sentence, List<PunishmentLevel> grades,
         PenalRegime regime, LawStanceInfo stance)
     {
-        SentencingScaleInfo info = GetScale(context.Actor, context.Kingdom, context);
+        SentencingScaleInfo info = GetScale(context.Person, context.Realm, context);
         context.Scale = info;
         context.RoyalKin = info.Royal;
-        context.Faction = context.Actor?.GetFaction();
+        context.Faction = context.Person?.GetFaction();
         int shift = info.Shift;
         int applied = 0;
         if (shift > 0 && Escalate(sentence, grades, context)) applied = 1;
@@ -761,7 +736,6 @@ public static partial class EmpireLawSystem
                            $"天平 {info.Balance:0.00} → {shift:+0;-0;0} 等，实施 {applied:+0;-0;0}" +
                            (info.Royal ? "｜宗人府 " + string.Join(" ", context.Notes.Where(n => n.StartsWith("law_note_royal") || n.StartsWith("law_note_heir"))) : ""));
     }
-#endif
 
     // 宗人府议处(用户 2026-11-10 选"宗室重罪交宗人府")：
     //   · 寻常罪名：皇室不受笞杖(折罚俸)、徒流改圈禁、免抄家、削爵改降一等；储君判到圈禁的废储；
@@ -817,14 +791,13 @@ public static partial class EmpireLawSystem
     }
 
     // 宗人府议处的后事(施刑以后)：废储——储君之位另立，此人不再入继承人之列；废为庶人——不再算宗室，去爵
-#if EC_PENDING
     private static void ApplyRoyalCourt(LawEnforcementContext context)
     {
-        Person actor = context?.Actor;
+        Person actor = context?.Person;
         if (actor?.Record == null || !context.DeposeHeir && !context.StripRoyal) return;
         PersonalClanIdentity identity = context.Identity ?? actor.GetPersonalIdentity();
-        Realm realm = RealmKingdom(context.Kingdom);
-        Person ruler = RealmRuler(context.Kingdom);
+        Realm realm = RealmKingdom(context.Realm);
+        Person ruler = RealmRuler(context.Realm);
         if (context.DeposeHeir && realm != null)
         {
             if (identity != null) identity.disinherited = true;
@@ -837,7 +810,7 @@ public static partial class EmpireLawSystem
             }
             string text = string.Format(LM.Get(context.StripRoyal ? "law_heir_commoner_history" : "law_heir_deposed_history"),
                 context.ActorName, context.LawName);
-            Empire empire = RealmEmpire(context.Kingdom);
+            Empire empire = RealmEmpire(context.Realm);
             if (empire != null) EventRecorder.Record(empire, text, actor, realm);
             else EventRecorder.Record(realm, text, actor);
             BiographySystem.Note(actor, BiographySystem.Format("bio_heir_deposed_law", context.LawName), ruler);
@@ -848,7 +821,6 @@ public static partial class EmpireLawSystem
             ApplyStripPeerage(actor);
         }
     }
-#endif
 
     // 量刑天平的代价(用户 2026-11-10 选"硬判、放过都有代价")：
     //   · 硬判：单看情面本该减两等以上，却因罪责、暴君、十恶少减了两等以上，又判了徒以上——他那一派怨望 +HardlineGrievance；
@@ -856,13 +828,12 @@ public static partial class EmpireLawSystem
     //   · 放过：罪责到了 ×1.6 却因情面减了等——吏治败坏积弊 +2，本朝腐败 +0.5%
     private const float HardlineGrievance = 5f;
 
-#if EC_PENDING
     private static void ApplyScaleCosts(LawEnforcementContext context)
     {
         SentencingScaleInfo info = context?.Scale;
         if (info == null) return;
-        Empire empire = RealmEmpire(context.Kingdom);
-        Realm realm = RealmKingdom(context.Kingdom);
+        Empire empire = RealmEmpire(context.Realm);
+        Realm realm = RealmKingdom(context.Realm);
         int mercyShift = SentencingScale.MercyShift(info.MercyWeight);
         bool severe = context.AppliedPunishments.Any(p => p is PunishmentLevel.监禁 or PunishmentLevel.流放 or PunishmentLevel.死刑
             or PunishmentLevel.夷三族);
@@ -874,7 +845,7 @@ public static partial class EmpireLawSystem
                 if (state != null) state.grievance = Mathf.Min(100f, state.grievance + HardlineGrievance);
             }
             if (info.Royal) empire?.AddMandate(-2);
-            if (info.Tyrant) RealmRuler(context.Kingdom)?.AddTyrantValue(3);
+            if (info.Tyrant) RealmRuler(context.Realm)?.AddTyrantValue(3);
             AddNote(context.Notes, "law_note_cost_hardline");
             LogService.LogInfo($"[律法][量刑] 硬判 {context.ActorName}：情面本可减 {-mercyShift} 等，实判 {info.Shift:+0;-0;0}，" +
                                $"派系怨望 +{HardlineGrievance}{(info.Royal ? "，正统 -2" : "")}");
@@ -888,7 +859,6 @@ public static partial class EmpireLawSystem
             LogService.LogInfo($"[律法][量刑] 放过 {context.ActorName}：罪责 ×{info.GuiltWeight:0.00} 仍减 {-info.Shift} 等，吏治败坏 +2");
         }
     }
-#endif
 
     // 血债宗室：这人亲手杀过几个本朝皇亲(与本朝君主同一宗，含支系)。按他生平里"手刃某某"那几笔回查——死者的死因记录写着
     // 凶手就是他，旧档里早先杀的也算得上(用户 2026-11-10 "都杀了皇室的亲人了这罪名呢")
@@ -955,7 +925,6 @@ public static partial class EmpireLawSystem
 
     // 赎刑：判了笞、杖、徒、流而不判死的，家资不少于 100、赎金不过家资六成的纳金赎免(严则赎重)。
     // 十恶、现代政体不许赎；判了抄家的赎了也是白赎，不赎
-#if EC_PENDING
     private static void PlanRansom(LawEnforcementContext context, List<PunishmentLevel> sentence, PenalRegime regime)
     {
         EmpireLawEraConfig config = Eras ?? EmpireLawEraConfig.Defaults();
@@ -963,29 +932,26 @@ public static partial class EmpireLawSystem
         if (sentence.Any(IsLethal) || sentence.Contains(PunishmentLevel.没收财产)) return;
         List<PunishmentLevel> commutable = sentence.Where(punishment => config.RansomCost.ContainsKey(punishment)).ToList();
         if (commutable.Count == 0) return;
-        float factor = GetLawStance(context.Kingdom).FineFactor;
+        float factor = GetLawStance(context.Realm).FineFactor;
         int cost = Mathf.RoundToInt(commutable.Sum(punishment => config.RansomCost[punishment]) * factor);
-        int money = context.Actor?.money ?? 0;
+        int money = context.Person?.Money ?? 0;
         if (cost <= 0 || money < RansomMinWealth || cost > money * RansomMaxShare) return;
         foreach (PunishmentLevel punishment in commutable) sentence.Remove(punishment);
         context.RansomPaid = cost;
         context.Notes.Add("law_note_ransom|" + cost);
     }
-#endif
 
     // 收赎金入国库(施刑前收，不算追回的赃款)
-#if EC_PENDING
     private static void PayRansom(LawEnforcementContext context)
     {
         if (context == null || context.RansomPaid <= 0) return;
-        Person actor = context.Actor;
+        Person actor = context.Person;
         int paid = Math.Min(context.RansomPaid, Math.Max(0, actor?.Money ?? 0));
         context.RansomPaid = paid;
         if (paid <= 0) return;
         actor.AddMoney(-paid);
-        if (context.Kingdom != null && !context.Kingdom.IsGone()) context.Kingdom.AddMoney(paid, TreasuryCategory.Other);
+        if (context.Realm != null && !context.Realm.IsGone()) context.Realm.AddMoney(paid, TreasuryCategory.Other);
     }
-#endif
 
     // 监禁的刑期(年)：按律文最重的原定刑罚(PrisonYears)，宽严增减，从重的加五成；现代废死改判的为长期监禁
     private static int PrisonTerm(LawEnforcementContext context, LawStanceInfo stance)

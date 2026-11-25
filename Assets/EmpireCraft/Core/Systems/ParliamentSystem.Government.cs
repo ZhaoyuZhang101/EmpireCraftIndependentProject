@@ -56,22 +56,17 @@ public static partial class ParliamentSystem
     }
 
     // 执政党控制内阁：责任政府(共和国、君主立宪的责任内阁阶段)才由议会多数派出任部长
-#if EC_PENDING
     public static bool ControlsMinistries(Empire empire) =>
         HasResponsibleGovernment(empire) && !RepublicSystem.IsTransitioning(empire);
-#endif
 
     public static ConstitutionCivilService CivilService(Empire empire) =>
         ConstitutionSystem.GetClauses(empire)?.civil_service ?? ConstitutionCivilService.Mixed;
 
     // 文官制度约束事务岗位，不把部长变成常任文官。
-#if EC_PENDING
     public static bool PartyAppointsMinisters(Empire empire) =>
         ControlsMinistries(empire);
-#endif
 
     // division 配置包含财政部长等部门主官，并非天然就是下级事务岗位。
-#if EC_PENDING
     public static bool PartyAppointsDivisions(Empire empire) =>
         ControlsMinistries(empire);
 
@@ -92,7 +87,6 @@ public static partial class ParliamentSystem
                OfficeManager.Offices.TryGetValue(officeId, out OfficeObject office) && !office.is_local &&
                office.political_appointment == false && CivilService(empire) != ConstitutionCivilService.Spoils;
     }
-#endif
 
     // 政党分肥制下换了执政党后的两年：官员大换血
     public static bool InSpoilsTurnover(Empire empire)
@@ -102,7 +96,6 @@ public static partial class ParliamentSystem
                CivilService(empire) == ConstitutionCivilService.Spoils;
     }
 
-#if EC_PENDING
     public static List<string> GetCoalitionIds(Empire empire)
     {
         if (!HasParliament(empire)) return new List<string>();
@@ -111,10 +104,8 @@ public static partial class ParliamentSystem
 
     public static GovernmentAgenda GetAgenda(Empire empire) =>
         HasParliament(empire) ? GetState(empire)?.government_agenda : null;
-#endif
 
     // 两个派系/政党在政治上的距离：理念光谱上的距离，拥宪与反宪之间再加一道隔阂
-#if EC_PENDING
     public static float PoliticalDistance(FixedFaction a, FixedFaction b, bool budding)
     {
         if (a == null || b == null) return float.MaxValue;
@@ -134,13 +125,11 @@ public static partial class ParliamentSystem
             .OrderByDescending(item => item.seats)
             .ThenByDescending(item => item.faction.CentralRatio)
             .ToList();
-#endif
 
     #endregion
 
     #region 组阁
 
-#if EC_PENDING
     private static GovernmentPlan FormGovernment(Empire empire, ConstitutionalEconomyState state,
         List<(FixedFaction faction, int seats)> blocs, int total, HashSet<string> excluded)
     {
@@ -165,10 +154,8 @@ public static partial class ParliamentSystem
             Seats = eligible[0].seats
         };
     }
-#endif
 
     // 组阁人按理念远近依次拉拢，凑够过半为止(最小获胜联盟)
-#if EC_PENDING
     private static GovernmentPlan TryCoalition(List<(FixedFaction faction, int seats)> blocs, FixedFaction formateur,
         int formateurSeats, int total, bool budding)
     {
@@ -191,7 +178,6 @@ public static partial class ParliamentSystem
         }
         return plan.Seats * 2 > total && plan.Members.Count > 1 ? plan : null;
     }
-#endif
 
     // announce：election 大选后组阁 / no_confidence 倒阁后重新组阁；为空表示补选后的例行确认
 #if EC_PENDING
@@ -308,6 +294,7 @@ public static partial class ParliamentSystem
         AssignMinisters(empire, state, announce: true);
         return true;
     }
+#endif
 
     private static bool TryKeepGovernment(Empire empire, ConstitutionalEconomyState state,
         List<(FixedFaction faction, int seats)> blocs, int total)
@@ -351,7 +338,6 @@ public static partial class ParliamentSystem
         EventRecorder.RecordRoutine(empire, content, primeMinister);
         primeMinister.RecordPersonalHistory(content);
     }
-#endif
 
     #endregion
 
@@ -459,6 +445,7 @@ public static partial class ParliamentSystem
         recruit.SetFaction(party);
         return recruit;
     }
+#endif
 
     private static void RecordCabinet(Empire empire, List<OfficeObject> offices)
     {
@@ -469,7 +456,6 @@ public static partial class ParliamentSystem
             EventRecorder.RecordRoutine(empire, string.Format(LM.Get("parliament_cabinet_formed_history"),
                 empire.GetEmpireFullName(), lineup));
     }
-#endif
 
     #endregion
 
@@ -490,6 +476,7 @@ public static partial class ParliamentSystem
         if (TryNoConfidence(empire, state)) return;
         UpdateAgenda(empire, state);
     }
+#endif
 
     private static bool CanHoldNoConfidence(Empire empire, ConstitutionalEconomyState state)
     {
@@ -503,7 +490,6 @@ public static partial class ParliamentSystem
         return state.last_parliament_election >= 0d &&
                GameClock.YearsSince(state.last_parliament_election) < TermYears(empire) - 1;
     }
-#endif
 
     // 在野党发起不信任投票；返回本年是否发生了倒阁(之后不再结算议程)
 #if EC_PENDING
@@ -645,18 +631,17 @@ public static partial class ParliamentSystem
         }
         return true;
     }
+#endif
 
     private static IEnumerable<Person> Ministers(Empire empire) =>
         (empire.data?.centerOffice?.CoreOffices ?? new List<long>())
         .Select(id => OfficeManager.Offices.TryGetValue(id, out OfficeObject office) ? office.GetActor() : null)
         .Where(actor => actor != null);
-#endif
 
     private static string AgendaText(GovernmentAgenda agenda, string from) =>
         string.Format(LM.Get("government_agenda_change"), LM.Get($"constitution_clause_{agenda.clause}"),
             ConstitutionSystem.ValueText(agenda.clause, from), ConstitutionSystem.ValueText(agenda.clause, agenda.target));
 
-#if EC_PENDING
     private static void UpdateAgenda(Empire empire, ConstitutionalEconomyState state)
     {
         FixedFaction governing = GetGoverningFaction(empire);
@@ -744,10 +729,8 @@ public static partial class ParliamentSystem
                 sponsor.Name, AgendaText(agenda, current)));
         state.government_agenda = null;
     }
-#endif
 
     // 换了执政党：新政府主张一致就接手上届议程(保留进度)，否则废止
-#if EC_PENDING
     private static void HandOverAgenda(Empire empire, ConstitutionalEconomyState state, FixedFaction newParty)
     {
         GovernmentAgenda agenda = state.government_agenda;
@@ -768,7 +751,6 @@ public static partial class ParliamentSystem
         EventRecorder.RecordRoutine(empire, string.Format(LM.Get("government_agenda_abandoned_history"), country,
             newParty.Name, AgendaText(agenda, current)));
     }
-#endif
 
     #endregion
 }

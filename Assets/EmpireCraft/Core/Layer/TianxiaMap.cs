@@ -16,8 +16,8 @@ public sealed class TianxiaMapColor : RecordObject<IdeologyMapColorData>
 {
     private Tint _color;
 
+    public override EntityKind KindOfEntity => MetaTypeExtension.Tianxia;
 #if EC_PENDING
-    public override MetaType meta_type => MetaTypeExtension.Tianxia;
     public override ColorLibrary getColorLibrary() => AssetManager.culture_colors_library;
 #endif
     public override Tint GetColor() => _color;
@@ -228,7 +228,6 @@ public static class TianxiaMap
     private static readonly Dictionary<List<City>, string> UncoredNames = new();
     private static int _namesVersion = -1;
 
-#if EC_PENDING
     private static string UncoredName(List<City> cities)
     {
         if (_namesVersion != UnificationSystem.UncoredVersion)
@@ -248,7 +247,6 @@ public static class TianxiaMap
             .Select(group => group.Key).FirstOrDefault();
         return string.Format(LM.Get("tianxia_uncored_name"), culture?.GetCultureTranslate() ?? "");
     }
-#endif
 
     private static bool HolderBorder(Cell neighbour, EmpireCore lead, Realm holder)
     {

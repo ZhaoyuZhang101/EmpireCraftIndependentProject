@@ -131,7 +131,7 @@ public static class WorldMapGenerator
         // 纯净地图模式本就清植物；其余照原版撒一遍草木与浆果
         if (!PureMapMode.Enabled)
         {
-            int spread = world.Zones.Length / 20;
+            int spread = world.AllCells.Length / 20;
             for (int i = 0; i < 12; i++) Step(() => MapGenerator.spawnVegetation(spread), "World Map: Vegetation");
             Step(MapGenerator.spawnResources, "World Map: Resources");
         }

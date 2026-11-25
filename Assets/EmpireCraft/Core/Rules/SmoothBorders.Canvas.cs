@@ -560,7 +560,7 @@ public static partial class SmoothBorders
     {
         if (owner == null) return 0;
         int key = AppearanceKey(owner);
-        if (layer.map_mode == MetaType.Kingdom && owner is Realm kingdom)
+        if (layer.map_mode == EntityKind.Realm && owner is Realm kingdom)
             unchecked
             {
                 key = key * 31 + (int)(ZhouEraSystem.SphereOf(kingdom)?.Key ?? -1L);
@@ -1069,7 +1069,7 @@ public static partial class SmoothBorders
         CanvasHostility.Clear();
         CanvasStripes.Clear();
         _canvasFront = CorpsSystem.Enabled && ControlLayer(_canvasLayer);
-        _canvasGold = _canvasLayer.map_mode == MetaType.Kingdom;
+        _canvasGold = _canvasLayer.map_mode == EntityKind.Realm;
         _canvasPure = PureMapMode.Enabled;
         // 选中的单位所属的那一方(原版只显示它)：一轮取一次(没有国家的单位取联盟会出错)
         _canvasUnitSet = SelectedUnit.isSet();

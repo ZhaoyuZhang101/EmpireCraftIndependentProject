@@ -104,27 +104,22 @@ public static class NavySystem
     // 有水师的时代：本国文化到了铁器时代(科技 4 级)
     public const int NavyEraTier = 4;
 
-#if EC_PENDING
     public static bool NavyEra(Realm kingdom)
     {
         string culture = TransmigrantSystem.NavalState(kingdom) != null ? TransmigrantSystem.Culture : TechnologySystem.GetCultureOf(kingdom);
         return culture != null && TechnologySystem.GetEraTier(culture) >= NavyEraTier;
     }
-#endif
 
     // 海军科技按谁算：本国都城的文化；澳宋的大区、殖民地文化多半还是当地的，军舰却是同一家造的，一律按澳洲人的
     // (以前大区的舰队按华夏科技算，元老院有蒸汽铁甲，下面的大区全是远洋帆舰)
-#if EC_PENDING
     private static string NavalCulture(Realm kingdom)
     {
         if (TransmigrantSystem.NavalState(kingdom) != null) return TransmigrantSystem.Culture;
         return kingdom?.Capital == null ? null : TechnologySystem.GetCultureOf(kingdom.Capital);
     }
-#endif
 
     // 舰种(战力倍率)：楼船 1 / 远洋帆舰 1.5 / 蒸汽铁甲 2.5 / 现代舰艇 4
     // 每艘运输船载多少人：楼船 200、远洋帆船 400、蒸汽运兵船 1500、现代运兵船 3000
-#if EC_PENDING
     public static float ShipCapacity(Realm kingdom) => Tier(kingdom) switch
     {
         >= 4f => ModernCapacity,
@@ -132,19 +127,15 @@ public static class NavySystem
         >= 1.5f => SailCapacity,
         _ => AncientCapacity
     };
-#endif
 
     // 舰种按海军科技线(远洋航海 → 蒸汽铁甲 → 现代舰艇，见 TechTree.json 的 naval_hull)
-#if EC_PENDING
     public static float Tier(Realm kingdom)
     {
         string culture = NavalCulture(kingdom);
         return culture == null ? 1f : TechnologySystem.NavalHull(culture);
     }
-#endif
 
     // 海军科技给的舰船战力加成(舰炮、舰载航空、雷达……)
-#if EC_PENDING
     public static float PowerBonus(Realm kingdom)
     {
         string culture = NavalCulture(kingdom);
@@ -158,10 +149,8 @@ public static class NavySystem
         >= 1.5f => "navy_tier_1",
         _ => "navy_tier_0"
     };
-#endif
 
     // 本国(连同宗主帝国中央)运输船能装下多少人
-#if EC_PENDING
     public static float TransportCapacity(Realm kingdom)
     {
         if (kingdom == null) return 0f;
@@ -175,7 +164,6 @@ public static class NavySystem
     private static float Power(Realm kingdom, FleetData fleet) =>
         fleet.warships * Tier(kingdom) * PowerBonus(kingdom) * (0.3f + 0.7f * Mathf.Clamp01(fleet.org / 100f)) *
         (TransmigrantSystem.NavalState(kingdom) != null ? AosongNavyRules.PowerEdge : 1f) + fleet.transports * 0.05f;
-#endif
 
     // 制海权在谁手里(过期的不算)
     public static Realm Controller(SeaRegionSystem.Region region)
@@ -204,7 +192,6 @@ public static class NavySystem
     private const float ReachGraceYears = 10f;
 
     // 本国科技给的最远辐射(格)；没到有水师的时代为 0
-#if EC_PENDING
     public static float FarthestReach(Realm kingdom)
     {
         if (!NavyEra(kingdom)) return 0f;
@@ -241,10 +228,8 @@ public static class NavySystem
         if (power <= 0f || full <= 0f) return 0f;
         return farthest * (0.5f + 0.5f * Mathf.Clamp01(power / full));
     }
-#endif
 
     // 远洋航程(登陆航线最多经过几个海区)：楼船只能近海，远洋帆舰起才能远航，现代舰艇不限
-#if EC_PENDING
     public static int MaxRange(Realm kingdom) => Tier(kingdom) switch
     {
         >= 4f => 999,
@@ -252,7 +237,6 @@ public static class NavySystem
         >= 1.5f => 10,
         _ => 3
     };
-#endif
 
     public static bool IsHostile(Realm side, SeaRegionSystem.Region region) => HostileControl(side, region);
 
@@ -479,7 +463,7 @@ public static class NavySystem
             City home = Home(fleet);
             Building port = home == null ? null : Port(home);
             if (port == null || fleet.task == "retreat" && fleet.region_id != HomeRegion(fleet)?.Id) continue;
-            float level = 1f + 0.5f * Mathf.Clamp(port.asset.upgrade_level, 0, 3);
+            float level = 1f + 0.5f * Mathf.Clamp(port.Asset.UpgradeLevel, 0, 3);
             int wantWar = aosong != null ? AosongNavyRules.WantWarships(aosong.stage, war, level, realmPorts)
                 : Mathf.RoundToInt((war ? 6 : 2) * level);
             int wantTransport = (aosong != null ? AosongNavyRules.WantTransports(aosong.stage, war, level, realmPorts)
@@ -504,6 +488,7 @@ public static class NavySystem
             if (lackWar <= 0 && lackTransport <= 0) fleet.build_progress = 0f;
         }
     }
+#endif
 
     private static SeaRegionSystem.Region HomeRegion(FleetData fleet)
     {
@@ -513,6 +498,7 @@ public static class NavySystem
             .OrderBy(region => SeaRegionSystem.Distance(region, current)).FirstOrDefault();
     }
 
+#if EC_PENDING
     private static void Assign(Realm kingdom)
     {
         List<FleetData> list = Of(kingdom);
@@ -589,7 +575,6 @@ public static class NavySystem
 #endif
 
     // 每月至多航行 3 个海区
-#if EC_PENDING
     private static void Sail(Realm kingdom)
     {
         foreach (FleetData fleet in Of(kingdom))
@@ -623,10 +608,8 @@ public static class NavySystem
             fleet.org = Mathf.Min(100f, fleet.org + (inPort ? PortOrg : SeaOrg));
         }
     }
-#endif
 
     // 海战：同一海区里敌对的两方(各取与主力友好的舰队)交战
-#if EC_PENDING
     private static void Fight(double now)
     {
         var byRegion = All().Where(entry => entry.fleet.warships + entry.fleet.transports > 0 && entry.fleet.region_id >= 0)
@@ -664,10 +647,8 @@ public static class NavySystem
             FrontSystem.Log(loser, text);
         }
     }
-#endif
 
     // 一方按"对方占优程度"损舰、掉组织度；运输船损失加倍，船上的登陆部队随之折损。返回沉没的船数
-#if EC_PENDING
     private static int Damage(List<(Realm kingdom, FleetData fleet)> side, float enemyEdge)
     {
         int sunk = 0;
@@ -683,10 +664,8 @@ public static class NavySystem
         }
         return sunk;
     }
-#endif
 
     // 运兵船沉没：还在海上的登陆部队按比例折损
-#if EC_PENDING
     private static void SinkTroops(Realm kingdom, float share)
     {
         foreach (CorpsData corps in CorpsSystem.Of(kingdom))
@@ -697,10 +676,8 @@ public static class NavySystem
             corps.org = Mathf.Max(0f, corps.org - 20f);
         }
     }
-#endif
 
     // 制海权：海区里只剩一方(及其友方)的舰队就归它(记在帝国中央名下)
-#if EC_PENDING
     private static void UpdateControl(double now)
     {
         foreach (var group in All().Where(entry => entry.fleet.warships > 0 && entry.fleet.region_id >= 0)
@@ -715,7 +692,6 @@ public static class NavySystem
             region.ControlledAt = now;
         }
     }
-#endif
 
     // 关闭占领模式：舰队留着(船不是人口)，旗舰实体撤编
     public static void RemoveAllFlagships()
@@ -782,6 +758,7 @@ public static class NavySystem
         sailing = true;
         return Vector3.Lerp(from.Center.PosV, to.Center.PosV, steps - index);
     }
+#endif
 
     private static void StepZone(FleetData fleet)
     {
@@ -835,6 +812,7 @@ public static class NavySystem
         fleet.zone_id = current.Index;
     }
 
+#if EC_PENDING
     private static void EnsureFlagship(Realm kingdom, FleetData fleet)
     {
         if (fleet.flagship_id >= 0)
@@ -860,7 +838,7 @@ public static class NavySystem
         // 旗舰按本国舰种：楼船 / 远洋帆舰 / 蒸汽铁甲 / 现代舰艇(见 EmpireCraftWarshipLibrary)；缺资源时退回原版运兵船
         string assetId = EmpireCraftWarshipLibrary.IdFor(Tier(kingdom));
         if (AssetManager.actor_library.get(assetId) == null)
-            assetId = building.asset.getBoatAssetIDFromType("boat_type_transport", home);
+            assetId = building.Asset.getBoatAssetIDFromType("boat_type_transport", home);
         if (string.IsNullOrEmpty(assetId)) return;
         try
         {
@@ -889,7 +867,6 @@ public static class NavySystem
     }
 
     // 旗舰沉没：组织度大挫，下个月补上
-#if EC_PENDING
     public static void OnFlagshipDied(Person actor)
     {
         if (actor?.Record == null || !FlagshipIndex.TryGetValue(actor.Key, out var key)) return;
@@ -902,6 +879,7 @@ public static class NavySystem
         FrontSystem.Log(kingdom, string.Format(LM.Get("navy_log_flagship_lost"), Name(fleet)));
     }
 
+#if EC_PENDING
     private static void MoveFlagship(FleetData fleet)
     {
         if (fleet.flagship_id < 0) return;
@@ -921,7 +899,6 @@ public static class NavySystem
 
     #region 名称
 
-#if EC_PENDING
     public static string Name(FleetData fleet)
     {
         City city = Home(fleet);
@@ -929,7 +906,6 @@ public static class NavySystem
         string home = city?.GetCityName() ?? "";
         return string.Format(format, home);
     }
-#endif
 
     #endregion
 }

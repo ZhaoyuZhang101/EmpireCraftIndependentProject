@@ -50,22 +50,24 @@ public static class TemplateNameRepair
         foreach (Culture culture in EmpireWorld.Current.Cultures)
         {
             if (culture?.data == null || !HasRawTemplate(culture)) continue;
-            string name = CulturePatch.GetInjectedCultureName(culture);
+            string name = Cultures.FamilyOf(culture);
             if (!CultureService.IsValidCulture(name)) continue;
-            CulturePatch.insertCultureTemplate(culture, name, addTraits: false);
+            Cultures.SetFamily(culture, name, addTraits: false);
             repaired++;
         }
         if (repaired > 0) LogService.LogInfo($"[EmpireCraft][起名修复] {repaired} 个文化的起名模板混进了字表名，已重套");
     }
+#endif
 
-    private static readonly MetaType[] NamedTypes =
-        { MetaType.Kingdom, MetaType.Clan, MetaType.Family, MetaType.City, MetaType.Unit };
+    private static readonly EntityKind[] NamedTypes =
+        { EntityKind.Realm, EntityKind.Clan, EntityKind.Family, EntityKind.City, EntityKind.Person };
 
+#if EC_PENDING
     private static bool HasRawTemplate(Culture culture)
     {
-        foreach (MetaType type in NamedTypes)
+        foreach (EntityKind type in NamedTypes)
         {
-            OnomasticsData data = CulturePatch.GetOnomasticDataSafe(culture, type);
+            NameParts data = Cultures.NameParts(culture, type);
             if (data?.groups == null) continue;
             foreach (var group in data.groups)
                 if (IsRaw(group.Value?.characters_string)) return true;
@@ -97,13 +99,13 @@ public static class TemplateNameRepair
     private static int RepairClans()
     {
         int count = 0;
-        foreach (Clan clan in EmpireWorld.Current.clans)
+        foreach (Clan clan in EmpireWorld.Current.Clans)
         {
             if (clan?.Record == null || AncientWarfareCompatibility.OwnsObject(clan.units.FirstOrDefault())) continue;
             if (IsRaw(clan.Name))
             {
-                OnomasticsData names = CulturePatch.GetOnomasticDataSafe(CultureOf(clan), MetaType.Clan);
-                string name = Generate(() => names?.generateName()?.UseLocalizedNameSeparator());
+                NameParts names = Cultures.NameParts(CultureOf(clan), EntityKind.Clan);
+                string name = Generate(() => names?.GenerateName()?.UseLocalizedNameSeparator());
                 if (string.IsNullOrEmpty(name)) continue;
                 clan.Name = name;
                 count++;
@@ -125,7 +127,7 @@ public static class TemplateNameRepair
             if (specific == null || !IsRaw(specific.name)) continue;
             string culture = specific.SnapshotPeople()
                 .FirstOrDefault(person => CultureService.IsValidCulture(person?.culture))?.culture;
-            string surname = Generate(() => SurnameOf(CultureService.GenerateCulturalName(MetaType.Clan, specific.id, culture), culture));
+            string surname = Generate(() => SurnameOf(CultureService.GenerateCulturalName(EntityKind.Clan, specific.id, culture), culture));
             if (string.IsNullOrEmpty(surname)) continue;
             specific.name = surname;
             count++;
@@ -167,8 +169,8 @@ public static class TemplateNameRepair
             }
             else
             {
-                OnomasticsData names = CulturePatch.GetOnomasticDataSafe(member.Culture, MetaType.Family);
-                name = Generate(() => names?.generateName()?.UseLocalizedNameSeparator());
+                NameParts names = Cultures.NameParts(member.Culture, EntityKind.Family);
+                name = Generate(() => names?.GenerateName()?.UseLocalizedNameSeparator());
                 if (string.IsNullOrEmpty(name)) continue;
                 family.data.name = name;
                 family.SetFamilyCityPre(false);
@@ -196,9 +198,9 @@ public static class TemplateNameRepair
             Culture culture = actor.Culture ?? CultureService.GetNativeCultureObject(CultureService.GetActorCulture(actor));
             if (first)
             {
-                OnomasticsData names = CulturePatch.GetOnomasticDataSafe(culture, MetaType.Unit);
+                NameParts names = Cultures.NameParts(culture, EntityKind.Person);
                 string given = PrehistoricClanSystem.AncientGivenName(TechnologySystem.GetCultureOf(actor), actor.IsMale()) ??
-                               Generate(() => names?.generateName(actor.IsMale() ? Sex.Male : Sex.Female));
+                               Generate(() => names?.GenerateName(actor.IsMale() ? Sex.Male : Sex.Female));
                 if (given != null) name.firstName = given;
             }
             if (family) name.familyName = Surname(actor, culture) ?? "";
@@ -213,8 +215,8 @@ public static class TemplateNameRepair
         string surname = actor.HasClan() ? actor.Clan.GetMemberSurname() : null;
         if (string.IsNullOrEmpty(surname) || IsRaw(surname)) surname = actor.hasFamily() ? actor.family.GetFamilyName() : null;
         if (!string.IsNullOrEmpty(surname) && !IsRaw(surname)) return surname;
-        OnomasticsData names = CulturePatch.GetOnomasticDataSafe(culture, MetaType.Family);
-        return SurnameOf(Generate(() => names?.generateName()), CultureService.GetActorCulture(actor));
+        NameParts names = Cultures.NameParts(culture, EntityKind.Family);
+        return SurnameOf(Generate(() => names?.GenerateName()), CultureService.GetActorCulture(actor));
     }
 #endif
 
@@ -243,7 +245,7 @@ public static class TemplateNameRepair
                 {
                     if (given)
                     {
-                        string generated = Generate(() => CultureService.GenerateCulturalName(MetaType.Unit, person.id, person.culture, person.sex));
+                        string generated = Generate(() => CultureService.GenerateCulturalName(EntityKind.Person, person.id, person.culture, person.sex));
                         string[] parts = (generated ?? "").SplitNameParts();
                         person.given_name = parts.Length > 0 ? parts[parts.Length - 1] : generated ?? "";
                     }

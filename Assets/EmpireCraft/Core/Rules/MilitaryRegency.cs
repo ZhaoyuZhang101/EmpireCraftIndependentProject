@@ -54,7 +54,6 @@ public static class MilitaryRegency
 #endif
 
     // 该不该有将军/苏丹：幕府政体，或施行了苏丹官僚的阿拉伯政体
-#if EC_PENDING
     private static int Wanted(Empire empire)
     {
         RegimeType? regime = empire?.CoreKingdom?.GetRegime()?.type;
@@ -65,7 +64,6 @@ public static class MilitaryRegency
         if (regime == RegimeType.Arabic && InstitutionSystem.HasFeature(empire, InstitutionFeatures.Sultanate)) return Sultan;
         return None;
     }
-#endif
 
     public static string TitleKey(Empire empire) => KindOf(empire) == Shogun ? "bakufu_shogun_title" : "sultanate_regent_title";
 
@@ -301,7 +299,6 @@ public static class MilitaryRegency
 #endif
 
     // 会趁将军更替自立的藩：有君主、有城、没在叛乱、没与朝廷开战的成员；天领(幕府直辖)、羁縻、新将军自己的藩与同族不反
-#if EC_PENDING
     private static bool RestiveHan(Empire empire, Realm member, Person shogun)
     {
         if (member?.Record == null || member.IsGone() || member == empire.CoreKingdom || member.GetEmpire() != empire ||
@@ -315,7 +312,6 @@ public static class MilitaryRegency
         return member.Ruler != shogun && member != shogun.Realm &&
                (clan == null || !SpecificClanManager.SameLineage(member.Ruler.GetSpecificClan(), clan));
     }
-#endif
 
     // 够不够格执政(分裂进程挑争位者用，见 SchismSystem.PickClaimant)：有将军、苏丹的帝国里，不属皇族一系的成年人
     public static bool CanTakeOver(Empire empire, Person actor) => Active(empire) && Eligible(empire, actor);
@@ -361,7 +357,6 @@ public static class MilitaryRegency
 
     // 人选：不属皇族一系、领地最大的成员国君主(苏丹国、镇守府优先)；没有就取朝中最高的武官。
     // formerHouse：将军家易主时不再选原将军家一系(见 Succeed)
-#if EC_PENDING
     private static Person Pick(Empire empire, int kind, SpecificClan formerHouse = null)
     {
         bool Fresh(Person actor) => formerHouse == null || !SpecificClanManager.SameLineage(actor.GetSpecificClan(), formerHouse);
@@ -379,7 +374,6 @@ public static class MilitaryRegency
             .OrderBy(actor => actor.GetIdentity().officialLevel).ThenByDescending(actor => actor.Renown)
             .FirstOrDefault();
     }
-#endif
 
     // 旧档：将军坐在君位上、天皇家记在 court_clan_id——请天皇家复位，坐着君位的将军改为权臣
 #if EC_PENDING
@@ -407,6 +401,7 @@ public static class MilitaryRegency
         if (Eligible(empire, shogun)) Install(empire, shogun, Wanted(empire) == None ? Shogun : Wanted(empire));
         LogService.LogInfo($"[EmpireCraft][武家执政] {empire.GetEmpireName()} 旧档迁移：{emperor.FullName()} 复位，{shogun.FullName()} 为权臣");
     }
+#endif
 
     private static void Record(Empire empire, string content)
     {
@@ -414,6 +409,5 @@ public static class MilitaryRegency
         empire.RecordHistory(directContent: content, kingdomId: empire.CoreKingdom.Key);
         TranslateHelper.LogEventMessage(content, empire.CoreKingdom);
     }
-#endif
 }
 }

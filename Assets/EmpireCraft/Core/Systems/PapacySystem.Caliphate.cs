@@ -19,7 +19,6 @@ public static partial class PapacySystem
 {
     public const string DharmicTrait = "dharmic";
 
-#if EC_PENDING
     public static bool IsCaliphal(Empire empire)
     {
         if (empire?.data == null) return false;
@@ -27,7 +26,6 @@ public static partial class PapacySystem
         string culture = InstitutionSystem.GetCustomsCulture(empire);
         return InstitutionSystem.GetCultureLine(culture) == "Arabic" && !culture.HasPoliticalTrait(DharmicTrait);
     }
-#endif
 
     // 有圣战传统的文化：罗马一线、阿拉伯一线(法教传统的除外)
     public static bool WagesHolyWar(string culture)
@@ -37,7 +35,6 @@ public static partial class PapacySystem
         return line == Line || line == "Arabic" && !culture.HasPoliticalTrait(DharmicTrait);
     }
 
-#if EC_PENDING
     public static bool AppliesCaliphal(Empire empire) =>
         empire?.data != null && !empire.IsGone() && !empire.IsArchived() && empire.CoreKingdom != null &&
         !empire.CoreKingdom.IsGone() && IsCaliphal(empire) && !RepublicSystem.IsRepublic(empire) &&
@@ -81,10 +78,8 @@ public static partial class PapacySystem
         seat.AddMoney((int)amount, TreasuryCategory.Tithe);
         state.tithe_paid = amount;
     }
-#endif
 
     // 受对立哈里发册封(或对立哈里发本国的新君就地嗣位)：同 Crown，但不加本教教权，文字写对立哈里发
-#if EC_PENDING
     private static void InvestByRival(Empire empire, PapalRelationState state, Person ruler, Realm seat, bool home)
     {
         state.crowned_emperor_id = ruler.Key;
@@ -102,6 +97,5 @@ public static partial class PapacySystem
         HolyRomanSystem.OnCrowned(empire, ruler, false);
         MonarchyLegitimacy.Invalidate(empire);
     }
-#endif
 }
 }

@@ -102,12 +102,10 @@ public static class PartialEnfeoffment
     public static bool RevertsOnExtinction(bool tagged, bool principate, bool centralized, bool elective) =>
         tagged && (principate || centralized && !elective);
 
-#if EC_PENDING
     public static bool RevertsOnExtinction(Empire empire, Realm fief) =>
         fief?.Record != null && empire != null &&
         RevertsOnExtinction(fief.GetOrCreate().partial_grant, empire.IsPrincipate(), empire.IsWesternCentralized(),
             HolyRomanSystem.IsElective(empire));
-#endif
 
     // ───── 游牧汗国宗王分兀鲁思(Empire.update，每月看一回) ─────
 
@@ -136,7 +134,7 @@ public static class PartialEnfeoffment
         HashSet<long> protectedCities = empire.GetProtectedDirectCityIds();
         foreach (KingdomTitle title in EnfeoffmentHelper.FindEnfeoffableTitles(empire))
         {
-            List<City> cities = title.getCities().Where(city => city != null && !city.IsGone() && city.Realm == core).ToList();
+            List<City> cities = title.GetCities().Where(city => city != null && !city.IsGone() && city.Realm == core).ToList();
             if (cities.Count == 0 || cities.Any(city => protectedCities.Contains(city.Key)) ||
                 !KhanKeepsHalf(coreCities, cities.Count, realm)) continue;
             Person prince = Princes(empire).FirstOrDefault();
@@ -222,17 +220,13 @@ public static class PartialEnfeoffment
             .Sum(kingdom => kingdom.Cities?.Count ?? 0) ?? 0;
 
     // 已封出去的城：不是行省/辖区的成员(封国、附庸王国、自治城邦、自由市……)
-#if EC_PENDING
     public static int GrantedCities(Empire empire) =>
         empire?.kingdoms_list?.Where(kingdom => kingdom != null && !kingdom.IsGone() && kingdom != empire.CoreKingdom &&
                                                 !kingdom.IsAdministrativeKingdomType())
             .Sum(kingdom => kingdom.Cities?.Count ?? 0) ?? 0;
-#endif
 
     // 真游牧(阿兹特克这类挂在游牧线上、并不游牧的不算，见 KingdomExtension.IsTrueNomad)
-#if EC_PENDING
     private static bool TrueNomad(Realm kingdom) => KingdomExtension.IsTrueNomad(kingdom);
-#endif
 
     private static double YearsSince(double timestamp) => timestamp < 0d ? double.MaxValue : GameClock.YearsSince(timestamp);
 }

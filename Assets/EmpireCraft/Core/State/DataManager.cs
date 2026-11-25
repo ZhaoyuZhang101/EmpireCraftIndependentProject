@@ -126,7 +126,7 @@ public static class DataManager
         var unitById = EmpireWorld.Current.Living.ToDictionary(u => u.Key);
         var kingdomById = EmpireWorld.Current.LiveRealms.ToDictionary(k => k.Key);
         var cityById = EmpireWorld.Current.Cities.ToDictionary(c => c.Key);
-        var clanById = EmpireWorld.Current.clans.ToDictionary(c => c.Key);
+        var clanById = EmpireWorld.Current.Clans.ToDictionary(c => c.Key);
         var warById = EmpireWorld.Current.LiveWars.ToDictionary(w => w.Key);
         var religionById = EmpireWorld.Current.Religions.ToDictionary(r => r.Key);
         CulturePatch.ImportCultureBindings(saveData.cultureBindings);
@@ -227,7 +227,7 @@ public static class DataManager
         Lap("氏族");
         if (saveData.bookExtraData != null && saveData.bookExtraData.Count > 0)
         {
-            var bookById = EmpireWorld.Current.books.ToDictionary(b => b.Key);
+            var bookById = EmpireWorld.Current.Books.ToDictionary(b => b.Key);
             foreach (var entry in saveData.bookExtraData)
             {
                 if (entry != null && bookById.TryGetValue(entry.id, out var book))
@@ -312,7 +312,7 @@ public static class DataManager
                 if (kingdomTitleData.cities.Count == 0) continue;
                 KingdomTitle kt = new KingdomTitle();
                 kt.LoadData(kingdomTitleData);
-                if (kt.getCities().Any())
+                if (kt.GetCities().Any())
                 {
                     kt.isBeenControlled();
                 }
@@ -384,9 +384,9 @@ public static class DataManager
         // 模组数据里没记的(旧档、核心读档时已从 world.json 头上取到)不覆盖
         if (!string.IsNullOrEmpty(saveData.core_game_id)) EmpireCraft.Core.CoreGameId.Value = saveData.core_game_id;
         WorldChronicle.Load(saveData.world_chronicle);
-        if (PlayerConfig.dict.TryGetValue("switch_real_num", out PlayerOptionData realNumOption))
+        if (GameOptions.All.TryGetValue("switch_real_num", out GameOption realNumOption))
         {
-            realNumOption.boolVal = saveData.switch_real_num;
+            realNumOption.BoolVal = saveData.switch_real_num;
         }
         ModClass.REAL_NUM_SWITCH = saveData.switch_real_num;
         EmpireCraft.Core.WorldMapScale.ZoneKm = saveData.world_map_zone_km;
@@ -394,14 +394,14 @@ public static class DataManager
         EmpireCraft.Core.ScenarioEventSystem.Load(saveData.world_map_events);
         EmpireCraft.Core.SilkRoadSystem.Load(saveData.world_map_silk);
         EmpireCraft.Core.FrontierWalls.Load(saveData.world_map_walls);
-        if (PlayerConfig.dict.TryGetValue("switch_simple_nameplate", out PlayerOptionData simpleNameplateOption))
+        if (GameOptions.All.TryGetValue("switch_simple_nameplate", out GameOption simpleNameplateOption))
         {
-            simpleNameplateOption.boolVal = saveData.switch_simple_nameplate;
+            simpleNameplateOption.BoolVal = saveData.switch_simple_nameplate;
         }
         ModClass.SIMPLE_NAMEPLATE_SWITCH = saveData.switch_simple_nameplate;
-        if (PlayerConfig.dict.TryGetValue("switch_empire_show_alliance", out PlayerOptionData empireAllianceOption))
+        if (GameOptions.All.TryGetValue("switch_empire_show_alliance", out GameOption empireAllianceOption))
         {
-            empireAllianceOption.boolVal = saveData.switch_empire_show_alliance;
+            empireAllianceOption.BoolVal = saveData.switch_empire_show_alliance;
         }
         ModClass.EMPIRE_SHOW_ALLIANCE_SWITCH = saveData.switch_empire_show_alliance;
         // 世界法则跟着存档走：存档里没记的法则回到各自的默认值
@@ -571,8 +571,8 @@ public static class DataManager
         }
         saveData.kingdomExtraData = EmpireWorld.Current.LiveRealms.Select(a => a.GetExtraData<Realm, KingdomExtraData>(true)).Where(ed => ed != null).ToList();
         saveData.warExtraData = EmpireWorld.Current.LiveWars.Select(a => a.GetExtraData<War, WarExtraData>(true)).Where(ed => ed != null).ToList(); ;
-        saveData.clanExtraData = EmpireWorld.Current.clans.Select(a => a.GetExtraData<Clan, ClanExtraData>(true)).Where(ed => ed != null).ToList(); ;
-        saveData.bookExtraData = EmpireWorld.Current.books.Select(b => b.GetExtraData<Book, BookExtension.BookExtraData>(true))
+        saveData.clanExtraData = EmpireWorld.Current.Clans.Select(a => a.GetExtraData<Clan, ClanExtraData>(true)).Where(ed => ed != null).ToList(); ;
+        saveData.bookExtraData = EmpireWorld.Current.Books.Select(b => b.GetExtraData<Book, BookExtension.BookExtraData>(true))
             .Where(ed => ed != null && (!string.IsNullOrEmpty(ed.landmark_id) || !string.IsNullOrEmpty(ed.culture))).ToList();
         OfficeManager.Prune();
         saveData.empireDatas = new List<EmpireData>(ModClass.EMPIRE_MANAGER.Count);
@@ -592,7 +592,7 @@ public static class DataManager
         {
             try
             {
-                empire.save();
+                empire.Save();
                 saveData.empireDatas.Add(empire.data);
             } catch (Exception e)
             {
@@ -608,7 +608,7 @@ public static class DataManager
         {
             try
             {
-                kt.save();
+                kt.Save();
                 saveData.kingdomTitleDatas.Add(kt.data);
             } 
             catch (Exception e)
@@ -872,7 +872,7 @@ public static class DataManager
             data.title_capital > 0 &&
             cityById.TryGetValue(data.title_capital, out City capital))
         {
-            data.original_actor_asset = capital.Realm?.Ruler?.asset?.id ?? capital.Realm?.asset?.id ?? capital.getSpecies();
+            data.original_actor_asset = capital.Realm?.Ruler?.Asset?.Id ?? capital.Realm?.asset?.id ?? capital.GetSpecies();
         }
     }
 
@@ -918,7 +918,7 @@ public static class DataManager
                 title_capital = capitalId,
                 province_name = capital?.GetCityName(),
                 name = name,
-                original_actor_asset = capital?.Realm?.Ruler?.asset?.id ?? capital?.Realm?.asset?.id ?? capital?.getSpecies(),
+                original_actor_asset = capital?.Realm?.Ruler?.Asset?.Id ?? capital?.Realm?.asset?.id ?? capital?.GetSpecies(),
                 banner_background_id = capital?.Realm?.Record?.banner_background_id ?? 0,
                 banner_icon_id = capital?.Realm?.Record?.banner_icon_id ?? 0,
                 founder_kingdom_id = capital?.Realm?.Key ?? -1L,

@@ -17,24 +17,19 @@ namespace EmpireCraft.Core
 public static partial class PapacySystem
 {
     // 教宗国的制度前提：帝国之内要帝国施行了教权至上或神权国家；不在帝国里的不限
-#if EC_PENDING
     public static bool PapalRule(Empire empire) =>
         empire == null || InstitutionSystem.IsEnacted(empire, NodeClerical) ||
         InstitutionSystem.HasFeature(empire, InstitutionFeatures.TheocraticState);
-#endif
 
     // 握有本国所奉宗教的圣地(没有教阶的宗教、地方教会、教派的中心不算，见 ReligionFaith、ReligionSphere)
-#if EC_PENDING
     public static bool HoldsHolyCity(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || !kingdom.HasReligion() || !HasSee(kingdom.Religion)) return false;
         City holy = kingdom.Religion.GetCity();
         return holy?.Record != null && !holy.IsGone() && holy.Realm == kingdom;
     }
-#endif
 
     // 换政体前记下圣城之主的宗教等级，重建之后用 KeepTheocracy 还原政教合一
-#if EC_PENDING
     public static ReligionLevel? PietyBeforeReload(Realm kingdom) =>
         HoldsHolyCity(kingdom) ? kingdom.GetRegime()?.GetReligionLevel() : null;
 
@@ -46,14 +41,12 @@ public static partial class PapacySystem
             regime.GetReligionLevel() < ReligionLevel.High)
             regime.SetReligionLevel(ReligionLevel.High);
     }
-#endif
 
     #region 诊断
 
     private static double _lastDiagnose = -1d;
 
     // 每年一行：各西方宗教(圣地在罗马一线文化的城，或归罗马一线的国家)的圣地、归属、卡在哪一条
-#if EC_PENDING
     public static void TryYearlyDiagnose()
     {
         if (EmpireWorld.Current?.Religions == null || ModClass.IS_CLEAR) return;
@@ -85,10 +78,8 @@ public static partial class PapacySystem
             LogService.LogWarning($"[EmpireCraft][教廷诊断] 失败: {exception.Message}");
         }
     }
-#endif
 
     // 圣地之主为什么还不是教宗国(按类别判定的先后，报第一条卡住的)
-#if EC_PENDING
     private static string PapalStateBlocker(Religion religion, City holy, Realm holder)
     {
         if (holder?.Record == null || holder.IsWild || holder.IsGone()) return "圣地无主";
@@ -112,7 +103,6 @@ public static partial class PapacySystem
         }
         return "条件已齐，待下月类别刷新";
     }
-#endif
 
     #endregion
 }

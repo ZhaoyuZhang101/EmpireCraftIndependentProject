@@ -54,11 +54,9 @@ public static class ZhouEraSystem
     // 一城小国被国力四倍以上的接壤大国举国降服的概率(每年)
     private const float SubmitChance = 0.06f;
 
-#if EC_PENDING
     public static bool Applies(Empire empire) =>
         empire != null && !empire.IsGone() && !empire.IsArchived() &&
         empire.CoreKingdom?.GetRegime()?.type == RegimeType.ZhouFeudalism;
-#endif
 
     public static ZhouEraState State(Empire empire)
     {
@@ -66,16 +64,13 @@ public static class ZhouEraSystem
         return empire.data.zhou ??= new ZhouEraState();
     }
 
-#if EC_PENDING
     public static int Era(Empire empire) => Applies(empire) ? State(empire).era : -1;
-#endif
 
     // 科技推时代：进入下一时代须先有的科技(西周→春秋青铜铸造，春秋→战国冶铁)；有了再下一门，衰落门槛放宽
     public const string SpringTech = "bronze_casting", WarringTech = "ironworking", LateWarringTech = "steelmaking";
 
     public static string GateTech(int era) => era == WesternZhou ? SpringTech : era == Spring ? WarringTech : null;
 
-#if EC_PENDING
     private static bool Knows(Empire empire, string tech) =>
         TechnologySystem.IsEnabled && TechnologySystem.HasTech(InstitutionSystem.GetPrimaryCulture(empire), tech);
 
@@ -84,16 +79,12 @@ public static class ZhouEraSystem
         string tech = GateTech(era);
         return tech == null || !TechnologySystem.IsEnabled || Knows(empire, tech);
     }
-#endif
 
     // 春秋、战国王室衰微：天子不能再从诸侯手里收地。削藩、收回法理、按法理整合与划界、
     // 战时代管、收复旧都、绝嗣收归都不再发生；诸侯打下的地归自己(尽有其地)，王畿只靠自己的兵守土开疆
-#if EC_PENDING
     public static bool RoyalReclaimBlocked(Empire empire) => Applies(empire) && State(empire).era >= Spring;
-#endif
 
     // 这国所属的周室：周制帝国的成员，或战国时离开帝国、仍记着所属周室的诸侯；都不是返回 null
-#if EC_PENDING
     public static Empire SphereOf(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone()) return null;
@@ -104,16 +95,12 @@ public static class ZhouEraSystem
         Empire sphere = ModClass.EMPIRE_MANAGER.Get(id);
         return Applies(sphere) && State(sphere).era >= Warring ? sphere : null;
     }
-#endif
 
     // 周制下一个文化只有一个天下共主：本文化的周制王朝(没有返回 null)
-#if EC_PENDING
     public static Empire RealmOfCulture(string culture) => Realms(culture).FirstOrDefault();
-#endif
 
     // 本天下的各周制王朝，正统的在前：按资历定下的王室(见 TribalFissionService.SettleRoyalHouse)，其次先立的。
     // 以前取遍历到的第一个，几个部落联盟同时改了周制时谁是周室说不准(用户 2026-10-26 选"按资历定唯一王室")
-#if EC_PENDING
     private static IEnumerable<Empire> Realms(string culture)
     {
         if (!CultureService.IsValidCulture(culture) || ModClass.EMPIRE_MANAGER == null) return Enumerable.Empty<Empire>();
@@ -123,10 +110,8 @@ public static class ZhouEraSystem
             .OrderByDescending(empire => State(empire).royal_settled_at >= 0d)
             .ThenBy(empire => empire.data.created_time).ThenBy(empire => empire.Key);
     }
-#endif
 
     // 本天下已有定下的周室(不再按资历另定)：按资历定的，或已走过西周初年 freshYears 年的(旧档、别的文化先进了周制)
-#if EC_PENDING
     public static bool HasSettledRealm(string culture, int freshYears) =>
         Realms(culture).Any(empire =>
         {
@@ -134,14 +119,12 @@ public static class ZhouEraSystem
             return state.royal_settled_at >= 0d || state.era > WesternZhou ||
                    state.era_since >= 0d && EmpireWorld.Current != null && GameClock.YearsSince(state.era_since) >= freshYears;
         });
-#endif
 
     // 本天下已有周制王朝、这国又不是它的王畿：不能另行称帝或发动正统之争，天下只有一个正统核心。
     // 这样的国家只能受封为诸侯(春秋战国照样可以称王)；取周而代之要攻下王畿(见 Unified)。
     // 按所在的天下算(2026-10-27：赵受汉正统天命、据有九成八，却被远在高丽天下、一城不占的另一个华夏周室挡着，永远称不了帝——
     // 以前按文化圈全世界只认一个周室，天下层出来以后一个文化圈可以有好几个天下)：周室与这国不在同一个天下就不挡；
     // 这国不在任何天下里、或周室的天下认不出来，照旧按文化圈挡
-#if EC_PENDING
     public static bool BlocksRivalEmpire(Realm kingdom)
     {
         if (kingdom?.Record == null) return false;
@@ -149,7 +132,6 @@ public static class ZhouEraSystem
         return Realms(CultureService.GetRealmCulture(kingdom))
             .Any(realm => realm.CoreKingdom != kingdom && SameTianxia(realm, mine));
     }
-#endif
 
     private static bool SameTianxia(Empire realm, EmpireCore mine)
     {
@@ -160,13 +142,11 @@ public static class ZhouEraSystem
 
     // 不服王化：与周室同文化，却不在周室之内(不是成员、也不是战国离开帝国的诸侯)、也没向别国称臣纳贡的独立之国
     // 神力立的帝国(定周室时落选保留帝号，见 TribalFissionService.SettleRoyalHouse)的核心也算
-#if EC_PENDING
     public static bool Unsubmitted(Empire empire, Realm kingdom) =>
         Applies(empire) && kingdom?.Record != null && !kingdom.IsGone() && kingdom != empire.CoreKingdom &&
         (SphereOf(kingdom) == null && !kingdom.IsInEmpire() && !kingdom.IsEmpire() || GodMadeRival(empire, kingdom)) &&
         !kingdom.HasTakenAlliance() &&
         CultureService.SameKin(CultureService.GetRealmCulture(kingdom), CultureService.GetEmpireDefaultCulture(empire));
-#endif
 
     // 别家神力立的帝国的核心(EmpireData.formed_by_god)：不在周室之内、自立帝号，天子照样当不服王化讨伐
     public static bool GodMadeRival(Empire empire, Realm kingdom) =>
@@ -204,17 +184,14 @@ public static class ZhouEraSystem
 
     // 战国时离开帝国的周诸侯
     // 同一周室、已入战国的两国(含王畿)：彼此征伐以兼并为务
-#if EC_PENDING
     public static bool WarringRivals(Realm a, Realm b) =>
         a != null && b != null && a != b && SphereOf(a) is Empire empire && SphereOf(b) == empire && State(empire).era == Warring;
 
     public static bool IsDetachedVassal(Realm kingdom) => kingdom?.GetEmpire() == null && SphereOf(kingdom) != null;
-#endif
 
     // 进宗法分封时按共事年数定下的爵位(用户 2026-10-26 选"爵位按资历"，见 TribalFissionService.Enfeoff；国家类别见
     // EmpireCraftKingdomBehCheckKingdomType.CalcKingdomType)：周制、在周室之内的诸侯照定下的，不再按城数、族属改；
     // 宗室(公)、郡照政体配置；离了周室仍是周制的(独立、不服王化)暂不用，再受封时照旧；改了政体的作废
-#if EC_PENDING
     public static KingdomType? SeniorPeerage(Realm kingdom, Regime regime)
     {
         if (kingdom?.Record == null || regime == null) return null;
@@ -243,10 +220,8 @@ public static class ZhouEraSystem
             kingdom.HasCities() && kingdom.GetEmpire() == null && kingdom.GetOrCreate().zhou_sphere_id == empire.Key);
         return members.Concat(detached).ToList();
     }
-#endif
 
     // 战国离开帝国的诸侯(帝国名下的成员不在内)
-#if EC_PENDING
     public static List<Realm> DetachedVassals(Empire empire)
     {
         if (!Applies(empire) || State(empire).era < Warring || EmpireWorld.Current?.LiveRealms == null) return new List<Realm>();
@@ -254,16 +229,13 @@ public static class ZhouEraSystem
                                                      kingdom.GetEmpire() == null &&
                                                      kingdom.GetOrCreate().zhou_sphere_id == empire.Key).ToList();
     }
-#endif
 
     // 周室"天下"的城与人口：战国时诸侯不在帝国名下，帝国自己的统计(国力、赋税用)不含他们，显示时连他们一起算
-#if EC_PENDING
     public static int SphereCities(Empire empire) =>
         (empire?.countCities() ?? 0) + DetachedVassals(empire).Sum(kingdom => kingdom.Cities?.Count ?? 0);
 
     public static int SpherePopulation(Empire empire) =>
         (empire?.CountPopulation() ?? 0) + DetachedVassals(empire).Sum(kingdom => kingdom.PopulationCount());
-#endif
 
     // 战国：诸侯(郡除外)离开帝国，记下所属周室；爵位(国家类别)照旧
 #if EC_PENDING
@@ -295,7 +267,6 @@ public static class ZhouEraSystem
     public static int Power(Realm kingdom) =>
         kingdom?.Record == null || kingdom.IsGone() ? 0 : (kingdom.Cities?.Count ?? 0) * 4 + kingdom.Warriors();
 
-#if EC_PENDING
     public static bool IsHegemon(Realm kingdom) =>
         SphereOf(kingdom) is Empire empire && State(empire).hegemon_id == kingdom.Key;
 
@@ -304,31 +275,25 @@ public static class ZhouEraSystem
 
     public static bool IsReformed(Realm kingdom) =>
         SphereOf(kingdom) is Empire empire && State(empire).reforms.Contains(kingdom.Key);
-#endif
 
     // 夷狄：不在周室之内、与天子不同族或不同文化的国家
-#if EC_PENDING
     public static bool IsBarbarian(Empire empire, Realm kingdom)
     {
         Realm core = empire?.CoreKingdom;
         if (core == null || kingdom?.Record == null || kingdom.IsGone() || SphereOf(kingdom) == empire) return false;
-        return kingdom.species_id != core.species_id ||
+        return kingdom.SpeciesId != core.SpeciesId ||
                !CultureService.SameKin(CultureService.GetRealmCulture(kingdom), CultureService.GetRealmCulture(core));
     }
-#endif
 
     // 春秋、战国周室内部的战争：交战双方都是同一周室的成员(西周时的叛乱照旧由诸侯随天子平定)
-#if EC_PENDING
     public static bool IsInternalWar(War war)
     {
         Realm attacker = war?.MainAttacker, defender = war?.MainDefender;
         Empire empire = SphereOf(attacker);
         return empire != null && State(empire).era >= Spring && SphereOf(defender) == empire;
     }
-#endif
 
     // 卿族坐大：春秋时六城以上(可能被三分)、或四城以上而国君年幼年老的大国
-#if EC_PENDING
     public static bool MinistersRising(Realm kingdom)
     {
         Empire empire = SphereOf(kingdom);
@@ -338,24 +303,19 @@ public static class ZhouEraSystem
         bool weakRuler = ruler == null || !ruler.IsAdult() || ruler.Age() > 60;
         return cities >= 6 || cities >= 4 && weakRuler;
     }
-#endif
 
     // 战国变法：战时兵额 +25%
-#if EC_PENDING
     public static float LevyFactor(Realm kingdom) => IsReformed(kingdom) ? 1.25f : 1f;
-#endif
 
     #region 诸侯征伐(供宣战规则调用)
 
     // 春秋、战国：周室诸侯可以自己开战
-#if EC_PENDING
     public static bool VassalMayWage(Realm kingdom)
     {
         Empire empire = SphereOf(kingdom);
         return empire != null && kingdom != empire.CoreKingdom && State(empire).era >= Spring &&
                (IsDetachedVassal(kingdom) || kingdom.GetRegime()?.IsAllowDiplomacy() == true);
     }
-#endif
 
     // 诸侯能否向 target 开战：同为周室诸侯可以(春秋不得攻王畿)；周室之外按常规
 #if EC_PENDING
@@ -411,6 +371,7 @@ public static class ZhouEraSystem
             else OnCapitalTaken(city, loser, winner);
         }
     }
+#endif
 
     public static void OnCapitalTaken(City city, Realm loser, Realm winner)
     {
@@ -439,7 +400,6 @@ public static class ZhouEraSystem
             _annexing = false;
         }
     }
-#endif
 
     // 战国攻下王畿：周亡，攻者取周而代之
 #if EC_PENDING
@@ -576,13 +536,13 @@ public static class ZhouEraSystem
         (uint)(member.Key * 31 + war.Key * 17) % 10 < CoalitionAnswer;
 
     // 尊王的诸侯：不是犯上者、不在与天子交战，按国力排序，霸主优先，受胙之国其次
-#if EC_PENDING
     private static IEnumerable<Realm> Loyalists(Empire empire, ZhouEraState state, Realm rebel) =>
         Vassals(empire).Where(kingdom => kingdom != rebel && !kingdom.IsAtWarWith(empire.CoreKingdom) &&
                                          !state.kings.Contains(kingdom.Key))
             .OrderByDescending(kingdom => kingdom.Key == state.hegemon_id).ThenByDescending(kingdom => HasZuo(state, kingdom))
             .ThenByDescending(Power);
 
+#if EC_PENDING
     private static void JoinSide(War war, Realm kingdom, bool attackerSide)
     {
         if (war == null || kingdom?.Record == null || kingdom.IsGone() || war.HasEnded()) return;
@@ -638,7 +598,6 @@ public static class ZhouEraSystem
 #endif
 
     // 王畿失陷：周室东迁
-#if EC_PENDING
     private static bool EastwardMove(Empire empire, ZhouEraState state)
     {
         City old = EmpireWorld.Current.CityByKey(state.royal_capital_id);
@@ -649,7 +608,6 @@ public static class ZhouEraSystem
         state.eastward_at = GameClock.Now;
         return true;
     }
-#endif
 
     // 王畿兵力不及最强诸侯(只比兵力)，或天命低于 60(有了冶铁 70)。
     // 王畿连同王室直辖的郡一起算(用户 2026-10-26 选"王畿不止一城"：进宗法分封时最早共事的几部改为王室直辖的郡，
@@ -657,7 +615,6 @@ public static class ZhouEraSystem
     // 开国保护期：改周制后 RoyalGraceYears 年内王室不算衰微(以前王畿只有一城，多半转周第一年就入春秋)，王畿失陷照样东迁
     public const int RoyalGraceYears = 30;
 
-#if EC_PENDING
     private static bool WeakRoyalty(Empire empire, ZhouEraState state)
     {
         if (state.era_since >= 0d && GameClock.Now >= state.era_since &&
@@ -686,6 +643,7 @@ public static class ZhouEraSystem
         HoldConference(empire, state, null);
     }
 
+#if EC_PENDING
     public static void EnterWarring(Empire empire, ZhouEraState state)
     {
         if (state.era >= Warring) return;
@@ -738,7 +696,6 @@ public static class ZhouEraSystem
 #endif
 
     // 会盟：最强且尊王的诸侯为霸主；chosen 不为空时由天子直接赐胙
-#if EC_PENDING
     public static Realm HoldConference(Empire empire, ZhouEraState state, Realm chosen)
     {
         if (state.era != Spring) return null;
@@ -760,7 +717,6 @@ public static class ZhouEraSystem
                 kingdomId: hegemon.Key);
         return hegemon;
     }
-#endif
 
     // 一年的赋税收入(按国库账目折算；没有账目时按国库的十分之一估)
     private static int YearlyRevenue(Realm kingdom)
@@ -800,7 +756,6 @@ public static class ZhouEraSystem
 #endif
 
     // 讨不庭：霸主讨伐接壤的不朝之国(比它弱的才动手)
-#if EC_PENDING
     private static void PunishDefiant(Empire empire, ZhouEraState state, Realm hegemon)
     {
         foreach (long id in state.defiant.ToList())
@@ -816,7 +771,6 @@ public static class ZhouEraSystem
             return;
         }
     }
-#endif
 
     // 霸主调停：诸侯互攻，霸主令其罢兵(存亡继绝：弱小的一方被打时更可能出面)
 #if EC_PENDING
@@ -932,7 +886,6 @@ public static class ZhouEraSystem
 #endif
 
     // 称王：春秋时子爵的夷狄大国僭越称王；战国时三城以上的大国相继称王
-#if EC_PENDING
     private static void TryProclaimKing(Empire empire, ZhouEraState state, Realm vassal, bool spring)
     {
         if (state.kings.Contains(vassal.Key) || vassal.GetKingdomType() == KingdomType.ZhouFeudalism_jun) return;
@@ -959,7 +912,6 @@ public static class ZhouEraSystem
             vassal.GetKingdomName()), vassal, history: true);
         if (state.hegemon_id == vassal.Key) state.hegemon_id = -1L;
     }
-#endif
 
     #endregion
 
@@ -1014,7 +966,6 @@ public static class ZhouEraSystem
 #endif
 
     // 一城小国：被国力四倍以上、不在交战的接壤大国(称王之国优先)包围，每年有一定可能举国降服
-#if EC_PENDING
     private static void TrySubmit(Empire empire, ZhouEraState state, Realm small)
     {
         if (small?.Record == null || small.IsGone() || small == empire.CoreKingdom || (small.Cities?.Count ?? 0) != 1 ||
@@ -1081,10 +1032,8 @@ public static class ZhouEraSystem
             Announce(empire, string.Format(LM.Get("zhou_log_coalition"), members.Count, strongest.GetKingdomName()), strongest,
                 history: true);
     }
-#endif
 
     // 天子(或代周者)直辖天下一半的城，或直辖三分之一且再无一国及其三分之一：称皇帝，改行郡县
-#if EC_PENDING
     private static void TryUnify(Empire empire, ZhouEraState state)
     {
         // 天下 = 王畿、郡与诸侯(含战国离开帝国的)
@@ -1139,7 +1088,6 @@ public static class ZhouEraSystem
         empire.RecordHistory(directContent: string.Format(LM.Get("zhou_history_unified"), core.GetKingdomName(),
             empire.GetEmpireName()), kingdomId: core.Key);
     }
-#endif
 
     #endregion
 
@@ -1155,7 +1103,6 @@ public static class ZhouEraSystem
     // 一年赋税的二十分之一，至少 30
     public static int ZuoCost(Empire empire) => Math.Max(30, YearlyRevenue(empire.CoreKingdom) / 20);
 
-#if EC_PENDING
     public static bool CanGrantZuo(Empire empire, Realm vassal)
     {
         if (!Applies(empire) || vassal?.Record == null || vassal.IsGone()) return false;
@@ -1180,11 +1127,9 @@ public static class ZhouEraSystem
             history: true);
         return true;
     }
-#endif
 
     // 进宗法分封时长期共事、按资历受封为侯的部落当即受胙(见 TribalFissionService.Enfeoff；用户 2026-10-26 选"爵位按资历")：
     // 不花国库、不加天命，十年内尊王，同天子赐胙
-#if EC_PENDING
     public static void GrantFoundingZuo(Empire empire, List<Realm> vassals)
     {
         if (!Applies(empire) || vassals == null) return;
@@ -1204,10 +1149,8 @@ public static class ZhouEraSystem
         Announce(empire, string.Format(LM.Get("zhou_log_founding_zuo"), empire.CoreKingdom.GetKingdomName(), string.Join("、", names)),
             history: true);
     }
-#endif
 
     // 天子每年有一成二的机会赐胙于霸主或最强的诸侯(国库至少留三倍)
-#if EC_PENDING
     private static void AutoZuo(Empire empire, ZhouEraState state)
     {
         if (state.era > Spring || Random.value > AutoZuoChance) return;
@@ -1216,20 +1159,16 @@ public static class ZhouEraSystem
             .OrderByDescending(vassal => vassal.Key == state.hegemon_id).ThenByDescending(Power).FirstOrDefault();
         if (pick != null && empire.CoreKingdom.GetMoney() >= ZuoCost(empire) * 3) GrantZuo(empire, pick);
     }
-#endif
 
     // 受胙之国对王室的好感(见 EmpireCraftOpinionAddition)
-#if EC_PENDING
     public static int ZuoOpinionOf(Realm main, Realm target)
     {
         if (main?.Record == null || target?.Record == null || main == target) return 0;
         Empire empire = SphereOf(main);
         return empire != null && target == empire.CoreKingdom && HasZuo(State(empire), main) ? ZuoOpinion : 0;
     }
-#endif
 
     // 天下大势面板的"四夷"：正在侵犯诸侯或王畿的夷狄(victim 为被犯之国)在前，与天下接壤的夷狄在后
-#if EC_PENDING
     public static List<(Realm barbarian, Realm victim)> RepelTargets(Empire empire)
     {
         var result = new List<(Realm, Realm)>();
@@ -1249,7 +1188,6 @@ public static class ZhouEraSystem
             result.Add((kingdom, null));
         return result;
     }
-#endif
 
     // 兴师讨伐接壤的夷狄五年一次(援救被犯之国不限)
     public static int RepelCooldown(Empire empire)
@@ -1302,10 +1240,10 @@ public static class ZhouEraSystem
             barbarian.GetKingdomName()), core, history: true);
         return true;
     }
+#endif
 
     private static string Helpers(List<Realm> helpers) =>
         helpers.Count == 0 ? LM.Get("zhou_helpers_none") : string.Join("、", helpers.Select(kingdom => kingdom.GetKingdomName()));
-#endif
 
     #endregion
 
@@ -1343,7 +1281,6 @@ public static class ZhouEraSystem
     #endregion
 
     // 大事：记进列国纪事，并弹世界提示；history 为真时连史册一起记(史册另有写法的只弹提示)
-#if EC_PENDING
     private static void Announce(Empire empire, string text, Realm kingdom = null, bool history = false)
     {
         Log(empire, text);
@@ -1351,7 +1288,6 @@ public static class ZhouEraSystem
         if (history) EmpireCraft.Core.TranslateHelper.LogEventMessage(text, kingdom);
         else EmpireCraft.Core.TranslateHelper.LogEventOnly(text, kingdom);
     }
-#endif
 
     public static void Log(Empire empire, string text)
     {

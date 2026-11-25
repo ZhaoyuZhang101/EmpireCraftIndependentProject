@@ -60,10 +60,8 @@ public static class EmperorTourSystem
 #endif
 
     // 皇帝出行在外时所在的地块(在宫里返回 null，标记画在城上)
-#if EC_PENDING
     public static Cell Away(Empire empire) =>
         empire?.data == null || string.IsNullOrEmpty(empire.data.tour_kind) ? null : CorpsSystem.ZoneById(empire.data.tour_zone);
-#endif
 
     // 画皇帝标记用：出行途中按进度画在所在地块与路线上下一块之间(一块地要走好几秒，只在换地块时跳一下会一卡一卡的)；
     // 在宫里返回 null(画在城上)
@@ -111,6 +109,7 @@ public static class EmperorTourSystem
         if (month) CheckStay(empire, now);
         if (second) Move(empire, home, now);
     }
+#endif
 
     private static void TryDepart(Empire empire, Person emperor, Cell home)
     {
@@ -161,7 +160,6 @@ public static class EmperorTourSystem
             Record(empire, emperor, "emperor_visit_history", host.Name);
         }
     }
-#endif
 
     private static void Start(Empire empire, Person emperor, Cell home, string kind, long city, long corps)
     {
@@ -178,16 +176,13 @@ public static class EmperorTourSystem
         Progress.Remove(empire.data.id);
     }
 
-#if EC_PENDING
     private static void Record(Empire empire, Person emperor, string key, string where)
     {
         string text = string.Format(LM.Get(key), emperor.FullName(), where);
         empire.RecordHistory(directContent: text, actorId: emperor.Key);
     }
-#endif
 
     // 住满了、仗打完了、随驾的军没了：回銮
-#if EC_PENDING
     private static void CheckStay(Empire empire, double now)
     {
         var data = empire.data;
@@ -213,6 +208,7 @@ public static class EmperorTourSystem
         return city?.Record != null && !city.IsGone() ? city.SeatCell()?.Zone : null;
     }
 
+#if EC_PENDING
     private static void Move(Empire empire, Cell home, double now)
     {
         var data = empire.data;

@@ -38,6 +38,7 @@ namespace EmpireCraft.Core
         public WarOutcome Outcome;
 
         public override long Key => Id;
+        public override EntityKind KindOfEntity => EntityKind.War;
         public override bool Alive => EndedMonth < 0;
         public War Record => this;
         public double StartedStamp => StartedMonth;

@@ -149,14 +149,12 @@ public static partial class TransmigrantSystem
 #endif
 
     // 检疫营：投奔来的人另给住房容量(同人口笔刷)，不按住房回落
-#if EC_PENDING
     private static void Shelter(City city, float people)
     {
         CityPopulationData data = CityPopulationSystem.Get(city);
         if (data != null) data.brush_capacity = Mathf.Max(0f, data.brush_capacity) + people;
         LayerCityCache.Invalidate(city);
     }
-#endif
 
     private static City Nearest(List<City> cities, City from, out int distance)
     {
@@ -233,8 +231,8 @@ public static partial class TransmigrantSystem
                 foreach (Cell neighbour in zone.NeighboursAll)
                 {
                     if (neighbour == null || !seen.Add(neighbour)) continue;
-                    if (neighbour.City == null && neighbour.GroundTiles >= 32 && neighbour.canStartCityHere()) return neighbour;
-                    if (neighbour.GroundTiles > 0 && (neighbour.City == null || neighbour.City.Realm == kingdom)) next.Add(neighbour);
+                    if (neighbour.City == null && neighbour.GroundCount >= 32 && neighbour.canStartCityHere()) return neighbour;
+                    if (neighbour.GroundCount > 0 && (neighbour.City == null || neighbour.City.Realm == kingdom)) next.Add(neighbour);
                 }
             frontier = next;
         }
@@ -253,7 +251,6 @@ public static partial class TransmigrantSystem
         corps.formation == FormationSystem.Fubo && !corps.militia && corps.parent_id < 0);
 
     // 伏波军按归化民扩编(暴兵)：ArmyBase + 归化民的 NationalArmyShare，打仗时再扩 WarSurge；军饷给足，只在真欠饷时不扩编
-#if EC_PENDING
     private static void KeepArmy(Realm kingdom)
     {
         if (!CorpsSystem.Enabled || kingdom.Capital == null) return;
@@ -273,13 +270,11 @@ public static partial class TransmigrantSystem
             TranslateHelper.LogEventOnly(string.Format(LM.Get("transmigrant_army_expanded_history"), kingdom.GetKingdomFullName(),
                 Mathf.RoundToInt(fubo.full)), kingdom);
     }
-#endif
 
     // 地方驻防：没有驻军的城按威胁、人口挑一座，每年至多编一支地方军(早期治安军，后来国民军，见 FormationSystem.Resolve)。
     // 缺钱、欠饷、编满了就不编；有敌人的边城先于腹地，新占的城没人守时也排在前面
     private const float LocalForceReserve = 2f;
 
-#if EC_PENDING
     private static void KeepLocalForces(Realm kingdom)
     {
         if (!CorpsSystem.Enabled || CorpsSystem.Unpaid(kingdom) || kingdom.Cities == null) return;
@@ -292,10 +287,8 @@ public static partial class TransmigrantSystem
             .ThenByDescending(CityPopulationSystem.LevyBackground).FirstOrDefault();
         if (pick != null) CorpsSystem.RaiseManual(kingdom, pick);
     }
-#endif
 
     // 募兵：伏波军不满编时，从 RefugeeReach 以内不交战的外国城招丁壮，近的先招，每人付 RecruitFee
-#if EC_PENDING
     private static float Recruit(Realm kingdom)
     {
         CorpsData fubo = Fubo(kingdom);
@@ -333,7 +326,6 @@ public static partial class TransmigrantSystem
                 Mathf.RoundToInt(hired), string.Join(LM.Get("list_separator"), names)), kingdom);
         return hired;
     }
-#endif
 
     // 船队海路(见 CommodityMarketSystem.Trade)：本国与殖民地任一城 SeaTradeReach 地块以内有城的外国
     public static IEnumerable<Realm> SeaTradePartners(Realm kingdom)
@@ -411,7 +403,6 @@ public static partial class TransmigrantSystem
     #region 伪装与撕破脸
 
     // 伪装期的宗主：所在天下的共主，没有就是离都城最近的华夏帝国
-#if EC_PENDING
     private static void Disguise(Realm kingdom, TransmigrantState state)
     {
         if (state.revealed || DisguiseLord(kingdom) != null) return;
@@ -435,7 +426,6 @@ public static partial class TransmigrantSystem
         return ModClass.EMPIRE_MANAGER.Where(Valid)
             .OrderBy(empire => ZoneDistance(empire.CoreKingdom.Capital, capital)).FirstOrDefault();
     }
-#endif
 
     // 还在伪装：返回名义上的宗主(撕破脸了、宗主没了返回 null)
     public static Empire DisguiseLord(Realm kingdom)

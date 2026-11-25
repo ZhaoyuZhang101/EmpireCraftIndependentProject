@@ -32,12 +32,12 @@ public static partial class SteppeOrderSystem
                                                 NomadRaidSystem.State(kingdom).attached_empire_id == empire.Key) ?? 0;
 
     // 汗国：核心是走出部落阶段的游牧政权的帝国
-#if EC_PENDING
     private static bool IsKhanate(Empire empire) =>
         empire?.data != null && !empire.IsGone() && !empire.IsArchived() && Alive(empire.CoreKingdom) &&
         NomadRaidSystem.IsNomad(empire.CoreKingdom) && !TribalFissionService.IsTribal(empire.CoreKingdom) &&
         !RepublicSystem.IsRepublic(empire);
 
+#if EC_PENDING
     private static void AttachYearly(List<Realm> nomads)
     {
         foreach (Realm kingdom in nomads.ToList())

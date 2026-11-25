@@ -9,8 +9,7 @@ public class EmpireCraftKingdomBehCheckCentreMind: GameAIKingdomMindBase
 {
     public override Type OriginalBeh => GetType();
 
-#if EC_PENDING
-    public override BehResult execute(Realm pKingdom)
+    public override BehResult Execute(Realm pKingdom)
     {
         if (!pKingdom.HasRuler()) return BehResult.Continue;
         var regime = pKingdom.GetRegime();
@@ -19,7 +18,6 @@ public class EmpireCraftKingdomBehCheckCentreMind: GameAIKingdomMindBase
         CorruptionSystem.TryYearlyCampaign(pKingdom);
         return BehResult.Continue;
     }
-#endif
 
 }
 }

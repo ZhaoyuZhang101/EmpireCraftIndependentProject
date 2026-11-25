@@ -41,7 +41,6 @@ public static class StockMarketSystem
     private static float Fair(CompanyData company, ConstitutionalEconomyState state) => Mathf.Max(0.5f,
         (Mathf.Max(0f, company.profit) * PE(state) + Mathf.Max(0f, company.capital) * 0.5f + company.value * 0.3f) / Shares);
 
-#if EC_PENDING
     internal static void Update(Empire empire, ConstitutionalEconomyState state, List<CompanyData> own, double now)
     {
         StockExchangeData exchange = ExchangeOf(empire);
@@ -89,7 +88,6 @@ public static class StockMarketSystem
         exchange.history.Add(exchange.index);
         while (exchange.history.Count > Years) exchange.history.RemoveAt(0);
     }
-#endif
 
     // 去年的涨跌(0.1 = 涨一成)；没有上年的价返回 0
     public static float Change(IList<float> series) =>

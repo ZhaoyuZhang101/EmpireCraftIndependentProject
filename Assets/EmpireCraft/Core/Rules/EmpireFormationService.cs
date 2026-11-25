@@ -299,7 +299,6 @@ public static class EmpireFormationService
 #endif
 
     // 本文化连续多少年没有帝国。旧档缺少计时记录时，从现存最早的同文化王国追溯。
-#if EC_PENDING
     public static float GetYearsWithoutEmpire(string culture)
     {
         if (!CultureService.IsValidCulture(culture) || EmpireWorld.Current == null) return 0f;
@@ -318,22 +317,18 @@ public static class EmpireFormationService
         }
         return GameClock.YearsSince(since);
     }
-#endif
 
     #endregion
 
     #region 帝国兴亡记录
 
-#if EC_PENDING
     public static void OnEmpireCreated(Empire empire)
     {
         string culture = empire == null ? "" : CultureService.GetEmpireDefaultCulture(empire);
         if (CultureService.IsValidCulture(culture)) ModClass.CULTURE_NO_EMPIRE_SINCE.Remove(culture);
     }
-#endif
 
     // 帝国解散时调用：记下皇族的亡国时间；如果该文化已没有别的帝国，开始"无帝国"计时。
-#if EC_PENDING
     public static void OnEmpireDissolving(Empire empire)
     {
         if (empire?.data == null || EmpireWorld.Current == null) return;
@@ -344,7 +339,6 @@ public static class EmpireFormationService
         if (CultureService.IsValidCulture(culture) && !CultureService.HasActiveEmpireForCulture(culture, empire))
             ModClass.CULTURE_NO_EMPIRE_SINCE[culture] = now;
     }
-#endif
 
     #endregion
 
@@ -393,6 +387,7 @@ public static class EmpireFormationService
         FailPreparation(kingdom, actor, reason);
         return false;
     }
+#endif
 
     private static void FailPreparation(Realm kingdom, Person king, string reasonKey)
     {
@@ -407,7 +402,6 @@ public static class EmpireFormationService
         EmpireCraft.Core.TranslateHelper.LogEventMessage(content, kingdom);
         LogService.LogInfo(content);
     }
-#endif
 
     // 战争结束时对战败方调用：正在筹备称帝的国家会因此失败
     public static void OnWarLost(Realm kingdom)
@@ -428,7 +422,6 @@ public static class EmpireFormationService
         Math.Max(routeMandate - UsurpationPenalty, Math.Min(routeMandate, UsurpationFloor));
 
     // 主法理所在核心目前属于哪个现存帝国；没有主法理的城邦才按都城查询。
-#if EC_PENDING
     public static Empire GetSeatCoreEmpire(Realm kingdom)
     {
         KingdomTitle title = kingdom?.GetMainTitle();
@@ -451,6 +444,7 @@ public static class EmpireFormationService
             : EmpireCoreManager.GetEmpires(core).FirstOrDefault(empire => empire != null && !empire.IsArchived());
     }
 
+#if EC_PENDING
     public static bool MeetsBaseRequirements(Realm kingdom) =>
         MeetsBaseRequirements(kingdom, requireNonNegativeTreasury: true);
 #endif
@@ -469,7 +463,6 @@ public static class EmpireFormationService
         InstitutionDefinitionRegistry.GetForLine(InstitutionSystem.GetCultureLine(culture))
             .FirstOrDefault(node => node.features != null && node.features.TryGetValue(ImperialFeature, out float value) && value > 0f);
 
-#if EC_PENDING
     public static bool HasImperialRule(Realm kingdom)
     {
         if (kingdom == null) return false;
@@ -479,7 +472,6 @@ public static class EmpireFormationService
         if (node == null) return true;
         return !InstitutionSystem.KingdomReformsEnabledFor(kingdom) && node.requires_techs.All(tech => TechnologySystem.RealmHasTech(kingdom, tech));
     }
-#endif
 
 
     // 诊断(见 FormationDiagnostics)：这个国家卡在称帝的哪一关，按称帝检查的先后逐条说
@@ -528,10 +520,8 @@ public static class EmpireFormationService
     // 称帝门槛的人口：开着"无小人"(抽象人口)时实体人物只剩要人，一个三十来城的汗国也只有三十几个，
     // 按户数算(实体 + 背景人口折户，同朝贡、岁赐的口径，见 CityPopulationSystem.Households)；以前一直数实体，
     // 无小人、纯净地图(独立服务器也是)下谁都够不上人口 200，天下几十年没人称帝
-#if EC_PENDING
     public static int Population(Realm kingdom) =>
         kingdom?.Record == null ? 0 : CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.Households(kingdom) : kingdom.PopulationCount();
-#endif
 
     public static bool IsSubject(Realm kingdom) =>
         kingdom?.Record != null && !kingdom.IsGone() &&

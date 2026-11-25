@@ -74,7 +74,6 @@ public static partial class GentrySystem
     }
 
     // 族众上限(见文件头)
-#if EC_PENDING
     public static float KinCap(SpecificClan clan, City seat)
     {
         if (clan == null || seat?.Record == null) return 0f;
@@ -83,12 +82,10 @@ public static partial class GentrySystem
                     (1f + KinOfficial * Mathf.Min(KinOfficialMax, Officials(clan)));
         return Mathf.Min(cap, KinSeatFloor + KinSeatShare * CityPopulationSystem.GetBackgroundTotal(seat));
     }
-#endif
 
     private static readonly Dictionary<string, (int year, int tier)> EraCache = new();
 
     // 郡望之城文化的科技时代(一年算一次)；-1 没开科技树
-#if EC_PENDING
     private static int EraTier(City city)
     {
         string culture = CultureService.GetMainCulture(city, initialize: false);
@@ -105,7 +102,6 @@ public static partial class GentrySystem
         int tier = EraTier(seat);
         return tier < 0 ? NoTechKin : KinBase[Mathf.Min(tier, KinBase.Length - 1)];
     }
-#endif
 
     // 郡望之城的田产(份数，百分数)
     public static float SeatLand(SpecificClan clan, City seat) =>
@@ -269,7 +265,6 @@ public static partial class GentrySystem
     private static readonly float[] SeedPedigree = { 72f, 64f, 58f, 52f, 47f, 43f, 39f, 35f };
 
     // 世界地图剧本头十年、还没有过世家：各华夏帝国按族人官爵挑几家立为世家(每轮门第结算开始时，见 Tick)
-#if EC_PENDING
     private static void SeedScenario()
     {
         if (WorldMapScale.ZoneKm <= 0f || ModClass.EMPIRE_MANAGER == null) return;
@@ -318,7 +313,6 @@ public static partial class GentrySystem
             empire.RecordHistory(directContent: content);
         }
     }
-#endif
 
     // 开局挑世家：族人的官爵(同门第里做官一项的算法)、名望
     private static float Standing(List<PersonalClanIdentity> living)

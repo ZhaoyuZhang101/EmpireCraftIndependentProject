@@ -17,13 +17,10 @@ public static class UnificationDrive
 {
     public const float AgendaUrgency = 8f, PacifyBoost = 1f, PacifyChanceCap = 0.7f;
 
-#if EC_PENDING
     public static float Of(Realm kingdom) =>
         kingdom?.Record == null || kingdom.IsGone() ? 0f : CultureService.GetRealmCulture(kingdom).GetUnificationDrive();
-#endif
 
     // 这一家要先打这个邻国：有统一倾向，对方在同一个天下
-#if EC_PENDING
     public static bool Prefers(Realm initiator, Realm target) =>
         Of(initiator) > 0f && UnificationSystem.SameRealm(initiator, target);
 
@@ -32,6 +29,5 @@ public static class UnificationDrive
         float boosted = chance * (1f + PacifyBoost * Of(holder));
         return boosted > PacifyChanceCap ? PacifyChanceCap : boosted;
     }
-#endif
 }
 }

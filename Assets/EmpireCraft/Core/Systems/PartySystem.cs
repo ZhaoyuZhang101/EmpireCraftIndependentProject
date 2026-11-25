@@ -242,7 +242,6 @@ public static class PartySystem
     // 被战胜国强行改造的(见 ConstitutionalEconomySystem.ImposeModernization)不等制度，直接开放党禁。
     // 城市忠诚(地方政治)等每座城都要问一遍，逐个理念查科技、名著一次约 1 毫秒，城多时一帧上百毫秒：
     // 按帝国缓存 2 个游戏秒(制度、理念不会在这么短里变)
-#if EC_PENDING
     public static bool IsActive(Empire empire)
     {
         if (TechnologySystem.PremodernLocked || empire?.CoreKingdom == null || empire.data == null) return false;
@@ -254,14 +253,12 @@ public static class PartySystem
         ActiveCache[empire.data.id] = (active, now);
         return active;
     }
-#endif
 
     private const double ActiveCacheSeconds = 2d;
     private static readonly Dictionary<long, (bool active, double at)> ActiveCache = new();
     private static readonly PartyIdeology[] AllIdeologies = (PartyIdeology[])Enum.GetValues(typeof(PartyIdeology));
 
     // 有没有一种理念可组党(与 UnlockedIdeologies 非空同义；文化只取一次，碰到一个就停)
-#if EC_PENDING
     private static bool AnyIdeologyUnlocked(Empire empire)
     {
         string culture = InstitutionSystem.GetPrimaryCulture(empire);
@@ -274,10 +271,8 @@ public static class PartySystem
         }
         return false;
     }
-#endif
 
     // 民间已接触到理念就能组织政党；理念制度由执政党推进，不能反过来作为建党的前提。
-#if EC_PENDING
     public static bool IsIdeologyUnlocked(Empire empire, PartyIdeology ideology)
     {
         // 古代理念不组现代政党
@@ -288,7 +283,6 @@ public static class PartySystem
         string imposer = ConstitutionalEconomySystem.IsForcedModernized(empire) ? ConstitutionalEconomySystem.ForcedByCulture(empire) : "";
         return !string.IsNullOrEmpty(imposer) && IdeologyPopulationSystem.IsIdeaAvailable(imposer, ideology);
     }
-#endif
 
     #region 理念路线
 
@@ -380,32 +374,25 @@ public static class PartySystem
 
     #endregion
 
-#if EC_PENDING
     public static HashSet<PartyIdeology> UnlockedIdeologies(Empire empire) =>
         new(Enum.GetValues(typeof(PartyIdeology)).Cast<PartyIdeology>()
             .Where(ideology => IsIdeologyUnlocked(empire, ideology)));
-#endif
 
     // 实际是否普选：宪法手定了选举权时按宪法(普选仍需本文化推行过普选制度)，否则按制度
-#if EC_PENDING
     public static bool HasUniversalSuffrage(Empire empire) =>
         ConstitutionSystem.TryGetLockedSuffrage(empire, out ConstitutionSuffrage suffrage)
             ? suffrage == ConstitutionSuffrage.Universal && HasUniversalSuffragePolicy(empire)
             : HasUniversalSuffragePolicy(empire);
-#endif
 
     // 本文化是否推行过普选制度(宪法能否规定普选的前提)
-#if EC_PENDING
     public static bool HasUniversalSuffragePolicy(Empire empire) =>
         InstitutionSystem.GetFeature(empire, FeatureUniversalSuffrage) > 0f;
-#endif
 
     public static string GetIdeologyName(PartyIdeology ideology) => LM.Get($"party_ideology_{ideology}");
 
     // 按文化取名：古代理念各文化线另有说法(西方的经院正统、阿拉伯的教法派……见 CultureDoctrines)，近代理念照旧
     public static string GetIdeologyName(PartyIdeology ideology, string culture) => CultureDoctrines.Name(ideology, culture);
 
-#if EC_PENDING
     public static List<FixedFaction> GetParties(Empire empire) =>
         empire?.CoreKingdom?.GetRegime()?.GetPlayerFactions()
             ?.Where(faction => faction != null && faction.IsParty && !faction.Ban).ToList() ?? new List<FixedFaction>();
@@ -426,7 +413,6 @@ public static class PartySystem
         party = empire.CoreKingdom.GetRegime()?.GetDominateFaction();
         return party?.IsParty == true && !party.Ban ? party : null;
     }
-#endif
 
     // 理念对某阶层的吸引力(-100~100)：两者在光谱上越近越高
     public static float GetAffinity(PartyIdeology ideology, SocialClass socialClass) =>
@@ -444,11 +430,9 @@ public static class PartySystem
 
     private static SocialClass ClassOf(Person actor) => actor.GetOrCreate().socialClass;
 
-#if EC_PENDING
     private static float MemberAffinity(Person actor, FixedFaction party) =>
         (100f - Distance(IdeologyPopulationSystem.Get(actor), party.Ideology) * 0.9f) * 0.75f +
         GetAffinity(party.Ideology, ClassOf(actor)) * 0.25f;
-#endif
 
     #endregion
 
@@ -501,7 +485,6 @@ public static class PartySystem
 #endif
 
     // 开放党禁：朝中派系改组为政党，原班人马随之转入
-#if EC_PENDING
     private static void Reorganize(Empire empire, Regime regime)
     {
         var lines = new List<string>();
@@ -538,10 +521,8 @@ public static class PartySystem
         if (lines.Count == 0) return;
         Record(empire, string.Format(LM.Get("party_reorganized_history"), string.Join("、", lines)), null);
     }
-#endif
 
     // 派系/政党代表的理念：政党就是它的理念；党禁前的派系按它偏向的阶层落到光谱上最近的理念(与开放党禁时改组的算法一致)
-#if EC_PENDING
     public static PartyIdeology LeaningOf(FixedFaction faction)
     {
         if (faction == null) return PartyIdeology.Centrism;
@@ -556,7 +537,6 @@ public static class PartySystem
             ideology => IdeologyFamilies.IsAncient(ideology) && (schools || !IdeologyFamilies.IsSchool(ideology)) &&
                         CultureDoctrines.Has(set, ideology));
     }
-#endif
 
     // 派系偏向的各阶层立场的加权中心；没有偏向任何阶层时返回空
     public static Vector2? ClassCenter(FixedFaction faction)
@@ -573,7 +553,6 @@ public static class PartySystem
         return total > 0f ? weighted / total : null;
     }
 
-#if EC_PENDING
     private static void ConvertToParty(Empire empire, FixedFaction faction, PartyIdeology ideology, string name)
     {
         faction.IsParty = true;
@@ -596,7 +575,6 @@ public static class PartySystem
         }
         faction.FixMissedTemporaryFactions();
     }
-#endif
 
     // A new party needs a real social base and an ideology already available to the culture.
 #if EC_PENDING
@@ -637,6 +615,7 @@ public static class PartySystem
         Record(empire, string.Format(LM.Get("party_founded_history"), founder.FullName(), party.Name,
             GetIdeologyName(ideology)), founder);
     }
+#endif
 
     private static FixedFaction CreateParty(Empire empire, Regime regime, PartyIdeology ideology, Person founder)
     {
@@ -660,10 +639,8 @@ public static class PartySystem
         }
         return party;
     }
-#endif
 
     // 把立场离新党明显更近的人拉过来
-#if EC_PENDING
     private static void Recruit(FixedFaction party, List<Person> citizens, int limit)
     {
         foreach (Person actor in citizens.Where(actor => actor.GetFaction() != party)
@@ -679,10 +656,8 @@ public static class PartySystem
             limit--;
         }
     }
-#endif
 
     // 党员流向离自己阶层立场更近的党(党魁不走)
-#if EC_PENDING
     private static void DriftMembers(Empire empire, List<Person> citizens)
     {
         List<FixedFaction> parties = GetParties(empire);
@@ -701,7 +676,6 @@ public static class PartySystem
             switches++;
         }
     }
-#endif
 
     // 同理念的党必定合并。弱势政党(议席与得票都不到一成二、成立满三年)每年有机会并入理念相近的较大政党：
     //   基础三成；得票比上届下滑 +两成；与对方同在执政联盟 +一成五；按行政区选举(小党被挤压) +一成；
@@ -784,6 +758,7 @@ public static class PartySystem
             if (DissolveParty(empire, party)) return;
         }
     }
+#endif
 
     private static void Absorb(Empire empire, Regime regime, FixedFaction target, FixedFaction absorbed)
     {
@@ -794,7 +769,6 @@ public static class PartySystem
             ratios[target] = (ratios.TryGetValue(target, out int current) ? current : 0) + ratio;
         RemoveParty(empire, regime, absorbed, target);
     }
-#endif
 
     // 大党里有声望的人立场与党的理念相去太远 → 率众出走另组新党
 #if EC_PENDING
@@ -842,7 +816,6 @@ public static class PartySystem
     internal const int PlayerMaxParties = 10;
 
     // The founder must share the ideology of the prospective party.
-#if EC_PENDING
     private static Person FindFounder(Empire empire, PartyIdeology ideology) =>
         GetCitizens(empire)
             .Where(actor => actor.GetFaction()?.GetLeader() != actor &&
@@ -863,6 +836,7 @@ public static class PartySystem
         return true;
     }
 
+#if EC_PENDING
     public static FixedFaction PlayerFoundParty(Empire empire, PartyIdeology ideology)
     {
         if (!CanPlayerFound(empire, ideology, out _)) return null;
@@ -907,7 +881,6 @@ public static class PartySystem
     // 理念相近的小党自由合并：双方都不超过两成(议席，没有议会看中央占比)、光谱距离在合并范围内
     private const float PlayerMergeMaxShare = 0.2f;
 
-#if EC_PENDING
     public static FixedFaction FindMergePartner(Empire empire, FixedFaction party)
     {
         if (party == null || !party.IsParty || party.Ban || RepublicSystem.IsOneParty(empire)) return null;
@@ -919,7 +892,6 @@ public static class PartySystem
             .OrderBy(other => Distance(other.Ideology, party.Ideology))
             .ThenByDescending(other => Share(empire, state, other)).FirstOrDefault();
     }
-#endif
 
     // 合并：小的并进大的(沿用大党党名)，党员、议席、中央占比随之转过去；涉及执政党时重新组阁
 #if EC_PENDING
@@ -944,10 +916,10 @@ public static class PartySystem
         Record(empire, string.Format(LM.Get("party_merged_history"), absorbedName, target.Name), target.GetLeader());
         return true;
     }
+#endif
 
     public static bool CanDissolve(Empire empire, FixedFaction party) =>
         party != null && party.IsParty && !party.Ban && GetParties(empire).Count(other => other != party) >= 1;
-#endif
 
     // 自行解散：党员按阶层立场加入剩下的政党中最接近的一个(对所有党都没好感的就成无党派)，
     // 议员带着议席转党，原中央占比按转入人数分给接收的党；执政党解散则重新组阁
@@ -1001,7 +973,6 @@ public static class PartySystem
     #region 选举(由 ParliamentSystem 调用)
 
     // 各党得票：有选举权的各阶层人口按理念接近程度分票，再加一点党组织本身的动员力
-#if EC_PENDING
     public static Dictionary<FixedFaction, float> CountVotes(Empire empire, List<FixedFaction> parties)
     {
         Dictionary<FixedFaction, float> votes = ApplyOpinionSwing(empire, CountVotes(parties, GetCitizens(empire),
@@ -1010,10 +981,8 @@ public static class PartySystem
         foreach (FixedFaction party in votes.Keys.ToList()) votes[party] *= PartyFinanceSystem.ProvinceFactor(empire, party);
         return votes;
     }
-#endif
 
     // 一个行政区里各党的得票(地方选举、省级政治倾向)：只算住在本省的选民
-#if EC_PENDING
     public static Dictionary<FixedFaction, float> CountProvinceVotes(Empire empire, Realm province,
         List<FixedFaction> parties)
     {
@@ -1023,10 +992,8 @@ public static class PartySystem
         return ApplyOpinionSwing(empire, CountVotes(parties, voters, HasUniversalSuffrage(empire),
             InstitutionSystem.GetPrimaryCulture(empire), CityPopulationSystem.CitiesOf(new[] { province })));
     }
-#endif
 
     // 民意影响选票(见 PublicOpinionSystem)：民意越差执政党越丢票、百姓想要的理念越得票；外国压力撑腰的理念也多拿票
-#if EC_PENDING
     private static Dictionary<FixedFaction, float> ApplyOpinionSwing(Empire empire,
         Dictionary<FixedFaction, float> votes)
     {
@@ -1074,7 +1041,6 @@ public static class PartySystem
         }
         return votes;
     }
-#endif
 
     // 无小人模式：背景人口也投票。每个人口组的成年人按本组的理念与阶层，用和实体选民一样的亲和度在各党间分票；
     // 限制选举时只有有选举权的阶层投票
@@ -1112,7 +1078,6 @@ public static class PartySystem
     // 组织规模 = 实体党员 + 背景人口中本党理念支持者户数的 VirtualMemberShare(同理念的几个党平分)
     private const float VirtualMemberShare = 0.05f;
 
-#if EC_PENDING
     public static float OrganizationSize(Empire empire, FixedFaction party)
     {
         float members = party.AllMembers.Count(actor => actor != null && !actor.IsGone() && actor.Alive);
@@ -1129,7 +1094,6 @@ public static class PartySystem
         int sameIdeology = Math.Max(1, GetParties(empire).Count(other => other.Ideology == party.Ideology));
         return members + supporters * VirtualMemberShare / sameIdeology;
     }
-#endif
 
     // 找不到实体发起人时(无小人模式)，从京师人口里推举一位该理念的读书人
 #if EC_PENDING
@@ -1145,7 +1109,6 @@ public static class PartySystem
 
     // 普选后按行政区选举：每个行政区(帝国内的一国)按人口分得议席(至少 1 席)，区内按得票用顿特法分给各党。
     // 返回每一席的 (政党, 行政区 id)。
-#if EC_PENDING
     public static List<(FixedFaction party, long district)> AllocateDistrictSeats(Empire empire,
         List<FixedFaction> parties, int seats)
     {
@@ -1207,17 +1170,14 @@ public static class PartySystem
         }
         return result;
     }
-#endif
 
     // 改制后的国号后缀：本文化给这个理念配的后缀词库 → 通用词库
-#if EC_PENDING
     public static string PickCountrySuffix(Empire empire, PartyIdeology ideology)
     {
         // 国号后缀词库照风俗文化(旧制犹存不改口径，见 InstitutionSystem.GetCustomsCulture)
         List<string> pool = CountrySuffixPool(InstitutionSystem.GetCustomsCulture(empire), ideology);
         return pool.Count == 0 ? LM.Get("republic_default_suffix") : pool[Random.Range(0, pool.Count)];
     }
-#endif
 
     // 国号后缀词库：本文化 Party.suffix_groups 配的词库(可写"别的文化:词库名") → PartyNames/Suffix<理念>.csv
     public static List<string> CountrySuffixPool(string culture, PartyIdeology ideology) =>
@@ -1254,18 +1214,15 @@ public static class PartySystem
     #region 工具
 
     // 一党制下被解散的政党(见 PartyBanSystem.Close)：党员成为无党派，政党从格局中移除
-#if EC_PENDING
     public static void DisbandParty(Empire empire, FixedFaction party)
     {
         Regime regime = empire?.CoreKingdom?.GetRegime();
         if (regime == null || party == null) return;
         RemoveParty(empire, regime, party);
     }
-#endif
 
     // 剧本已立好各党(见 ScenarioModernPolitics.Settle)：政体模板里的派系(文官派、武官派、皇权派……)成员并进执政党、派系撤掉，
     // 记作已改组——以前头一回政党更新把它们改组成一串保守主义小党，还记一笔"党禁开放，朝中各派改组为政党"(用户 2026-11-10"为什么会开党禁")
-#if EC_PENDING
     internal static void FoldScenarioFactions(Empire empire, FixedFaction ruling)
     {
         Regime regime = empire?.CoreKingdom?.GetRegime();
@@ -1281,10 +1238,8 @@ public static class PartySystem
         state.parties_reorganized = true;
         state.last_party_update = GameClock.Now;
     }
-#endif
 
     // successor：并入的目标党(一党制下领导党被并入时由它接任领导党)
-#if EC_PENDING
     private static void RemoveParty(Empire empire, Regime regime, FixedFaction party, FixedFaction successor = null)
     {
         foreach (long memberId in party.Members.ToList())
@@ -1296,12 +1251,10 @@ public static class PartySystem
     }
 
     private static List<Person> GetCitizens(Empire empire) =>
-        empire.getUnits().Where(actor => actor != null && !actor.IsGone() && actor.Alive && actor.IsAdult() &&
+        empire.GetUnits().Where(actor => actor != null && !actor.IsGone() && actor.Alive && actor.IsAdult() &&
                                          actor.Key != empire.Emperor?.Key).ToList();
-#endif
 
     // 政党实力占比(0~1)：有议会按议席，没有议会按中央占比
-#if EC_PENDING
     private static float Share(Empire empire, ConstitutionalEconomyState state, FixedFaction party)
     {
         int total = state?.parliament_seats?.Count ?? 0;
@@ -1317,11 +1270,9 @@ public static class PartySystem
         actor?.RecordPersonalHistory(content, "party_politics");
         if (EventRecorder.ShowRoutine(empire)) TranslateHelper.LogEventMessage(content, empire.CoreKingdom);
     }
-#endif
 
     // 党名：本文化给这个理念配的词库 → 通用词库 → 理念名+党；已被占用的名字不重复用
     // 政党的默认名(派系详情"默认名"，见 FactionEditor)：本文化这一理念的党名库里取一个没用过的
-#if EC_PENDING
     internal static string DefaultPartyName(Empire empire, PartyIdeology ideology) => NewPartyName(empire, ideology);
 
     private static string NewPartyName(Empire empire, PartyIdeology ideology)
@@ -1339,7 +1290,6 @@ public static class PartySystem
             name = string.Format(LM.Get("party_name_duplicate"), baseName, i);
         return name;
     }
-#endif
 
     private static List<string> GetNamePool(string culture, PartyIdeology ideology)
     {

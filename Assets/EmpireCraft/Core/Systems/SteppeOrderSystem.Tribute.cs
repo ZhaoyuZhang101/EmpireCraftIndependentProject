@@ -21,17 +21,14 @@ public static partial class SteppeOrderSystem
     public const float GiftReliefYears = 1.5f;
 
     // 定居宗主给游牧朝贡国回赐几倍(TributaryRelations.AfterTribute 调用)；不是游牧朝贡定居宗主返回 null(照旧三成)
-#if EC_PENDING
     public static float? TributeGiftShare(Realm tributary, Empire empire)
     {
         Realm core = empire?.CoreKingdom;
         if (!Alive(tributary) || !Alive(core) || !NomadRaidSystem.IsNomad(tributary) || NomadRaidSystem.IsNomad(core)) return null;
         return SteppeRules.GiftShare(empire.Legitimacy, DynasticCycleSystem.InCrisis(empire));
     }
-#endif
 
     // 回赐之后记下(断了也记)
-#if EC_PENDING
     public static void NoteGift(Realm tributary, Empire empire, int gift)
     {
         if (TributeGiftShare(tributary, empire) == null || EmpireWorld.Current == null) return;
@@ -50,7 +47,6 @@ public static partial class SteppeOrderSystem
             LogService.LogInfo($"{LogTag} {empire.GetEmpireName()}(正统{empire.Legitimacy}" +
                                $"{(DynasticCycleSystem.InCrisis(empire) ? "，末世" : "")})断了给{tributary.GetKingdomName()}的赏赐");
     }
-#endif
 
     // 一年半内得过赏赐(草原压力里国库一项减半)
     public static bool Gifted(SteppeState state) => state.gift_at >= 0d && YearsSince(state.gift_at) < GiftReliefYears;
@@ -118,12 +114,10 @@ public static partial class SteppeOrderSystem
 #endif
 
     // 收得了游牧朝贡、给得起赏赐的定居帝国：君主制、施行了朝贡体系、正统够、不在末世
-#if EC_PENDING
     private static bool Suzerain(Empire empire) =>
         empire?.data != null && !empire.IsGone() && !empire.IsArchived() && Alive(empire.CoreKingdom) &&
         !NomadRaidSystem.IsNomad(empire.CoreKingdom) && RegimeManager.IsMonarchy(empire.CoreKingdom.GetRegime()?.type) &&
         !RepublicSystem.IsRepublic(empire) && FeudalConquestService.HasTributeInstitution(empire) &&
         empire.Legitimacy >= SubmitLegitimacy && !DynasticCycleSystem.InCrisis(empire);
-#endif
 }
 }

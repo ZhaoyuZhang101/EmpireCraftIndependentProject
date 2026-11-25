@@ -8,7 +8,6 @@ namespace EmpireCraft.Core
 
 public static class OfficeSelector
 {
-#if EC_PENDING
     public static bool IsPreferredOfficeCandidate(Person actor, Realm kingdom)
     {
         if (actor == null) return false;
@@ -24,6 +23,7 @@ public static class OfficeSelector
         return true;
     }
 
+#if EC_PENDING
     public static void Select(this OfficeObject office, Realm pKingdom, string debugType = "中央")
     {
         Person actor = null;
@@ -163,7 +163,7 @@ public static class OfficeSelector
                         if (consort.City != emperor.City && emperor.City != null) consort.JoinCity(emperor.City);
                         return consort;
                     }
-                    var lover = empire.getUnits().ToList().Find(a =>
+                    var lover = empire.GetUnits().ToList().Find(a =>
                         a.CanServeOffice(pKingdom) && a.IsFemale() && a.IsAdult() && a.age <= 25 &&
                         (a.Clan == null || a.Clan != emperor.Clan) &&
                         !a.HasSpouse() && !lives.Contains(a) && !KinshipRules.AreCloseKin(emperor, a));
@@ -182,7 +182,7 @@ public static class OfficeSelector
                         return emperor.Spouse;
                     }
 
-                    var lover = empire.getUnits().ToList().Find(a =>
+                    var lover = empire.GetUnits().ToList().Find(a =>
                         a.CanServeOffice(pKingdom) && a.IsFemale() && a.IsAdult() && a.age <= 25 &&
                         (a.Clan == null || a.Clan != emperor.Clan) &&
                         !a.HasSpouse() && !a.IsSkeleton() && !KinshipRules.AreCloseKin(emperor, a));
@@ -244,7 +244,6 @@ public static class OfficeSelector
 #endif
 
     // 没有元老院的古典共和：偏好人选优先，其次兵力最强的成员国君主(同 TryGetStrongerLeader)
-#if EC_PENDING
     public static List<Person> RankStrongestCandidates(Realm pKingdom)
     {
         Empire empire = pKingdom?.GetEmpire();
@@ -260,7 +259,7 @@ public static class OfficeSelector
     private static Person TryGetStrongerLeader(OfficeObject pOffice, Realm pKingdom)
     {
         if (pOffice.meta_object.IsGone()) return null;
-        if (pKingdom.IsEmpire()&&pOffice.meta_object.meta_type == MetaType.Kingdom)
+        if (pKingdom.IsEmpire()&&pOffice.meta_object.KindOfEntity == EntityKind.Realm)
         {
             Realm kingdom =  null;
             int currentWarriors = 0;
@@ -283,7 +282,6 @@ public static class OfficeSelector
         }
         return null;
     }
-#endif
 
     // 已经在别处主政的人(别城城主、别国君主)不调来补地方主官：调走了原处又空缺，下一轮又按同样的分数被调回，
     // 城主在两座城之间来回跳(无小人模式补位出来的城主不算在任官员，以前挡不住)。中央官职不挪人，不受此限
@@ -303,23 +301,23 @@ public static class OfficeSelector
         using ListPool<Person> pool = new ListPool<Person>();
         if (pOffice.select_from_local)
         {
-            targetPool = pOffice.meta_object.meta_type == MetaType.City
+            targetPool = pOffice.meta_object.KindOfEntity == EntityKind.City
                 ? ((City)pOffice.meta_object).People
                 : ((Realm)pOffice.meta_object).People;
         }
         else
         {
-            Realm kingdom = pOffice.meta_object.meta_type == MetaType.City
+            Realm kingdom = pOffice.meta_object.KindOfEntity == EntityKind.City
                 ? ((City)pOffice.meta_object).Realm
                 : (Realm)pOffice.meta_object;
             if (kingdom.IsInEmpire())
             {
                 Empire empire = kingdom.GetEmpire();
-                targetPool = CityPopulationSystem.AbstractPopulationEnabled ? OfficeCandidateRoster.Empire(empire.kingdoms_list) : empire.getUnits().ToList();
+                targetPool = CityPopulationSystem.AbstractPopulationEnabled ? OfficeCandidateRoster.Empire(empire.kingdoms_list) : empire.GetUnits().ToList();
             }
             else
             {
-                targetPool = pOffice.meta_object.meta_type == MetaType.City
+                targetPool = pOffice.meta_object.KindOfEntity == EntityKind.City
                     ? ((City)pOffice.meta_object).People
                     : ((Realm)pOffice.meta_object).People;
             }

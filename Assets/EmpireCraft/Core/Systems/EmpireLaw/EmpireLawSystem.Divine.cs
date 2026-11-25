@@ -92,14 +92,12 @@ public static partial class EmpireLawSystem
     }
 
     // 记得上的罪名：本朝律里有的(过于强大那一条另有专门的判法，不在此列)
-#if EC_PENDING
     public static List<LawType> AddableCrimes(Person actor)
     {
         Realm kingdom = actor?.Realm;
         if (kingdom == null || !CanEnforceLawInEmpireScope(actor, kingdom)) return new List<LawType>();
         return Enum.GetValues(typeof(LawType)).Cast<LawType>().Where(type => type != LawType.过于强大 && kingdom.HasLaw(type)).ToList();
     }
-#endif
 
     public static int DefaultLoot(LawType type) => type is LawType.贪污 or LawType.受贿 or LawType.盗窃 or LawType.诈骗 ? 300 : 0;
 
@@ -113,7 +111,6 @@ public static partial class EmpireLawSystem
 #endif
 
     // 担保人：本派首领，没有就父亲(都得在世、不在押、不是本人)
-#if EC_PENDING
     public static PersonalClanIdentity FindGuarantor(Person actor)
     {
         PersonalClanIdentity self = actor?.GetPersonalIdentity();
@@ -126,10 +123,8 @@ public static partial class EmpireLawSystem
         }
         return candidate == self ? null : candidate;
     }
-#endif
 
     // 保释条件为什么加不上(null 为加得上)
-#if EC_PENDING
     public static string CannotBail(Person actor, string condition)
     {
         PersonalClanIdentity identity = actor?.GetPersonalIdentity();
@@ -142,10 +137,8 @@ public static partial class EmpireLawSystem
             _ => null
         };
     }
-#endif
 
     // 加或去掉一项保释条件；加上时在押的当即出狱
-#if EC_PENDING
     public static bool GodBail(Person actor, string condition)
     {
         PersonalClanIdentity identity = actor?.GetPersonalIdentity();
@@ -179,7 +172,6 @@ public static partial class EmpireLawSystem
         }
         return true;
     }
-#endif
 
     public static void GodRevokeBail(Person actor)
     {

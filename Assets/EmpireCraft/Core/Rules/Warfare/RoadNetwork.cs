@@ -72,15 +72,12 @@ public static class RoadNetwork
 
         // 这个等级的路修得通吗(地形代价不超过直线距离的几倍，见 RoadBuildingSystem.DetourLimit)；
         // 超过两头城市风格允许的等级(林地只修土路，见 GradeCap)的也修不了
-#if EC_PENDING
         public bool Buildable(int grade) => zones.Count > 0 && grade <= GradeCap(cities) &&
                                             terrain <= Mathf.Max(1f, straight) * RoadBuildingSystem.DetourLimit(grade);
-#endif
     }
 
     // 一条路最高修到几等：两头城市风格的上限取小(用户 2026-10-21 选林地"只修最低一档的路"，见 CityStyleSystem.RoadGradeCap)。
     // 按眼下的风格现算，城改建了风格、已修的路不重新规划也认得出；没记两头的(航线)不限
-#if EC_PENDING
     public static int GradeCap((long, long) key)
     {
         if (key.Item1 < 0 || key.Item2 < 0 || EmpireWorld.Current?.Cities == null) return RoadBuildingSystem.MaxGrade;
@@ -89,7 +86,6 @@ public static class RoadNetwork
         if (CityStyleSystem.Roadless(first) || CityStyleSystem.Roadless(second)) return 0;
         return Math.Min(CityStyleSystem.RoadGradeCap(first), CityStyleSystem.RoadGradeCap(second));
     }
-#endif
 
     private static readonly Dictionary<(long, long), RoadPlan> Roads = new(), Lanes = new();
     private static readonly HashSet<int> RoadZones = new(), RoadTiles = new(), LaneZones = new(), LaneTiles = new(),
@@ -127,7 +123,7 @@ public static class RoadNetwork
 #if EC_PENDING
     public static void RefreshNow()
     {
-        if (EmpireWorld.Current?.Zones == null) return;
+        if (EmpireWorld.Current?.AllCells == null) return;
         _dirty = false;
         CollectRoads();
         Version++;
@@ -333,11 +329,11 @@ public static class RoadNetwork
 #if EC_PENDING
     private static void ConnectCorners()
     {
-        if (EmpireWorld.Current?.Zones == null || TileGrades.Count == 0) return;
+        if (EmpireWorld.Current?.AllCells == null || TileGrades.Count == 0) return;
         var joints = new Dictionary<int, int>();
         foreach (var pair in TileGrades)
         {
-            Cell tile = EmpireWorld.Current.Zones[pair.Key];
+            Cell tile = EmpireWorld.Current.AllCells[pair.Key];
             if (tile == null) continue;
             // 每对斜邻只看一次(右上、右下)
             for (int dy = -1; dy <= 1; dy += 2)
@@ -356,7 +352,7 @@ public static class RoadNetwork
         }
         foreach (var pair in joints)
         {
-            Cell tile = EmpireWorld.Current.Zones[pair.Key];
+            Cell tile = EmpireWorld.Current.AllCells[pair.Key];
             RoadTiles.Add(pair.Key);
             BuildingTiles.Remove(pair.Key);
             TileGrades[pair.Key] = pair.Value;
@@ -779,15 +775,13 @@ public static class RoadNetwork
 #endif
 
     // 地形代价：平地 1，山地沼泽丛林乘 RoughCost，多水的地块(大河、湖)乘 RiverCost
-#if EC_PENDING
     private static float Terrain(Cell zone)
     {
         float cost = 1f;
         if (TerrainSystem.SlowsMarch(zone)) cost *= RoughCost;
-        if (zone.LiquidTiles * 4 > zone.GroundTiles + zone.LiquidTiles) cost *= RiverCost;
+        if (zone.LiquidCount * 4 > zone.GroundCount + zone.LiquidCount) cost *= RiverCost;
         return cost;
     }
-#endif
 
     #endregion
 
@@ -841,7 +835,6 @@ public static class RoadNetwork
 
     // 海上寻路(航线、运兵船、舰队共用)：海面代价 1，航线上 0.6，近岸与海峡 3，两端港口城(登陆城)的地块 2，陆地不走。
     // allowed：额外限制能走的海面(运兵只走航线上的海区)；ports：两端可以穿过的城
-#if EC_PENDING
     public static List<Cell> SeaPath(Cell from, Cell to, City fromCity = null, City toCity = null,
         Func<Cell, bool> allowed = null)
     {
@@ -854,11 +847,10 @@ public static class RoadNetwork
             if (SeaRegionSystem.IsSea(zone))
                 return allowed != null && !allowed(zone) ? -1f : LaneZones.Contains(zone.Index) ? RoadCost : 1f;
             if (zone.OnEdge) return -1f;
-            if (zone.LiquidTiles >= 16) return CoastCost;
+            if (zone.LiquidCount >= 16) return CoastCost;
             return harbour ? HarbourCost : -1f;
         }, RoadCost);
     }
-#endif
 
     #endregion
 

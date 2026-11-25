@@ -173,7 +173,7 @@ public static class EmpireCraftOpinionAddition
                     if (pMain.HasMainTitle())
                     {
                         var title = pMain.GetMainTitle();
-                        var value = pTarget.Cities.Intersect(title.getCities()).Count();
+                        var value = pTarget.Cities.Intersect(title.GetCities()).Count();
                         result = -(value*100);
                     }
                 }
@@ -309,7 +309,7 @@ public static class EmpireCraftOpinionAddition
             calc = delegate (Realm pMain, Realm pTarget)
             {
                 int result = 0;
-                if (!pMain.IsInSameEmpire(pTarget)&&pMain.IsEmpire()&&pTarget.IsEmpire()&&pMain.getSpecies()==pTarget.getSpecies()&&pMain.Ruler!=pTarget.Ruler)
+                if (!pMain.IsInSameEmpire(pTarget)&&pMain.IsEmpire()&&pTarget.IsEmpire()&&pMain.GetSpecies()==pTarget.GetSpecies()&&pMain.Ruler!=pTarget.Ruler)
                 {
                     // 同一文明势不两立；不同文明按远近相忌、通好的不忌(见 GreatPowerDiplomacy)
                     result = EmpireCraft.Core.GreatPowerDiplomacy.EmperorRivalry(pMain, pTarget);

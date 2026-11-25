@@ -28,7 +28,6 @@ public static class CultureReformSystem
     // 一次改制最多给多少个官员宗族改姓(王族不算在内)
     private const int MaxRenamedClans = 32;
 
-#if EC_PENDING
     public static bool CanReform(Person actor) =>
         actor?.Realm?.Ruler == actor && FindCandidate(actor.Realm, out _, out _);
 
@@ -61,7 +60,6 @@ public static class CultureReformSystem
         target = local;
         return true;
     }
-#endif
 
     private static IEnumerable<City> RealmCities(Realm kingdom, Empire empire)
     {
@@ -134,7 +132,7 @@ public static class CultureReformSystem
             previousInstitutionCulture: previousInstitution, activeReform: true);
         if (core) InstitutionSystem.ResyncCulture(empire);
 
-        Culture native = string.Equals(CulturePatch.GetInjectedCultureName(kingdom.Culture), target, StringComparison.Ordinal)
+        Culture native = string.Equals(Cultures.FamilyOf(kingdom.Culture), target, StringComparison.Ordinal)
             ? kingdom.Culture
             : CultureService.GetNativeCultureObject(target);
         var taken = new HashSet<string>(SpecificClanManager._specificClans.Where(c => c != null && !string.IsNullOrWhiteSpace(c.name))
@@ -170,7 +168,7 @@ public static class CultureReformSystem
         if (kingdom?.Record == null || kingdom.IsGone() || !CultureService.IsValidCulture(target)) return null;
         var within = new HashSet<Realm>(scope ?? Enumerable.Empty<Realm>()) { kingdom };
         Person king = kingdom.Ruler != null && !kingdom.Ruler.IsGone() && kingdom.Ruler.Alive ? kingdom.Ruler : null;
-        Culture native = string.Equals(CulturePatch.GetInjectedCultureName(kingdom.Culture), target, StringComparison.Ordinal)
+        Culture native = string.Equals(Cultures.FamilyOf(kingdom.Culture), target, StringComparison.Ordinal)
             ? kingdom.Culture
             : CultureService.GetNativeCultureObject(target);
         var taken = new HashSet<string>(SpecificClanManager._specificClans.Where(c => c != null && !string.IsNullOrWhiteSpace(c.name))
@@ -373,8 +371,8 @@ public static class CultureReformSystem
         string fallback = null;
         for (int i = 0; i < 12; i++)
         {
-            string generated = CultureService.GenerateCulturalName(MetaType.Clan, seed + i * 7919L, culture) ??
-                               CulturePatch.GetOnomasticDataSafe(native, MetaType.Clan)?.generateName();
+            string generated = CultureService.GenerateCulturalName(EntityKind.Clan, seed + i * 7919L, culture) ??
+                               Cultures.NameParts(native, EntityKind.Clan)?.GenerateName();
             string[] parts = (generated ?? "").SplitNameParts();
             if (parts.Length == 0) continue;
             string surname = parts[pos >= 0 && pos < parts.Length ? pos : 0];

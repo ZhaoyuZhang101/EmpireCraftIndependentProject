@@ -27,11 +27,9 @@ public static class RoyalMarriageSystem
     private const int PactYears = 20, ClaimDistance = 4, MinAge = 16, MaxAge = 40, KingMaxAge = 60;
     private const float ProposalChance = 0.35f, AidChance = 0.5f;
 
-#if EC_PENDING
     public static bool Applies(Realm kingdom) =>
         kingdom?.Record != null && !kingdom.IsGone() && kingdom.HasRuler() &&
         kingdom.GetRegime()?.type is RegimeType.Feudalism or RegimeType.Arabic or RegimeType.OriginFeudalism;
-#endif
 
     #region 议婚(RoyalHouseSystem 每月调用；各国按编号分到十二个月里，每国每年一次机会，不在同一帧里全算)
 
@@ -266,7 +264,6 @@ public static class RoyalMarriageSystem
     }
 
     // 姻亲之国遭外敌攻打：可能出兵相助(WarPatch.new_war)
-#if EC_PENDING
     public static void OnWarStarted(War war)
     {
         Realm defender = war?.MainDefender, attacker = war?.MainAttacker;
@@ -282,7 +279,6 @@ public static class RoyalMarriageSystem
                 defender.GetKingdomName()), ally);
         }
     }
-#endif
 
     #endregion
 

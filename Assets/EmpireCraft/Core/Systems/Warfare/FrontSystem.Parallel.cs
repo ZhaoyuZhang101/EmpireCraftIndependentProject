@@ -134,7 +134,6 @@ public static partial class FrontSystem
 
     // 第 i 位：只看地形，邻块 i 走得过来(TerrainSystem.CrossableTerrain(邻块, 本块)，同 TargetZones、LandRoute 的问法)；城心每批另取(见 _seat)，路线现查；
     // 邻块多于 8 的不会有
-#if EC_PENDING
     private static byte CrossMask(Cell zone, Cell[] around)
     {
         if (around == null) return 0;
@@ -143,7 +142,6 @@ public static partial class FrontSystem
             if (around[i] != null && TerrainSystem.CrossableTerrain(around[i], zone)) mask |= (byte)(1 << i);
         return mask;
     }
-#endif
 
     #endregion
 

@@ -76,7 +76,6 @@ public static class CityConstructionSystem
         }
     }
 
-#if EC_PENDING
     public static float Wealth(City city) => WealthBreakdown(city).Total;
 
     public static WealthParts WealthBreakdown(City city)
@@ -113,7 +112,6 @@ public static class CityConstructionSystem
         float total = Mathf.Clamp01(raw * (0.4f + 0.6f * CityGeographySystem.Factor(city)));
         return new WealthParts(output, population, commerce, assets, total);
     }
-#endif
 
     private static float PopulationScore(float people, int zones) =>
         0.5f * (LogScore(people, 1000f, 300000f) + LogScore(people / Mathf.Max(1, zones), 30f, 3000f));
@@ -171,14 +169,14 @@ public static class CityConstructionSystem
         if (AbandonLedgerHouse(city)) return;
         Building worst = null;
         float worstWeight = TerrainSystem.BarrenWeight;
-        foreach (Building building in city.buildings)
+        foreach (Building building in city.Buildings)
         {
-            if (building?.asset == null || building.asset.type != "type_house" || building.IsGone() || building.current_tile == null)
+            if (building?.Asset == null || building.Asset.Type != "type_house" || building.IsGone() || building.Cell == null)
                 continue;
-            float weight = TerrainSystem.LivableWeight(building.current_tile.Type);
+            float weight = TerrainSystem.LivableWeight(building.Cell.Type);
             if (weight >= TerrainSystem.BarrenWeight) continue;
             if (worst == null || weight < worstWeight ||
-                Mathf.Approximately(weight, worstWeight) && building.asset.upgrade_level < worst.asset.upgrade_level)
+                Mathf.Approximately(weight, worstWeight) && building.Asset.UpgradeLevel < worst.Asset.UpgradeLevel)
             {
                 worst = building;
                 worstWeight = weight;
@@ -194,14 +192,14 @@ public static class CityConstructionSystem
     {
         if (!CityLedger.Uses(city) || city.Zones == null || city.Zones.Count == 0) return false;
         if (TerrainSystem.CityLivability(city) / city.Zones.Count >= 0.5f) return false;
-        BuildingAsset lowest = null;
+        BuildingKind lowest = null;
         foreach (WorkLot lot in CityLedger.Lots(city))
         {
-            BuildingAsset asset = lot == null || lot.n <= 0 ? null : CityLedger.Asset(lot.id);
-            if (asset?.type != CityLedger.HouseType) continue;
-            if (lowest == null || asset.upgrade_level < lowest.upgrade_level) lowest = asset;
+            BuildingKind asset = lot == null || lot.n <= 0 ? null : CityLedger.Asset(lot.id);
+            if (asset?.Type != CityLedger.HouseType) continue;
+            if (lowest == null || asset.UpgradeLevel < lowest.UpgradeLevel) lowest = asset;
         }
-        return lowest != null && CityLedger.Remove(city, lowest.id) > 0;
+        return lowest != null && CityLedger.Remove(city, lowest.Id) > 0;
     }
 #endif
 
@@ -246,21 +244,21 @@ public static class CityConstructionSystem
 #if EC_PENDING
     private static void UpgradeHousing(City city, float rate)
     {
-        if (city.buildings == null) return;
+        if (city.Buildings == null) return;
         int limit = 2 + Mathf.FloorToInt(rate / 5f);
         var houses = new List<Building>();
-        foreach (Building building in city.buildings)
+        foreach (Building building in city.Buildings)
         {
-            if (building?.asset == null || !building.asset.hasHousingSlots() || !building.canBeUpgraded()) continue;
-            BuildingAsset target = AssetManager.buildings.get(building.asset.upgrade_to ?? "");
-            if (target == null || !TechnologySystem.CanBuild(city, target.id)) continue;
+            if (building?.Asset == null || !building.Asset.HasHousingSlots() || !building.canBeUpgraded()) continue;
+            BuildingKind target = BuildingKinds.Table.Get(building.Asset.UpgradeTo ?? "");
+            if (target == null || !TechnologySystem.CanBuild(city, target.Id)) continue;
             houses.Add(building);
         }
-        houses.Sort((a, b) => a.asset.upgrade_level.CompareTo(b.asset.upgrade_level));
+        houses.Sort((a, b) => a.Asset.UpgradeLevel.CompareTo(b.Asset.UpgradeLevel));
         foreach (Building house in houses)
         {
             if (limit <= 0) break;
-            BuildingAsset target = AssetManager.buildings.get(house.asset.upgrade_to);
+            BuildingKind target = BuildingKinds.Table.Get(house.Asset.UpgradeTo);
             if (!CanAffordHousing(city, target, out (int wood, int stone, int metal) need, out int cost, out bool broke))
             {
                 if (broke) return;
@@ -277,12 +275,12 @@ public static class CityConstructionSystem
     // 建材按房屋等级：木屋用木头，砖石房用石头，楼房用铁(金属)加石头；取原版造价和等级造价的大者。
     // 仓库里不够就先不升(建材靠伐木场、矿场和市场)；broke = 钱不够(后面的也不用看了)
 #if EC_PENDING
-    private static bool CanAffordHousing(City city, BuildingAsset target, out (int wood, int stone, int metal) need, out int cost,
+    private static bool CanAffordHousing(City city, BuildingKind target, out (int wood, int stone, int metal) need, out int cost,
         out bool broke)
     {
         broke = false;
         need = HousingMaterials(target);
-        cost = UpgradeBaseCost + target.construction_progress_needed / 2;
+        cost = UpgradeBaseCost + target.ConstructionProgressNeeded / 2;
         if (city.getResourcesAmount("wood") < need.wood || city.getResourcesAmount("stone") < need.stone ||
             city.getResourcesAmount("common_metals") < need.metal) return false;
         if (EnterpriseSystem.CanPay(city, cost, privateFirst: true)) return true;
@@ -310,17 +308,17 @@ public static class CityConstructionSystem
 #if EC_PENDING
     private static void UpgradeLedgerHousing(City city, int limit)
     {
-        var houses = new List<(BuildingAsset from, BuildingAsset to, int zone, int n)>();
+        var houses = new List<(BuildingKind from, BuildingKind to, int zone, int n)>();
         foreach (WorkLot lot in CityLedger.Lots(city))
         {
-            BuildingAsset from = lot == null || lot.n <= 0 ? null : CityLedger.Asset(lot.id);
-            if (from == null || !from.hasHousingSlots()) continue;
-            BuildingAsset to = CityLedger.UpgradeTarget(city, from);
+            BuildingKind from = lot == null || lot.n <= 0 ? null : CityLedger.Asset(lot.id);
+            if (from == null || !from.HasHousingSlots()) continue;
+            BuildingKind to = CityLedger.UpgradeTarget(city, from);
             if (to != null) houses.Add((from, to, lot.zone, lot.n));
         }
         if (houses.Count == 0) return;
-        houses.Sort((a, b) => a.from.upgrade_level.CompareTo(b.from.upgrade_level));
-        foreach ((BuildingAsset from, BuildingAsset to, int zone, int n) in houses)
+        houses.Sort((a, b) => a.from.UpgradeLevel.CompareTo(b.from.UpgradeLevel));
+        foreach ((BuildingKind from, BuildingKind to, int zone, int n) in houses)
             for (int i = 0; i < n; i++)
             {
                 if (limit <= 0) return;
@@ -329,7 +327,7 @@ public static class CityConstructionSystem
                     if (broke) return;
                     break;
                 }
-                if (!CityLedger.Swap(city, from.id, to, zone)) break;
+                if (!CityLedger.Swap(city, from.Id, to, zone)) break;
                 ChargeHousing(city, need, cost);
                 limit--;
             }
@@ -340,9 +338,9 @@ public static class CityConstructionSystem
     //   1~2 级木屋：木头 4 + 2×等级；3~5 级砖石房：石头 4 + 2×等级、木头 2；6 级以上楼房：金属 2 + 等级、石头 4 + 等级。
     // 与原版造价逐项取大者
 #if EC_PENDING
-    private static (int wood, int stone, int metal) HousingMaterials(BuildingAsset target)
+    private static (int wood, int stone, int metal) HousingMaterials(BuildingKind target)
     {
-        int level = Mathf.Max(1, target.upgrade_level + 1);
+        int level = Mathf.Max(1, target.UpgradeLevel + 1);
         int wood, stone, metal;
         if (level <= 2) { wood = 4 + 2 * level; stone = 0; metal = 0; }
         else if (level <= 5) { wood = 2; stone = 4 + 2 * level; metal = 0; }
@@ -382,7 +380,7 @@ public static class CityConstructionSystem
     private static readonly List<Cell> RoadPath = new();
 
 #if EC_PENDING
-    private static Cell Door(Building building) => building.door_tile ?? building.current_tile;
+    private static Cell Door(Building building) => building.door_tile ?? building.Cell;
 #endif
 
     // 自己规划连路(不依赖原版“20 格以内、路网岛”那几个条件)：从这座建筑门口修到最近一座还没连上同一片路网的建筑
@@ -393,9 +391,9 @@ public static class CityConstructionSystem
         if (from?.Type == null || from.Type.Liquid) { StatRoadNoTarget++; return; }
         Building target = null;
         int best = MaxRoadReach * MaxRoadReach;
-        foreach (Building other in city.buildings)
+        foreach (Building other in city.Buildings)
         {
-            if (other == building || other?.asset == null || !other.asset.build_road_to || other.isUnderConstruction()) continue;
+            if (other == building || other?.Asset == null || !other.Asset.build_road_to || other.IsUnderConstruction()) continue;
             Cell door = Door(other);
             if (door == null || door.Type == null || door.Type.Liquid || !door.IsSameIsland(from)) continue;
             if (from.road_island != null && from.road_island == door.road_island) continue;
@@ -415,7 +413,7 @@ public static class CityConstructionSystem
         var tiles = new List<Cell>();
         foreach (Cell tile in RoadPath)
         {
-            if (tile?.Type == null || tile.Type.Liquid || tile.Type.Road || tile.Type.Block || tile.building != null) continue;
+            if (tile?.Type == null || tile.Type.Liquid || tile.Type.Road || tile.Type.Block || tile.Building != null) continue;
             tiles.Add(tile);
         }
         if (tiles.Count == 0) { StatRoadFiltered++; return; }
@@ -425,13 +423,13 @@ public static class CityConstructionSystem
     private static void BuildRoads(City city, float rate)
     {
         // 纯净地图模式不实际铺路，路网在地图上模拟(见 PureMapPatch)
-        if (PureMapMode.Enabled || city.buildings == null || city.buildings.Count < 2) return;
+        if (PureMapMode.Enabled || city.Buildings == null || city.Buildings.Count < 2) return;
         try
         {
             for (int i = 0; i < RoadPlansPerMonth && city.road_tiles_to_build.Count == 0; i++)
             {
-                Building building = city.buildings[EcRandom.Range(0, city.buildings.Count)];
-                if (building?.asset == null || !building.asset.build_road_to || building.isUnderConstruction()) continue;
+                Building building = city.Buildings[EcRandom.Range(0, city.Buildings.Count)];
+                if (building?.Asset == null || !building.Asset.build_road_to || building.IsUnderConstruction()) continue;
                 int before = city.road_tiles_to_build.Count;
                 CityBehBuild.makeRoadsBuildings(city, building);
                 // 原版只连 20 格以内的最近建筑，实测无小人模式下几乎规划不出路；这时自己规划(见 PlanRoad)
@@ -479,14 +477,14 @@ public static class CityConstructionSystem
             foreach (Building ruin in set)
             {
                 if (ruins.Count >= limit) break;
-                if (ruin?.asset != null && ruin.isRuin()) ruins.Add(ruin);
+                if (ruin?.Asset != null && ruin.isRuin()) ruins.Add(ruin);
             }
             if (ruins.Count >= limit) break;
         }
         int cleared = 0;
         foreach (Building ruin in ruins)
         {
-            BuildingFundament fundament = ruin.asset.fundament;
+            BuildingFundament fundament = ruin.Asset.fundament;
             int cost = RuinBaseCost + (fundament == null ? 1 : Mathf.Max(1, fundament.width * fundament.height / 4));
             // 公家先出，不够由民间集资(工钱都付给本城的人)
             if (!EnterpriseSystem.PayPublicFirst(city, cost) && !EnterpriseSystem.PayPrivateFirst(city, cost))
@@ -497,8 +495,8 @@ public static class CityConstructionSystem
             StatRuinsCleared++;
             try
             {
-                if (ruin.asset.cost.wood > 0) city.addResourcesToRandomStockpile("wood", 1);
-                if (ruin.asset.cost.stone > 0) city.addResourcesToRandomStockpile("stone", 1);
+                if (ruin.Asset.cost.wood > 0) city.addResourcesToRandomStockpile("wood", 1);
+                if (ruin.Asset.cost.stone > 0) city.addResourcesToRandomStockpile("stone", 1);
             }
             catch
             {
@@ -523,16 +521,16 @@ public static class CityConstructionSystem
         foreach (Cell zone in city.Zones) count += zone?.getHashset(BuildingList.Ruins)?.Count ?? 0;
         return count;
     }
+#endif
 
     private static bool HasConstruction(City city)
     {
         if (CityLedger.Pending(city) != null) return true;
-        if (city.buildings == null) return false;
-        foreach (Building building in city.buildings)
-            if (building?.asset != null && building.isUnderConstruction()) return true;
+        if (city.Buildings == null) return false;
+        foreach (Building building in city.Buildings)
+            if (building?.Asset != null && building.IsUnderConstruction()) return true;
         return false;
     }
-#endif
 
     // 推进在建建筑，返回用掉的施工点；建完的建筑从"在建"里清掉
 #if EC_PENDING
@@ -541,14 +539,14 @@ public static class CityConstructionSystem
         if (points <= 0) return 0;
         // 建筑台账里的工地(见 CityLedger)先推，剩下的点数给实体工地
         int used = CityLedger.Advance(city, points);
-        if (city.buildings == null) return used;
+        if (city.Buildings == null) return used;
         try
         {
-            foreach (Building building in new List<Building>(city.buildings))
+            foreach (Building building in new List<Building>(city.Buildings))
             {
                 if (used >= points) break;
-                if (building?.asset == null || !building.isUnderConstruction()) continue;
-                int needed = Mathf.Max(1, building.asset.construction_progress_needed + 1 - building.getConstructionProgress());
+                if (building?.Asset == null || !building.IsUnderConstruction()) continue;
+                int needed = Mathf.Max(1, building.Asset.ConstructionProgressNeeded + 1 - building.getConstructionProgress());
                 int share = Mathf.Min(needed, points - used);
                 bool done = building.updateBuild(share);
                 used += share;
@@ -573,7 +571,7 @@ public static class CityConstructionSystem
             // 住满了、民居又还没盖到上限：先盖房，不去升级别的建筑——首都的升级偏好(0.3 + 0.6×富庶 + 0.6)以前几乎回回先升级，
             // 唯一的开工名额和木石常被挪走，首都人口反倒不如别城(用户 2026-10-28 转群友"城市A还是帝国首都……人口只有一千多")
             bool homesFirst = city.status != null && city.countBuildingsType("type_house", false) < city.status.houses_max &&
-                              CityPopulationSystem.GetTotal(city) >= city.getPopulationMaximum() * HomesFirstShare;
+                              CityPopulationSystem.GetTotal(city) >= city.GetPopulationMaximum() * HomesFirstShare;
             if (!homesFirst && EcRandom.value < 0.3f + 0.6f * Wealth(city) + SeatBonus(city) && TryUpgrade(city)) return;
             CityLedger.BuildTick(city);
             EnterpriseSystem.OnConstructionStarted(city, city.under_construction_building);
@@ -603,7 +601,7 @@ public static class CityConstructionSystem
 #if EC_PENDING
     public static (int built, int upgraded) Flourish(City city)
     {
-        if (city?.Record == null || city.IsGone() || city.buildings == null) return (0, 0);
+        if (city?.Record == null || city.IsGone() || city.Buildings == null) return (0, 0);
         int built = 0, upgraded = 0;
         try
         {
@@ -624,23 +622,23 @@ public static class CityConstructionSystem
                 city.under_construction_building = null;
                 built++;
             }
-            foreach (Building building in new List<Building>(city.buildings))
+            foreach (Building building in new List<Building>(city.Buildings))
             {
-                if (building?.asset == null || building.IsGone() || building.isUnderConstruction() || !building.canBeUpgraded()) continue;
-                BuildingAsset target = AssetManager.buildings.get(building.asset.upgrade_to ?? "");
-                if (target == null || !TechnologySystem.CanBuild(city, target.id)) continue;
+                if (building?.Asset == null || building.IsGone() || building.IsUnderConstruction() || !building.canBeUpgraded()) continue;
+                BuildingKind target = BuildingKinds.Table.Get(building.Asset.UpgradeTo ?? "");
+                if (target == null || !TechnologySystem.CanBuild(city, target.Id)) continue;
                 if (building.upgradeBuilding()) upgraded++;
             }
             // 建筑台账里的各升一级(见 CityLedger)
-            var lots = new List<(BuildingAsset from, int zone, int n)>();
+            var lots = new List<(BuildingKind from, int zone, int n)>();
             foreach (WorkLot lot in CityLedger.Lots(city))
-                if (lot != null && lot.n > 0 && CityLedger.Asset(lot.id) is BuildingAsset from) lots.Add((from, lot.zone, lot.n));
-            foreach ((BuildingAsset from, int zone, int n) in lots)
+                if (lot != null && lot.n > 0 && CityLedger.Asset(lot.id) is BuildingKind from) lots.Add((from, lot.zone, lot.n));
+            foreach ((BuildingKind from, int zone, int n) in lots)
             {
-                BuildingAsset to = CityLedger.UpgradeTarget(city, from);
+                BuildingKind to = CityLedger.UpgradeTarget(city, from);
                 if (to == null) continue;
                 for (int i = 0; i < n; i++)
-                    if (CityLedger.Swap(city, from.id, to, zone)) upgraded++;
+                    if (CityLedger.Swap(city, from.Id, to, zone)) upgraded++;
             }
         }
         catch (Exception exception)
@@ -675,11 +673,11 @@ public static class CityConstructionSystem
         if (EcRandom.Range(0, real + ledger) >= real) return TryUpgradeLot(city, id);
         Building building = buildings[EcRandom.Range(0, buildings.Count)];
         if (building == null || !building.canBeUpgraded()) return false;
-        BuildingAsset target = AssetManager.buildings.get(building.asset.upgrade_to);
+        BuildingKind target = BuildingKinds.Table.Get(building.Asset.UpgradeTo);
         if (target == null) return false;
-        int cost = UpgradeBaseCost + target.construction_progress_needed / 2;
-        bool privateOwned = building.asset.hasHousingSlots() ||
-                            EnterpriseSystem.IsEnterprise(building.asset) && !EnterpriseSystem.IsPublic(city, building);
+        int cost = UpgradeBaseCost + target.ConstructionProgressNeeded / 2;
+        bool privateOwned = building.Asset.HasHousingSlots() ||
+                            EnterpriseSystem.IsEnterprise(building.Asset) && !EnterpriseSystem.IsPublic(city, building);
         if (!EnterpriseSystem.CanPay(city, cost, privateOwned)) return false;
         if (!CityBehBuild.upgradeBuilding(building, city)) return false;
         if (privateOwned) EnterpriseSystem.PayPrivateFirst(city, cost);
@@ -692,10 +690,10 @@ public static class CityConstructionSystem
 #if EC_PENDING
     private static bool TryUpgradeLot(City city, string id)
     {
-        BuildingAsset from = CityLedger.Asset(id), target = CityLedger.UpgradeTarget(city, from);
+        BuildingKind from = CityLedger.Asset(id), target = CityLedger.UpgradeTarget(city, from);
         if (target == null) return false;
-        int cost = UpgradeBaseCost + target.construction_progress_needed / 2;
-        bool privateOwned = from.hasHousingSlots();
+        int cost = UpgradeBaseCost + target.ConstructionProgressNeeded / 2;
+        bool privateOwned = from.HasHousingSlots();
         if (!EnterpriseSystem.CanPay(city, cost, privateOwned) || !city.hasEnoughResourcesFor(target.cost)) return false;
         if (!CityLedger.Swap(city, id, target)) return false;
         city.spendResourcesForBuildingAsset(target.cost);

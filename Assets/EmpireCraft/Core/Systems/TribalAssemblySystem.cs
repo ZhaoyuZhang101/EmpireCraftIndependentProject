@@ -156,7 +156,6 @@ public static class TribalAssemblySystem
 #endif
 
     // 贡金(见 TributeFloor、TributeCap)：户数无小人模式按户，否则按人头
-#if EC_PENDING
     public static int Tribute(Realm tribe)
     {
         int money = Math.Max(0, tribe.GetMoney());
@@ -165,7 +164,6 @@ public static class TribalAssemblySystem
         int cap = Math.Max(TributeCap, households / 2);
         return Math.Min(money, Math.Min(cap, Math.Max(money / 10, TributeFloor)));
     }
-#endif
 
     private static float Distance(Realm core, Realm tribe)
     {
@@ -182,7 +180,6 @@ public static class TribalAssemblySystem
     }
 
     // 不再共事、换了共主的记录作废；返回眼下不臣的部落与其共主
-#if EC_PENDING
     private static List<(Realm tribe, Empire overlord)> Tidy()
     {
         var result = new List<(Realm, Empire)>();
@@ -201,7 +198,6 @@ public static class TribalAssemblySystem
         }
         return result;
     }
-#endif
 
     // 共主讨伐不臣：养得起兵、手上不到两场仗、过得了开战闸门(停战年限、强弱，见 WarGate)、两边够得着；每个共主每月至多一场
 #if EC_PENDING
@@ -233,7 +229,6 @@ public static class TribalAssemblySystem
 
     // 部落之战了结(TribalWarSystem.Concede 之后调用)：共主打赢的，败者重新奉共主(仍记着它，见 TribalFissionService.Incorporate)、
     // 不臣清零；共事的部落反败共主的，就此不再共事、自立一方
-#if EC_PENDING
     public static void OnConcede(Realm loser, Realm winner)
     {
         if (loser?.Record == null || winner?.Record == null) return;
@@ -257,7 +252,6 @@ public static class TribalAssemblySystem
         EventRecorder.Record(overlord, content, logKingdom: winner);
         EmpireWorld.Current?.Zones?.MarkDirty();
     }
-#endif
 
     // 记为不臣(连续不朝 DefiantStreak 次以上)：只认眼下所奉的共主
     public static bool DefiantTo(Realm tribe, Empire overlord)
@@ -285,7 +279,6 @@ public static class TribalAssemblySystem
     }
 
     // 好感(见 EmpireCraftOpinionAddition)：当年来朝的部落与共主彼此 +AttendOpinion；共主对不臣之部 -DefiantOpinion
-#if EC_PENDING
     public static int OpinionOf(Realm main, Realm target)
     {
         if (main?.Record == null || target?.Record == null || main == target) return 0;
@@ -299,6 +292,5 @@ public static class TribalAssemblySystem
         if (data.tribal_missed_assemblies >= DefiantStreak) return tribe == target ? -DefiantOpinion : 0;
         return Attended(data) ? AttendOpinion : 0;
     }
-#endif
 }
 }

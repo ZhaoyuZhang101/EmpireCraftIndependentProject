@@ -56,7 +56,6 @@ public static class MembershipCooldown
     }
 
     // 神力放出：从 empire(或 lord 名下)放出
-#if EC_PENDING
     public static void MarkRelease(Realm kingdom, Empire empire, Realm lord)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || EmpireWorld.Current == null || empire == null && lord == null) return;
@@ -69,10 +68,8 @@ public static class MembershipCooldown
             data.manual_join_at = -1d;
         Log("离心", $"神力放出 {kingdom.GetKingdomName()}，离开{Name(empire, lord)}；{ReleaseYears} 年内原主不得收回");
     }
-#endif
 
     // 神力拉入：并入 empire(或归 lord 为附庸)
-#if EC_PENDING
     public static void MarkJoin(Realm kingdom, Empire empire, Realm lord)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || EmpireWorld.Current == null || empire == null && lord == null) return;
@@ -84,7 +81,6 @@ public static class MembershipCooldown
         if (ReleaseYearsLeft(kingdom, empire, lord) > 0) data.manual_release_at = -1d;
         Log("归附", $"神力拉入 {kingdom.GetKingdomName()}，归{Name(empire, lord)}；{JoinYears} 年内不因离心自行离开");
     }
-#endif
 
     #endregion
 
@@ -233,7 +229,6 @@ public static class MembershipCooldown
 
     #region 并入与离开(由 Empire.join、Empire.leave 调用)
 
-#if EC_PENDING
     public static void OnJoined(Realm kingdom, Empire empire, bool forced, bool legitimacyTransfer)
     {
         if (kingdom?.Record == null || empire?.data == null || kingdom == empire.CoreKingdom) return;
@@ -287,7 +282,6 @@ public static class MembershipCooldown
             // 诊断日志出错不影响离开
         }
     }
-#endif
 
     #endregion
 
@@ -321,7 +315,6 @@ public static class MembershipCooldown
     }
 
     // 同一国被同一帝国(宗主)拦下的同一类，一年只记一次
-#if EC_PENDING
     private static void LogBlocked(Realm kingdom, Empire empire, Realm lord, string what, int years)
     {
         string key = $"{kingdom.Key}:{empire?.Key ?? -1L}:{lord?.Key ?? -1L}:{what}";
@@ -334,7 +327,6 @@ public static class MembershipCooldown
 
     private static string Name(Empire empire, Realm lord) =>
         lord != null ? lord.GetKingdomName() : empire?.GetEmpireName() ?? "";
-#endif
 
     // 由哪一路调用(跳过 Empire 与本类自身)，诊断用
     private static string Caller()

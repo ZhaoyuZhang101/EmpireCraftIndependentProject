@@ -26,7 +26,6 @@ public static class UrbanEmploymentSystem
         !actor.IsGone() && actor.Alive && actor.IsAdult() &&
         actor.GetOrCreate().urban_employment_city_id == actor.City.Key;
 
-#if EC_PENDING
     public static UrbanEmploymentReport GetReport(City city)
     {
         var report = new UrbanEmploymentReport();
@@ -60,7 +59,6 @@ public static class UrbanEmploymentSystem
         }
         return report;
     }
-#endif
 
     // 背景人口里各阶层的成年人(真实人数)
     private static Dictionary<SocialClass, float> BackgroundAdults(City city)
@@ -80,7 +78,6 @@ public static class UrbanEmploymentSystem
 
     // 无小人模式：按户计的工场岗位(公式与实体居民相同，城市人口与商人数换成"实体 + 背景"的户数)，
     // 背景人口里工人的比例由它决定(见 CityPopulationSystem.TargetClassShares)
-#if EC_PENDING
     public static int HouseholdCapacity(City city)
     {
         if (city == null || city.IsGone()) return 0;
@@ -171,16 +168,13 @@ public static class UrbanEmploymentSystem
             TechnologySystem.GetCultureOf(city)));
         return Math.Min(demand, Math.Max(1, (int)Math.Ceiling(adults * populationCap)));
     }
-#endif
 
     // 实际的工厂建筑，加上纯净地图模式下没装工厂模组时按技术与城市规模折算的虚拟工厂(见 VirtualIndustrySystem)，
     // 再加上工厂区里的厂(按等级，见 FactorySystem.Units)
-#if EC_PENDING
     public static int CountFactories(City city) =>
-        (city.buildings?.Count(building => building != null && !building.isUnderConstruction() &&
-                                           TechnologySystem.IsFactory(building.asset)) ?? 0) +
+        (city.Buildings?.Count(building => building != null && !building.IsUnderConstruction() &&
+                                           TechnologySystem.IsFactory(building.Asset)) ?? 0) +
         VirtualIndustrySystem.Factories(city) + FactorySystem.Units(city);
-#endif
 
     private static int GetRecentVoyages(City city)
     {
@@ -194,7 +188,6 @@ public static class UrbanEmploymentSystem
         .Where(actor => actor != null && !actor.IsGone() && actor.Alive && actor.IsAdult() &&
                         actor.City == city).ToList() ?? new List<Person>();
 
-#if EC_PENDING
     private static bool IsEligibleWorker(Person actor) => actor != null && !actor.IsOnOffice() &&
         !actor.IsWarrior() && !EmpireCaftActorJudgeClass.IsManualWorkerJob(actor) &&
         !LandEconomySystem.IsLandlord(actor) &&
@@ -212,6 +205,5 @@ public static class UrbanEmploymentSystem
         actor.GetOrCreate().urban_employment_city_id = -1L;
         actor.SetSocialClass(EmpireCaftActorJudgeClass.JudgeClass(actor));
     }
-#endif
 }
 }

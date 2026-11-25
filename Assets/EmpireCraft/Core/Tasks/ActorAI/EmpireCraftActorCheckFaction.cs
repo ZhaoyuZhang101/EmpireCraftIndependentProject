@@ -14,7 +14,7 @@ public class EmpireCraftActorCheckFaction : GameAIActorBase
     public override Type OriginalBeh => GetType();
 
 #if EC_PENDING
-    public override BehResult execute(Person pActor)
+    public override BehResult Execute(Person pActor)
     {
         TryJoin(pActor);
         return BehResult.Continue;
@@ -41,7 +41,7 @@ public class EmpireCraftActorCheckFaction : GameAIActorBase
         if (LastEnroll.TryGetValue(empire.Key, out double last) && now >= last && GameClock.YearsSince(last) < 1) return 0;
         LastEnroll[empire.Key] = now;
         int joined = 0;
-        foreach (Person actor in empire.getUnits()
+        foreach (Person actor in empire.GetUnits()
                      .Where(actor => actor?.Record != null && !actor.IsGone() && actor.Alive && !actor.HasFaction() &&
                                      actor.IsOnOffice())
                      .OrderByDescending(actor => actor.Renown).ToList())

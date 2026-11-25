@@ -65,7 +65,6 @@ public static partial class WarlordEraSystem
 #endif
 
     // 4. 民心即正统
-#if EC_PENDING
     private static void AlignMandates(List<City> cities, HashSet<Empire> representatives)
     {
         var dominant = cities.Select(IdeologyPopulationSystem.GetDominant).ToList();
@@ -79,7 +78,6 @@ public static partial class WarlordEraSystem
             if (delta != 0) government.AddMandate(delta);
         }
     }
-#endif
 
     // 2. 中央主动统一
 #if EC_PENDING

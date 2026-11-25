@@ -119,6 +119,7 @@ public static class ClaimPolicySystem
             AddGrievance(empire, SocialClass.Merchant, -1f);
         }
     }
+#endif
 
     private static void ExpelForeigners(Empire empire)
     {
@@ -165,7 +166,6 @@ public static class ClaimPolicySystem
         AddGrievance(empire, SocialClass.Merchant, 1f);
         AddGrievance(empire, SocialClass.Labour, -1f);
     }
-#endif
 
     // 输出革命：邻国(另一个帝国或独立王国)边城平民转向革命理念，所属帝国劳工农民怨气上升。返回受影响的国家
     public static Realm ExportRevolution(Empire empire, Realm target, PartyIdeology ideology)

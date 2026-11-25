@@ -45,9 +45,7 @@ public class EmpireCraftActorCheckWarrior : GameAIActorBase
     private static int _nextFertilitySchedulePruneFrame = -1;
 
     // 只 snapshot Army 列表；不 snapshot 全世界人口。
-#if EC_PENDING
     private static List<Army> _fertilityArmySnapshot = new();
-#endif
     private static int _fertilityArmyIndex = 0;
     private static int _fertilityUnitIndex = 0;
     private static int _fertilitySnapshotRefreshFrame = -1;
@@ -99,7 +97,6 @@ public class EmpireCraftActorCheckWarrior : GameAIActorBase
     private static readonly Queue<KingdomRecruitJob> _recruitJobs = new();
     private static readonly HashSet<long> _queuedRecruitKingdomIds = new();
 
-#if EC_PENDING
     public static void ClearRuntimeState()
     {
         _emergencyConscripts.Clear();
@@ -117,7 +114,8 @@ public class EmpireCraftActorCheckWarrior : GameAIActorBase
         _queuedRecruitKingdomIds.Clear();
     }
 
-    public override BehResult execute(Person pActor)
+#if EC_PENDING
+    public override BehResult Execute(Person pActor)
     {
         if (pActor == null || pActor.IsGone())
             return BehResult.Continue;
@@ -131,7 +129,7 @@ public class EmpireCraftActorCheckWarrior : GameAIActorBase
             .empirecraft_law_prevent_building_destroy
             .isEnabled())
         {
-            pActor.asset.can_attack_buildings = false;
+            pActor.Asset.can_attack_buildings = false;
         }
 
         if (!pActor.IsFitToRule()) return BehResult.Continue;
@@ -643,22 +641,22 @@ public class EmpireCraftActorCheckWarrior : GameAIActorBase
 
             if (army == null ||
                 army.IsGone() ||
-                army.units == null ||
-                army.units.Count == 0)
+                army.People == null ||
+                army.People.Count == 0)
             {
                 _fertilityArmyIndex++;
                 _fertilityUnitIndex = 0;
                 continue;
             }
 
-            if (_fertilityUnitIndex >= army.units.Count)
+            if (_fertilityUnitIndex >= army.People.Count)
             {
                 _fertilityArmyIndex++;
                 _fertilityUnitIndex = 0;
                 continue;
             }
 
-            Person actor = army.units[_fertilityUnitIndex++];
+            Person actor = army.People[_fertilityUnitIndex++];
             budget--;
 
             TrySoldierPregnancyIndependent(actor);
@@ -1026,14 +1024,14 @@ public class EmpireCraftActorCheckWarrior : GameAIActorBase
                 {
                     if (a == null ||
                         !a.hasCaptain() ||
-                        a._captain == null)
+                        a.Captain == null)
                     {
                         continue;
                     }
 
-                    if (a.units.Count < a._captain.warfare)
+                    if (a.People.Count < a.Captain.Warfare)
                     {
-                        var city = a._captain.city;
+                        var city = a.Captain.City;
 
                         try
                         {
@@ -1112,7 +1110,7 @@ public class EmpireCraftActorCheckWarrior : GameAIActorBase
 
         for (int i = 0; i < armies.Count; i++)
         {
-            total += armies[i].units.Count;
+            total += armies[i].People.Count;
         }
 
         return total;

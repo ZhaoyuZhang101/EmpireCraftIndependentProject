@@ -22,7 +22,6 @@ public static partial class NomadRaidSystem
     private const int RepulsedRenown = 30;
     private const float InfightChance = 0.3f;
 
-#if EC_PENDING
     static partial void AfterRaid(War war, RaidWarState state, Realm leader, List<Realm> members, bool success)
     {
         if (leader == null) return;
@@ -57,10 +56,8 @@ public static partial class NomadRaidSystem
         LogService.LogInfo($"{LogTag} 盟主{state.leader_name} 劫掠得手，威望{steppe.prestige}，" +
                            (league ? $"雄主机会{chance:0.00}{(hero ? "，成雄主" : "")}" : "单国劫掠不掷雄主"));
     }
-#endif
 
     // 能成雄主：游牧、已走出部落阶段、一方之主、君主制，首领成年在位，还不是雄主
-#if EC_PENDING
     private static bool HeroEligible(Realm leader)
     {
         if (!IsRealm(leader) || !IsNomad(leader) || TribalFissionService.IsTribal(leader)) return false;
@@ -72,7 +69,6 @@ public static partial class NomadRaidSystem
         Empire empire = leader.GetEmpire();
         return empire == null || !RepublicSystem.IsRepublic(empire);
     }
-#endif
 
     // 每月：待办的成雄主、内讧
 #if EC_PENDING

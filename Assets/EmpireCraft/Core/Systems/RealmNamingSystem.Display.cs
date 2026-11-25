@@ -10,7 +10,6 @@ namespace EmpireCraft.Core
 public static partial class RealmNamingSystem
 {
     // 国号来源一行(旧规则定的不显示)
-#if EC_PENDING
     public static string NameSourceLine(Empire empire)
     {
         if (empire?.data == null) return "";
@@ -51,10 +50,8 @@ public static partial class RealmNamingSystem
                 return "";
         }
     }
-#endif
 
     // 各京一行：京师 某城 · 东京 某城……
-#if EC_PENDING
     public static string JingLine(Empire empire)
     {
         List<JingRecord> records = empire?.data?.jing;
@@ -63,10 +60,8 @@ public static partial class RealmNamingSystem
             $"{MultiCapitalSystem.JingName(record)} {EmpireWorld.Current?.CityByKey(record.city_id)?.GetCityName() ?? ""}");
         return string.Format(LM.Get("realm_jing_line"), string.Join(" · ", parts));
     }
-#endif
 
     // 第二直隶一行：国名(储君名 / 空缺)
-#if EC_PENDING
     public static string ZhiliLine(Empire empire)
     {
         long id = empire?.data?.zhili_kingdom_id ?? -1L;
@@ -75,10 +70,8 @@ public static partial class RealmNamingSystem
         string ruler = zhili.HasRuler() ? zhili.Ruler.FullName() : LM.Get("realm_zhili_vacant");
         return string.Format(LM.Get("realm_zhili_line"), zhili.GetKingdomFullName(), ruler);
     }
-#endif
 
     // 天下窗口改天下基名：已以天下之名为号的(普世皇帝、唯一合法政府)跟着改
-#if EC_PENDING
     public static void SetTianxiaBase(EmpireCore anyCore, string value)
     {
         EmpireCore lead = TianxiaSystem.Lead(anyCore);
@@ -97,6 +90,5 @@ public static partial class RealmNamingSystem
             if (universal) papal.universal_name = empire.data.core_name ?? "";
         }
     }
-#endif
 }
 }

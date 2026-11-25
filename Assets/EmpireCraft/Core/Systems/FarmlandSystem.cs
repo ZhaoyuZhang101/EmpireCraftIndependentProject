@@ -65,7 +65,6 @@ public static class FarmlandSystem
         (new[] { "industrialization" }, 2.2f), (new[] { "motorization" }, 3f)
     };
 
-#if EC_PENDING
     private static bool Knows(City city, string tech)
     {
         string culture = TechnologySystem.GetCultureOf(city);
@@ -88,7 +87,6 @@ public static class FarmlandSystem
 
     public static float Productivity(City city) => Mathf.Max(ModernFloor(city), FarmTools[FarmToolTier(city) - 1].factor);
     public static float FishProductivity(City city) => Mathf.Max(ModernFloor(city), FishTools[FishToolTier(city) - 1].factor);
-#endif
 
     public static ConstitutionFarmland Policy(Realm kingdom)
     {
@@ -98,14 +96,12 @@ public static class FarmlandSystem
     }
 
     // 耕地红线的规划目标比例，实际面积不能超过风车范围。
-#if EC_PENDING
     public static float RedLineShare(City city) => Policy(city?.Realm) switch
     {
         ConstitutionFarmland.None => 0f,
         ConstitutionFarmland.Strict => RedLineBase,
         _ => RedLineBase / Productivity(city)
     };
-#endif
 
     public static bool IsProtected(City city) => city != null && Policy(city.Realm) != ConstitutionFarmland.None;
 
@@ -191,8 +187,8 @@ public static class FarmlandSystem
         {
             if (count >= limit) break;
             if (tile?.Type == null || !tile.Type.FarmField || filter != null && !filter(tile)) continue;
-            Building crop = tile.building;
-            if (crop?.asset != null && crop.asset.wheat) crop.startDestroyBuilding();
+            Building crop = tile.Building;
+            if (crop?.Asset != null && crop.Asset.Wheat) crop.startDestroyBuilding();
             counts.Clear();
             TerrainKind best = null;
             int bestCount = 0;
@@ -347,8 +343,8 @@ public static class FarmlandSystem
             bool anyCrop = false, allRipe = true;
             foreach (Cell tile in pair.Value)
             {
-                Building crop = tile.building;
-                if (crop?.asset == null || !crop.asset.wheat) continue;
+                Building crop = tile.Building;
+                if (crop?.Asset == null || !crop.Asset.Wheat) continue;
                 anyCrop = true;
                 if (crop.component_wheat == null || !crop.component_wheat.isMaxLevel())
                 {
@@ -359,8 +355,8 @@ public static class FarmlandSystem
             if (!anyCrop || !allRipe) continue;
             foreach (Cell tile in pair.Value)
             {
-                Building crop = tile.building;
-                if (crop?.asset == null || !crop.asset.wheat) continue;
+                Building crop = tile.Building;
+                if (crop?.Asset == null || !crop.Asset.Wheat) continue;
                 crop.extractResources(null);
                 food += FoodPerCrop * Productivity(city);
                 count++;
@@ -462,7 +458,7 @@ public static class FarmlandSystem
 
     private static float CropCycleMonths()
     {
-        BuildingAsset wheat = AssetManager.buildings.get("wheat");
+        BuildingKind wheat = BuildingKinds.Table.Get("wheat");
         int levels = Math.Max(1, (wheat?.building_sprites?.animation_data?.Count ?? 4) - 1);
         return Math.Max(1f, (wheat?.growth_time ?? 50f) * levels / 5f);
     }
@@ -545,21 +541,19 @@ public static class FarmlandSystem
 #if EC_PENDING
     private static bool CanMakeField(Cell tile) =>
         tile?.Type != null && tile.Type.CanBeFarm && !tile.Type.FarmField && !MapWallSystem.Contains(tile) &&
-        (!tile.hasBuilding() || tile.building.canRemoveForFarms());
+        (!tile.hasBuilding() || tile.Building.canRemoveForFarms());
 #endif
 
     // 规划时住房可以让位；真正开田仍要等原版拆除释放地块。
 #if EC_PENDING
     private static bool CanPlanField(Cell tile) => CanMakeField(tile) ||
-        tile?.Type != null && tile.Type.CanBeFarm && IsHousing(tile.building?.asset);
+        tile?.Type != null && tile.Type.CanBeFarm && IsHousing(tile.Building?.Asset);
 #endif
 
     // 功能区规划已撤(只剩耕地)：本城的地块都能耕
     private static bool CanFarmZone(City city, Cell zone) => zone != null && zone.City == city;
 
-#if EC_PENDING
-    private static bool IsHousing(BuildingAsset asset) => asset != null && (asset.type == "type_house" || asset.hasHousingSlots());
-#endif
+    private static bool IsHousing(BuildingKind asset) => asset != null && (asset.Type == "type_house" || asset.HasHousingSlots());
 
     // 规划农田区里风车范围内的民居让位给田(只拆到剩下的住房仍够住为止；不拆城心与外国建筑)
 #if EC_PENDING
@@ -571,17 +565,17 @@ public static class FarmlandSystem
         var houses = new HashSet<Building>();
         foreach (Cell tile in zone.Tiles)
         {
-            Building building = tile?.building;
-            if (building?.asset == null || building.city != city || building.isOnRemove() || !IsHousing(building.asset) ||
-                building.asset.id.StartsWith("city_")) continue;
+            Building building = tile?.Building;
+            if (building?.Asset == null || building.City != city || building.IsOnRemove() || !IsHousing(building.Asset) ||
+                building.Asset.Id.StartsWith("city_")) continue;
             if (!IsWithinWindmillRange(city, tile) || tile.Type == null || !tile.Type.CanBeFarm && !tile.Type.FarmField) continue;
             houses.Add(building);
         }
         int cleared = 0;
         foreach (Building house in houses)
         {
-            if (spare - house.asset.housing_slots < 0) continue;
-            spare -= house.asset.housing_slots;
+            if (spare - house.Asset.HousingSlots < 0) continue;
+            spare -= house.Asset.HousingSlots;
             house.startDestroyBuilding();
             cleared++;
         }

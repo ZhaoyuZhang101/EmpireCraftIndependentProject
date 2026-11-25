@@ -83,7 +83,6 @@ public static class AncientSchoolsSystem
             .ToList();
 
     // 每年(帝国例行检查，见 EmpireCraftEmpireBehCheckMandate)
-#if EC_PENDING
     public static void Yearly(Empire empire)
     {
         if (empire?.data == null || empire.IsGone() || empire.IsArchived() || empire.CoreKingdom == null) return;
@@ -127,14 +126,12 @@ public static class AncientSchoolsSystem
         if (string.IsNullOrEmpty(state.orthodox_school) && !chaos && InstitutionSystem.IsEnacted(culture, OrthodoxyNode))
             Establish(empire, state, available);
     }
-#endif
 
     private const float LapseChance = 0.2f;
 
     private static int CityCount(Empire empire) =>
         empire?.kingdoms_list?.Where(kingdom => kingdom != null && !kingdom.IsGone()).Sum(kingdom => kingdom.Cities?.Count ?? 0) ?? 0;
 
-#if EC_PENDING
     private static bool LeadsCulture(Empire empire, string culture)
     {
         int own = CityCount(empire);
@@ -147,10 +144,8 @@ public static class AncientSchoolsSystem
         }
         return true;
     }
-#endif
 
     // 改尊一家为正统(独尊官学，见 TempFac_独尊官学)：主这一家的朋党占比 +8
-#if EC_PENDING
     public static bool SetOrthodox(Empire empire, PartyIdeology school)
     {
         string culture = InstitutionSystem.GetPrimaryCulture(empire);
@@ -166,22 +161,18 @@ public static class AncientSchoolsSystem
         Record(empire, string.Format(LM.Get("orthodoxy_history"), PartySystem.GetIdeologyName(school)), log: true);
         return true;
     }
-#endif
 
     // 本朝定了于一尊的制度(独尊官学的前提)
-#if EC_PENDING
     public static bool OrthodoxyEnacted(Empire empire)
     {
         string culture = InstitutionSystem.GetPrimaryCulture(empire);
         return State(culture) != null && InstitutionSystem.IsEnacted(culture, OrthodoxyNode);
     }
-#endif
 
     // 定于一尊：本朝官员里信者最多的一家；官员里没人信学说就看全国人口
-#if EC_PENDING
     private static void Establish(Empire empire, CultureInstitutionState state, List<PartyIdeology> available)
     {
-        PartyIdeology? school = empire.getUnits()
+        PartyIdeology? school = empire.GetUnits()
             .Where(actor => actor?.Record != null && !actor.IsGone() && actor.Alive && actor.IsOnOffice())
             .Select(IdeologyPopulationSystem.Get).Where(IdeologyFamilies.IsSchool)
             .GroupBy(ideology => ideology).OrderByDescending(group => group.Count()).Select(group => (PartyIdeology?)group.Key)
@@ -205,6 +196,5 @@ public static class AncientSchoolsSystem
         empire.RecordHistory(directContent: content, kingdomId: empire.CoreKingdom?.Key ?? -1L);
         if (log) EmpireCraft.Core.TranslateHelper.LogEventMessage(content, empire.CoreKingdom);
     }
-#endif
 }
 }

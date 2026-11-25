@@ -11,9 +11,9 @@ public class EmpireCraftCityBehCheckReligion: GameAICityBase
     public override Type OriginalBeh => GetType();
 
 #if EC_PENDING
-    public override BehResult execute(City pCity)
+    public override BehResult Execute(City pCity)
     {
-        if (!pCity.hasKingdom()) return BehResult.Continue;
+        if (!pCity.HasRealm()) return BehResult.Continue;
         if (pCity.Realm.IsInEmpire())  return BehResult.Continue;
         var culture = CultureService.GetMainCulture(pCity);
         if (!CultureService.IsValidCulture(culture)) culture = "Western";
@@ -49,7 +49,7 @@ public class EmpireCraftCityBehCheckReligion: GameAICityBase
                 {
                     var cTitle = pCity.GetTitle();
                     // 冻结法理：城留在原法理。新立法理会把它搬出原法理、也就搬出了帝国法理，它若是法理首都，原法理连首都都换了
-                    if (ModClass.KINGDOM_TITLE_FREEZE || cTitle.getCities().Count() == 1)
+                    if (ModClass.KINGDOM_TITLE_FREEZE || cTitle.GetCities().Count() == 1)
                     {
                         return BehResult.Continue;
                     }
@@ -62,6 +62,7 @@ public class EmpireCraftCityBehCheckReligion: GameAICityBase
         }
         return BehResult.Continue;
     }
+#endif
 
     private static Person Theocrat(City city)
     {
@@ -70,6 +71,5 @@ public class EmpireCraftCityBehCheckReligion: GameAICityBase
         if (Fit(city.Leader)) return city.Leader;
         return city.People?.FirstOrDefault(Fit);
     }
-#endif
 }
 }

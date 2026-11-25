@@ -11,7 +11,7 @@ public class EmpireCraftKingdomBehCheckTemporaryFaction: GameAIKingdomBase
     public override Type OriginalBeh => GetType();
 
 #if EC_PENDING
-    public override BehResult execute(Realm pKingdom)
+    public override BehResult Execute(Realm pKingdom)
     {
         var ked = pKingdom.GetOrCreate();
         if (ked != null && ked.last_tf_check_ts > 0)
@@ -107,7 +107,7 @@ public class EmpireCraftKingdomBehCheckTemporaryFaction: GameAIKingdomBase
             if (opening != null && opening.CheckCondition() && opening.CheckTarget())
             {
                 opening.ShowAsPlot = false;
-                opening.pusherType = MetaType.None;
+                opening.pusherType = EntityKind.None;
                 opening.Start();
                 return;
             }
@@ -158,7 +158,7 @@ public class EmpireCraftKingdomBehCheckTemporaryFaction: GameAIKingdomBase
                     ParliamentBillSystem.Propose(empire, dominateFaction, tf);
                     return;
                 }
-                tf.pusherType = MetaType.None;
+                tf.pusherType = EntityKind.None;
                 tf.Start();
                 return;
             }
@@ -177,7 +177,7 @@ public class EmpireCraftKingdomBehCheckTemporaryFaction: GameAIKingdomBase
             if (tf == null || !tf.Active || tf.CountDown > 0 || !CourtIssues.IsDirectAction(tf.type)) continue;
             if (!ClaimAgendaSystem.Evaluate(context, dominateFaction, tf).CanPropose) continue;
             if (!tf.CheckCondition() || !tf.CheckTarget()) continue;
-            tf.pusherType = MetaType.None;
+            tf.pusherType = EntityKind.None;
             tf.Start();
             return;
         }

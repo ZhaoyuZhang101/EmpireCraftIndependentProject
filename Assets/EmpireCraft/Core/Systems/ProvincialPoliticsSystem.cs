@@ -26,16 +26,13 @@ public static class ProvincialPoliticsSystem
     #region 查询
 
     // 便宜的先查(议会、一党、过渡都是读存档字段)，最贵的政党政治放后面
-#if EC_PENDING
     public static bool HasLocalElections(Empire empire) =>
         empire?.CoreKingdom != null && ParliamentSystem.HasParliament(empire) && !RepublicSystem.IsOneParty(empire) &&
         !RepublicSystem.IsTransitioning(empire) && PartySystem.IsActive(empire) &&
         !PartyBanSystem.UsesDemocraticCentralism(empire);
-#endif
 
     // 城市忠诚的"地方政治"一项：执政联盟执政的行政区 +3，在野党执政的 -5，没有地方选举 0。
     // 每座城算忠诚都要问，同一行政区的城结果一样：按行政区缓存 2 个游戏秒
-#if EC_PENDING
     public static int LoyaltyBonus(Realm province)
     {
         Empire empire = province != null && province.IsInEmpire() ? province.GetEmpire() : null;
@@ -48,7 +45,6 @@ public static class ProvincialPoliticsSystem
         LoyaltyCache[province.Key] = (value, empire.data.id, now);
         return value;
     }
-#endif
 
     private const double LoyaltyCacheSeconds = 2d;
     private static readonly Dictionary<long, (int value, long empire, double at)> LoyaltyCache = new();
@@ -84,26 +80,21 @@ public static class ProvincialPoliticsSystem
     }
 
     // 本省地方选举选出的执政党；没有地方选举返回 null
-#if EC_PENDING
     public static FixedFaction GetGoverningParty(Empire empire, Realm province)
     {
         if (!HasLocalElections(empire)) return null;
         string id = Get(empire, province)?.governing_party_id;
         return string.IsNullOrEmpty(id) ? null : FindParty(empire, id);
     }
-#endif
 
     // 本省是否由在野党执政(地方抗衡)
-#if EC_PENDING
     public static bool IsOppositionHeld(Empire empire, Realm province)
     {
         FixedFaction party = GetGoverningParty(empire, province);
         return party != null && !ParliamentSystem.GetCoalitionIds(empire).Contains(party.GetID());
     }
-#endif
 
     // 各党在本省的支持率(0~1)，按支持率从高到低
-#if EC_PENDING
     public static List<(FixedFaction party, float share)> GetShares(Empire empire, Realm province)
     {
         ProvincePolitics data = Get(empire, province);
@@ -113,7 +104,6 @@ public static class ProvincialPoliticsSystem
             .Select(pair => (party: FindParty(empire, pair.Key), share: pair.Value))
             .Where(item => item.party != null).OrderByDescending(item => item.share).ToList();
     }
-#endif
 
     public static float GetInfluence(Empire empire, Realm province, FixedFaction party)
     {
@@ -124,7 +114,6 @@ public static class ProvincialPoliticsSystem
     }
 
     // 执政联盟控制的行政区占比(按人口)；没办过地方选举返回 1
-#if EC_PENDING
     public static float CoalitionProvinceShare(Empire empire)
     {
         if (!HasLocalElections(empire)) return 1f;
@@ -140,10 +129,8 @@ public static class ProvincialPoliticsSystem
         }
         return total <= 0f ? 1f : held / total;
     }
-#endif
 
     // 下次地方选举还有几年(-1 = 不办地方选举)
-#if EC_PENDING
     public static int YearsUntilLocalElection(Empire empire)
     {
         ConstitutionalEconomyState state = State(empire);
@@ -155,12 +142,10 @@ public static class ProvincialPoliticsSystem
             ? Math.Max(0, term - since + midterm)
             : Math.Max(0, midterm - since);
     }
-#endif
 
     private static IEnumerable<Realm> Provinces(Empire empire) =>
         empire.kingdoms_hashset.Where(kingdom => IsProvince(empire, kingdom)).ToList();
 
-#if EC_PENDING
     private static FixedFaction FindParty(Empire empire, string id) =>
         PartySystem.GetParties(empire).FirstOrDefault(party => party != null && party.GetID() == id);
 
@@ -182,7 +167,6 @@ public static class ProvincialPoliticsSystem
         return parties.Select(party => (party, share: total <= 0f ? 0f : votes[party] / total))
             .OrderByDescending(item => item.share).ToList();
     }
-#endif
 
     #endregion
 
@@ -307,7 +291,6 @@ public static class ProvincialPoliticsSystem
 #endif
 
     // 在野党连续两次地方选举控制六成以上行政区：各省联合要求地方自治，单一制改行联邦制
-#if EC_PENDING
     private static void CheckFederalPressure(Empire empire, ConstitutionalEconomyState state)
     {
         float coalitionShare = CoalitionProvinceShare(empire);
@@ -322,19 +305,15 @@ public static class ProvincialPoliticsSystem
         state.local_opposition_streak = 0;
         EventRecorder.RecordRoutine(empire, string.Format(LM.Get("local_federalism_history"), empire.GetEmpireFullName()));
     }
-#endif
 
     #endregion
 
     #region 玩家：资助 / 打压
 
-#if EC_PENDING
     public static int InfluenceCost(Realm province) =>
         20 + Mathf.RoundToInt(Mathf.Max(0, CityPopulationSystem.Households(province)) / 10f);
-#endif
 
     // direction：+1 资助，-1 打压。花中央国库的钱，返回失败原因的本地化 key(成功返回 null)
-#if EC_PENDING
     public static string Influence(Empire empire, Realm province, FixedFaction party, int direction)
     {
         ConstitutionalEconomyState state = State(empire);
@@ -352,7 +331,6 @@ public static class ProvincialPoliticsSystem
             .ToDictionary(item => item.party.GetID(), item => item.share);
         return null;
     }
-#endif
 
     #endregion
 }

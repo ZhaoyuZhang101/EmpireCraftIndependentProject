@@ -53,7 +53,6 @@ public static class StateModernization
         setting?.regime is RegimeType.Modern or RegimeType.Republic;
 
     // 近代国家：现代政体、改制共和、君主立宪(有议会)，或科技进了电气时代(流亡政府、近代占领都看它)
-#if EC_PENDING
     public static bool IsModernPower(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone()) return false;
@@ -67,7 +66,6 @@ public static class StateModernization
     private static bool IsModern(Realm kingdom) =>
         kingdom?.Record != null && !kingdom.IsGone() &&
         (kingdom.GetRegime()?.type is RegimeType.Modern or RegimeType.Republic || RepublicSystem.IsRepublic(kingdom.GetEmpire()));
-#endif
 
     // 文化解析出现代政体(本文化已废君)时，这一国立国定政体：够格的照现代，不够格的改用本文化的君主政体
     public static RegimeType AdjustFounding(Realm kingdom, string culture, RegimeType resolved)
@@ -84,7 +82,6 @@ public static class StateModernization
     }
 
     // 立国时记下出身(CityPatch.makeOwnKingdom)：从共和国(现代政体)分出来，或起事的领头人是共和派
-#if EC_PENDING
     public static void MarkFounding(Realm kingdom, Realm origin, Person founder, bool rebellion)
     {
         if (kingdom?.Record == null) return;
@@ -92,7 +89,6 @@ public static class StateModernization
                       rebellion && founder?.Record != null && ModernizationRules.Republican(IdeologyPopulationSystem.Get(founder));
         kingdom.GetOrCreate().modern_origin = modern ? 1 : 2;
     }
-#endif
 
     #region 共和革命(独立君主国)
 
@@ -179,6 +175,7 @@ public static class StateModernization
         LogService.LogInfo($"[EmpireCraft][近代化] {name} 共和革命(本国条件 {chance:P1}，{(concedes ? "逊位" : "起事成功")})");
         return true;
     }
+#endif
 
     private static void Convert(Realm kingdom, KingdomExtension.KingdomExtraData data)
     {
@@ -189,14 +186,12 @@ public static class StateModernization
         data.revolution_tension = 0f;
         data.revolution_warned = false;
     }
-#endif
 
     #endregion
 
     #region 立宪示范
 
     // 从 AI 发起立宪要的议会支持里扣掉的示范分：本文化已有国家立宪、相邻的立宪国与共和国
-#if EC_PENDING
     public static float ConstitutionSupportBonus(Empire empire)
     {
         Realm core = empire?.CoreKingdom;
@@ -211,7 +206,6 @@ public static class StateModernization
             IsModern(other) || other.GetEmpire() is Empire state && ConstitutionalEconomySystem.HasConstitution(state));
         return ModernizationRules.ConstitutionDemonstration(pioneer, modern);
     }
-#endif
 
     #endregion
 }

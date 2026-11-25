@@ -395,7 +395,6 @@ public static class CultureRadiation
     }
 
     // 走通达层的城际图从一座城向外辐射(有界的最短路)：边的成本按施教一方的科技(见类头)，跨入别国照旧 +1
-#if EC_PENDING
     private static void RadiateLayer(City source, string culture, float strength, float length)
     {
         ConnectivityResult layer = _layer;
@@ -438,7 +437,6 @@ public static class CultureRadiation
             }
         }
     }
-#endif
 
     private static void AddField(long id, string culture, float value)
     {

@@ -51,7 +51,7 @@ public static class LegionStatisticsReadCache
         Entry entry = Entries.GetOrCreateValue(actor);
         List<LegionPopulationContribution> origins = extra.legion_population;
         bool same = readable && ReferenceEquals(entry.Data, actor.Record) &&
-            ReferenceEquals(entry.Extra, extra) && ReferenceEquals(entry.Asset, actor.asset) &&
+            ReferenceEquals(entry.Extra, extra) && ReferenceEquals(entry.Asset, actor.Asset) &&
             ReferenceEquals(entry.Origins, origins) && entry.Health == health && entry.Maximum == maximum &&
             entry.Size.Equals(extra.legion_size) && entry.Full.Equals(extra.legion_full) &&
             origins != null && origins.Count == entry.Sources.Length;
@@ -80,7 +80,7 @@ public static class LegionStatisticsReadCache
             entry.Sources[i] = origin;
             entry.Values[i] = new Contribution(origin?.culture, origin?.size ?? 0f);
         }
-        entry.Data = actor.Record; entry.Extra = extra; entry.Asset = actor.asset;
+        entry.Data = actor.Record; entry.Extra = extra; entry.Asset = actor.Asset;
         entry.Origins = origins; entry.Health = health; entry.Maximum = maximum;
         entry.Size = extra.legion_size; entry.Full = extra.legion_full;
         Builds++;

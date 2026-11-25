@@ -10,13 +10,11 @@ namespace EmpireCraft.Core
 public class EmpireCaftActorJudgeClass: GameAIActorBase
 {
     public override Type OriginalBeh => GetType();
-#if EC_PENDING
-    public override BehResult execute(Person pActor)
+    public override BehResult Execute(Person pActor)
     {
         pActor.SetSocialClass(JudgeClass(pActor));
         return BehResult.Continue;
     }
-#endif
     // 世袭王国的王族(贵族阶层)。原来每判定一个人就把全部王国复制成列表再逐个比，而判定阶层的地方很多
     // (每个单位的 AI、就业/市民/土地系统统计每个居民)，是 单位数×王国数 的开销。
     // 每帧只建一次传统王族集合；无君主、无氏族不能把所有无氏族平民误判成贵族。
@@ -24,19 +22,18 @@ public class EmpireCaftActorJudgeClass: GameAIActorBase
     private static int _nobleClansFrame = -1;
     private static object _nobleClansWorld;
 
-#if EC_PENDING
     private static bool IsNobleClan(Clan clan)
     {
-        if (clan == null || world?.kingdoms == null) return false;
+        if (clan == null || world?.LiveRealms == null) return false;
         if (_nobleClansFrame != Time.frameCount || !ReferenceEquals(_nobleClansWorld, world))
         {
             _nobleClansFrame = Time.frameCount;
             _nobleClansWorld = world;
             NobleClans.Clear();
-            foreach (Realm kingdom in world.kingdoms)
+            foreach (Realm kingdom in world.LiveRealms)
             {
                 Regime regime = kingdom?.GetRegime();
-                Clan royalClan = kingdom?.getKingClan();
+                Clan royalClan = kingdom?.GetRulingClan();
                 Empire empire = kingdom?.GetEmpire();
                 if (royalClan != null && regime != null && regime.type != RegimeType.Modern &&
                     !RepublicSystem.IsRepublic(empire) && !ConstitutionalSuccessionSystem.IsProtected(empire) &&
@@ -110,12 +107,11 @@ public class EmpireCaftActorJudgeClass: GameAIActorBase
         return SocialClass.Peasant;
     }
 
-    public static bool IsManualWorkerJob(Person actor) => actor?.citizen_job?.id switch
+    public static bool IsManualWorkerJob(Person actor) => actor?.Job?.Id switch
     {
         "woodcutter" or "miner" or "miner_deposit" or "road_builder" or "cleaner" or
             "manure_cleaner" or "gatherer_herbs" or "gatherer_bushes" or "gatherer_honey" => true,
         _ => false
     };
-#endif
 }
 }

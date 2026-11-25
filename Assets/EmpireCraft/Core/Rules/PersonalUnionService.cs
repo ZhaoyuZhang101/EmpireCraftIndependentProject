@@ -16,7 +16,6 @@ namespace EmpireCraft.Core
 //   · 这两种政体下都不能用"统合治下王国"决议把几个王国并成一个。
 public static class PersonalUnionService
 {
-#if EC_PENDING
     public static bool IsUnionRegime(Realm kingdom) =>
         kingdom != null && !kingdom.IsGone() &&
         kingdom.GetRegime()?.type is RegimeType.Feudalism or RegimeType.ClassicalRepublic;
@@ -24,7 +23,6 @@ public static class PersonalUnionService
     private static bool IsFeudal(Realm kingdom) => kingdom?.GetRegime()?.type == RegimeType.Feudalism;
 
     public static bool AllowsFemaleSuccession(Realm kingdom) => IsFeudal(kingdom);
-#endif
 
     public static List<Realm> GetRealms(Person ruler) =>
         ruler == null
@@ -32,12 +30,12 @@ public static class PersonalUnionService
             : EmpireWorld.Current.LiveRealms.Where(kingdom => kingdom != null && !kingdom.IsGone() && kingdom.Ruler == ruler)
                 .ToList();
 
-#if EC_PENDING
     public static bool IsAtFeudalRealmLimit(Person ruler) => ruler != null &&
         IsFeudal(ruler.Realm) &&
         InstitutionSystem.IsEnacted(CultureService.GetInstitutionCulture(ruler.Realm), "western_feudalization") &&
         GetRealms(ruler).Count(IsFeudal) >= ModClass.FEUDAL_UNION_REALM_LIMIT;
 
+#if EC_PENDING
     public static bool CrownLocalVassal(Realm realm, Realm overlord)
     {
         Person local = (realm?.People ?? new List<Person>()).ToList()
@@ -288,7 +286,7 @@ public static class PersonalUnionService
                 remaining.Add(titleId);
                 continue;
             }
-            foreach (City city in title.getCities().ToList())
+            foreach (City city in title.GetCities().ToList())
                 if (city != null && !city.IsGone() && city != seat && city.Realm == holder)
                     city.JoinRealm(realm);
             realm.SetRegimeType(RegimeType.Feudalism);

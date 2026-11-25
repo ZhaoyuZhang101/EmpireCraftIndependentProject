@@ -14,7 +14,6 @@ namespace EmpireCraft.Core
 public static partial class RealmNamingSystem
 {
     // 这个名字是不是地名：现存的城名、现存行政区的名字、照地名起的王国法理名
-#if EC_PENDING
     public static bool IsPlaceName(string name)
     {
         string plain = EmpireCoreManager.NormalizeCoreName(name);
@@ -28,12 +27,9 @@ public static partial class RealmNamingSystem
         return ModClass.KINGDOM_TITLE_MANAGER != null &&
                ModClass.KINGDOM_TITLE_MANAGER.Any(title => title?.data != null && title.data.place_name && Same(title.data.name));
     }
-#endif
 
     // 王国法理名能不能当帝国号
-#if EC_PENDING
     public static bool PlaceTitle(KingdomTitle title) =>
         title?.data != null && (title.data.place_name || IsPlaceName(title.data.name));
-#endif
 }
 }

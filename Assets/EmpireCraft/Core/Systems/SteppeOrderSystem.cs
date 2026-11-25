@@ -23,7 +23,6 @@ public static partial class SteppeOrderSystem
 
     // 平时(没有雄主在位)的游牧政权主动开一般战争，只许打两城以内、不在帝国里的小国；别的政权、雄主、部落不受此限。
     // 编旗的政权(八旗多元制、入关前的后金)也不受此限：它是要入主中原的帝国，不是草原常态下的部落(明清鼎革里清打了头几年就只收草原，再不南下)
-#if EC_PENDING
     public static bool PeacetimeWarAllowed(Realm initiator, Realm target)
     {
         if (initiator?.Record == null || target?.Record == null) return true;
@@ -33,7 +32,6 @@ public static partial class SteppeOrderSystem
             return true;
         return !target.IsEmpire() && !target.IsInEmpire() && (target.Cities?.Count ?? 0) <= PeaceMaxCities;
     }
-#endif
 
     // 每年：nomads 是算过草原压力的有劫掠传统的国家
 #if EC_PENDING

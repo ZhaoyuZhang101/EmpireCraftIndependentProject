@@ -76,7 +76,6 @@ public static partial class HolyRomanSystem
 #endif
 
     // 退位解散还差什么(年度诊断、界面用)，条件已齐时为 null
-#if EC_PENDING
     public static string AbdicationBlocker(Empire empire, HolyRomanState state)
     {
         if (!IsElective(empire)) return LM.Get("hre_dissolve_need_elective");
@@ -88,7 +87,6 @@ public static partial class HolyRomanSystem
         int age = empire.data.created_time > 0d ? GameClock.YearsSince(empire.data.created_time) : 0;
         return age < DissolveMinAge ? string.Format(LM.Get("hre_dissolve_need_age"), age, DissolveMinAge) : null;
     }
-#endif
 
     // 皇帝退位、帝国解散
 #if EC_PENDING
@@ -123,9 +121,9 @@ public static partial class HolyRomanSystem
         Abdicate(empire, State(empire));
         return true;
     }
+#endif
 
     private static bool IsPapacy(Realm kingdom) => kingdom.HasReligion() && PapacySystem.Papacy(kingdom.Religion) == kingdom;
-#endif
 
     // 能拉走的成员：对皇帝好感不到 10、或改奉别教、或有自主外交
 #if EC_PENDING
@@ -256,7 +254,6 @@ public static partial class HolyRomanSystem
 #endif
 
     // 开战即援(WarPatch.new_war)：原帝国中央或其成员攻打被保护者时，保护人加入守方
-#if EC_PENDING
     public static void OnWarStarted(War war)
     {
         try
@@ -281,10 +278,8 @@ public static partial class HolyRomanSystem
             LogService.LogWarning($"[EmpireCraft][神罗] 保护人援助失败: {exception.Message}");
         }
     }
-#endif
 
     // 年度诊断的帝国存续一段
-#if EC_PENDING
     private static string DeclineStatus(Empire empire, HolyRomanState state)
     {
         if (!DissolutionEnabled) return "模组设置已关帝国解体";
@@ -294,6 +289,5 @@ public static partial class HolyRomanSystem
         string abdication = AbdicationBlocker(empire, state) ?? "条件已齐，每年一成";
         return $"{low}{last}，历史最多{state.peak_members}国；退位解散：{abdication}";
     }
-#endif
 }
 }

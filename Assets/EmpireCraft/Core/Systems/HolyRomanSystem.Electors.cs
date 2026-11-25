@@ -24,16 +24,13 @@ public static partial class HolyRomanSystem
     private const int ElectorGrantWaitYears = 1, ElectorFallbackYears = 5, ElectorLogSize = 10;
 
     // 能占世俗选帝侯席的诸侯：普通成员国(非自由城市、主教领、教会领)
-#if EC_PENDING
     private static bool SecularSeatEligible(Empire empire, Realm kingdom) =>
         kingdom?.Record != null && !kingdom.IsGone() && kingdom.GetEmpire() == empire && Estate(kingdom) == EstateNone &&
         kingdom.GetRegime()?.GetReligionLevel() != ReligionLevel.High;
-#endif
 
     private static List<long> Seats(HolyRomanState state) => state.elector_realm_ids ??= new List<long>();
 
     // 内阁维护用：世俗四席的在座者(按席位顺序；出缺、停权、无君的填 -1)
-#if EC_PENDING
     public static List<long> SecularElectorKings(Empire empire)
     {
         HolyRomanState state = State(empire);
@@ -49,10 +46,8 @@ public static partial class HolyRomanSystem
         while (result.Count < SecularSeats) result.Add(-1L);
         return result;
     }
-#endif
 
     // 第一次：按当时在座的世俗选帝侯所在国填入，不足的按兵力补齐(同旧例)
-#if EC_PENDING
     private static void EnsureSeats(Empire empire, HolyRomanState state)
     {
         List<long> seats = Seats(state);
@@ -73,10 +68,8 @@ public static partial class HolyRomanSystem
         while (seats.Count < SecularSeats) seats.Add(-1L);
         if (seats.Contains(-1L) && state.elector_vacant_at < 0d) state.elector_vacant_at = GameClock.Now;
     }
-#endif
 
     // 旧例：兵力最强的普通诸侯(非中央、非被禁、未在座)
-#if EC_PENDING
     private static IEnumerable<Realm> StrongestPrinces(Empire empire, List<long> seated) =>
         Members(empire).Where(realm => SecularSeatEligible(empire, realm) && realm.HasRuler() && !IsBanned(realm) &&
                                        !seated.Contains(realm.Key))
@@ -90,7 +83,6 @@ public static partial class HolyRomanSystem
         if (history) Record(empire, text);
         LogService.LogInfo($"[EmpireCraft][神罗] {empire.GetEmpireFullName()} 选帝侯：{text}");
     }
-#endif
 
     // 每年：出缺、授予、兜底
 #if EC_PENDING
@@ -165,7 +157,6 @@ public static partial class HolyRomanSystem
 #endif
 
     // 兜底：权威不足、久缺不补时按旧例给兵力最强的普通诸侯
-#if EC_PENDING
     private static void FallbackElector(Empire empire, HolyRomanState state)
     {
         List<long> seats = Seats(state);
@@ -177,10 +168,8 @@ public static partial class HolyRomanSystem
         FiscalDiagnostics.Count("神罗·授选帝侯");
         ElectorLog(empire, state, string.Format(LM.Get("hre_elector_fallback_history"), pick.GetKingdomName()), history: true);
     }
-#endif
 
     // 褫夺被禁者的席位(禁令执行成功时自动；神力按钮)：花 10；auto 时权威不到 10 就只停权
-#if EC_PENDING
     private static bool StripElector(Empire empire, HolyRomanState state, long realmId, bool auto)
     {
         List<long> seats = Seats(state);
@@ -196,6 +185,7 @@ public static partial class HolyRomanSystem
         return true;
     }
 
+#if EC_PENDING
     public static Realm ActGrantElector(Empire empire)
     {
         if (!HasDiet(empire)) return null;
@@ -203,6 +193,7 @@ public static partial class HolyRomanSystem
         EnsureSeats(empire, state);
         return Seats(state).Contains(-1L) ? GrantElector(empire, state, spend: true) : null;
     }
+#endif
 
     public static bool ActStripElector(Empire empire)
     {
@@ -210,10 +201,8 @@ public static partial class HolyRomanSystem
         HolyRomanState state = State(empire);
         return state.banned_kingdom_id >= 0 && StripElector(empire, state, state.banned_kingdom_id, auto: false);
     }
-#endif
 
     // 界面用：世俗四席(席位国、在座者、状态 0 在座 / 1 停权 / 2 出缺)
-#if EC_PENDING
     public static List<(Realm realm, Person holder, int status)> SecularSeatsView(Empire empire)
     {
         HolyRomanState state = State(empire);
@@ -228,10 +217,8 @@ public static partial class HolyRomanSystem
         }
         return result;
     }
-#endif
 
     // 界面用：教会席(内阁里不是世俗席在座者的人)
-#if EC_PENDING
     public static List<Person> ChurchElectorsView(Empire empire)
     {
         var secular = new HashSet<long>(SecularElectorKings(empire).Where(id => id >= 0));
@@ -245,7 +232,6 @@ public static partial class HolyRomanSystem
         EnsureSeats(empire, state);
         return Seats(state).Contains(-1L);
     }
-#endif
 
     public static bool BannedHoldsSeat(Empire empire)
     {
@@ -254,7 +240,6 @@ public static partial class HolyRomanSystem
     }
 
     // 年度诊断的选帝侯一段
-#if EC_PENDING
     private static string ElectorStatus(Empire empire, HolyRomanState state)
     {
         List<(Realm realm, Person holder, int status)> seats = SecularSeatsView(empire);
@@ -264,6 +249,5 @@ public static partial class HolyRomanSystem
                string.Join("、", seats.Select(seat => seat.realm == null ? "出缺" : seat.realm.GetKingdomName() +
                                                                               (seat.status == 1 ? "(停权)" : ""))) + $"){vacancy}";
     }
-#endif
 }
 }

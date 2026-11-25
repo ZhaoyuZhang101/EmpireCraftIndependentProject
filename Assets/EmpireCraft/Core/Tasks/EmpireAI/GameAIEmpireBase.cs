@@ -9,12 +9,10 @@ public abstract class GameAIEmpireBase : RealmTask
 {
     public abstract Type OriginalBeh { get; }
 
-#if EC_PENDING
-    public override BehResult execute(Realm pObject)
+    public override BehResult Execute(Realm pObject)
     {
         if (!pObject.IsEmpire()) return BehResult.Stop;
         return BehResult.Continue;
     }
-#endif
 }
 }

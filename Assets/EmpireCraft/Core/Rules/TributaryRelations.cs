@@ -43,7 +43,6 @@ public static class TributaryRelations
     }
 
     // 宗主的直辖之地：核心王国与它的行政区(律令制的道、都护府，行省、总督区……见 IsAdministrativeKingdomType)
-#if EC_PENDING
     public static List<Realm> Direct(Empire empire)
     {
         var direct = new List<Realm>();
@@ -55,7 +54,6 @@ public static class TributaryRelations
                 if (member?.Record != null && !member.IsGone() && member != core && member.IsAdministrativeKingdomType()) direct.Add(member);
         return direct;
     }
-#endif
 
     // 宗主直辖之地够不够得着这一国(见类头)
 #if EC_PENDING
@@ -110,7 +108,6 @@ public static class TributaryRelations
 #endif
 
     // 纳贡之后(见 KingdomExtension.StartToTaken)：回赐、正统
-#if EC_PENDING
     public static void AfterTribute(Realm tributary, Empire empire, int value)
     {
         Realm core = empire?.CoreKingdom;
@@ -127,13 +124,11 @@ public static class TributaryRelations
         extra.leave_taken_alliance_preference = Mathf.Max(0f, extra.leave_taken_alliance_preference - GiftLoyalty);
         empire.AddMandate(1);
     }
-#endif
 
     // 西方没有朝贡(用户 2026-10-27 截图乌拉尔斯克"朝贡于神圣罗马帝国"："西方没有朝贡")：行封建附庸的、统治文化或制度文化
     // 属罗马一系的帝国一律不收朝贡国(强制也不行，见 KingdomExtension.JoinTakenAlliance)，已有的在例行检查时解除
     // (见 NeedToRemoveTakenAlliance)。以前只看帝国主文化施行没施行带"迫使朝贡"的制度，维京统治、兼采斯拉夫之制的
     // 复合帝国按主文化取到了游牧一系的制度，照样收朝贡
-#if EC_PENDING
     public static bool IsWestern(Empire empire)
     {
         Realm core = empire?.CoreKingdom;
@@ -142,7 +137,6 @@ public static class TributaryRelations
         return CultureService.GetRealmCulture(core).GetInstitutionLine() == "Roma" ||
                CultureService.GetInstitutionCulture(core).GetInstitutionLine() == "Roma";
     }
-#endif
 
     // 宗主兴师讨伐自己的朝贡国(天下共主平定天下里的朝贡国，用户 2026-11-07 选「共主可以打朝贡国」，见 UnificationSystem.Pacify)：
     // 开战即罢朝贡。开战那一下 WarPatch.DetachHostileTributaries 已把朝贡关系断了(史书记"脱离朝贡体系")，这里补断没断的，

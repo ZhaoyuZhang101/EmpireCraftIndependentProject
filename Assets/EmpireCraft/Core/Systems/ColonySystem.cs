@@ -55,9 +55,7 @@ public static class ColonySystem
     private static bool TakesMetropoleCulture(int kind) => kind is ColonyState.Governorate or ColonyState.Company;
 
     // 近代殖民列强：能当宗主国(远洋航海)，又是近代国家(见 StateModernization.IsModernPower)；立保护国、租借港口的战争要求只有它们提
-#if EC_PENDING
     public static bool ColonialPower(Realm kingdom) => CanColonize(kingdom) && StateModernization.IsModernPower(kingdom);
-#endif
 
     // 可租的港口城：有船坞或临海、不是都城，挑户数最多的
 #if EC_PENDING
@@ -217,11 +215,11 @@ public static class ColonySystem
 #endif
 
     // 能当宗主国：独立国或帝国核心、不是别人的殖民地、本国采纳了远洋航海
-#if EC_PENDING
     private static bool CanColonize(Realm kingdom) =>
         kingdom?.Capital != null && !kingdom.IsGone() && kingdom.IsCivilized() && !IsColony(kingdom) &&
         (!kingdom.IsInEmpire() || kingdom.IsEmpire()) && TechnologySystem.RealmHasTech(kingdom, OceanTech);
 
+#if EC_PENDING
     private static object IslandOf(City city) => city?.SeatCell()?.region?.island;
 #endif
 
@@ -431,6 +429,7 @@ public static class ColonySystem
             metropole.GetKingdomFullName(), colony.GetKingdomFullName(), ruler), metropole);
         return "colony";
     }
+#endif
 
     private static void ApplyRegime(Realm colony, int kind)
     {
@@ -439,11 +438,9 @@ public static class ColonySystem
         colony.LoadRegime();
         colony.GetOrCreate().regime_manually_selected = true;
     }
-#endif
 
     // 国号：特许公司叫"<宗主国><首府>公司"；自治领"<地名>自治领"；别的"<宗主国名头一个字>属<地名>"，
     // 委任统治地、租借地另加后缀(英属巴勒斯坦托管地、日属关东州租借地)
-#if EC_PENDING
     private static void Name(Realm colony, Realm metropole, int kind)
     {
         if (kind == ColonyState.Company)
@@ -470,12 +467,10 @@ public static class ColonySystem
             _ => ""
         });
     }
-#endif
 
     // 宗主国名的头一个字(英国 → 英、荷兰 → 荷)；美号"大"(大日本、大清)不算。
     // 宗主自己也是属地的按它的地名取(用户 2026-11-13 转群友截图"彭属彭其实是彭属莱属彭"：彭的属地"彭属莱"又收了彭作属地，
     // 拿"彭属莱"取头一个字，成了"彭属彭"；应是"莱属彭")
-#if EC_PENDING
     public static string Abbrev(Realm metropole)
     {
         // 剧本给了简称的照简称(大不列颠帝国→英、大日本帝国→日：国号头一个字不一定是简称)
@@ -489,18 +484,14 @@ public static class ColonySystem
         global::System.Globalization.TextElementEnumerator elements = global::System.Globalization.StringInfo.GetTextElementEnumerator(name);
         return elements.MoveNext() ? elements.GetTextElement() : "";
     }
-#endif
 
     // 给法理、帝国起名时借用的国名：属地不带"某属"名号、用地名(用户 2026-11-13 转群友"称帝后宗主灭亡了也不把国号改回正常"：
     // 属地期间新立的法理借了当时的国名，就叫"某属某地"，帝号又照法理名定，脱离宗主以后清掉的只是属地名号，这两处照旧)；别的照国名
-#if EC_PENDING
     public static string SovereignName(Realm kingdom) =>
         kingdom?.Record == null ? "" : Of(kingdom) is ColonyState state ? Place(kingdom, state) : kingdom.GetKingdomName();
-#endif
 
     // 脱离宗主时把写死成属地名号的名字改回地名：本国主法理、首府所在的法理、帝号(核心名)。
     // 只改名字正是那个名号的，或"某属"打头的；别的名字不动
-#if EC_PENDING
     private static void Unbrand(Realm kingdom, string branded, string place)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || string.IsNullOrWhiteSpace(place)) return;
@@ -539,10 +530,8 @@ public static class ColonySystem
             LogService.LogWarning($"[EmpireCraft][殖民] 名号改回失败: {exception.Message}");
         }
     }
-#endif
 
     // 地名：剧本给的、或首府所在的王国法理名，都没有用首府城名
-#if EC_PENDING
     private static string Place(Realm colony, ColonyState state)
     {
         // 剧本给的地名本身带"某属"的(葡属印度)：换了宗主照样去掉，叫"法属印度"，不叫"法属葡属印度"
@@ -559,7 +548,6 @@ public static class ColonySystem
         if (state != null && !string.IsNullOrWhiteSpace(own)) state.own_name = own;
         return own ?? "";
     }
-#endif
 
     // 去掉名字前头的"某属"，叠了几层去几层("吕属吕属莱" → "莱")；去完是空的照原样还回去。
     // "某"按简称算，至多两个字(见 Abbrev)；英文的国号是"地名 (宗主)"，没有这个字，不动
@@ -601,7 +589,7 @@ public static class ColonySystem
         City seat = colony.Capital ?? colony.Cities.FirstOrDefault();
         if (seat == null) return null;
         Person governor = TransmigrantSystem.IsTransmigrant(metropole) ? TransmigrantSystem.RealizeSenator(metropole, seat) : null;
-        governor ??= CityPopulationSystem.SpawnPerson(seat, metropole.getSpecies(), CultureService.GetRealmCulture(metropole));
+        governor ??= CityPopulationSystem.SpawnPerson(seat, metropole.GetSpecies(), CultureService.GetRealmCulture(metropole));
         governor?.RecordPersonalHistory(string.Format(LM.Get("colony_governor_history"), metropole.GetKingdomFullName(),
             colony.GetKingdomFullName()));
         return governor;
@@ -683,7 +671,6 @@ public static class ColonySystem
     }
 
     // 租期届满：城交还出租国(出租国亡了，租借地就此留给宗主，改为直辖殖民地)
-#if EC_PENDING
     private static void ReturnLease(Realm colony, Realm metropole, ColonyState state)
     {
         Realm lessor = state.lessor_id < 0 ? null : EmpireWorld.Current.RealmByKey(state.lessor_id);
@@ -699,7 +686,6 @@ public static class ColonySystem
         colony.GetOrCreate().colony = null;
         TranslateHelper.LogEventMessage(string.Format(LM.Get("colony_lease_returned"), name, lessor.GetKingdomFullName()), lessor);
     }
-#endif
 
     // 特许公司收归国有，改设总督府
 #if EC_PENDING
@@ -874,7 +860,7 @@ public static class ColonySystem
         var options = new List<(Cell zone, float score, int distance)>();
         foreach (Cell zone in EmpireWorld.Current.Zones.All)
         {
-            if (zone == null || zone.City != null || zone.GroundTiles < 48 || !zone.canStartCityHere()) continue;
+            if (zone == null || zone.City != null || zone.GroundCount < 48 || !zone.canStartCityHere()) continue;
             if (zone.Center?.region?.island == home) continue;
             int far = capital == null ? 0 : Mathf.Abs(zone.X - capital.X) + Mathf.Abs(zone.Y - capital.Y);
             if (far < ColonyDistance / 2) continue;
@@ -886,7 +872,7 @@ public static class ColonySystem
                     break;
                 }
             if (!reachable || zone.NeighboursAll.Any(next => next?.City != null)) continue;
-            float score = zone.GroundTiles + MarketDemand(realm, zone) * 40f + EcRandom.value * 20f;
+            float score = zone.GroundCount + MarketDemand(realm, zone) * 40f + EcRandom.value * 20f;
             options.Add((zone, score, far));
         }
         if (options.Count == 0) return null;

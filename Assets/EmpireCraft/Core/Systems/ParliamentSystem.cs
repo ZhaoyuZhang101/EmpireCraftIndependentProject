@@ -82,7 +82,6 @@ public static partial class ParliamentSystem
         return state;
     }
 
-#if EC_PENDING
     private static bool HasReachedStage(Empire empire, int stage)
     {
         ConstitutionalEconomyState state = GetState(empire);
@@ -98,17 +97,13 @@ public static partial class ParliamentSystem
 
     public static bool HasResponsibleGovernment(Empire empire) =>
         HasReachedStage(empire, Config.responsible_government_stage);
-#endif
 
     // 议会存在时，原有内阁是否仍然保留（只有选帝侯团性质的内阁保留）
-#if EC_PENDING
     public static bool KeepsCabinet(Empire empire) =>
         RegimeManager.IsCabinetElectoralCollege(empire?.CoreKingdom?.GetRegime()?.type);
-#endif
 
     #region 查询
 
-#if EC_PENDING
     public static Person GetPrimeMinister(Empire empire)
     {
         if (!HasParliament(empire)) return null;
@@ -116,29 +111,23 @@ public static partial class ParliamentSystem
         Person actor = state.prime_minister_id > 0 ? EmpireWorld.Current?.PersonByKey(state.prime_minister_id) : null;
         return IsValidMember(empire, actor) ? actor : null;
     }
-#endif
 
     // 是否属于执政一方：多数/少数派政府为总理所属派系；联合政府为整个宪政联盟
     // （在议会中有议席、且支持宪制的全部派系）。责任政府下只有执政一方能推动派系诉求。
-#if EC_PENDING
     public static bool IsGoverningFaction(Empire empire, string factionId)
     {
         if (!HasParliament(empire) || string.IsNullOrWhiteSpace(factionId)) return false;
         return GetGoverningFactionIds(empire, GetState(empire)).Contains(factionId);
     }
-#endif
 
     // 总理所属派系
-#if EC_PENDING
     public static FixedFaction GetGoverningFaction(Empire empire)
     {
         if (!HasParliament(empire)) return null;
         return FindFaction(empire, GetState(empire).prime_minister_faction_id);
     }
-#endif
 
     // 执政一方在议会中是否过半（多数政府 / 联合政府）
-#if EC_PENDING
     public static bool HasWorkingMajority(Empire empire)
     {
         if (!HasParliament(empire)) return false;
@@ -146,10 +135,8 @@ public static partial class ParliamentSystem
         return (state.government_type == GovernmentMajority || state.government_type == GovernmentCoalition) &&
                GetPrimeMinister(empire) != null;
     }
-#endif
 
     // 政府首脑：有议会时为总理大臣，否则为内阁首辅
-#if EC_PENDING
     public static Person GetHeadOfGovernment(Empire empire) =>
         HasParliament(empire) ? GetPrimeMinister(empire) : empire?.GetCabinetLeader();
 
@@ -245,7 +232,6 @@ public static partial class ParliamentSystem
         }
         return result;
     }
-#endif
 
     #endregion
 
@@ -306,7 +292,6 @@ public static partial class ParliamentSystem
 #endif
 
     // 议会成立或存续期间，普通内阁不再存在
-#if EC_PENDING
     public static void RetireCabinet(Empire empire)
     {
         if (empire?.data?.CabinetMembers == null || empire.data.CabinetMembers.Count == 0) return;
@@ -317,7 +302,6 @@ public static partial class ParliamentSystem
             else empire.data.CabinetMembers.Remove(memberId);
         }
     }
-#endif
 
     // 政治原因的提前大选(民意不信任、革命浪潮、废君危机)距上次实际大选至少间隔这么多年；
     // 制度变动(宪法改选举制度、开关党禁、革命后重组)引起的改选不受限制
@@ -462,6 +446,7 @@ public static partial class ParliamentSystem
         }
         return true;
     }
+#endif
 
     private static bool IsSeatHolderValid(Empire empire, ParliamentSeat seat)
     {
@@ -469,7 +454,6 @@ public static partial class ParliamentSystem
         Person actor = EmpireWorld.Current.PersonByKey(seat.actor_id);
         return IsValidMember(empire, actor) && actor.GetFaction()?.GetID() == seat.faction_id;
     }
-#endif
 
     // 执政党解散等情况下立即重新组阁
 #if EC_PENDING
@@ -483,7 +467,6 @@ public static partial class ParliamentSystem
 
     // 派系领袖优先（须是本届议员或至少是本派合格成员），否则取本派排名最高的议员。
     // termLimited：大选后组阁时按宪法"最多 N 届"条款，已做满的人不能再出任(共和国)
-#if EC_PENDING
     private static Person FindPartyLeader(Empire empire, ConstitutionalEconomyState state, FixedFaction faction,
         bool termLimited = false)
     {
@@ -496,10 +479,8 @@ public static partial class ParliamentSystem
             .Select(seat => EmpireWorld.Current.PersonByKey(seat.actor_id))
             .FirstOrDefault(Eligible);
     }
-#endif
 
     // 宪法任期限制：共和国里以执政党领袖身份赢得大选的届数达到"最多 N 届"后不能再出任总理(兼元首)
-#if EC_PENDING
     private static bool HasReachedTermLimit(Empire empire, ConstitutionalEconomyState state, Person actor)
     {
         // 只有总统制(元首兼总理)的总理受任期限制；议会制限的是虚位元首(见 RepublicSystem.UpdateCeremonialHead)
@@ -508,7 +489,6 @@ public static partial class ParliamentSystem
         return limit > 0 && state.head_terms != null && state.head_terms.TryGetValue(actor.Key, out int served) &&
                served >= limit;
     }
-#endif
 
     public static int GetServedTerms(Empire empire, Person actor)
     {
@@ -521,13 +501,11 @@ public static partial class ParliamentSystem
 
     #region 规则
 
-#if EC_PENDING
     private static List<FixedFaction> GetSeatedFactions(Empire empire) =>
         empire.CoreKingdom?.GetRegime()?.GetPlayerFactions()
             ?.Where(faction => faction != null && !faction.Ban && faction.CentralRatio > 0)
             .OrderByDescending(faction => faction.CentralRatio)
             .ToList() ?? new List<FixedFaction>();
-#endif
 
     // 最大余额法：先按份额取整，剩余议席给小数部分最大的派系
     // weightOf 为空时按中央占比分(党禁时期的派系)；政党选举时传入得票
@@ -555,14 +533,12 @@ public static partial class ParliamentSystem
     }
 
     // 派系推举议员的顺序：有官职者优先，其次政绩，再次声望
-#if EC_PENDING
     private static IEnumerable<Person> RankCandidates(Empire empire, FixedFaction faction, HashSet<long> exclude) =>
         faction.AllMembers
             .Where(actor => IsValidMember(empire, actor) && !exclude.Contains(actor.Key))
             .OrderByDescending(actor => actor.HasOfficeIdentity())
             .ThenByDescending(actor => actor.GetIdentity()?.TotalPerformance ?? 0d)
             .ThenByDescending(actor => actor.Renown);
-#endif
 
     // 有选区时优先选本区住民，没有合适的再从全党挑
 #if EC_PENDING
@@ -585,7 +561,6 @@ public static partial class ParliamentSystem
     // 议员与总理的资格：在世、成年、身在本帝国；君主国的皇帝本人不能当议员和总理。
     // 共和国的元首就是大选后执政党领袖(总理)本人(见 RepublicSystem.UpdateHeadOfState)，不能排除，
     // 否则总理一出任元首就"失效"，议会改选党内另一人，下次重新确认政府时又把他装成元首，元首和总理轮番更替
-#if EC_PENDING
     private static bool IsValidMember(Empire empire, Person actor) =>
         actor != null && !actor.IsGone() && actor.Alive && actor.IsAdult() && !actor.IsWarMachine() &&
         actor.Realm?.GetEmpire() == empire &&
@@ -602,7 +577,6 @@ public static partial class ParliamentSystem
         empire.RecordHistory(directContent: LM.Get(key), actorId: empire.Emperor?.Key ?? -1L,
             kingdomId: empire.CoreKingdom.Key);
     }
-#endif
 
     #endregion
 }

@@ -30,7 +30,7 @@ public static class ScorchedEarthSystem
         string cityCulture = CultureService.GetMainCulture(city, initialize: false);
         string ownCulture = CultureService.GetRealmCulture(occupier);
         bool foreignCulture = CultureService.IsValidCulture(cityCulture) && cityCulture != ownCulture;
-        bool foreignSpecies = city.getSpecies() != null && king.asset != null && city.getSpecies() != king.asset.id;
+        bool foreignSpecies = city.GetSpecies() != null && king.Asset != null && city.GetSpecies() != king.Asset.Id;
         return foreignCulture || foreignSpecies;
     }
 #endif
@@ -69,8 +69,8 @@ public static class ScorchedEarthSystem
             string cityCulture = CultureService.GetMainCulture(city, initialize: false);
             bool foreign = CultureService.IsValidCulture(cityCulture) &&
                            cityCulture != CultureService.GetRealmCulture(conqueror) ||
-                           conqueror.Ruler?.asset != null && city.getSpecies() != null &&
-                           city.getSpecies() != conqueror.Ruler.asset.id;
+                           conqueror.Ruler?.Asset != null && city.GetSpecies() != null &&
+                           city.GetSpecies() != conqueror.Ruler.Asset.Id;
             int killed = Kill(city, SackDeathRate + (scorch ? SackScorchDeathRate : 0f));
             if (scorch && killed > 0) MassacreSystem.RecordBackgroundMassacre(city, conqueror, killed);
             // 纵兵烧杀：攻城统领犯抢掠平民(本帝国的城当场追究，外国的城暗中记一笔，见 LawEvents)
@@ -160,8 +160,8 @@ public static class ScorchedEarthSystem
             if (zone?.Tiles == null || !owners.TryGetValue(zone.Index, out long id) || id != occupierId) continue;
             foreach (Cell tile in zone.Tiles)
             {
-                Building crop = tile?.building;
-                if (crop?.asset != null && crop.asset.wheat) crop.startDestroyBuilding();
+                Building crop = tile?.Building;
+                if (crop?.Asset != null && crop.Asset.Wheat) crop.startDestroyBuilding();
             }
         }
     }

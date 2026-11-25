@@ -42,23 +42,19 @@ public static class RegnalNameService
 #endif
 
     // 古典共和、西方封建，或帝国核心王国是罗马一系的文化
-#if EC_PENDING
     private static bool Applies(Empire empire) =>
         PersonalUnionService.IsUnionRegime(empire.CoreKingdom) ||
         CultureService.GetRealmCulture(empire.CoreKingdom).GetInstitutionLine() == "Roma";
-#endif
 
     // 名字后面显示的序数：中文"二世"，别的语言罗马数字
-#if EC_PENDING
     public static string Display(string stored)
     {
         if (string.IsNullOrWhiteSpace(stored)) return "";
-        string language = PlayerConfig.dict.TryGetValue("language", out PlayerOptionData option) ? option.stringVal : "";
+        string language = GameOptions.All.TryGetValue("language", out GameOption option) ? option.StringVal : "";
         if (language != "cz" && language != "ch") return stored;
         int number = FromRoman(stored.Trim());
         return number <= 0 ? stored : ChineseNumber(number) + "世";
     }
-#endif
 
     private static int FromRoman(string text)
     {

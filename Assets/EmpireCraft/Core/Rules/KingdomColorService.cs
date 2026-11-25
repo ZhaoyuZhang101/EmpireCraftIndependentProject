@@ -12,7 +12,6 @@ public static class KingdomColorService
 {
     // 周制(分封)：帝国(天子)用核心王国的颜色，诸侯各用各的颜色——不与天子同色，也尽量不与别的诸侯同色。
     // 分封出来的诸侯原先沿用宗主颜色，满图一片同色看不出列国
-#if EC_PENDING
     public static bool KeepsOwnColor(Realm member)
     {
         var empire = member?.GetEmpire();
@@ -22,6 +21,7 @@ public static class KingdomColorService
         return core.GetRegime()?.type == RegimeType.ZhouFeudalism || SouthernGarrisonSystem.IsGarrison(member);
     }
 
+#if EC_PENDING
     public static void EnsureDistinctInZhou(Realm member)
     {
         if (!KeepsOwnColor(member) || AncientWarfareCompatibility.Owns(member)) return;
@@ -127,7 +127,6 @@ public static class KingdomColorService
 #endif
 
     // 一家(周室或有共事部落的部落联盟)：基准帝国与它的诸侯、共事的部落(没有共事部落的部落联盟不算一家)
-#if EC_PENDING
     private static List<(Empire head, IEnumerable<Realm> members)> Families() => _families ?? BuildFamilies();
 
     private static List<(Empire head, IEnumerable<Realm> members)> BuildFamilies()
@@ -144,7 +143,6 @@ public static class KingdomColorService
                 result.Add((confederation, members));
         return result;
     }
-#endif
 
     // redraw：换了色当场整图重画；false 时只返回换没换(由调用方并着画)
 #if EC_PENDING

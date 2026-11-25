@@ -15,8 +15,8 @@ public sealed class NationMapColor : RecordObject<IdeologyMapColorData>
 {
     private Tint _color;
 
+    public override EntityKind KindOfEntity => MetaTypeExtension.Nation;
 #if EC_PENDING
-    public override MetaType meta_type => MetaTypeExtension.Nation;
     public override ColorLibrary getColorLibrary() => AssetManager.culture_colors_library;
 #endif
     public override Tint GetColor() => _color;

@@ -138,6 +138,7 @@ public static class ConsortKinSystem
             LogService.LogWarning($"[EmpireCraft][外戚] 年度结算失败: {exception.Message}");
         }
     }
+#endif
 
     private static void Purge(Empire empire, Person emperor, Person kin)
     {
@@ -169,7 +170,6 @@ public static class ConsortKinSystem
         emperor.RecordPersonalHistory(text, relatedActorId: kin.Key);
         TranslateHelper.LogEventMessage(text, empire.CoreKingdom);
     }
-#endif
 
     #endregion
 }

@@ -64,14 +64,12 @@ public static class PublicOpinionSystem
 
     private static ConstitutionalEconomyState State(Empire empire) => empire?.data?.constitutional_economy;
 
-#if EC_PENDING
     private static PartyIdeology? GetGoverning(Empire empire)
     {
         FixedFaction party = PartySystem.GetGovernmentParty(empire);
         if (party != null) return party.Ideology;
         return RepublicSystem.IsRepublic(empire) ? State(empire)?.republic_ideology : null;
     }
-#endif
 
     #region 年度结算
 
@@ -166,7 +164,6 @@ public static class PublicOpinionSystem
     private const int StrikeMandateLoss = 10;
     private const int GeneralStrikeMandateLoss = 3;
 
-#if EC_PENDING
     public static void ApplyStrikeEffects(Empire empire, ConstitutionalEconomyState state)
     {
         if (empire?.CoreKingdom == null || state == null) return;
@@ -177,7 +174,6 @@ public static class PublicOpinionSystem
                                      (strikeShare >= GeneralStrikeShare ? GeneralStrikeMandateLoss : 0)) * Backlash(empire));
         if (loss > 0) empire.AddMandate(-loss);
     }
-#endif
 
     // 宪法"意识形态强度"的两面(见 IdeologyEducationSystem)：
     //   · 外部侵蚀：敌对思潮的压力倍数。高强度宣传筑起思想防线，外部难以颠覆；放开意识形态则容易被外部思潮渗透；
@@ -197,7 +193,6 @@ public static class PublicOpinionSystem
         _ => 1f
     };
 
-#if EC_PENDING
     private static float ApplyProtests(Empire empire, ConstitutionalEconomyState state, out float demonstrationShare)
     {
         demonstrationShare = 0f;
@@ -227,7 +222,6 @@ public static class PublicOpinionSystem
         state.general_strike = general;
         return strikeShare;
     }
-#endif
 
     private static void Reset(ConstitutionalEconomyState state)
     {
@@ -324,7 +318,6 @@ public static class PublicOpinionSystem
         return best;
     }
 
-#if EC_PENDING
     private static void ApplyConsequences(Empire empire, ConstitutionalEconomyState state, int level,
         PartyIdeology? preferred)
     {
@@ -350,7 +343,6 @@ public static class PublicOpinionSystem
             institutions.class_grievances[socialClass] = Mathf.Min(100f, current + 3f * level * backlash);
         }
     }
-#endif
 
     #endregion
 
@@ -423,7 +415,6 @@ public static class PublicOpinionSystem
     public const int AcceptCooldownYears = 10;
     private const float ConcessionRelief = 0.15f, ConcessionDecay = 0.03f;
 
-#if EC_PENDING
     public static FixedFaction PreferredParty(Empire empire) =>
         TryGetPreferred(empire, out PartyIdeology preferred)
             ? PartySystem.GetParties(empire).Where(party => !party.Ban && party.Ideology == preferred)
@@ -445,6 +436,7 @@ public static class PublicOpinionSystem
         return true;
     }
 
+#if EC_PENDING
     public static bool AcceptPreferred(Empire empire)
     {
         ConstitutionalEconomyState state = State(empire);
@@ -484,6 +476,7 @@ public static class PublicOpinionSystem
         ParliamentSystem.Update(empire);
         return true;
     }
+#endif
 
     private static void Announce(Empire empire, string text)
     {
@@ -491,7 +484,6 @@ public static class PublicOpinionSystem
         EmpireCraft.Core.HistoryRecordSystem.RecordHistory(empire, directContent: text,
             kingdomId: empire.CoreKingdom?.Key ?? -1L);
     }
-#endif
 
     #endregion
 }

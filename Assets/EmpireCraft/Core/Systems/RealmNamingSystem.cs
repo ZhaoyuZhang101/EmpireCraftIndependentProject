@@ -28,7 +28,6 @@ public static partial class RealmNamingSystem
 
     public const string HuaxiaLine = "Huaxia", WesternLine = "Roma";
 
-#if EC_PENDING
     public static string LineOf(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone()) return "";
@@ -44,25 +43,18 @@ public static partial class RealmNamingSystem
 
     public static bool IsHuaxia(Realm kingdom) => LineOf(kingdom) == HuaxiaLine;
     public static bool IsHuaxia(Empire empire) => empire?.data != null && IsHuaxia(empire.CoreKingdom);
-#endif
 
     // 年号、庙号、谥号只属于华夏、日本两条文化线(用户 10-29 "你这个西方的年号和庙号什么的就很出戏")：
     // 以前按政体给(郡县制、周制、幕府都有年号，凡君主制先帝都定谥)，西方文化的帝国用了郡县制也有"年号明宜""法兰西懿宗"
-#if EC_PENDING
     public static bool UsesCourtNames(Realm kingdom) => LineOf(kingdom) is HuaxiaLine or "Japan";
     public static bool UsesCourtNames(Empire empire) => empire?.data != null && UsesCourtNames(empire.CoreKingdom);
-#endif
 
     // 西方：奉不奉教廷照风俗文化(同 PapacySystem.IsWestern)
-#if EC_PENDING
     public static bool IsWestern(Empire empire) => empire?.data != null && PapacySystem.IsWestern(empire);
     public static bool IsWestern(Realm kingdom) => LineOf(kingdom) == WesternLine;
-#endif
 
     // 帝国法理名(不带"帝国"之类的后缀)
-#if EC_PENDING
     public static string CoreName(EmpireCore core) => core == null ? "" : EmpireCoreNamingSystem.GetCoreBaseName(core);
-#endif
 
     // 正式的帝国法理(不含军阀临时子核心、争正统的伪核心)
     public static bool IsFormalCore(EmpireCore core) =>
@@ -74,7 +66,6 @@ public static partial class RealmNamingSystem
         core == null ? null : EmpireCoreManager.GetEmpires(core).FirstOrDefault(empire => empire != null && empire != except && !empire.IsArchived());
 
     // 天下基名：玩家定的基名 → 从天下整名里按本文明的格式拆出来 → 整名不带天下称呼词的就用整名 → 主核心名
-#if EC_PENDING
     public static string TianxiaBaseName(EmpireCore anyCore)
     {
         EmpireCore lead = TianxiaSystem.Lead(anyCore);
@@ -92,7 +83,6 @@ public static partial class RealmNamingSystem
         }
         return CoreName(lead);
     }
-#endif
 
     // 天下名的格式键(同 TianxiaSystem.Term 的换词)
     private static string TianxiaTermKey(EmpireCore lead)
@@ -109,7 +99,6 @@ public static partial class RealmNamingSystem
     }
 
     // 宗族记的祖上帝国法理：记了编号的直接取；旧档没记的按国号找同名的正式帝国法理，再按旧都城眼下所属的法理找
-#if EC_PENDING
     public static EmpireCore AncestralCore(SpecificClan clan)
     {
         if (clan == null || !clan.HasHistoryEmpire()) return null;
@@ -123,7 +112,6 @@ public static partial class RealmNamingSystem
         EmpireCore byCity = capital == null || capital.IsGone() ? null : capital.GetEmpireCore();
         return IsFormalCore(byCity) ? byCity : null;
     }
-#endif
 
     // 一片地一个帝国法理(用户 2026-10-20 定)：与现存帝国并立时另立的法理(绝嗣裂土的据地称帝、两朝分立)只算伪法理——
     // 不算正式法理(法理归属、天下照旧归原法理)，原朝亡后据有原法理过半即并回(TryLegitimizeFalseCore)。帝国法理名第一次生成时定下，此后不改

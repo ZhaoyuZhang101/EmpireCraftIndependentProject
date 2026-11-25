@@ -65,13 +65,11 @@ public static class CorpsSystem
     public static City Home(CorpsData corps) => EmpireWorld.Current?.CityByKey(corps.home_city_id) is City city &&
                                                 city.Record != null && !city.IsGone() ? city : null;
 
-#if EC_PENDING
     public static Cell Zone(CorpsData corps) => ZoneById(corps?.zone_id ?? -1);
 
     public static Cell ZoneById(int id) =>
         id >= 0 && EmpireWorld.Current?.Zones != null &&
-        EmpireWorld.Current.Zones._zones_dict_id.TryGetValue(id, out Cell zone) ? zone : null;
-#endif
+        EmpireWorld.Current.Zones.Lookup.TryGetValue(id, out Cell zone) ? zone : null;
 
     // 折合旧制军团数(按现有兵力)
     public static int Equivalent(CorpsData corps) => corps.full <= 0f || corps.strength <= 0f ? 0
@@ -392,7 +390,6 @@ public static class CorpsSystem
     private const int MaxCatchUpMonths = 6;
 
     // 这个月该不该结、结几个月的量(0 = 这个月轮不到)
-#if EC_PENDING
     private static int DueMonths(Realm kingdom, double now)
     {
         if (kingdom?.Record == null) return 1;
@@ -416,7 +413,6 @@ public static class CorpsSystem
         LastMonthTick[kingdom.Key] = (at, war);
         return span;
     }
-#endif
 
     // 补员、裁撤这一回放几个月的量(见 DueMonths)
     private static int _span = 1;
@@ -480,11 +476,9 @@ public static class CorpsSystem
     private const int SuePeaceMonths = 3;
 
     // 军饷欠发中：不补员、不新编(起义军不算)
-#if EC_PENDING
     public static bool Unpaid(Realm kingdom) =>
         Enabled && kingdom?.Record != null && !kingdom.IsGone() && kingdom.GetOrCreate().corps_pay_shortfall >= UnpaidShortfall &&
         !Insurgent(kingdom) && !BannerSystem.SelfSupplied(kingdom);
-#endif
 
     // 叛军、民变等起义军(在打叛乱一类的仗、是攻方)：以战养战，边打边掠——欠饷不罚、照样补员，也没有进攻门槛
     // (组织度再低也上阵、不退下去休整，见 FrontSystem.Assign)，只是战斗力打个折(InsurgentPower，见 FrontSystem.Effective)
@@ -521,7 +515,6 @@ public static class CorpsSystem
 
     // 打不起仗，不主动开战(含军阀联合另立政府)：军饷欠发；或没有野战军算不出欠饷的(多是小军阀)，
     // 国库不到安全储备的四分之一、经常收支还在亏
-#if EC_PENDING
     public static bool CannotFundWar(Realm kingdom)
     {
         if (Unpaid(kingdom)) return true;
@@ -530,10 +523,8 @@ public static class CorpsSystem
         TreasuryReport report = TreasurySystem.Report(kingdom);
         return report.months >= 3 && report.operating_balance < 0;
     }
-#endif
 
     // 下个月大约要发多少军饷(见 TransmigrantSystem.IssueScrip)：同 PayUpkeep，不算行军费
-#if EC_PENDING
     public static long MonthlyBill(Realm kingdom)
     {
         float soldiers = 0f, engaged = 0f;
@@ -548,6 +539,7 @@ public static class CorpsSystem
         return (long)Math.Ceiling(CityStabilityRules.CorpsAnnual(soldiers, IsAtWar(kingdom)) / 12d + engaged * BattleCostPerSoldier);
     }
 
+#if EC_PENDING
     private static void PayUpkeep(Realm kingdom)
     {
         // 骑士团的军由骑士团自己付饷(见 PapacySystem.Orders)
@@ -719,7 +711,6 @@ public static class CorpsSystem
     // 连欠三个月就罢兵求和(开国雄主的仗也一样)。按本国(连同所属帝国的核心王国)打得最久的那场仗算
     private const float WarLevyMonths = 9f;
 
-#if EC_PENDING
     private static float WarLevyShare(Realm kingdom, float peace)
     {
         // 集结的那几个月也算(见 WarMuster)：定了策就开始征，集结完兵也差不多征齐了
@@ -733,7 +724,6 @@ public static class CorpsSystem
         // 部众思归：游牧汗国打满两年以后兵源逐年打九折，至多六折(见 NomadCycleSystem)
         return Mathf.Lerp(peace, 1f, Mathf.Clamp01((months + 1) / WarLevyMonths)) * NomadCycleSystem.HomesickLevy(kingdom, months);
     }
-#endif
     // 起义军的正规军只征兵源的一半：仓促成军，一大半人编在义军里(见 RaiseMilitia)
     private const float InsurgentLevy = 0.5f;
 
@@ -821,7 +811,6 @@ public static class CorpsSystem
     }
 
     // 本国各军按兵种的平均饷银倍数(装备越先进越贵，见 CorpsArmSystem.Upkeep)；入关前的禁旅八旗只领行粮(见 BannerSystem.PayFactor)
-#if EC_PENDING
     private static float AverageUpkeep(Realm kingdom)
     {
         float men = 0f, weighted = 0f;
@@ -834,7 +823,6 @@ public static class CorpsSystem
         }
         return men > 0f ? weighted / men : banner;
     }
-#endif
 
     // 各军镇应有几支军、每支多少人；缺的当场征召，多的和平时退伍
 #if EC_PENDING
@@ -1056,14 +1044,12 @@ public static class CorpsSystem
     #region 手动组建(军事页"组建新军"，玩家反馈"在这两个界面里，弄一个添加……"，选"手动组建军团")
 
     // 发得起饷：国库有钱，不欠饷、不克扣；自备鞍马的外藩、以战养战的起义军不算
-#if EC_PENDING
     private static bool PaysWell(Realm kingdom)
     {
         Realm realm = FrontSystem.ModRealm(kingdom) ?? kingdom;
         return !Unpaid(kingdom) && !Unpaid(realm) && !BannerSystem.SelfSupplied(kingdom) && !Insurgent(kingdom) &&
                DynasticCycleSystem.PayArrears(kingdom) < UnpaidShortfall && realm.GetTreasuryBalance() > 0;
     }
-#endif
 
     // 驻地划给了同一帝国里的别国(行政区、封国)：正规军随驻地过去；正在攻守的、渡海先遣、手动组建、义军、骑士团的不动
     private static bool FollowsHome(Realm kingdom, CorpsData corps, City home)
@@ -1083,7 +1069,6 @@ public static class CorpsSystem
 
     public static int ManualCount(Realm kingdom) => Of(kingdom).Count(corps => corps.manual);
 
-#if EC_PENDING
     public static float ManualSize(Realm kingdom, City home)
     {
         List<CorpsData> regular = Of(kingdom).Where(corps => !corps.militia && corps.order_id < 0 && corps.parent_id < 0 &&
@@ -1094,19 +1079,15 @@ public static class CorpsSystem
     }
 
     public static int ManualCost(Realm kingdom, City home) => Mathf.CeilToInt(ManualSize(kingdom, home) * ManualCostPerPerson);
-#endif
 
     // 可以组建的驻地：本国有效兵源最多的几座城
-#if EC_PENDING
     public static List<City> ManualSeats(Realm kingdom, int count) =>
         kingdom?.Cities == null ? new List<City>()
             : kingdom.Cities.Where(city => city?.Record != null && !city.IsGone())
                 .OrderByDescending(CityPopulationSystem.LevyBackground).Take(count).ToList();
-#endif
 
     // 不能组建的原因(本地化键)，能组建返回空。fromTreasury：玩家在军事页亲手组建，可动用整个国库(连同保底储备)；
     // AI 只用可支配的钱。以前这里看国库总额、扣钱却只认可支配的钱，国库看着充足、点了没反应(群友 2026-11-11 报"国库充足都点了招募没有用")
-#if EC_PENDING
     public static string ManualBlocker(Realm kingdom, City home, bool fromTreasury = false)
     {
         if (!Enabled || kingdom?.Record == null || kingdom.IsGone() || home?.Record == null || home.Realm != kingdom)
@@ -1117,12 +1098,10 @@ public static class CorpsSystem
         if (CityPopulationSystem.LevyBackground(home) < ManualMin) return "corps_manual_no_people";
         return null;
     }
-#endif
 
     // 上回组建没成的原因(本地化键)，军事页点了没成时提示
     public static string LastManualFailure { get; private set; }
 
-#if EC_PENDING
     public static CorpsData RaiseManual(Realm kingdom, City home, bool fromTreasury = false)
     {
         LastManualFailure = ManualBlocker(kingdom, home, fromTreasury);
@@ -1146,10 +1125,8 @@ public static class CorpsSystem
             ShortStrength(corps.strength)));
         return corps;
     }
-#endif
 
     // 穿越降临带来的军(见 TransmigrantSystem.Land)：在落脚的城就地成军，按手动组建的军算(不按军制裁撤)，兵种直接给定
-#if EC_PENDING
     public static CorpsData RaiseLanding(Realm kingdom, City home, float people, CorpsArmSystem.Arm arm)
     {
         if (!Enabled || kingdom == null || home == null) return null;
@@ -1158,20 +1135,16 @@ public static class CorpsSystem
         corps.arm = (int)arm;
         return corps;
     }
-#endif
 
     // 事件编成的地方部队(见 TransmigrantSystem.Events)：按本国此刻该用的建制(或指定的建制，如团练成勇营)，不占手动组建的钱
-#if EC_PENDING
     public static CorpsData RaiseStanding(Realm kingdom, City home, float people, string formation = null)
     {
         if (!Enabled || kingdom == null || home == null) return null;
         return Raise(kingdom, home, LegionsPerCorps, people, GameClock.Now, manual: true, formation: formation);
     }
-#endif
 
     // 招募新军(见 TempFac_招募新军)(用户 2026-11-11 转群友"目前诉求没有招募新军吗？或加强军备"，"可以加")：兵源最多、够得上成军的几座城各成一军，
     // 兵额照本国一军的平均，按手动组建的军算(不按军制裁撤)，经费走诉求经费不另扣。返回成了的军
-#if EC_PENDING
     public static int RecruitSeats(Realm kingdom, int count) =>
         ManualSeats(kingdom, count).Count(city => CityPopulationSystem.LevyBackground(city) >= ManualMin);
 
@@ -1188,10 +1161,8 @@ public static class CorpsSystem
         }
         return raised;
     }
-#endif
 
     // 整军经武(见 TempFac_整军经武)：各正规军补足兵员(照常从兵源里补，兵源不够补不满)，士气、粮秣整顿一新。返回整顿了几支
-#if EC_PENDING
     public static int Refit(Realm kingdom)
     {
         if (!Enabled || kingdom?.Record == null || kingdom.IsGone()) return 0;
@@ -1206,7 +1177,6 @@ public static class CorpsSystem
         }
         return count;
     }
-#endif
 
     // 手动解散(交战中的不能解散)
 #if EC_PENDING
@@ -1232,7 +1202,6 @@ public static class CorpsSystem
         !Of(kingdom).Any(part => part.parent_id == corps.id);
 
     // 这支军能并进哪一支(没有为 null)
-#if EC_PENDING
     public static CorpsData MergeTarget(Realm kingdom, CorpsData corps)
     {
         if (!Enabled || kingdom?.Record == null || kingdom.IsGone() || !Mergeable(kingdom, corps)) return null;
@@ -1252,6 +1221,7 @@ public static class CorpsSystem
         return best;
     }
 
+#if EC_PENDING
     public static CorpsData MergeManual(Realm kingdom, CorpsData corps)
     {
         CorpsData into = MergeTarget(kingdom, corps);
@@ -1275,11 +1245,9 @@ public static class CorpsSystem
 
     #endregion
 
-#if EC_PENDING
     public static bool IsAtWar(Realm kingdom) =>
         kingdom != null && (kingdom.HasEnemies() || CityPopulationSystem.IsMobilizing(kingdom) ||
                             FrontSystem.ModRealm(kingdom) is Realm realm && realm != kingdom && realm.HasEnemies());
-#endif
 
     // 开局即有兵(世界地图剧本，见 WorldMapScenario)：照常按军制定各军镇的兵额、编军，编好的当场补满。返回全国兵力
     // reset：剧本开局先散掉进世界时月结已经编的军(那时还没划省，京师一国按全国编了军)，再照划好的行政区编
@@ -1304,7 +1272,6 @@ public static class CorpsSystem
         return ++data.corps_serial;
     }
 
-#if EC_PENDING
     private static CorpsData Raise(Realm kingdom, City home, int legions, float people, double now, bool militia = false,
         bool manual = false, string formation = null, long orderId = -1L)
     {
@@ -1323,10 +1290,8 @@ public static class CorpsSystem
         FormationSystem.Ensure(kingdom, corps);
         return corps;
     }
-#endif
 
     // 骑士团的军：在驻地城组建、补员、解散(见 PapacySystem.Orders)
-#if EC_PENDING
     public static CorpsData RaiseOrderCorps(Realm host, City home, float people, long orderId)
     {
         if (!Enabled || host?.Record == null || home?.Record == null) return null;
@@ -1339,7 +1304,6 @@ public static class CorpsSystem
         if (host?.Record == null || corps == null || amount <= 0f || corps.embarked || corps.supply < 0.5f) return;
         Reinforce(host, corps, amount);
     }
-#endif
 
     // 从本国各城的背景人口里征兵(义军只从本城征)：就近补员——先从离这支军最近的几座本国城征，
     // 离本国城越远补上来的越少(每离 15 块地块打一半)；近处征不够再按动员范围、全国抽(见 WarScopeSystem)
@@ -1374,7 +1338,6 @@ public static class CorpsSystem
     }
 
     // 募兵：从指定的城(可以是别国的城)招人补进这支军，来源随军记着，退伍时还回去(见 TransmigrantSystem.Recruit)
-#if EC_PENDING
     public static float Enlist(Realm kingdom, CorpsData corps, City from, float amount)
     {
         if (kingdom?.Record == null || corps == null || from?.Record == null || from.IsGone()) return 0f;
@@ -1382,7 +1345,6 @@ public static class CorpsSystem
         Reinforce(kingdom, corps, amount, from);
         return corps.strength - before;
     }
-#endif
 
     // 这支军还差多少人满编：分出去的先遣军算在本军名下，真减员才补，补员不会多出人来(所有补员、募兵入口共用)。先遣军自己不补员
     public static float Deficit(Realm kingdom, CorpsData corps)
@@ -1394,7 +1356,6 @@ public static class CorpsSystem
         return Mathf.Max(0f, corps.full - held);
     }
 
-#if EC_PENDING
     private static void Reinforce(Realm kingdom, CorpsData corps, float amount, City only = null)
     {
         // 缺额够一个人就至少补一个：以前按满编的成数算不到一人就不补，满编十几二十人的小军永远补不上(8/22 一挂好多年)
@@ -1445,7 +1406,6 @@ public static class CorpsSystem
         corps.strength += taken;
         if (taken > 0f) CityPopulationSystem.InvalidateHouseholdCaches();
     }
-#endif
 
     // 退伍：按来源还回人口
     private static void Demobilize(Realm kingdom, CorpsData corps, float amount)
@@ -1546,7 +1506,6 @@ public static class CorpsSystem
     // (见 FrontSystem.ResolveCity)；不补员、不另占兵额，仗打完并回原军。起义军不分
     private const float VanguardShare = 0.03f, VanguardMin = 100f, VanguardMax = 800f, VanguardParent = 3000f;
 
-#if EC_PENDING
     private static void EnsureVanguard(Realm kingdom)
     {
         List<CorpsData> list = Of(kingdom);
@@ -1560,7 +1519,6 @@ public static class CorpsSystem
         part.vanguard = true;
         FrontSystem.Log(kingdom, string.Format(LM.Get("corps_log_vanguard"), Name(parent), Mathf.RoundToInt(part.strength)));
     }
-#endif
 
     // 残军合并(群友 2026-11-22 "要是能合并军团就好了")：同一军镇的两支军都在待命、站在同一块地上，合起来还装得进
     // 其中一支的满编，就并成一支(留兵多的那支的番号)。战时才并——平时多出来的军本来就解散。
@@ -1607,7 +1565,6 @@ public static class CorpsSystem
         LegionPopulationRules.ReduceTo(corps.population, corps.strength);
     }
 
-#if EC_PENDING
     private static void Recover(Realm kingdom)
     {
         // 欠饷时组织度回不满(见 PayUpkeep)：溃退的军回到上限附近就归建，不会永远卡在溃退休整
@@ -1630,7 +1587,6 @@ public static class CorpsSystem
             else if (corps.task != "defend") corps.entrench = 0f;
         }
     }
-#endif
 
     // 开启军团模式前征召的实体兵(一团一个)：超出守兵额的并入本国军团，实体并回人口
     private const int MaxAbsorbPerKingdom = 12;
@@ -1748,8 +1704,8 @@ public static class CorpsSystem
         if (army == null) return;
         foreach (var office in OfficeManager.Offices.Values.Where(office => office?.meta_object == army).ToList())
             office.RemoveActor();
-        Person captain = army.getCaptain();
-        foreach (Person soldier in army.units.ToList())
+        Person captain = army.GetCaptain();
+        foreach (Person soldier in army.People.ToList())
         {
             if (soldier?.Record == null || soldier.IsGone()) continue;
             soldier.removeFromArmy();
@@ -1764,7 +1720,6 @@ public static class CorpsSystem
     #region 义军
 
     // 起义、革命：在本城武装一支义军(取代原来的 count 个实体义军兵)，返回动员的人数
-#if EC_PENDING
     public static int RaiseMilitia(City city, int count, float share)
     {
         if (city?.Realm == null || city.IsGone() || count <= 0) return 0;
@@ -1788,7 +1743,6 @@ public static class CorpsSystem
         RebuildIndex();
         return count;
     }
-#endif
 
     #endregion
 
@@ -1974,6 +1928,7 @@ public static class CorpsSystem
         Paths.Remove(corps.id);
         Transfer(corps, from, captor, captor.Capital);
     }
+#endif
 
     public static void Transfer(CorpsData corps, Realm from, Realm to, City home)
     {
@@ -1988,7 +1943,6 @@ public static class CorpsSystem
         FormationSystem.Reassign(to, corps, former);
         RebuildIndex();
     }
-#endif
 
     // 统领被俘归降(见 BattleDrama)：不再统领这支军，组织度大挫，下个月补任
     public static void LoseGeneral(Person actor)
@@ -2003,7 +1957,6 @@ public static class CorpsSystem
     }
 
     // 统领阵亡：组织度大挫，下个月补任
-#if EC_PENDING
     public static void OnGeneralDied(Person actor)
     {
         if (actor?.Record == null || !GeneralIndex.TryGetValue(actor.Key, out var key)) return;
@@ -2015,7 +1968,6 @@ public static class CorpsSystem
         corps.org = Mathf.Max(0f, corps.org - 20f);
         FrontSystem.Log(kingdom, string.Format(LM.Get("corps_log_general_killed"), Name(corps), actor.FullName()));
     }
-#endif
 
     // 军团在地块上一格一格挪向目标(跨海登陆要有航线与运力，见 FrontSystem / NavySystem)
 #if EC_PENDING
@@ -2174,7 +2126,6 @@ public static class CorpsSystem
 #endif
 
     // 船走的路线：只走登陆航线上的海区(不进敌方制海的海区)，海面上尽量沿航线(见 RoadNetwork.SeaPath)；寻不到返回空表
-#if EC_PENDING
     private static List<int> Voyage(CorpsData corps, Cell from, Cell landing)
     {
         if (from == null || landing == null || corps.sea_route == null) return new List<int>();
@@ -2183,13 +2134,11 @@ public static class CorpsSystem
             zone => SeaRegionSystem.Of(zone) is { } region && regions.Contains(region.Id));
         return path == null || path.Count < 2 ? new List<int>() : path.Select(zone => zone.Index).ToList();
     }
-#endif
 
     // 船队每秒沿海上路线走 SailZones 块(与舰队相当)，驶入航线上的下一个海区可能遭截击，到了登陆；
     // 旧存档(没有路线)先补算一条；寻不到路线时照旧每 SailSteps 秒前进一个海区，过了最后一个海区登陆
     private const int SailSteps = 4, SailZones = 2;
 
-#if EC_PENDING
     private static void Sail(CorpsData corps)
     {
         if (corps.sea_route == null || corps.sea_route.Count == 0)
@@ -2265,10 +2214,8 @@ public static class CorpsSystem
         FrontSystem.Log(kingdom, string.Format(LM.Get("corps_log_landed"), Name(corps), city.GetCityName()));
         FrontSystem.Log(city.Realm, string.Format(LM.Get("corps_log_enemy_landed"), kingdom.GetKingdomName(), city.GetCityName()));
     }
-#endif
 
     // 船队驶入敌方制海的海区遭截击：没有护航折损一成五，有护航减半；组织度 -15
-#if EC_PENDING
     private static void Intercept(CorpsData corps, SeaRegionSystem.Region region)
     {
         Realm kingdom = EmpireWorld.Current.RealmByKey(corps.kingdom_id);
@@ -2278,7 +2225,6 @@ public static class CorpsSystem
         corps.org = Mathf.Max(0f, corps.org - 15f);
         FrontSystem.Log(kingdom, string.Format(LM.Get("corps_log_intercepted"), Name(corps), Mathf.RoundToInt(loss * 100f)));
     }
-#endif
 
     // 行军路线：按地块寻路，绕开原版最高的地形(见 TerrainSystem.Impassable)；路线按目标缓存，
     // 走偏了(撤退、改派)或目标变了再重算；找不到路就朝目标就近挪一块可走的地。
@@ -2869,13 +2815,10 @@ public static class CorpsSystem
 
     // 从 from 走进相邻的 to 被无人区挡住：to 是 side 过不去的无人区，from 不是(困在无人区里的可以接着在里面走，好走出去)；
     // 不给 side 的不看(同城墙)
-#if EC_PENDING
     private static bool WildBlocks(Cell from, Cell to, Realm side) =>
         side != null && !WildernessPassage.Passable(to, side) && WildernessPassage.Passable(from, side);
-#endif
 
     // 诊断：寻路被城墙挡过的军(每 5 秒最多一行)
-#if EC_PENDING
     private static void LogWallPath(CorpsData corps, Realm side, List<int> path, int blocked)
     {
         float now = Time.unscaledTime;
@@ -2884,7 +2827,6 @@ public static class CorpsSystem
         string result = path == null || path.Count < 2 ? "找不到路，就近挪到墙边" : $"绕行，路线 {path.Count - 1} 块";
         LogService.LogInfo($"[EmpireCraft][城墙隔断] {side?.Name} {Name(corps)} 寻路时 {blocked} 处被城墙挡住：{result}");
     }
-#endif
 
     public static float ZoneDistance(Cell a, Cell b) =>
         a == null || b == null ? float.MaxValue : Mathf.Max(Mathf.Abs(a.X - b.X), Mathf.Abs(a.Y - b.Y));
@@ -2892,7 +2834,6 @@ public static class CorpsSystem
     // 还要几个月走到目标(手机上的军队条子；用户 2026-11-16 "要是能看到这些士兵的当前任务和预计到达时间就好了")：
     // 有缓存的路线按路线的块数，没有按直线块数；速度取这一拍的行军速度(停着的按兵种的平地速度)；一个月 5 秒世界时长。
     // 已到、没目标、在船上、被围的给 -1(手机写"驻在原地""渡海中""被围")
-#if EC_PENDING
     public static int EtaMonths(CorpsData corps)
     {
         if (corps == null || corps.embarked || corps.pocket_months > 0) return -1;
@@ -2909,6 +2850,7 @@ public static class CorpsSystem
         return Mathf.Max(1, Mathf.CeilToInt(seconds / 5f));
     }
 
+#if EC_PENDING
     private static void MoveGeneral(CorpsData corps)
     {
         if (corps.general_id < 0) return;
@@ -2947,7 +2889,6 @@ public static class CorpsSystem
         return number + suffix;
     }
 
-#if EC_PENDING
     public static string Name(CorpsData corps)
     {
         if (corps.militia)
@@ -2958,7 +2899,6 @@ public static class CorpsSystem
         string format = LM.Get("corps_name");
         return string.Format(format, format.StartsWith("{0}") ? Ordinal(corps.serial) : Chinese(corps.serial));
     }
-#endif
 
     // 兵力简写：中文按"万"，英文按 k
     public static string ShortStrength(float people)

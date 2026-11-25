@@ -54,7 +54,6 @@ public static class HistoryRecordSystem
         return new List<string>();
     }
 
-#if EC_PENDING
     public static void RecordHistory(this Empire empire, EmpireHistoryType type = default, Dictionary<string, string> recordInfo = null,
         string directContent = null, long actorId = -1L, long kingdomId = -1L, bool prepend = false)
     {
@@ -226,7 +225,6 @@ public static class HistoryRecordSystem
             else empire.data.currentHistory.descriptions.Add(description);
         }
     }
-#endif
     
     // 皇位空缺时的史书页：先帝那一朝(已收进 history)；有在位皇帝或本朝页已开时为空
     private static EmpireCraftHistory VacancyPage(Empire empire)
@@ -247,7 +245,6 @@ public static class HistoryRecordSystem
         return string.IsNullOrEmpty(last) ? GameClock.DateText(GameClock.Now) : last;
     }
 
-#if EC_PENDING
     public static void RecordNewEmperorHistory(this Empire empire, bool isNew)
     {
         // 即位过程中(篡位后果、分裂等)已经为新君写下的记事：并进新开的一页，不随旧页丢掉
@@ -314,6 +311,5 @@ public static class HistoryRecordSystem
         }
         
     }
-#endif
 }
 }

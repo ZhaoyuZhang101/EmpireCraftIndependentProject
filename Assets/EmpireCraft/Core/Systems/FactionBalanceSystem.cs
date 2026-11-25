@@ -39,21 +39,17 @@ public static class FactionBalanceSystem
     private const float Onset = 30f, WarnAt = 40f, CalmAt = 20f;
     private const float StrainShare = 0.6f;
 
-#if EC_PENDING
     public static bool Applies(Empire empire) =>
         CourtSystem.Applies(empire) && empire.CoreKingdom?.GetRegime()?.type != RegimeType.Modern &&
         !RepublicSystem.IsRepublic(empire) && !TransmigrantSystem.Governs(empire);
 
     public static float Imbalance(Empire empire) => Applies(empire) ? Mathf.Clamp(empire.data.faction_imbalance, 0f, 100f) : 0f;
-#endif
 
     // 失衡度换成 0~1 的轻重(30 以下不算)
-#if EC_PENDING
     private static float Severity(Empire empire) => Mathf.Clamp01((Imbalance(empire) - Onset) / (100f - Onset));
 
     public static FixedFaction Dominant(Empire empire) =>
         Applies(empire) ? CourtSystem.FindFaction(empire, empire.data.faction_imbalance_id) : null;
-#endif
 
     public static Direction DirectionOf(FixedFaction faction) => faction?.Type switch
     {
@@ -68,9 +64,7 @@ public static class FactionBalanceSystem
         _ => Direction.Generic
     };
 
-#if EC_PENDING
     public static Direction Current(Empire empire) => Severity(empire) > 0f ? DirectionOf(Dominant(empire)) : Direction.None;
-#endif
 
     public static string DirectionName(Direction direction) => LM.Get("faction_imbalance_" + direction.ToString().ToLowerInvariant());
 
@@ -102,6 +96,7 @@ public static class FactionBalanceSystem
             LogService.LogWarning($"[EmpireCraft][派系平衡] 年度结算失败: {exception.Message}");
         }
     }
+#endif
 
     private static void Advance(Empire empire, FixedFaction top)
     {
@@ -131,7 +126,6 @@ public static class FactionBalanceSystem
         // 幕府将军执政：挟制是常态，不再加重失衡(用户 2026-10-21 选"积弊按将军算")
         return empire.data.is_been_controlled && MilitaryRegency.KindOf(empire) != MilitaryRegency.Shogun ? factor * 1.3f : factor;
     }
-#endif
 
     // 制衡：扶植次大派系，独大的一派让出占比(派系占比此消彼长，见 KingdomExtension.TryIncreaseFactionRatio)
 #if EC_PENDING
@@ -156,6 +150,7 @@ public static class FactionBalanceSystem
         if (!empire.CoreKingdom.TryIncreaseFactionRatio(second, amount)) return;
         CourtSystem.Log(CourtSystem.State(empire), "faction_balance_boost", decider.FullName(), second.Name, top.Name);
     }
+#endif
 
     private static void Consequences(Empire empire, List<FixedFaction> factions, FixedFaction top)
     {
@@ -196,10 +191,8 @@ public static class FactionBalanceSystem
                 break;
         }
     }
-#endif
 
     // 过 40 记"一家独大"，回落到 20 以下记"复归平衡"
-#if EC_PENDING
     private static void Chronicle(Empire empire, FixedFaction top)
     {
         float imbalance = empire.data.faction_imbalance;
@@ -217,7 +210,6 @@ public static class FactionBalanceSystem
             empire.RecordHistory(directContent: string.Format(LM.Get("history_faction_rebalanced"), empire.GetEmpireName()));
         }
     }
-#endif
 
     #endregion
 
@@ -237,12 +229,9 @@ public static class FactionBalanceSystem
 #endif
 
     // 外戚干政：失衡度 40 起外戚随时有撑腰(见 ConsortKinSystem.Backed)
-#if EC_PENDING
     public static bool BacksConsortKin(Empire empire) => Current(empire) == Direction.Consort && Imbalance(empire) >= WarnAt;
-#endif
 
     // 武人跋扈：禁军忠诚的目标值往下压(见 PalaceArmySystem)
-#if EC_PENDING
     public static float PalaceUnrest(Empire empire) => Current(empire) switch
     {
         Direction.Military => 30f * Severity(empire),
@@ -250,22 +239,17 @@ public static class FactionBalanceSystem
         Direction.Eunuch => 15f * Severity(empire),
         _ => 0f
     };
-#endif
 
     // 各省离心(见 ProvincialCollapseSystem.Crisis)：武人跋扈(藩镇)、诸侯坐大
-#if EC_PENDING
     public static float CollapseFactor(Empire empire) => Current(empire) switch
     {
         Direction.Military => 0.5f * Severity(empire),
         Direction.Regional => 0.6f * Severity(empire),
         _ => 0f
     };
-#endif
 
     // 王朝积弊每年多涨多少(见 DynasticCycleSystem)
-#if EC_PENDING
     public static float StrainDelta(Empire empire) => Imbalance(empire) / 100f * StrainShare;
-#endif
 
     // 改朝换代：新朝重组朝局，只留三成
     public static void OnDynastyChanged(Empire empire)

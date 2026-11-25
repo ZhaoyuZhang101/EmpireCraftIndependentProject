@@ -17,7 +17,7 @@ public class EmpireCraftKingdomBehCheckHeir : GameAIKingdomBase
     public override Type OriginalBeh => GetType();
 
 #if EC_PENDING
-    public override BehResult execute(Realm kingdom)
+    public override BehResult Execute(Realm kingdom)
     {
         if (kingdom?.Record == null || EmpireCraft.Core.AncientWarfareCompatibility.OwnsObject(kingdom))
             return BehResult.Continue;
@@ -132,11 +132,11 @@ public class EmpireCraftKingdomBehCheckHeir : GameAIKingdomBase
     private const int GrownAge = 16, TenderAge = 6;
 
     // 不立娃娃、兄终弟及的政体：游牧、阿拉伯、原始部落
-#if EC_PENDING
     private static bool SeniorFirst(Realm kingdom) =>
         kingdom?.GetRegime()?.type is RegimeType.YouMu or RegimeType.NomadFeudalism or RegimeType.Arabic or RegimeType.Origin
             or RegimeType.OriginFeudalism;
 
+#if EC_PENDING
     public static (Person actor, string relation) ResolveHeir(Realm kingdom, bool allowFallback,
         PersonalClanIdentity predecessor = null)
     {
@@ -279,7 +279,6 @@ public class EmpireCraftKingdomBehCheckHeir : GameAIKingdomBase
 
     // 钦定的储君：在世、可继位、仍是先君子嗣(新君即位后自然失效)
     // 剧本继承名单里头一位还在本国(帝国连同成员)、还能继位的；死了、被俘、已经即位的划掉
-#if EC_PENDING
     private static Person ScriptedHeir(Realm kingdom)
     {
         List<long> heirs = kingdom.GetOrCreate().scripted_heirs;
@@ -294,6 +293,7 @@ public class EmpireCraftKingdomBehCheckHeir : GameAIKingdomBase
         return id < 0L ? null : EmpireWorld.Current.PersonByKey(id);
     }
 
+#if EC_PENDING
     private static Person DesignatedHeir(Realm kingdom, PersonalClanIdentity parent)
     {
         var data = kingdom.GetOrCreate();
@@ -367,7 +367,6 @@ public class EmpireCraftKingdomBehCheckHeir : GameAIKingdomBase
     //   · 任何文化：别的帝国的皇帝不入继——两朝、两个帝国不因继承法合到一人身上。
     // 一朝绝嗣、群臣迎立另一朝皇帝兼承大统另走廷议(见 SuccessionCouncilSystem、EmpirePartitionSystem.Reunite)；
     // 西方封建、古典共和王国之间的共主联盟不受此限(见 PersonalUnionService)
-#if EC_PENDING
     public static bool ForeignRuler(Realm kingdom, Person actor)
     {
         if (kingdom == null || actor?.Record == null || !actor.IsRuler() || actor.Realm == null || actor.Realm == kingdom) return false;
@@ -383,12 +382,10 @@ public class EmpireCraftKingdomBehCheckHeir : GameAIKingdomBase
             return false;
         }
     }
-#endif
 
     // 华夏一系不立女主(用户 2026-10-14："不会存在女帝，尤其是华夏，至少继承法不会支持")：宗室继承本就只传男，
     // 群臣劝进的权臣重臣、从都城人口里落成的人、已定下的继承人也照此。以前皇族无人可继时劝进的重臣是女子，
     // 女帝与皇夫所生的子女读档时被挪进皇夫一族，帝系就改了姓(聂高日之后成了崔氏)
-#if EC_PENDING
     public static bool MaleOnlyThrone(Realm kingdom)
     {
         if (kingdom?.Record == null) return false;
@@ -405,6 +402,7 @@ public class EmpireCraftKingdomBehCheckHeir : GameAIKingdomBase
     public static bool BarredBySex(Realm kingdom, Person actor) =>
         actor?.Record != null && actor.Sex != Sex.Male && MaleOnlyThrone(kingdom);
 
+#if EC_PENDING
     private static Person Pick(Realm kingdom, IEnumerable<PersonalClanIdentity> candidates, PersonalClanIdentity parent,
         out PersonalClanIdentity selected)
     {
@@ -526,7 +524,6 @@ public class EmpireCraftKingdomBehCheckHeir : GameAIKingdomBase
 #endif
 
     // 议立新君的宗室人选池：先君以外、可以继位的宗亲(兄弟、叔侄、族人)，附亲疏(隔几代)
-#if EC_PENDING
     public static List<(PersonalClanIdentity person, int kinship)> CollateralPool(Realm kingdom, PersonalClanIdentity parent)
     {
         var result = new List<(PersonalClanIdentity, int)>();
@@ -553,7 +550,6 @@ public class EmpireCraftKingdomBehCheckHeir : GameAIKingdomBase
         if (direct.Count > 0) return result;
         return PrinceLineage.PreferPrinces(result, item => item.Item1);
     }
-#endif
 
     // 出生先后(生日"11,062年5月20日")；解析不了按编号
     private static long BirthKey(PersonalClanIdentity person)

@@ -193,10 +193,8 @@ public static class WildernessPlotSystem
     }
 
     // 开满了、或已不在无人区里的空地(开发中途零碎得不成片的)：县城领得进来
-#if EC_PENDING
     private static bool Opened(Cell zone) =>
-        zone != null && zone.City == null && zone.GroundTiles > 0 && !WildernessSystem.IsWild(zone);
-#endif
+        zone != null && zone.City == null && zone.GroundCount > 0 && !WildernessSystem.IsWild(zone);
 
     // 解锁(见类头)：县治那块开发过半，或全县平均开发到 UnlockAverage；average 为全县平均(已归城的、开满的按满算)
     private static bool Unlocked(WildPlot plot, out float average)
@@ -489,7 +487,6 @@ public static class WildernessPlotSystem
 #endif
 
     // 零星几块并进挨着的县址(一圈圈往里并)；strict(这几块挨着城)：只隔着平地(交界代价不过 MergeCost)才并。返回并进几块
-#if EC_PENDING
     private static int Attach(List<int> zones, ZoneGrid calc, int full, bool strict)
     {
         var pending = new List<int>(zones);
@@ -524,7 +521,6 @@ public static class WildernessPlotSystem
         }
         return count;
     }
-#endif
 
     // 划分用的图：一块块地(下标)、四邻(-1 没有)与走过去的代价、县治偏好
     private sealed class Graph
@@ -573,7 +569,6 @@ public static class WildernessPlotSystem
 #endif
 
     // 走进这块地的代价(见常量)
-#if EC_PENDING
     private static float Enter(Cell zone)
     {
         if (zone?.Tiles == null) return 1f + RidgeCost;
@@ -588,9 +583,8 @@ public static class WildernessPlotSystem
     private static float WaterShare(Cell zone)
     {
         int size = Land.ZoneSize * Land.ZoneSize;
-        return Mathf.Clamp01(1f - zone.GroundTiles / (float)size);
+        return Mathf.Clamp01(1f - zone.GroundCount / (float)size);
     }
-#endif
 
     // a、b 交界(四邻)两边贴着的格子对里，不是两边都是干地平地(水面、山地山巅、阻挡格都算挡)的占几成(同 TerrainSystem.Crossable 数路口)
     private static float Barrier(Cell a, Cell b)
@@ -944,18 +938,15 @@ public static class WildernessPlotSystem
     }
 
     // 人多地少：人口 ÷ 上限
-#if EC_PENDING
     private static float Pressure(City city)
     {
-        int max = city.getPopulationMaximum();
+        int max = city.GetPopulationMaximum();
         if (max <= 0) return 0f;
         float people = CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.GetTotal(city) : city.PopulationCount();
         return people / max;
     }
-#endif
 
     // 迁人的城：本国挨着这一县(八邻)的城里人口压力最大的，一样的取近的；没有挨着的取本国离县治最近的
-#if EC_PENDING
     private static City SourceOf(WildPlot plot, Realm founder, Cell seat)
     {
         Cell at = seat.Center;
@@ -984,7 +975,6 @@ public static class WildernessPlotSystem
         return founder.Cities?.Where(city => city?.Record != null && !city.IsGone() && city.SeatCell() != null)
             .OrderBy(city => Land.SquaredDist(city.SeatCell(), at)).FirstOrDefault();
     }
-#endif
 
     // 设县(见类头)：每帧至多一县，到时再核一遍
 #if EC_PENDING
@@ -1112,7 +1102,6 @@ public static class WildernessPlotSystem
     }
 
     // 经 CityPlacementSystem.Found 建的城(神力建城、本系统设县)：是县址的县城就照预定县名改名
-#if EC_PENDING
     public static void OnFounded(City city)
     {
         try
@@ -1127,11 +1116,9 @@ public static class WildernessPlotSystem
             LogService.LogWarning($"[EmpireCraft][县址] 县城改名失败: {exception.Message}");
         }
     }
-#endif
 
     // 县城照预定县名改名(同穿越者改临高，见 TransmigrantSystem.RenameCity)：名字记进这座城主流文化的名录，换了文化再换回来还是它；
     // 还没定名的县址拿县城的名字作县名
-#if EC_PENDING
     private static void Rename(WildPlot plot, City city)
     {
         if (city?.Record == null) return;
@@ -1148,7 +1135,6 @@ public static class WildernessPlotSystem
         city.RefreshCityDisplayName();
         CultureService.RecordCityCulturalName(city, CultureService.GetMainCulture(city, initialize: false), city.Name);
     }
-#endif
 
     #endregion
 
@@ -1205,14 +1191,14 @@ public static class WildernessPlotSystem
             string name = null;
             for (int attempt = 0; attempt < NameAttempts && name == null; attempt++)
             {
-                string generated = CultureService.GenerateCulturalName(MetaType.City, plot.id * 7919L + attempt * 104729L + 17L, culture);
+                string generated = CultureService.GenerateCulturalName(EntityKind.City, plot.id * 7919L + attempt * 104729L + 17L, culture);
                 if (!string.IsNullOrWhiteSpace(generated) && !used.Contains(generated)) name = generated;
             }
             // 这个文化眼下找不到活着的人借来起名(无小人模式人少)：用原版文化的城名词库起一个
             if (name == null)
             {
-                string generated = CulturePatch.GetOnomasticDataSafe(CultureService.GetNativeCultureObject(culture), MetaType.City)
-                    ?.generateName()?.UseLocalizedNameSeparator();
+                string generated = Cultures.NameParts(CultureService.GetNativeCultureObject(culture), EntityKind.City)
+                    ?.GenerateName()?.UseLocalizedNameSeparator();
                 if (!string.IsNullOrWhiteSpace(generated) && !used.Contains(generated)) name = generated;
             }
             if (name == null) continue;
@@ -1229,7 +1215,6 @@ public static class WildernessPlotSystem
     #region 提示
 
     // 悬停提示一行(见 WildernessOverlay.ShowTooltip)：预定县名(没名的写"未定名")与状态——未开(几块、平均开发几成)、已解锁待设、已设县某城
-#if EC_PENDING
     public static bool Describe(Cell zone, out string value)
     {
         value = "";
@@ -1243,7 +1228,6 @@ public static class WildernessPlotSystem
         else value = string.Format(LM.Get("wild_plot_locked"), name, plot.zones.Count, Mathf.FloorToInt(average));
         return true;
     }
-#endif
 
     // 提示换没换(悬停时每帧比一次，见 WildernessOverlay.Hover)：哪个县址、平均开发的整数、状态、起没起名；不在县址里为 -1
     public static int TipKey(Cell zone)

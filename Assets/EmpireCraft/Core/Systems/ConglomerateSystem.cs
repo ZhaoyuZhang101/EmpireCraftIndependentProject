@@ -54,29 +54,24 @@ public static class ConglomerateSystem
     private static SpecificClan ClanOf(long id) =>
         id < 0 ? null : SpecificClanManager._specificClans.FirstOrDefault(clan => clan != null && clan.id == id);
 
-#if EC_PENDING
     public static bool Applies(Empire empire)
     {
         if (empire?.CoreKingdom == null || empire.IsGone() || empire.IsArchived() || State(empire) == null) return false;
         if (TransmigrantSystem.Governs(empire) || State(empire).nationalization >= ModernPolicySystem.Nationalized) return false;
         return TechnologySystem.GetEraTier(InstitutionSystem.GetPrimaryCulture(empire)) >= EconomicCycleSystem.IndustrialEra;
     }
-#endif
 
     // 本国工业的规模：各城厂区里的厂按档次合计
-#if EC_PENDING
     public static int Industry(Empire empire)
     {
         int total = 0;
         foreach (City city in ClaimPolicySystem.Cities(empire)) total += FactorySystem.Units(city);
         return total;
     }
-#endif
 
     #region 年度
 
     // 每年(ConstitutionalEconomySystem)
-#if EC_PENDING
     public static void Update(Empire empire, ConstitutionalEconomyState state)
     {
         if (empire?.CoreKingdom == null || state == null) return;
@@ -175,7 +170,6 @@ public static class ConglomerateSystem
             : string.Format(LM.Get(gentry ? "conglomerate_founded_gentry_history" : "conglomerate_founded_history"),
                 gentry ? GentrySystem.JunWang(pick) : surname, seat?.GetCityName() ?? empire.GetEmpireFullName(), house.name));
     }
-#endif
 
     // 财阀押的党：台上的不是左翼就押台上的，否则押最亲商的那个合法政党
     private static readonly PartyIdeology[] BusinessFriendly =
@@ -185,7 +179,6 @@ public static class ConglomerateSystem
         PartyIdeology.SocialLiberalism
     };
 
-#if EC_PENDING
     private static FixedFaction Patron(Empire empire)
     {
         if (!PartySystem.IsActive(empire)) return null;
@@ -196,7 +189,6 @@ public static class ConglomerateSystem
             if (parties.FirstOrDefault(party => party.Ideology == ideology) is { } friendly) return friendly;
         return null;
     }
-#endif
 
     // 这个党一年从财阀那里得的献金(见 PartyFinanceSystem.Income)
     public static float Donations(Empire empire, FixedFaction party)
@@ -237,7 +229,6 @@ public static class ConglomerateSystem
     }
 
     // 国有化：各家财阀收归国有
-#if EC_PENDING
     internal static void Nationalize(Empire empire)
     {
         ConstitutionalEconomyState state = State(empire);
@@ -247,7 +238,6 @@ public static class ConglomerateSystem
         state.conglomerates.Clear();
         EventRecorder.RecordRoutine(empire, string.Format(LM.Get("conglomerate_nationalized_history"), empire.GetEmpireFullName(), names));
     }
-#endif
 
     #endregion
 
@@ -256,7 +246,6 @@ public static class ConglomerateSystem
     // 政府首脑是不是出自财阀的宗族(一年看一回)
     private static readonly Dictionary<long, (int year, bool value)> OfficeCache = new();
 
-#if EC_PENDING
     public static bool InOffice(Empire empire)
     {
         ConstitutionalEconomyState state = State(empire);
@@ -268,10 +257,8 @@ public static class ConglomerateSystem
         OfficeCache[empire.Key] = (year, value);
         return value;
     }
-#endif
 
     // 游说(见 ClaimAgendaSystem.GetUrgency)：垄断越重，冲着财阀来的议题越提不上议程，合财阀意的越急
-#if EC_PENDING
     public static float Lobby(Empire empire, TemporaryFactionType type, float urgency)
     {
         if (urgency <= 0f) return urgency;
@@ -287,10 +274,8 @@ public static class ConglomerateSystem
             _ => urgency
         };
     }
-#endif
 
     // 政商丑闻：财阀扶持的党在台上，每年有机会案发(八年至多一回)
-#if EC_PENDING
     private static void Scandal(Empire empire, ConstitutionalEconomyState state)
     {
         float weight = Monopoly(state);
@@ -305,10 +290,8 @@ public static class ConglomerateSystem
         ClaimPolicySystem.AddGrievance(empire, SocialClass.Labour, 3f);
         EventRecorder.Record(empire, string.Format(LM.Get("conglomerate_scandal_history"), house.name, governing.Name, empire.GetEmpireFullName()));
     }
-#endif
 
     // 大而不倒(市面崩盘那年，见 EconomicCycleSystem.Crash)：国库拿得出钱就出手救最大的财阀，拿不出它就垮台
-#if EC_PENDING
     internal static void OnCrash(Empire empire, ConstitutionalEconomyState state)
     {
         ConglomerateData house = state?.conglomerates?.OrderByDescending(item => item.share).FirstOrDefault();
@@ -327,7 +310,6 @@ public static class ConglomerateSystem
         CompanySystem.ReleaseGroup(empire, house.clan_id, house.name);
         EventRecorder.Record(empire, string.Format(LM.Get("conglomerate_collapsed_history"), house.name, empire.GetEmpireFullName()));
     }
-#endif
 
     #endregion
 
@@ -355,7 +337,6 @@ public static class ConglomerateSystem
     #region 政治世家
 
     // 记一笔：共和国、议会制下出了一位新的政府首脑，他的宗族多一位；满三位称政治世家
-#if EC_PENDING
     private static void TrackHouse(Empire empire, ConstitutionalEconomyState state)
     {
         state.house_terms ??= new Dictionary<long, int>();
@@ -375,16 +356,13 @@ public static class ConglomerateSystem
         string surname = !string.IsNullOrEmpty(clan.shi) ? clan.shi.TrimEnd('氏') : clan.name ?? "";
         EventRecorder.RecordRoutine(empire, string.Format(LM.Get("political_house_history"), surname, terms, empire.GetEmpireFullName()), head);
     }
-#endif
 
     public static bool IsPoliticalHouse(Empire empire, Person actor) =>
         actor?.GetSpecificClan() is { } clan && State(empire)?.political_houses?.Contains(clan.id) == true;
 
     // 党魁出自政治世家的党多得一点票(见 PartyFinanceSystem.VoteFactor)
-#if EC_PENDING
     public static float VoteFactor(Empire empire, FixedFaction party) =>
         State(empire)?.political_houses?.Count > 0 && IsPoliticalHouse(empire, party?.GetLeader()) ? HouseVote : 1f;
-#endif
 
     // 界面用：各政治世家的姓氏与出过几位首脑
     public static List<(string name, int terms)> Houses(Empire empire)

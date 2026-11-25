@@ -21,17 +21,14 @@ public static class TribalCouncilSystem
     private const float LoyaltyShare = 0.7f;
 
     // 设着议事会：华夏原始政体的部落联盟，施行过「诸部议事」(被家天下取代以后也算)
-#if EC_PENDING
     public static bool Active(Empire empire)
     {
         if (empire?.data == null || empire.IsGone() || !DynastyNaming.HuaxiaOriginEmpire(empire)) return false;
         string culture = CultureService.GetInstitutionCulture(empire.CoreKingdom);
         return InstitutionSystem.IsEnacted(culture, Node) || InstitutionSystem.IsSuperseded(culture, Node);
     }
-#endif
 
     // 出议事的各部：共主之部在前，再是帝国里的、共事它的各部
-#if EC_PENDING
     public static List<Realm> Tribes(Empire empire)
     {
         var result = new List<Realm>();
@@ -42,7 +39,6 @@ public static class TribalCouncilSystem
             if (tribe?.Record != null && !tribe.IsGone() && !result.Contains(tribe)) result.Add(tribe);
         return result;
     }
-#endif
 
     public static List<Person> Members(Empire empire) =>
         (empire?.data?.tribal_council ?? new List<long>()).Select(id => EmpireWorld.Current.PersonByKey(id))

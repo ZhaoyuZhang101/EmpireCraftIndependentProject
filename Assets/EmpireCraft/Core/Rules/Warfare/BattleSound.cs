@@ -176,7 +176,7 @@ public static class BattleSound
     private static void FadeOutAndStop(float dt)
     {
         _fade = Mathf.MoveTowards(_fade, 0f, dt / FadeSeconds);
-        float sfx = PlayerConfig.dict.ContainsKey("volume_sound_effects")
+        float sfx = GameOptions.All.ContainsKey("volume_sound_effects")
             ? Mathf.Clamp01(PlayerConfig.getIntValue("volume_sound_effects") / 100f) : 1f;
         BattleSoundBank.SetGroup(sfx * BattleSoundBank.MasterFactor() * Level * _fade, 20000f, false);
         if (_fade > 0f) return;
@@ -267,7 +267,6 @@ public static class BattleSound
     }
 
     // 只读兵种，不替还没定兵种的军定下来(那是 CorpsArmSystem.Of 的事)
-#if EC_PENDING
     private static void Count(Tally tally, Realm kingdom, CorpsData corps)
     {
         float w = Mathf.Max(1f, corps.strength);
@@ -320,10 +319,8 @@ public static class BattleSound
                 break;
         }
     }
-#endif
 
     // 本国科技到了哪个时代：膛线 → 近代，火绳枪或火药 → 火器，否则冷兵器(本次扫描内按国缓存)
-#if EC_PENDING
     private static int TechEra(Realm kingdom)
     {
         if (kingdom?.Record == null) return Cold;
@@ -338,11 +335,9 @@ public static class BattleSound
         KingdomEras[kingdom.Key] = era;
         return era;
     }
-#endif
 
     private static Realm KingdomOf(long id) => id < 0 ? null : EmpireWorld.Current?.RealmByKey(id);
 
-#if EC_PENDING
     private static void Land(Spot spot, FrontSystem.BattleView battle)
     {
         float cold, fire, modern, art, archers, riders, armor, size;
@@ -420,7 +415,6 @@ public static class BattleSound
         float size = Mathf.Clamp(0.6f + 0.4f * (battle.attacker_ships + battle.defender_ships) / 20f, 0.6f, 1f);
         spot.Weight = size * (GameClock.MonthsSince(battle.time) <= 0 ? 1f : 0.7f);
     }
-#endif
 
     #endregion
 

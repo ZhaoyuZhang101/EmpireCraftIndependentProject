@@ -16,21 +16,17 @@ public static class FeudalVassalService
     public const int AnnualControlCost = 100;
     public const int ProgressPerLevel = 5;
 
-#if EC_PENDING
     private static bool IsFeudal(Realm kingdom) => kingdom != null && !kingdom.IsGone() &&
         kingdom.GetRegime()?.type == RegimeType.Feudalism;
-#endif
 
     // 废除君主制之后(共和国或现代政体)，任何文化的国家都可以拥有附庸国，不再需要西方封建化制度
     // 只有国家本身(帝国核心王国或独立王国)能收附庸，共和国内部的成员国不能
-#if EC_PENDING
     public static bool IsPostMonarchy(Realm kingdom) => kingdom != null && !kingdom.IsGone() &&
         (!kingdom.IsInEmpire() || kingdom.IsEmpire()) &&
         (kingdom.GetRegime()?.type == RegimeType.Modern || RepublicSystem.IsRepublic(kingdom.GetEmpire()));
 
     private static bool CanHoldVassals(Realm kingdom) => RealmDiplomacySystem.CanChooseOverlord(kingdom) &&
         (IsFeudal(kingdom) || IsPostMonarchy(kingdom));
-#endif
 
     public static Realm GetOverlord(Realm subject)
     {
@@ -131,7 +127,6 @@ public static class FeudalVassalService
 #endif
 
     // 行西方式附庸的：封建化了的文化，或废了君主制的(朝贡体系随之废除，改用附庸国)
-#if EC_PENDING
     public static bool UsesFeudalVassals(Realm lord)
     {
         if (lord?.Record == null || lord.IsGone()) return false;
@@ -141,6 +136,7 @@ public static class FeudalVassalService
         return InstitutionSystem.IsEnacted(culture, "western_feudalization");
     }
 
+#if EC_PENDING
     public static bool Bind(Realm lord, Realm subject)
     {
         if (!CanBind(lord, subject) || !subject.HasRuler()) return false;
@@ -346,7 +342,6 @@ public static class FeudalVassalService
     private const double AnnexPowerRatio = 2d, CentralizedAnnexPowerRatio = 1.5d;
 
     // 能容纳多个法理与城市：施行了"直辖治理"特性的制度(西方中央集权君主制、神权国家)
-#if EC_PENDING
     public static bool HasDirectAdministration(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone()) return false;
@@ -357,6 +352,7 @@ public static class FeudalVassalService
         return !string.IsNullOrEmpty(culture) && InstitutionSystem.HasFeature(culture, InstitutionFeatures.DirectAdministration);
     }
 
+#if EC_PENDING
     public static bool CanAnnex(Realm lord, Realm subject)
     {
         if (lord?.Ruler == null || !lord.Ruler.Alive || GetOverlord(subject) != lord ||
@@ -593,7 +589,6 @@ public static class FeudalVassalService
     private static double _lastTributeScan = -1d;
 
     // 名义年贡(不含国库上限)：户数按控制等级抽成，1/2/3 级 → 1/6、1/4、1/2
-#if EC_PENDING
     public static long YearlyTribute(Realm subject)
     {
         if (subject?.Record == null) return 0L;
@@ -603,6 +598,7 @@ public static class FeudalVassalService
         return households / (level == 1 ? 6 : level == 2 ? 4 : 2);
     }
 
+#if EC_PENDING
     public static void TryYearlyTribute()
     {
         if (EmpireWorld.Current?.LiveRealms == null || ModClass.IS_CLEAR) return;

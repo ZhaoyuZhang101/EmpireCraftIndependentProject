@@ -178,7 +178,7 @@ public static class WallGateSystem
         var covered = new HashSet<int>();
         var centers = new List<(int x, int y)>();
         EmpireWorld world = EmpireWorld.Current;
-        if (world?.Zones != null)
+        if (world?.AllCells != null)
             foreach (RuralSettlement fort in RuralSettlementSystem.Forts())
             {
                 if (fort.ruined_at >= 0d) continue;
@@ -203,10 +203,10 @@ public static class WallGateSystem
                 centers.Add((fort.x, fort.y));
             }
         // 城池全图筑的城墙上的城门：城墙还在(图层的或原版的)才算
-        if (world?.Zones != null)
+        if (world?.AllCells != null)
             foreach (int id in CityPlanWorks.PlannedGates)
             {
-                Cell tile = id >= 0 && id < world.Zones.Length ? world.Zones[id] : null;
+                Cell tile = id >= 0 && id < world.AllCells.Length ? world.AllCells[id] : null;
                 if (tile?.data == null || !MapWallSystem.Contains(tile) && tile.Type?.Wall != true) continue;
                 cityGates.Add(id);
                 gates.Add(id);

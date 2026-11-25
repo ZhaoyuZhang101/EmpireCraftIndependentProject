@@ -161,7 +161,6 @@ public static class ImperialLegitimacyChallengeService
 
     // 僭越称帝：与主法理所在核心的现存帝国并立，互为正统对手(先不开战)；
     // 天命在称帝路线的初始值(CompleteFormation 刚定下)上打折扣，见 EmpireFormationService.GetUsurpationMandate
-#if EC_PENDING
     public static void DeclareUsurpation(Empire usurper, Empire incumbent)
     {
         if (!IsActiveEmpire(usurper) || !IsActiveEmpire(incumbent) || usurper == incumbent) return;
@@ -178,7 +177,6 @@ public static class ImperialLegitimacyChallengeService
             kingdomId: usurper.CoreKingdom?.Key ?? -1L);
         EmpireCraft.Core.TranslateHelper.LogEventMessage(content, usurper.CoreKingdom);
     }
-#endif
 
     // 互为正统对手且领土接壤的两个帝国：较强的一方(双方之间没有战争时)可以发起正统之争。
 #if EC_PENDING
@@ -268,16 +266,13 @@ public static class ImperialLegitimacyChallengeService
 #endif
 
     // 这座城归本帝国：周制战国时诸侯离开帝国、只记着所属周室，也算(见 ZhouEraSystem.SphereOf)
-#if EC_PENDING
     private static bool Holds(Empire empire, City city)
     {
         Realm kingdom = city?.Realm;
         return kingdom != null && (ZhouEraSystem.SphereOf(kingdom) ?? kingdom.GetEmpire()) == empire;
     }
-#endif
 
     // 伪核心对应的正规核心：原正统帝国据有过的那个；其次含本国主法理的；都找不到就取本帝国据有城池最多的正规核心
-#if EC_PENDING
     private static EmpireCore FindLawfulCore(Empire empire, EmpireCore falseCore)
     {
         long rivalId = falseCore.false_core_against_empire_id;
@@ -292,7 +287,6 @@ public static class ImperialLegitimacyChallengeService
         return byTitle ?? lawful.OrderByDescending(core => EmpireCoreManager.GetCities(core)
             .Count(city => Holds(empire, city))).FirstOrDefault();
     }
-#endif
 
     public static void ClearRivalry(Empire empire)
     {
@@ -453,6 +447,7 @@ public static class ImperialLegitimacyChallengeService
         TranslateHelper.LogHonoraryPeerageGranted(actor, empire, AnlePeerageKey);
         return true;
     }
+#endif
 
     private static void RecordDeclaration(Empire challenger, Empire incumbent, Person challengerEmperor,
         Person incumbentEmperor)
@@ -470,6 +465,7 @@ public static class ImperialLegitimacyChallengeService
         EmpireCraft.Core.TranslateHelper.LogEventMessage(content, challenger.CoreKingdom);
     }
 
+#if EC_PENDING
     private static void RecordFailure(War war, Empire challenger, Empire incumbent)
     {
         if (war == null) return;

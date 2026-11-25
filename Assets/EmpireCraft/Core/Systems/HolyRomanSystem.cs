@@ -39,13 +39,11 @@ public static partial class HolyRomanSystem
         return empire.data.holy_roman ??= new HolyRomanState();
     }
 
-#if EC_PENDING
     public static bool IsElective(Empire empire)
     {
         Regime regime = empire?.CoreKingdom?.GetRegime();
         return regime?.type == RegimeType.Feudalism && regime.GetLeaderSelectMethod() == LeaderSelectMethod.Vote;
     }
-#endif
 
     // 金玺诏书(1356)以后开局的剧本(临高 1628)：神罗开局即是选帝制(用户 2026-10-29 "为什么临高剧本里面每次神罗没过多久就会推到
     // 德意志帝国了，这不符合史实吧")。以前开局是世袭，日耳曼文化又已施行宗教改革，皇帝开局即算脱离罗马(见 PapacySystem.BrokeWithRome)：
@@ -54,7 +52,6 @@ public static partial class HolyRomanSystem
     // 要在授神圣之名之前(WorldMapScenario.Hallow)：选帝制的皇帝不随宗教改革脱离罗马，才由教宗加冕
     public const int GoldenBullYear = 1356;
 
-#if EC_PENDING
     public static bool GoldenBullAtStart(Empire empire, int year)
     {
         if (year < GoldenBullYear || empire?.data == null || empire.IsGone()) return false;
@@ -65,7 +62,6 @@ public static partial class HolyRomanSystem
         LogService.LogInfo($"[EmpireCraft][神罗] {empire.GetEmpireFullName()} 开局({year} 年)已颁金玺诏书，帝位由选帝侯选举");
         return true;
     }
-#endif
 
     // 家族领地：中央(皇帝自家领国)的城占帝国城数的比例
     public static float HouseShare(Empire empire)
@@ -74,7 +70,6 @@ public static partial class HolyRomanSystem
         return total <= 0 ? 1f : (empire.CoreKingdom?.Cities?.Count ?? 0) / (float)total;
     }
 
-#if EC_PENDING
     public static IEnumerable<(string key, int value)> LegitimacyItems(Empire empire)
     {
         if (IsElective(empire))
@@ -94,10 +89,8 @@ public static partial class HolyRomanSystem
         if (state.sovereign_princes) yield return ("mandate_sovereign_princes", SovereignLegitimacy);
         if (RomzugUnderway(empire)) yield return ("mandate_romzug", RomzugLegitimacy);
     }
-#endif
 
     // 家族领地薄弱时，比皇帝自家领国城多的诸侯不听调遣；皇帝远征在外时，比中央一半大的也不听
-#if EC_PENDING
     public static bool Defies(Empire empire, Realm member)
     {
         if (member?.Cities == null || empire?.CoreKingdom == null) return false;
@@ -105,7 +98,6 @@ public static partial class HolyRomanSystem
         if (IsElective(empire) && HouseShare(empire) < WeakHouse && member.Cities.Count > core) return true;
         return member.Cities.Count * 2 > core && RomzugUnderway(empire);
     }
-#endif
 
     public static Person KingOfRomans(Empire empire)
     {
@@ -152,7 +144,6 @@ public static partial class HolyRomanSystem
 #endif
 
     // 记届数；同族连任(第二届起)或储君即位，帝国权威 +3
-#if EC_PENDING
     private static void Elected(Empire empire, HolyRomanState state, Person emperor, bool heir)
     {
         long clan = emperor.GetSpecificClan()?.id ?? -1L;
@@ -162,7 +153,6 @@ public static partial class HolyRomanSystem
         if (heir) ChangeAuthority(empire, AuthContinuity, "hre_auth_heir_succeeded", emperor.FullName());
         else if (state.house_terms >= 2) ChangeAuthority(empire, AuthContinuity, "hre_auth_house_continued", emperor.FullName());
     }
-#endif
 
     // 每年(ConstitutionalEconomySystem 年度结算)：选帝制的储君；封建制帝国的成员构成、帝国改革、诸侯同盟、帝国议会
 #if EC_PENDING
@@ -257,7 +247,6 @@ public static partial class HolyRomanSystem
     // 选举让步：随机让出一项(能让的才让)。以前每次当选都让，选帝侯推举的多是老迈的诸侯，一两年一选，
     // 二十来年攒下七八条(玩家日志)。现在：换了一家(或选立储君)才让，十年内至多一次；
     // 各项有底线——帝国税最多让到一成、自治派系占到四成就不再让、中央剩不到三城不再封城
-#if EC_PENDING
     private static void Concede(Empire empire, HolyRomanState state)
     {
         if (state.last_concession_at >= 0d && GameClock.Now >= state.last_concession_at &&
@@ -319,7 +308,6 @@ public static partial class HolyRomanSystem
             return string.Format(LM.Get("hre_concession_fief"), city.GetCityName(), elector.GetKingdomName());
         }
     }
-#endif
 
     #region 帝国治安令
 
@@ -342,7 +330,6 @@ public static partial class HolyRomanSystem
     }
 
     // 颁布(诉求执行时调用)：诸侯一律受令，豁免清零
-#if EC_PENDING
     public static void EnactImperialPeace(Empire empire, IEnumerable<Realm> princes)
     {
         HolyRomanState state = State(empire);
@@ -351,7 +338,6 @@ public static partial class HolyRomanSystem
         state.imperial_peace_at = GameClock.Now;
         state.privileged_ids?.Clear();
     }
-#endif
 
     // 某诸侯取回外交开战权(诸侯特权、选举让步)：施行期间记为豁免
     public static void Exempt(Empire empire, Realm prince)
@@ -362,7 +348,6 @@ public static partial class HolyRomanSystem
         if (!state.privileged_ids.Contains(prince.Key)) state.privileged_ids.Add(prince.Key);
     }
 
-#if EC_PENDING
     private static void Bind(Realm prince)
     {
         Regime regime = prince?.GetRegime();
@@ -370,10 +355,8 @@ public static partial class HolyRomanSystem
         regime.SetAllowDiplomacy(false);
         regime.SetAllowSupportCenterArmy(true);
     }
-#endif
 
     // 每年：和约后作废；施行期间新来的世俗诸侯照令办理；豁免名单清掉已不在帝国的、又被收回开战权的(如夺取诸侯开战权)
-#if EC_PENDING
     private static void ImperialPeaceYearly(Empire empire, HolyRomanState state)
     {
         if (state.imperial_peace_at < 0d) return;
@@ -395,19 +378,16 @@ public static partial class HolyRomanSystem
             Bind(member);
         }
     }
-#endif
 
     #endregion
 
     // 选帝侯所在的成员国(不含中央、被禁者)
-#if EC_PENDING
     public static List<Realm> ElectorRealms(Empire empire) =>
         empire.GetCabinetMembers().Where(actor => actor?.Realm != null && !actor.IsGone())
             .Select(actor => actor.Realm)
             .Where(kingdom => kingdom != empire.CoreKingdom && kingdom.GetEmpire() == empire && !kingdom.IsGone() &&
                               !IsBanned(kingdom))
             .Distinct().ToList();
-#endif
 
     #region 诊断
 
@@ -485,6 +465,7 @@ public static partial class HolyRomanSystem
             text += "：" + string.Join("、", missing);
         return reason == "institution_reform_low_mandate" ? $"{text}(正统{empire.Legitimacy}，要{node.research.mandate_required})" : text;
     }
+#endif
 
     private static string LeagueStatus(Empire empire, HolyRomanState state)
     {
@@ -515,17 +496,14 @@ public static partial class HolyRomanSystem
         if (papacy.IsAtWarWith(core)) return $"与教廷{papacy.GetKingdomName()}交战";
         return $"未加冕，每年四成可能远征{papacy.GetKingdomName()}";
     }
-#endif
 
     #endregion
 
-#if EC_PENDING
     private static void Record(Empire empire, string text)
     {
         if (string.IsNullOrEmpty(text)) return;
         empire.RecordHistory(directContent: text, actorId: empire.Emperor?.Key ?? -1L, kingdomId: empire.CoreKingdom?.Key ?? -1L);
         TranslateHelper.LogEventMessage(text, empire.CoreKingdom);
     }
-#endif
 }
 }

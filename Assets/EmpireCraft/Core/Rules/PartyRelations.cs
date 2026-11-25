@@ -40,7 +40,6 @@ public static class PartyRelations
     }
 
     // 不在同一执政联盟的两党：好感高的弃权改赞成，好感低的弃权改反对
-#if EC_PENDING
     public static int AdjustVote(Empire empire, FixedFaction party, FixedFaction sponsor, int vote, float stance)
     {
         if (vote != 0 || party == null || sponsor == null || party == sponsor || !party.IsParty || !sponsor.IsParty) return vote;
@@ -68,7 +67,6 @@ public static class PartyRelations
             }
         }
     }
-#endif
 
     public static bool RefusesCoalition(FixedFaction formateur, FixedFaction partner) =>
         formateur != null && partner != null && formateur.IsParty && partner.IsParty && Relation(partner, formateur) < RefuseCoalition;
@@ -79,7 +77,6 @@ public static class PartyRelations
 
     #region 每年
 
-#if EC_PENDING
     public static void Yearly(Empire empire)
     {
         ConstitutionalEconomyState state = empire?.data?.constitutional_economy;
@@ -108,10 +105,8 @@ public static class PartyRelations
         }
         Street(empire, state, parties);
     }
-#endif
 
     // 街头：在野党示威、罢工、质询
-#if EC_PENDING
     private static void Street(Empire empire, ConstitutionalEconomyState state, List<FixedFaction> parties)
     {
         state.party_street_pressure = 0f;
@@ -155,7 +150,6 @@ public static class PartyRelations
                 Mathf.RoundToInt(approval)), questioner.GetLeader());
         }
     }
-#endif
 
     // 街头抗争的加压(HarshRuleSystem.UpdateStreetUnrest)：去年在野党组织的示威、罢工，两年后作废
     public static float StreetPressure(Empire empire)

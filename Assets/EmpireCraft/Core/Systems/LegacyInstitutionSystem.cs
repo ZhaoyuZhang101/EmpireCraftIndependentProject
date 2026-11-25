@@ -40,17 +40,14 @@ public static class LegacyInstitutionSystem
     }
 
     // 正在照别的文化之制(界面用)：存着制度文化，且与不论旧制时本该用的制度文化不同
-#if EC_PENDING
     public static bool TryGet(Realm kingdom, out string legacy)
     {
         legacy = Stored(kingdom);
         return legacy != null && !string.Equals(legacy, NaturalInstitutionCulture(kingdom), StringComparison.Ordinal);
     }
-#endif
 
     // 换文化之前取本国现用的制度文化。只读存着的值，不走 GetRealmCulture 的旧档推断——新立之国这时还没有国家文化，
     // 推断出来的君主、都城文化会被当成"旧制"
-#if EC_PENDING
     public static string CurrentInstitutionCulture(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone()) return "";
@@ -63,7 +60,6 @@ public static class LegacyInstitutionSystem
         string realm = kingdom.GetOrCreate().realm_culture;
         return CultureService.IsValidCulture(realm) ? realm : "";
     }
-#endif
 
     // 改从 target 时会不会旧制犹存：target 的文明等级低于现用的制度文化，且不属例外
     public static bool WouldKeep(Realm kingdom, string current, string target)
@@ -75,7 +71,6 @@ public static class LegacyInstitutionSystem
     }
 
     // 不论旧制时本国该用的制度文化：帝国核心(征服王朝除外)按帝国的制度文化，其余按国家文化
-#if EC_PENDING
     private static string NaturalInstitutionCulture(Realm kingdom)
     {
         Empire empire = CoreEmpireOf(kingdom);
@@ -83,7 +78,6 @@ public static class LegacyInstitutionSystem
             ? InstitutionSystem.GetPrimaryCulture(empire, honorLegacy: false)
             : CultureService.GetRealmCulture(kingdom);
     }
-#endif
 
     private static Empire CoreEmpireOf(Realm kingdom)
     {
@@ -101,7 +95,6 @@ public static class LegacyInstitutionSystem
     }
 
     // 帝国的制度文化(与旧制不同)不比旧制落后：成员该照帝国之制
-#if EC_PENDING
     private static bool EmpireCovers(Empire empire, string legacy, out string empireCulture)
     {
         empireCulture = InstitutionSystem.GetPrimaryCulture(empire);
@@ -109,7 +102,6 @@ public static class LegacyInstitutionSystem
                !string.Equals(empireCulture, legacy, StringComparison.Ordinal) &&
                InstitutionSystem.GetCultureLevel(empireCulture) >= InstitutionSystem.GetCultureLevel(legacy);
     }
-#endif
 
     // 例外：古战模组的国、新立之国、征服王朝的核心(另有制度文化之分)、手选或被锁定政体的国家(政体本就不随文化动)
     private static bool Exempt(Realm kingdom)
@@ -170,16 +162,13 @@ public static class LegacyInstitutionSystem
     }
 
     // 不留旧制的改俗(新立之国、胡化、征服王朝、神力改俗、归化改制)：原有的旧制一并作罢
-#if EC_PENDING
     internal static void Drop(Realm kingdom, string target)
     {
         if (Stored(kingdom) is not string held) return;
         End(kingdom, held, target, "这次改俗不留旧制");
     }
-#endif
 
     // 易俗收尾(见 CultureReformSystem.Apply，在"推行易俗改制"那条之后)：这次易俗留下了旧制，进世界日志记一笔
-#if EC_PENDING
     public static void AnnounceReform(Realm kingdom, string target)
     {
         if (!TryGet(kingdom, out string legacy) || !kingdom.GetOrCreate().institution_culture_by_reform) return;
@@ -211,10 +200,8 @@ public static class LegacyInstitutionSystem
         data.institution_culture_by_reform = false;
         LogService.LogInfo($"{Tag} {kingdom.GetKingdomName()}({kingdom.Key}) 不再沿用 {legacy} 旧制：{reason}，制度改照 {natural}");
     }
-#endif
 
     // 记一笔：announce(主动易俗留下的)进世界日志，在帝国里的同时进帝国史书；否则只进本帝国史书
-#if EC_PENDING
     private static void Record(Realm kingdom, string content, bool announce)
     {
         if (announce)
@@ -226,7 +213,6 @@ public static class LegacyInstitutionSystem
         if (empire?.data == null || empire.IsGone() || empire.IsArchived()) return;
         EmpireCraft.Core.HistoryRecordSystem.RecordHistory(empire, directContent: content, kingdomId: kingdom.Key);
     }
-#endif
 
     #endregion
 
@@ -340,14 +326,12 @@ public static class LegacyInstitutionSystem
 #endif
 
     // 新文化的制度树还停在原始政体，本国已是成形的政体：再等等(同 TryAdvanceRegimeTransition 不往原始政体改)
-#if EC_PENDING
     private static bool WouldRegress(Realm kingdom, string culture)
     {
         RegimeType? current = kingdom.GetRegime()?.type;
         if (current == null || RegimeManager.IsPrimitive(current)) return false;
         return InstitutionSystem.TryResolveCultureRegime(culture, out RegimeType target) && RegimeManager.IsPrimitive(target);
     }
-#endif
 
     // 改行新文化之制：政体按新文化反推(帝国核心照易俗改制的写法重算帝国的制度文化)，手选、锁定的政体不动；记一笔
 #if EC_PENDING
@@ -380,20 +364,16 @@ public static class LegacyInstitutionSystem
     public static string Label(string legacy) => string.Format(LM.Get("legacy_institution_label"), Translate(legacy));
 
     // 悬停说明：为什么沿用、什么时候作罢
-#if EC_PENDING
     public static string Tooltip(Realm kingdom, string legacy)
     {
         string natural = NaturalInstitutionCulture(kingdom);
         return string.Format(LM.Get("legacy_institution_tip"), Translate(natural), LevelName(natural), Translate(legacy),
             LevelName(legacy));
     }
-#endif
 
     // 帝国核心按帝国的名号记，其余按国名
-#if EC_PENDING
     private static string RealmName(Realm kingdom) =>
         CoreEmpireOf(kingdom) is Empire empire ? empire.GetEmpireName() : kingdom.GetKingdomName();
-#endif
 
     private static string Translate(string culture) =>
         CultureService.IsValidCulture(culture) && OnomasticsRule.ALL_CULTURE_TRANSLATE.ContainsKey(culture)

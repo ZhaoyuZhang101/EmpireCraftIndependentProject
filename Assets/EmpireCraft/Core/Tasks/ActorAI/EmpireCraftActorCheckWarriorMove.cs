@@ -142,7 +142,7 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
     }
 
 #if EC_PENDING
-    public override BehResult execute(Person pActor)
+    public override BehResult Execute(Person pActor)
     {
         if (pActor == null)
         {
@@ -631,9 +631,9 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
         // currently owns movement. Explicitly wake the pathfinder for this target.
         actor.goTo(target);
 
-        if (actor.is_army_captain && actor.army != null)
+        if (actor.IsArmyCaptain && actor.Army != null)
         {
-            actor.army._prev_captain_position = target;
+            actor.Army._prev_captain_position = target;
         }
     }
 
@@ -683,8 +683,8 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
         state.lastProgressFrame = frame;
 
         if (state.recoveryCount >= HardRecoveryAfter &&
-            actor.army != null &&
-            !actor.is_army_captain)
+            actor.Army != null &&
+            !actor.IsArmyCaptain)
         {
             try
             {

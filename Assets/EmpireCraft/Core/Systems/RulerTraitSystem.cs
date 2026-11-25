@@ -32,7 +32,6 @@ public static class RulerTraitSystem
     public const double RestorerCorruptionFactor = 0.5;
     private const int RecoveryYears = 5;
 
-#if EC_PENDING
     private static bool IsMonarchy(Empire empire) =>
         empire?.data != null && !empire.IsGone() && !empire.IsArchived() &&
         empire.CoreKingdom != null && !empire.CoreKingdom.IsGone() &&
@@ -41,6 +40,7 @@ public static class RulerTraitSystem
         (RegimeManager.IsMonarchy(empire.CoreKingdom.GetRegime()?.type) || empire.IsPrincipate() ||
          RegimeManager.IsPrimitive(empire.CoreKingdom.GetRegime()?.type));
 
+#if EC_PENDING
     public static void OnCrowned(Empire empire, Person actor)
     {
         if (!IsMonarchy(empire) || actor == null || !actor.Alive) return;
@@ -62,6 +62,7 @@ public static class RulerTraitSystem
         RulerQualitySystem.Assess(empire, empire.Emperor);
         CheckRestorer(empire, empire.Emperor);
     }
+#endif
 
     private static void CheckRestorer(Empire empire, Person actor)
     {
@@ -106,26 +107,22 @@ public static class RulerTraitSystem
         if (!improved) return;
         actor.AddTrait(EcRandom.value < GreatRestorerChance ? GreatRestorer : Restorer);
     }
-#endif
 
     // 功绩称号不等于当前资质；幼主、荒淫昏暴之君不能靠旧称号继续获得治国加成。
     public static bool HasActiveTrait(Person actor, string trait) =>
         actor?.Record != null && actor.Alive && !RealisticAgeSystem.IsMinor(actor) && !RulerQualitySystem.IsBad(actor) &&
         (trait == Restorer ? actor.HasTrait(Restorer) || actor.HasTrait(GreatRestorer) : actor.HasTrait(trait));
 
-#if EC_PENDING
     public static bool ReignedBy(Realm kingdom, string trait)
     {
         Empire empire = kingdom?.GetEmpire();
         Person emperor = empire?.Emperor;
         return HasActiveTrait(emperor, trait) && IsMonarchy(empire);
     }
-#endif
 
     // 开国之初人心未散：开国雄主登基后头 15 年帝国境内不起叛乱；此后雄主的忠诚、正统加成照旧，叛乱照常检定
     public const int FounderShieldYears = 15;
 
-#if EC_PENDING
     public static bool FounderShield(Realm kingdom)
     {
         if (!ReignedBy(kingdom, Founder)) return false;
@@ -133,17 +130,12 @@ public static class RulerTraitSystem
         return since < 0d || EmpireWorld.Current == null || GameClock.Now < since ||
                GameClock.YearsSince(since) < FounderShieldYears;
     }
-#endif
 
     // 开国雄主或中兴雄主(享有开国雄主全部特性)是否在位(kingdom 为帝国的任一成员国均可)
-#if EC_PENDING
     public static bool FounderReigns(Realm kingdom) => ReignedBy(kingdom, Founder) || ReignedBy(kingdom, GreatRestorer);
-#endif
 
     // 开国或中兴之君在位(开国雄主、中兴雄主、中兴之主)：正统高时打一般国家推进加快(见 FrontSystem.PushFactor)
-#if EC_PENDING
     public static bool HeroicReign(Realm kingdom) => FounderReigns(kingdom) || ReignedBy(kingdom, Restorer);
-#endif
 
     // 在位雄主的称号(开国雄主 / 中兴雄主)，史书措辞用
     public static string FounderTitle(Person ruler) =>
@@ -151,7 +143,6 @@ public static class RulerTraitSystem
             ? "trait_" + GreatRestorer : "trait_" + Founder);
 
     // 开国雄主与本帝国核心(法理疆域)内割据政权之间的战争：不论谁先开战，都算统一战争
-#if EC_PENDING
     public static bool IsFounderUnificationWar(War war)
     {
         if (war == null || war.HasEnded()) return false;
@@ -176,19 +167,14 @@ public static class RulerTraitSystem
             if (core != null && (target == core || target.warlord_parent_core_id == core.id)) return true;
         return false;
     }
-#endif
 
     // 开国雄主(中兴雄主)在位时本国各军的战力
     public const float FounderCombatFactor = 1.3f;
 
-#if EC_PENDING
     public static float FounderCombat(Realm kingdom) => FounderReigns(kingdom) ? FounderCombatFactor : 1f;
-#endif
 
     // 腐败增长(正数)在中兴之主治下减半；腐败下降不受影响
-#if EC_PENDING
     public static double ScaleCorruptionGain(Realm kingdom, double addition) =>
         addition > 0 && ReignedBy(kingdom, Restorer) ? addition * RestorerCorruptionFactor : addition;
-#endif
 }
 }

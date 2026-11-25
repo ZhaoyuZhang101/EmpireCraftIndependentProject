@@ -76,7 +76,6 @@ public static class CorpsArmSystem
     private const float RefreshSeconds = 2f;
     private static readonly Dictionary<string, (float at, List<(Arm arm, int weight)> mix, int total)> Mixes = new();
 
-#if EC_PENDING
     public static Arm Of(CorpsData corps)
     {
         if (corps == null) return Arm.Infantry;
@@ -113,7 +112,6 @@ public static class CorpsArmSystem
         Realm kingdom = EmpireWorld.Current?.RealmByKey(corps.kingdom_id);
         return kingdom == null ? "" : TechnologySystem.GetCultureOf(kingdom) ?? "";
     }
-#endif
 
     private static bool Has(string culture, string tech) =>
         !string.IsNullOrEmpty(culture) && TechnologySystem.IsActiveFor(culture) && TechnologySystem.HasTech(culture, tech);
@@ -168,7 +166,6 @@ public static class CorpsArmSystem
     }
 
     // 换装要的物资(军械、硝石、钢、石油、橡胶)本国市场缺过一半就换不了(见 CommodityMarketSystem.CanEquip)
-#if EC_PENDING
     public static Arm UpgradeOf(CorpsData corps)
     {
         if (corps == null || corps.militia) return Arm.Militia;
@@ -186,10 +183,8 @@ public static class CorpsArmSystem
         double annual = CityStabilityRules.CorpsAnnual(Mathf.Max(0f, corps.strength) * Upkeep(UpgradeOf(corps)), false);
         return (int)Math.Min(int.MaxValue, Math.Ceiling(annual * RefitYears));
     }
-#endif
 
     // 换装：从本国国库出钱；钱不够不换
-#if EC_PENDING
     public static bool Refit(Realm kingdom, CorpsData corps)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || !CanRefit(corps)) return false;
@@ -203,10 +198,8 @@ public static class CorpsArmSystem
             MoneyDisplay.Format(cost)));
         return true;
     }
-#endif
 
     // 每月：视财力换装一支，前线的军优先，其次兵多的(骑士团的军由骑士团自己管)
-#if EC_PENDING
     public static void Monthly(Realm kingdom, List<CorpsData> list)
     {
         if (kingdom?.Record == null || list == null || list.Count == 0) return;
@@ -216,14 +209,11 @@ public static class CorpsArmSystem
         if (pick == null || kingdom.GetMoney() < RefitCost(pick) * RefitReserve) return;
         Refit(kingdom, pick);
     }
-#endif
 
     public static float Speed(Arm arm) => Specs[arm].Speed;
 
     // 破城：重炮营(红夷大炮)攻城
-#if EC_PENDING
     public static bool Breaches(CorpsData corps) => corps != null && !corps.militia && Of(corps) == Arm.HeavyArtillery;
-#endif
 
     // 山地、沼泽、丛林里剩几成速度
     public static float Rough(Arm arm) => Specs[arm].Rough;
@@ -233,9 +223,7 @@ public static class CorpsArmSystem
 
     public static bool Flies(Arm arm) => Specs[arm].Flies;
 
-#if EC_PENDING
     public static bool Flies(CorpsData corps) => Flies(Of(corps));
-#endif
 
     // 军饷倍数(见 CorpsSystem.PayUpkeep)
     public static float Upkeep(Arm arm) => Specs[arm].Upkeep;

@@ -18,7 +18,6 @@ public static class CultureService
 
     // 当前世界里实际存在的文化(至少有一个王国的法理文化是它)，不是配置文件里全部登记过的文化。
     // 制度排行榜这类"当前局内有意义"的列表要用这个，而不是 CultureKeys。
-#if EC_PENDING
     public static IEnumerable<string> GetActiveCultureKeys()
     {
         var result = new HashSet<string>(StringComparer.Ordinal);
@@ -31,7 +30,6 @@ public static class CultureService
         }
         return result.OrderBy(key => key, StringComparer.Ordinal);
     }
-#endif
 
     public static bool IsValidCulture(string culture)
     {
@@ -50,10 +48,9 @@ public static class CultureService
         return WorldLaws.FixedDeJureCulture?.IsEnabled() == true;
     }
 
-#if EC_PENDING
     public static string GetActorCulture(Person actor)
     {
-        return actor == null ? "" : CulturePatch.GetInjectedCultureName(actor.GetCulture());
+        return actor == null ? "" : Cultures.FamilyOf(actor.GetCulture());
     }
 
     public static string GetFounderCulture(Person founder, bool allowSpeciesBootstrap = true)
@@ -69,15 +66,13 @@ public static class CultureService
         {
             // A newly placed founder receives its configured species culture once,
             // before the base game has created a native Culture object for it.
-            culture = OverallHelperFunc.GetCultureFromSpecies(founder.asset?.id);
+            culture = OverallHelperFunc.GetCultureFromSpecies(founder.Asset?.Id);
         }
         return IsValidCulture(culture) ? culture : "";
     }
-#endif
 
     // Recording a temporarily detached actor must not manufacture a new culture or
     // replace a known minority culture with the host city's majority.
-#if EC_PENDING
     public static string ResolveRecordedActorCulture(Person actor, string recordedCulture = "")
     {
         string current = GetActorCulture(actor);
@@ -93,7 +88,7 @@ public static class CultureService
         if (IsValidCulture(data.realm_culture)) return data.realm_culture;
 
         // 旧档缺少 realm_culture 时先恢复国家已有的绑定，不能让外文化的新君主改写国家身份。
-        string culture = CulturePatch.GetInjectedCultureName(kingdom.Culture);
+        string culture = Cultures.FamilyOf(kingdom.Culture);
         if (!IsValidCulture(culture)) culture = GetActorCulture(kingdom.Ruler);
         if (!IsValidCulture(culture) && kingdom.Capital != null)
         {
@@ -102,17 +97,15 @@ public static class CultureService
         if (!IsValidCulture(culture))
         {
             // Old saves only knew a species-to-template association. This is migration-only.
-            culture = OverallHelperFunc.GetCultureFromSpecies(kingdom.getSpecies());
+            culture = OverallHelperFunc.GetCultureFromSpecies(kingdom.GetSpecies());
         }
         culture = TransmigrantSystem.AdoptableCulture(kingdom, culture);
         if (IsValidCulture(culture)) data.realm_culture = culture;
         return culture;
     }
-#endif
 
     // 制度文化：政体、制度效果、制度特性按它算。改从文明等级更低的文化后旧制犹存的，是旧制所属的文化
     // (见 LegacyInstitutionSystem)；其余就是国家文化。风俗、命名、宗教、科技照旧按国家文化(GetRealmCulture)
-#if EC_PENDING
     public static string GetInstitutionCulture(Realm kingdom)
     {
         string realm = GetRealmCulture(kingdom);
@@ -120,12 +113,10 @@ public static class CultureService
         string legacy = kingdom.GetOrCreate().institution_culture;
         return !string.IsNullOrEmpty(legacy) && IsValidCulture(legacy) ? legacy : realm;
     }
-#endif
 
     // 政体按哪个文化定：帝国核心按帝国的制度文化(见 InstitutionSystem.GetPrimaryCulture)——核心王国自己的文化可能与帝国不同
     // (外族成员接任中央、旧档)，以前每月按核心自己的文化改政体、每年又按帝国的改回，帝国的政体来回跳(用户 2026-10-27："一个汉族世袭
     // 传的好好的国家……突然因为一个皇帝的文化转了政体")；别的国按本国的制度文化
-#if EC_PENDING
     public static string GetRegimeCulture(Realm kingdom)
     {
         Empire empire = kingdom?.GetEmpire();
@@ -136,7 +127,6 @@ public static class CultureService
         }
         return GetInstitutionCulture(kingdom);
     }
-#endif
 
     // 君主改从本国之俗(用户 2026-10-27："为什么皇帝的个人文化会直接改变政体，这不合理，应该根据国家文化反向影响皇帝个人")：
     // 外族出身的君主(联姻、入继、外姓议立、受封……)即位，他本人改从本国(征服王朝的帝国核心看统治文化)之俗——只改本人的文化、
@@ -256,7 +246,6 @@ public static class CultureService
                regime != null;
     }
 
-#if EC_PENDING
     private static void RepairUnavailableSavedRegime(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone()) return;
@@ -269,7 +258,6 @@ public static class CultureService
         kingdom.SetRegimeType(fallback);
         kingdom.LoadRegime();
     }
-#endif
 
     // 修复默认值污染的政体(读档迁移、新建国家收尾、国家例行检查身份时调用)：
     //   · 阿拉伯：历史上的阿拉伯默认值污染；
@@ -348,7 +336,6 @@ public static class CultureService
     // 律令是默认值污染：按本文化(连同所在帝国)此刻该是律令的不算——帝国成员随核心(AdjustForMonarchyEmpire)、本文化制度树已走到律令；
     // 余下的，本文化制度树里根本没有律令，或本文化此刻还在原始政体(开局；周制改郡县这类正当的律令都在原始政体之后)，才算污染。
     // 水土出路改过政体的不动
-#if EC_PENDING
     private static bool DefaultLvLing(Realm kingdom, KingdomExtension.KingdomExtraData data, string culture)
     {
         if (data.shuitu_regime >= 0) return false;
@@ -384,7 +371,6 @@ public static class CultureService
         kingdom.LoadRegimeKeepingRole();
         return kingdom.GetRegime()?.type == regimeType;
     }
-#endif
 
     /// <summary>
     /// 政体转变（例如"游牧"转为帝国官方文化对应的政体）目前只会在建国时由开国者的文化
@@ -396,7 +382,6 @@ public static class CultureService
     /// 条件与法理文化转化（FindTitleCultureConversionCandidate）保持一致：
     /// 王城主流文化已经是帝国官方文化，且至少 2/3 的城市也已经是帝国官方文化。
     /// </summary>
-#if EC_PENDING
     public static bool FindRegimeConversionCandidate(Realm kingdom, out string targetCulture, out RegimeType targetRegimeType)
     {
         targetCulture = null;
@@ -436,7 +421,6 @@ public static class CultureService
         targetRegimeType = regimeType;
         return true;
     }
-#endif
 
     /// <summary>
     /// 由该国国王决议执行：把国家的 realm_culture 与政体正式转变为目标文化/政体。
@@ -455,6 +439,7 @@ public static class CultureService
         TranslateHelper.LogKingdomRegimeConversion(kingdom, previousRegimeType, targetRegimeType);
         return true;
     }
+#endif
 
     public static string GetEmpireDefaultCulture(Empire empire)
     {
@@ -485,7 +470,6 @@ public static class CultureService
     {
         return GetActiveEmpireForCulture(culture, excludedEmpire) != null;
     }
-#endif
 
     // 同一族类：文化相同，或同属一个天下标识(华夏、中国、山海……见 CultureRule 的 tianxia)——"异族统治""外族入侵"
     // "夷狄""羁縻""清除移民"都按它判(复查 2026-10-17：以前一字不差地比文化，华夏统治中国文化的城也算异族统治)
@@ -546,7 +530,6 @@ public static class CultureService
 
     // 固定法理文化开着时，法理并入、移出帝国核心前先把眼下的文化定下来——没定过文化的法理随所在核心的默认文化走，
     // 以前外族称帝、并入别的帝国、帝国覆灭，名下法理的文化就跟着换了
-#if EC_PENDING
     public static void PinTitleCultureIfFixed(KingdomTitle title)
     {
         if (!IsFixedDeJureCultureEnabled() || title?.data == null || title.IsGone() || title.data.culture_explicit) return;
@@ -592,13 +575,11 @@ public static class CultureService
                 title.data.culture = GetRealmCulture(title.title_capital?.Realm);
         }
         RememberInitialTitleCulture(title);
-        foreach (City city in title.getCities()) InitializeCityCulture(city);
+        foreach (City city in title.GetCities()) InitializeCityCulture(city);
     }
-#endif
 
     // 法理的初始文化(用户 2026-10-19："一键恢复法理的初始文化，法理里面能够变更初始文化")：法理头衔第一次有文化时记下；
     // 改文化前没记过的先记下改之前的；旧存档读档时以当时的文化补上(见 DataManager)
-#if EC_PENDING
     public static void RememberInitialTitleCulture(KingdomTitle title)
     {
         if (title?.data == null || IsValidCulture(title.data.initial_culture)) return;
@@ -613,7 +594,6 @@ public static class CultureService
         RememberInitialTitleCulture(title);
         return title?.data?.initial_culture ?? "";
     }
-#endif
 
     public static bool SetInitialTitleCulture(KingdomTitle title, string culture)
     {
@@ -656,12 +636,13 @@ public static class CultureService
         RefreshCultureDependents(title);
         RefreshTitleCityCultureLockState(title);
     }
+#endif
 
     private static void RefreshTitleCityCultureLockState(KingdomTitle title)
     {
         if (title?.data == null || title.IsGone()) return;
         HashSet<Realm> administrations = new HashSet<Realm>();
-        foreach (City city in title.getCities())
+        foreach (City city in title.GetCities())
         {
             if (city?.Record == null || city.IsGone()) continue;
             UpdateCityCultureShiftCandidate(city);
@@ -684,13 +665,11 @@ public static class CultureService
         NormalizeShares(data.culture_shares);
         return data.culture_shares;
     }
-#endif
 
     /// <summary>
     /// 居民构成每年只会把城市文化影响力向人口构成推动少量百分点。官方文化代表制度、教育与
     /// 公共生活，因此和平状态下始终保留最低影响力，不会因为一次人口迁徙被直接替换。
     /// </summary>
-#if EC_PENDING
     public static bool ApplyPopulationPressure(City city, bool force = false)
     {
         if (city?.Record == null || city.IsGone() || city.People == null) return false;
@@ -782,7 +761,6 @@ public static class CultureService
         return MoveSharesToward(data.culture_shares, targetShares,
             CultureShareRules.PopulationPressurePerYear);
     }
-#endif
 
     // 官方文化的保底：人口与教化里的占比再抬 25，至多 55(见 CultureShareRules.OfficialCultureInstitutionalLift)
     private static float OfficialFloor(Dictionary<string, float> shares, string official) =>
@@ -803,7 +781,6 @@ public static class CultureService
 
     // 异族占领的文化压力(保底六成、可越过锁定改主流文化)：主流文化锁定(固定法理文化或法理锁定)时不算，
     // 以前锁着文化的城被攻占，过几年照样改从征服者的文化、改名
-#if EC_PENDING
     private static bool TryGetActiveOccupationCulture(City city, out string culture)
     {
         culture = "";
@@ -824,7 +801,6 @@ public static class CultureService
     {
         return TryGetActiveOccupationCulture(city, out string culture) ? culture : "";
     }
-#endif
 
     private static bool MoveSharesToward(Dictionary<string, float> shares,
         Dictionary<string, float> targetShares, float maxPercentagePoints)
@@ -856,7 +832,6 @@ public static class CultureService
     // GetCityCultureShares 取平均，现算现用，不需要额外持久化。这样"文化地名历史"
     // 标签页才能标出每个文化在这个法理范围内大致占多少比重，跟"文治"决议要求
     // 首都+2/3城市文化优势的判定口径保持一致（都是按城市数量/占比累计，不是单看某一座城市）。
-#if EC_PENDING
     public static Dictionary<string, float> GetTitleCultureShares(KingdomTitle title)
     {
         Dictionary<string, float> result = new Dictionary<string, float>();
@@ -896,6 +871,7 @@ public static class CultureService
         data.culture_shares[culture] = 100f;
     }
 
+#if EC_PENDING
     public static void MigrateWorldCultureData()
     {
         if (EmpireWorld.Current == null) return;
@@ -923,6 +899,7 @@ public static class CultureService
             RepairDefaultRegime(kingdom);
         }
     }
+#endif
 
     public static string GetMainCulture(City city, bool initialize = true)
     {
@@ -948,7 +925,6 @@ public static class CultureService
         data.main_culture = computed;
         return computed;
     }
-#endif
 
     /// <summary>
     /// 法理文化锁定会向下锁住辖内城市的官方主流文化，但不冻结居民个人文化、
@@ -967,7 +943,6 @@ public static class CultureService
     /// 检查某座城市是否存在一个挑战文化，其占比已经超过阈值，可以由城主发起“改变城市主流文化”的决议。
     /// 纯检查，不会修改任何状态。
     /// </summary>
-#if EC_PENDING
     public static bool FindCityCultureShiftCandidate(City city, out string candidate)
     {
         candidate = null;
@@ -1022,7 +997,6 @@ public static class CultureService
         }
         return data.culture_shift_candidate;
     }
-#endif
 
     public static int GetCityCultureShiftStableYears(City city)
     {
@@ -1032,14 +1006,12 @@ public static class CultureService
         return Math.Max(0, GameClock.YearsSince(data.culture_shift_candidate_since));
     }
 
-#if EC_PENDING
     public static void UpdateCityCultureShiftCandidates(Realm kingdom)
     {
         if (kingdom?.Cities == null || kingdom.IsGone()) return;
         foreach (City city in kingdom.Cities)
             UpdateCityCultureShiftCandidate(city);
     }
-#endif
 
     /// <summary>
     /// 由城主决议执行：把城市的官方主流文化改为 candidate。
@@ -1088,7 +1060,7 @@ public static class CultureService
     {
         if (kingdom?.Record == null || kingdom.IsGone()) return;
         string realm = kingdom.GetOrCreate().realm_culture;
-        if (!IsValidCulture(realm) || string.Equals(CulturePatch.GetInjectedCultureName(kingdom.Culture), realm, StringComparison.Ordinal))
+        if (!IsValidCulture(realm) || string.Equals(Cultures.FamilyOf(kingdom.Culture), realm, StringComparison.Ordinal))
             return;
         Culture native = CachedNativeCulture(realm);
         if (native != null) kingdom.SetCulture(native);
@@ -1101,7 +1073,7 @@ public static class CultureService
     {
         if (city?.Record == null || city.IsGone()) return;
         string main = city.GetOrCreate().main_culture;
-        if (!IsValidCulture(main) || string.Equals(CulturePatch.GetInjectedCultureName(city.Culture), main, StringComparison.Ordinal))
+        if (!IsValidCulture(main) || string.Equals(Cultures.FamilyOf(city.Culture), main, StringComparison.Ordinal))
             return;
         Culture native = CachedNativeCulture(main);
         if (native == null || city.Culture == native) return;
@@ -1125,7 +1097,7 @@ public static class CultureService
         }
         string leaderCulture = GetActorCulture(actor);
         return !IsValidCulture(leaderCulture) ||
-               !string.Equals(leaderCulture, CulturePatch.GetInjectedCultureName(city.Culture), StringComparison.Ordinal);
+               !string.Equals(leaderCulture, Cultures.FamilyOf(city.Culture), StringComparison.Ordinal);
     }
 #endif
 
@@ -1173,6 +1145,7 @@ public static class CultureService
         TranslateHelper.LogForeignCultureOccupation(city, oldCulture, newCulture);
         return true;
     }
+#endif
 
     public static bool FindCultureRestorationCandidate(City city, Realm controller, out string culture)
     {
@@ -1189,7 +1162,6 @@ public static class CultureService
         culture = data.restoration_culture;
         return true;
     }
-#endif
 
     // 神力易俗(见 GodPowers/CityCulturePower)：这座城当即改从某文化——城里的人物、背景人口、文化比例、地名一并改过来，
     // 不看法理文化锁定、不走城市文化转换的谋划
@@ -1274,7 +1246,6 @@ public static class CultureService
     /// 在世界上找一个当前文化等于目标文化、还存活着的单位，只是借用它调用
     /// Person.generateName 按该文化的命名规则生成一个名字，不会修改这个单位本身的任何状态。
     /// </summary>
-#if EC_PENDING
     private static Person FindCultureTemplateActor(string culture)
     {
         if (!IsValidCulture(culture) || EmpireWorld.Current?.Living == null) return null;
@@ -1285,14 +1256,13 @@ public static class CultureService
         }
         return null;
     }
-#endif
 
     /// <summary>
     /// 现场按目标文化生成一个新地名（纯生成，不落地保存也不修改任何对象状态），
     /// 找不到该文化的任何存活单位可供借用时返回 null。人名要传性别(不传原版随手定男女，男丁会取成女名)。
     /// </summary>
 #if EC_PENDING
-    public static string GenerateCulturalName(MetaType metaType, long id, string culture, Sex sex = Sex.None)
+    public static string GenerateCulturalName(EntityKind metaType, long id, string culture, Sex sex = Sex.None)
     {
         Person templateActor = FindCultureTemplateActor(culture);
         if (templateActor == null) return null;
@@ -1353,7 +1323,7 @@ public static class CultureService
             return true;
         }
 
-        string generated = GenerateCulturalName(MetaType.City, city.Key, toCulture);
+        string generated = GenerateCulturalName(EntityKind.City, city.Key, toCulture);
         if (string.IsNullOrWhiteSpace(generated)) return false;
         RecordCityCulturalName(city, toCulture, generated);
         resolvedName = generated;
@@ -1458,7 +1428,7 @@ public static class CultureService
         }
         else if (capital != null && !capital.IsGone())
         {
-            string generated = GenerateCulturalName(MetaType.City, capital.Key, toCulture);
+            string generated = GenerateCulturalName(EntityKind.City, capital.Key, toCulture);
             if (!string.IsNullOrWhiteSpace(generated))
             {
                 resolvedTitleName = generated;
@@ -1475,7 +1445,7 @@ public static class CultureService
         else if (capital != null && !capital.IsGone())
         {
             // 省份名字跟头衔名字各自独立生成一次，避免两者永远完全一样。
-            string generated = GenerateCulturalName(MetaType.City, capital.Key, toCulture);
+            string generated = GenerateCulturalName(EntityKind.City, capital.Key, toCulture);
             if (!string.IsNullOrWhiteSpace(generated))
             {
                 resolvedProvinceName = generated;
@@ -1522,6 +1492,7 @@ public static class CultureService
                     isProvince: true);
         }
     }
+#endif
 
     public static float GetCultureShare(City city, string culture)
     {
@@ -1580,7 +1551,6 @@ public static class CultureService
         UpdateCityCultureShiftCandidate(city);
         return Math.Abs(oldValue - newValue) > Epsilon;
     }
-#endif
 
     /// <summary>
     /// 检查某个法理是否已经满足“国家主流文化变更”的条件：
@@ -1588,7 +1558,6 @@ public static class CultureService
     /// 纯检查，不会修改任何状态——真正的变更只能通过“文治”派系发起并执行对应决议
     /// （见 Regimes/TemporaryFactions/Claims/TempFac_文化转化.cs），不再自动触发。
     /// </summary>
-#if EC_PENDING
     public static bool FindTitleCultureConversionCandidate(KingdomTitle title, out string candidate)
     {
         candidate = null;
@@ -1597,7 +1566,7 @@ public static class CultureService
         // 都护府辖区是中央有意保留的异文化军管区，不参与"文治"派系的法理文化转化决议。
         if (IsProtectorateGeneralTitle(title)) return false;
 
-        List<City> cities = title.getCities().Where(city => city != null && !city.IsGone()).ToList();
+        List<City> cities = title.GetCities().Where(city => city != null && !city.IsGone()).ToList();
         if (cities.Count == 0) return false;
 
         City capital = title.title_capital;
@@ -1616,7 +1585,6 @@ public static class CultureService
         candidate = capitalCulture;
         return true;
     }
-#endif
 
     /// <summary>
     /// 由“文治”派系决议执行：把法理的默认文化正式改为 candidate。
@@ -1647,20 +1615,17 @@ public static class CultureService
     /// 自动变成 LvLing_jimizhou（羁縻州），见该 JSON 里 LvLing_duhufu 的 city_type 字段。
     /// 纯判断，不修改任何状态。
     /// </summary>
-#if EC_PENDING
     public static bool IsProtectorateGeneral(Realm administration)
     {
         return administration?.Record != null && !administration.IsGone() &&
                administration.GetKingdomType() == KingdomType.LvLing_duhufu;
     }
-#endif
 
     /// <summary>
     /// 某个法理当前的实际管理机构里，只要有一个是都护府（见 IsProtectorateGeneral），
     /// 整个法理就视为都护府辖区：不参与"文治"派系的法理文化转化决议，
     /// 统治者的个人文化也不会跟着治下城市自动改变（见 SyncActorToCityMainCulture）。
     /// </summary>
-#if EC_PENDING
     public static bool IsProtectorateGeneralTitle(KingdomTitle title)
     {
         if (title?.data == null || title.IsGone()) return false;
@@ -1704,7 +1669,6 @@ public static class CultureService
         data.last_cultural_assimilation_push_timestamp = -1d;
         return true;
     }
-#endif
 
     public static void ClearCulturalAssimilationDuty(Realm administration)
     {
@@ -1731,7 +1695,6 @@ public static class CultureService
     /// 月度维护同化任务：迁移旧档，清理失效任务，并在达到结果门槛后自动结案。
     /// 行政区需要三分之二的辖城承认目标文化，且按人口加权的目标文化占比达到 65%。
     /// </summary>
-#if EC_PENDING
     public static void UpdateCulturalAssimilationDuty(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone()) return;
@@ -1786,13 +1749,11 @@ public static class CultureService
             ? "cultural_assimilation_phase_consolidation"
             : "cultural_assimilation_phase_promotion";
     }
-#endif
 
     /// <summary>
     /// 被指定长官每座城市每年最多推进一次。达到 55% 且领先现主流文化 15 个百分点后，
     /// 行政推动停止，城市转入十年的自然巩固阶段，最后仍由城市主流文化 Plot 正式承认。
     /// </summary>
-#if EC_PENDING
     public static bool FindCulturalAssimilationDutyCandidate(City city, out string targetCulture)
     {
         targetCulture = null;
@@ -1805,12 +1766,10 @@ public static class CultureService
         if (lastPush >= 0d && GameClock.YearsSince(lastPush) < 1) return false;
         return true;
     }
-#endif
 
     /// <summary>
     /// 由被指定承担同化职责的长官发起：花费影响力，把目标文化人口占比提高 5%。
     /// </summary>
-#if EC_PENDING
     public static bool ApplyCulturalAssimilationDuty(City city, string targetCulture)
     {
         if (!FindCulturalAssimilationDutyCandidate(city, out string assignedTarget) ||
@@ -1923,7 +1882,7 @@ public static class CultureService
     {
         KingdomTitle title = administration?.GetAdministrativeTitle();
         if (title?.data == null || title.IsGone()) return new List<City>();
-        return title.getCities()
+        return title.GetCities()
             .Where(city => city?.Record != null && !city.IsGone() && city.Realm == administration)
             .Distinct()
             .ToList();
@@ -1951,7 +1910,6 @@ public static class CultureService
         }
         return totalWeight > 0d && weightedShare / totalWeight >= CulturalAssimilationCompletionShare;
     }
-#endif
 
     public const float CulturalAssimilationDutyPush = 5f;
     public const float CulturalAssimilationCompletionShare = 65f;
@@ -1959,7 +1917,6 @@ public static class CultureService
     public const int CulturalAssimilationDutyInfluenceCost = 20;
     public const int RegimeConversionInfluenceCost = 20;
 
-#if EC_PENDING
     public static void SyncActorToCityMainCulture(Person actor, City city, bool createIfMissing = true)
     {
         if (actor?.Record == null || city?.Record == null || actor.IsGone()) return;
@@ -1972,7 +1929,6 @@ public static class CultureService
         Culture nativeCulture = ResolveNativeCulture(target, actor, createIfMissing);
         if (nativeCulture != null) actor.SetCulture(nativeCulture);
     }
-#endif
 
     /// <summary>
     /// 只读查找：如果这个模组文化 key 已经关联过一个真正的原版 Culture 对象——
@@ -1983,7 +1939,6 @@ public static class CultureService
     /// 目前是文化地图图层的常驻渲染回调（每帧都跑），不适合在那里触发有副作用的
     /// 世界状态变更，哪怕 ResolveNativeCulture 本身对同一个 key 是幂等的。
     /// </summary>
-#if EC_PENDING
     public static Culture GetNativeCultureObject(string culture)
     {
         return ResolveNativeCulture(culture, null, createIfMissing: false);
@@ -1994,14 +1949,15 @@ public static class CultureService
         if (!IsValidCulture(target) || EmpireWorld.Current?.Cultures == null) return null;
         foreach (Culture culture in EmpireWorld.Current.Cultures)
         {
-            if (CulturePatch.GetInjectedCultureName(culture) == target) return culture;
+            if (Cultures.FamilyOf(culture) == target) return culture;
         }
         if (!createIfMissing || founder?.Record == null || founder.IsGone() || founder.City?.Record == null) return null;
         Culture created = EmpireWorld.Current.Cultures.NewCulture(founder, true);
-        if (created != null) CulturePatch.insertCultureTemplate(created, target);
+        if (created != null) Cultures.SetFamily(created, target);
         return created;
     }
 
+#if EC_PENDING
     public static void RefreshCultureDependents(KingdomTitle title)
     {
         if (title == null) return;

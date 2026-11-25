@@ -117,21 +117,16 @@ public static class TechDriveSystem
 
     #region 立场与倾向
 
-#if EC_PENDING
     private static List<FixedFaction> Factions(Empire empire) =>
         empire?.CoreKingdom?.GetRegime()?.GetPlayerFactions()?.Where(faction => faction != null && !faction.Ban).ToList() ??
         new List<FixedFaction>();
 
     private static FixedFaction Dominant(Empire empire) => Factions(empire).OrderByDescending(faction => faction.CentralRatio).FirstOrDefault();
-#endif
 
     // 国库吃紧：可支配的钱不够一年的平常革新经费(按十成费用的一成算)
-#if EC_PENDING
     private static bool TreasuryTight(Empire empire) => Funds(empire) < 200;
-#endif
 
     // 一派对一项科技立场的来由(派系窗口逐项列出)：各阶层的利弊、维持统治(执政的一派)、赚钱(国库吃紧)
-#if EC_PENDING
     public static List<(string key, string arg, float value)> Explain(Empire empire, FixedFaction faction, string techId)
     {
         var parts = new List<(string key, string arg, float value)>();
@@ -155,10 +150,8 @@ public static class TechDriveSystem
 
     public static string CultureOf(Empire empire) =>
         empire?.CoreKingdom == null ? null : TechnologySystem.GetCultureOf(empire.CoreKingdom);
-#endif
 
     // 够得着：本文化没研出，前置已齐或只差一步，不超时代、不超年历
-#if EC_PENDING
     public static bool Reachable(string culture, TechNodeConfig tech)
     {
         if (string.IsNullOrEmpty(culture) || tech == null || TechnologySystem.HasTech(culture, tech.id)) return false;
@@ -167,10 +160,8 @@ public static class TechDriveSystem
         return TechnologySystem.Requires(tech, culture).All(id => TechnologySystem.HasTech(culture, id) ||
             TechnologySystem.TryGetTech(id, out TechNodeConfig step) && TechnologySystem.ArePrerequisitesMet(culture, step));
     }
-#endif
 
     // 本派倾向的革新，按先后：神力固定的、立场高的、便宜的
-#if EC_PENDING
     public static List<(TechNodeConfig tech, float stance)> PreferenceOrder(Empire empire, FixedFaction faction)
     {
         string culture = CultureOf(empire);
@@ -186,7 +177,6 @@ public static class TechDriveSystem
 
     public static TechNodeConfig PreferredTech(Empire empire, FixedFaction faction) =>
         PreferenceOrder(empire, faction).Select(item => item.tech).FirstOrDefault();
-#endif
 
     #endregion
 
@@ -200,17 +190,14 @@ public static class TechDriveSystem
         public float Progress, Cost;
     }
 
-#if EC_PENDING
     public static int Funds(Empire empire)
     {
         Realm core = empire?.CoreKingdom;
         if (core == null) return 0;
         return TreasurySystem.Enabled(core) ? StateSettlementSystem.DiscretionaryFunds(core) : Math.Max(0, core.GetMoney());
     }
-#endif
 
     // 一年的经费：这一步(本项或通往它的下一步)费用的一成 × 每点科技价
-#if EC_PENDING
     public static int YearlyCost(Empire empire, string techId)
     {
         string culture = CultureOf(empire);
@@ -239,10 +226,8 @@ public static class TechDriveSystem
         outlook.Progress = TechnologySystem.GetProgress(culture, tech.id);
         return outlook;
     }
-#endif
 
     // 发不起来的缘由(语言键)；发得起来返回 null
-#if EC_PENDING
     public static string CannotStart(Empire empire, FixedFaction sponsor, string techId, bool force, DriveOutlook outlook = null)
     {
         string culture = CultureOf(empire);
@@ -255,13 +240,11 @@ public static class TechDriveSystem
         if (!force && outlook.Support < outlook.Opposition) return "tech_drive_opposed";
         return null;
     }
-#endif
 
     #endregion
 
     #region 办革新
 
-#if EC_PENDING
     public static bool Start(Empire empire, FixedFaction sponsor, string techId, bool force)
     {
         if (CannotStart(empire, sponsor, techId, force) != null) return false;
@@ -306,10 +289,8 @@ public static class TechDriveSystem
 
     public static FixedFaction Sponsor(Empire empire, TechDriveState drive) =>
         drive == null ? null : Factions(empire).FirstOrDefault(faction => faction.GetID() == drive.sponsor_faction_id);
-#endif
 
     // 每年(帝国年度更新)：拨款推进、告成或作罢；空着时按派系占比挑一项倾向的革新
-#if EC_PENDING
     public static void Update(Empire empire)
     {
         if (empire?.data == null || empire.CoreKingdom == null || EmpireWorld.Current == null) return;
@@ -356,10 +337,8 @@ public static class TechDriveSystem
             if (wanted != null && Start(empire, faction, wanted.id, false)) return;
         }
     }
-#endif
 
     // 本文化各帝国在办的革新(研究位优先给它们，见 TechnologySystem.GetResearchTargets)
-#if EC_PENDING
     public static IEnumerable<string> DriveTargets(string culture)
     {
         if (ModClass.EMPIRE_MANAGER == null || string.IsNullOrEmpty(culture)) yield break;
@@ -370,7 +349,6 @@ public static class TechDriveSystem
             if (string.Equals(CultureOf(empire), culture, StringComparison.Ordinal)) yield return target;
         }
     }
-#endif
 
     #endregion
 
@@ -379,7 +357,6 @@ public static class TechDriveSystem
     public const float GodStep = 0.25f;
 
     // 神力推进革新：给本项(或通往它的下一步)加 share 成进度，推满当场研成；finish 时连同缺的前置当场研成
-#if EC_PENDING
     public static bool GodAdvance(Empire empire, float share, bool finish)
     {
         TechDriveState drive = empire?.data?.tech_drive;
@@ -402,7 +379,6 @@ public static class TechDriveSystem
         }
         return true;
     }
-#endif
 
     #endregion
 }

@@ -18,8 +18,8 @@ public sealed class MarketMapColor : RecordObject<IdeologyMapColorData>
 {
     private Tint _color;
 
+    public override EntityKind KindOfEntity => MetaTypeExtension.Market;
 #if EC_PENDING
-    public override MetaType meta_type => MetaTypeExtension.Market;
     public override ColorLibrary getColorLibrary() => AssetManager.culture_colors_library;
 #endif
     public override Tint GetColor() => _color;
@@ -115,11 +115,11 @@ public static class MarketMap
     {
         _selectedGood = good;
         MetaTypeAsset layer = EmpireCraftMetaTypeLibrary.market;
-        PlayerOptionData data = layer?.option_asset?.data;
+        GameOption data = layer?.option_asset?.data;
         GodPower power = layer == null ? null : AssetManager.powers.get(layer.power_option_zone_id);
         if (data == null || power == null) return;
-        data.boolVal = true;
-        data.intVal = GoodMode;
+        data.BoolVal = true;
+        data.IntVal = GoodMode;
         PowerLibrary.disableAllOtherMapModes(power.id);
         PlayerConfig.saveData();
         EmpireWorld.Current?.Zones?.MarkDirty();
@@ -289,9 +289,7 @@ public static class MarketMap
         return !Shown(other) || LeaderOf(other.Realm) != leader;
     }
 
-#if EC_PENDING
     public static string Name(Realm leader) => string.Format(LM.Get("market_layer_name"), leader.GetKingdomName());
-#endif
 
     // 铭牌：不止一国的市场写"某某市场"；只有一国的就是那一国，不另写
 #if EC_PENDING

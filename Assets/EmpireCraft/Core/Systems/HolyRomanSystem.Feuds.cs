@@ -221,7 +221,6 @@ public static partial class HolyRomanSystem
         empire?.data?.holy_roman?.private_wars?.FirstOrDefault(record => record.war_id == warId && record.ended_at < 0d);
 
     // 私战收场(OnWarEnded 调用)：攻方胜或议和，争城里攻方占了一半以上地块的割给攻方；守方胜，攻方赔款、打下的争城退还
-#if EC_PENDING
     private static void SettleFeud(Empire empire, HolyRomanState state, War war, WarOutcome winner)
     {
         PrivateWarRecord record = FeudRecord(empire, war.Key);
@@ -269,7 +268,6 @@ public static partial class HolyRomanSystem
         FiscalDiagnostics.Count("神罗·私战割城", taken.Count);
         LogService.LogInfo($"[EmpireCraft][神罗] {empire.GetEmpireFullName()} 私战收场({winner})：{text}");
     }
-#endif
 
     private static Realm LiveKingdom(long id)
     {
@@ -292,7 +290,6 @@ public static partial class HolyRomanSystem
         kingdom?.Record != null && !kingdom.IsGone() && kingdom.GetEmpire() == empire && !IsBanned(kingdom) && kingdom.HasRuler() &&
         (kingdom == empire.CoreKingdom || SecularPrince(kingdom)) && !Rebelling(kingdom);
 
-#if EC_PENDING
     private static void LawsuitsYearly(Empire empire, HolyRomanState state)
     {
         foreach (LawsuitRecord suit in state.lawsuits.ToList())
@@ -323,7 +320,6 @@ public static partial class HolyRomanSystem
             if (state.lawsuits.Count >= LawsuitMaxPending) return;
         }
     }
-#endif
 
     // 告谁、告哪座城：别家手里自己法理的非都城，接壤的在前；同一座城不重复立案
     private static (Realm defendant, City city) SuitTarget(HolyRomanState state, Realm plaintiff, List<Realm> realms)
@@ -337,7 +333,6 @@ public static partial class HolyRomanSystem
         return (null, null);
     }
 
-#if EC_PENDING
     private static void File(Empire empire, HolyRomanState state, Realm plaintiff, Realm defendant, City city)
     {
         Realm core = empire.CoreKingdom;
@@ -361,12 +356,10 @@ public static partial class HolyRomanSystem
 
     private static bool IsElectorRealm(Empire empire, Realm kingdom) =>
         empire.GetCabinetMembers().Any(actor => actor?.Realm == kingdom && !actor.IsGone());
-#endif
 
     private static bool ImperialHouse(Empire empire, Realm kingdom) =>
         kingdom == empire.CoreKingdom || SameHouse(kingdom.Ruler, empire.Emperor);
 
-#if EC_PENDING
     private static void Verdict(Empire empire, HolyRomanState state, LawsuitRecord suit, Realm plaintiff, Realm defendant,
         City city)
     {
@@ -405,7 +398,6 @@ public static partial class HolyRomanSystem
         Record(empire, text);
         LogService.LogInfo($"[EmpireCraft][神罗] {empire.GetEmpireFullName()} 帝国法院宣判(判给几率{grant:P0}，权威{authority})：{text}");
     }
-#endif
 
     #endregion
 

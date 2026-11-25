@@ -155,15 +155,15 @@ public static class BookNamingSystem
 #if EC_PENDING
     public static int RepairLegacyNames()
     {
-        if (EmpireWorld.Current?.books == null) return 0;
+        if (EmpireWorld.Current?.Books == null) return 0;
         int repaired = 0;
-        foreach (Book book in EmpireWorld.Current.books)
+        foreach (Book book in EmpireWorld.Current.Books)
         {
-            if (book?.data == null || book.IsGone() || string.IsNullOrEmpty(book.name) ||
-                !LegacyTemplePrefix.IsMatch(book.name)) continue;
+            if (book?.data == null || book.IsGone() || string.IsNullOrEmpty(book.Name) ||
+                !LegacyTemplePrefix.IsMatch(book.Name)) continue;
             Realm kingdom = EmpireWorld.Current.RealmByKey(book.data.author_kingdom_id);
-            string title = RepairLegacyTitle(book.name, kingdom?.GetEmpire()?.data?.history);
-            if (title == book.name) continue;
+            string title = RepairLegacyTitle(book.Name, kingdom?.GetEmpire()?.data?.history);
+            if (title == book.Name) continue;
             book.setName(title);
             repaired++;
         }
@@ -205,19 +205,16 @@ public static class BookNamingSystem
     }
 
     // 世界里已有的书名(换世界/读档后重建一次，之后随写书增量更新)
-#if EC_PENDING
     private static HashSet<string> UsedNames()
     {
         if (_usedNames != null && ReferenceEquals(_usedWorld, EmpireWorld.Current)) return _usedNames;
         _usedWorld = EmpireWorld.Current;
-        _usedNames = new HashSet<string>(EmpireWorld.Current.books.Select(book => book.name)
+        _usedNames = new HashSet<string>(EmpireWorld.Current.Books.Select(book => book.Name)
             .Where(name => !string.IsNullOrEmpty(name)), StringComparer.Ordinal);
         return _usedNames;
     }
-#endif
 
     // 取一个世界里没用过的书名(撞名加"卷二、卷三")并登记
-#if EC_PENDING
     public static string ClaimUnique(string name)
     {
         if (string.IsNullOrWhiteSpace(name) || EmpireWorld.Current == null) return name;
@@ -228,7 +225,6 @@ public static class BookNamingSystem
     }
 
     public static bool IsUsed(string name) => !string.IsNullOrEmpty(name) && EmpireWorld.Current != null && UsedNames().Contains(name);
-#endif
 
     // 带 key 的词库条目：文化自己的 Culture_<文化>/<文化><name>.csv 与通用的 Books/<name>.csv 合并
     // (理念书库按 key 前缀区分理念，见 SpeechFreedomSystem)
@@ -271,12 +267,12 @@ public static class BookNamingSystem
         EntryCache[cacheKey] = entries;
         return entries;
     }
+#endif
 
     public static void MarkUsed(string name)
     {
         if (!string.IsNullOrEmpty(name)) UsedNames().Add(name);
     }
-#endif
 
     // 按文化读词库：Culture_<文化>/<文化><name>.csv，没有就读 Books/<name>.csv
 #if EC_PENDING

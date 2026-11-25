@@ -57,7 +57,6 @@ public static class TerrainResistance
     // traveller、other：谁要过去(过城墙上的关门看守关的放不放，见 WallGateSystem.LetsThrough；
     // 两头都给的要两国都放才算，例如两城之间的教化；不给的当外人，关门不开，无人区按定居的判)
     // 只看地形的阻力(不看无人区、城墙、路)：本国的无人区里传政令按它的几倍算(见 AdministrativeControlSystem)
-#if EC_PENDING
     public static float TerrainStep(Cell zone)
     {
         if (zone == null || zone.OnEdge || SeaRegionSystem.IsSea(zone)) return -1f;
@@ -65,6 +64,7 @@ public static class TerrainResistance
         return impassable ? Ridge : Base(terrain);
     }
 
+#if EC_PENDING
     public static float Step(Cell zone, Realm traveller = null, Realm other = null)
     {
         if (zone == null || zone.OnEdge || SeaRegionSystem.IsSea(zone)) return -1f;

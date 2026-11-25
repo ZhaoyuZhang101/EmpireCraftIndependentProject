@@ -46,14 +46,12 @@ public static class ShogunateDramaSystem
     public static bool SengokuDue(int daimyoFaction, int shogunal, int daimyoRealms) =>
         daimyoRealms >= SengokuDaimyo && daimyoFaction > 0 && daimyoFaction >= shogunal * SengokuRatio;
 
-#if EC_PENDING
     private static FixedFaction Faction(Empire empire, FactionType type)
     {
         foreach (FixedFaction faction in CourtSystem.Factions(empire))
             if (faction != null && faction.Type == type) return faction;
         return null;
     }
-#endif
 
     private static void Boost(Empire empire, FixedFaction faction, int amount)
     {
@@ -261,7 +259,6 @@ public static class ShogunateDramaSystem
     }
 
     // 记进史书；大事不论哪国都上屏(见 TranslateHelper.LogMajor)，其余照寻常的世界消息
-#if EC_PENDING
     private static void Record(Empire empire, string text, bool major)
     {
         if (!major)
@@ -272,6 +269,5 @@ public static class ShogunateDramaSystem
         empire.RecordHistory(directContent: text, kingdomId: empire.CoreKingdom?.Key ?? -1L);
         TranslateHelper.LogMajor(text, empire.CoreKingdom);
     }
-#endif
 }
 }

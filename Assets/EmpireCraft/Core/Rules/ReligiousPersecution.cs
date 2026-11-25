@@ -92,7 +92,6 @@ public static class ReligiousPersecution
     }
 
     // 被迫害的是本土之教：过半的城，该教是城所在天下的本土宗教，国教却不是这个天下的
-#if EC_PENDING
     private static bool Homeland(Religion state, Religion faith, List<City> cities)
     {
         if (state?.data == null || faith?.data == null || !ReligionSphere.IsNative(faith) || cities.Count == 0) return false;
@@ -104,7 +103,6 @@ public static class ReligiousPersecution
         }
         return count * 2 > cities.Count;
     }
-#endif
 
     // 国库吃紧：不到半年经常收入
     private static bool Strapped(Realm realm) => realm.GetMoney() < StateDebtSystem.AnnualStableIncome(realm) / 2;
@@ -143,7 +141,6 @@ public static class ReligiousPersecution
 #endif
 
     // 驱逐：各城两成人口出走到同教邻国(没有就做难民)，城改奉国教，同教之国结怨
-#if EC_PENDING
     private static void Expel(Realm realm, Religion faith, List<City> cities)
     {
         bool moved = false;
@@ -164,7 +161,6 @@ public static class ReligiousPersecution
         ReligionChronicle.Record(faith, realm.Religion, ReligionChronicle.KindConversion, text);
         LogService.LogInfo($"[EmpireCraft][宗教] {realm.GetKingdomName()} 驱逐{faith.Name}信众：{cities.Count} 城");
     }
-#endif
 
     private static bool Emigrate(City city, Religion faith, Realm realm, Empire empire)
     {

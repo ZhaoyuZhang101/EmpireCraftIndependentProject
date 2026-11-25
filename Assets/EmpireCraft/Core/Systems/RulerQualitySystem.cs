@@ -128,7 +128,6 @@ public static class RulerQualitySystem
     private const int EarlyGenerationYears = 60;
 
     // 深宫之弊：王朝开国后出生的(生在深宫)按王朝年岁与周期压力变差；开国前后出生的头几代偏好
-#if EC_PENDING
     private static float PalaceDecay(Empire empire, Person ruler)
     {
         // 分裂出的朝廷按它自己的年岁算，不把新一代算成几百年老朝的深宫子弟(见 DynasticCycleSystem.CourtAge)
@@ -141,7 +140,6 @@ public static class RulerQualitySystem
         if (dynastyAge < EarlyGenerationYears) return -0.1f + pressure;
         return Mathf.Min(1.5f, 0.1f + (dynastyAge - EarlyGenerationYears) / 100f + pressure);
     }
-#endif
 
     #endregion
 

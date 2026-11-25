@@ -68,7 +68,6 @@ public static partial class PapacySystem
                                                       religion.GetOrCreate().ParentReligionId == old.data.id).ToList();
 
     // 宗教改革分出的教会(按分出先后)：本功能起头的(改革者、诸侯、国教会)，加上剧本带的新教(圣地所在文化施行了宗教改革)
-#if EC_PENDING
     public static List<Religion> Reformations(Religion old) =>
         ChildChurches(old).Where(child => IsReformedChurch(child) || LegacyProtestant(child))
             .OrderBy(child => child.GetOrCreate().SplitAt).ToList();
@@ -81,10 +80,8 @@ public static partial class PapacySystem
         return holy?.Record != null && !holy.IsGone() &&
                InstitutionSystem.IsEnacted(CultureService.GetMainCulture(holy, initialize: false), NodeReformation);
     }
-#endif
 
     // 本帝国奉宗教改革分出的新教会(从 old 分出，含剧本带的新教)的城最多的一支与它的占比
-#if EC_PENDING
     public static (Religion church, float share) ReformedShare(Empire empire, Religion old)
     {
         int total = 0;
@@ -112,7 +109,6 @@ public static partial class PapacySystem
         KeyValuePair<Religion, int> top = counts.OrderByDescending(pair => pair.Value).First();
         return (top.Key, top.Value / (float)total);
     }
-#endif
 
     #endregion
 
@@ -193,13 +189,10 @@ public static partial class PapacySystem
 #endif
 
     // 能起改革、改宗的国：不是教宗国、主教领，不握圣地
-#if EC_PENDING
     private static bool ReformableRealm(Realm kingdom) =>
         kingdom.GetKingdomType() != KingdomType.Feudalism_papal_state && !HolyRomanSystem.IsChurchEstate(kingdom) && !HoldsHolyCity(kingdom);
-#endif
 
     // 立新教会：改革者在一城张贴论纲，或诸侯在本国另立(HolyRomanSystem.SeedReformation 也走这里)
-#if EC_PENDING
     public static Religion FoundReformedChurch(Religion old, City city, Person founder, int kind)
     {
         if (old?.data == null || city?.Record == null || city.IsGone() || founder?.Record == null || !founder.Alive) return null;
@@ -236,7 +229,6 @@ public static partial class PapacySystem
                            $"立{church.Name}，分自{old.Name}");
         return church;
     }
-#endif
 
     #endregion
 
@@ -301,7 +293,6 @@ public static partial class PapacySystem
 
     // 由诸侯择教的国：奉旧教、有君、不是教宗国、主教领、不握圣地、不在教廷所在国；西方帝国的中央另走 TryBreakWithRome，
     // 有议会的封建帝国的成员另走 HolyRomanSystem.PrincelyReformation
-#if EC_PENDING
     private static bool PrinceMayChoose(Realm kingdom, Religion old, Realm see)
     {
         if (!SchismAlive(kingdom) || kingdom.Religion != old || kingdom.Capital == null || kingdom.Ruler?.Record == null ||
@@ -311,7 +302,6 @@ public static partial class PapacySystem
         if (empire.CoreKingdom == kingdom) return !IsWestern(empire);
         return !HolyRomanSystem.HasDiet(empire);
     }
-#endif
 
     // 诸侯改奉某支新教会的年几率(神罗诸侯同用，见 HolyRomanSystem.PrincelyReformation)
 #if EC_PENDING
@@ -367,7 +357,6 @@ public static partial class PapacySystem
 #endif
 
     // 诸侯改奉新教会(教随国定)：君主、国、都城改奉，其余各城随国教势能慢慢改；记皈依时间(见 ReligionConversionSystem.RecentlyConverted)
-#if EC_PENDING
     public static void AdoptReformation(Realm kingdom, Religion church, Religion old)
     {
         ConvertState(kingdom, church);
@@ -391,10 +380,8 @@ public static partial class PapacySystem
         empire.Religion = church;
         State(empire).national_church_id = church.data.id;
     }
-#endif
 
     // 帝国中央改奉境内已占上风的新教会(TryBreakWithRome)：成员国与各城随之慢慢改(见 ReligionConversionSystem.FollowRealm)，没收教产
-#if EC_PENDING
     private static void AdoptRealmReformation(Empire empire, Religion church, Religion old)
     {
         Realm core = empire.CoreKingdom;
@@ -408,10 +395,8 @@ public static partial class PapacySystem
         empire.Emperor?.RecordPersonalHistory(text);
         ReligionChronicle.Record(old, church, ReligionChronicle.KindConversion, text);
     }
-#endif
 
     // 一国连城改奉(对立一线分立用)：国、君主、奉旧教的城(连城中实体)
-#if EC_PENDING
     private static void ConvertWhole(Realm kingdom, Religion old, Religion church)
     {
         kingdom.SetReligion(church);
@@ -419,7 +404,6 @@ public static partial class PapacySystem
         foreach (City city in kingdom.Cities.ToList())
             if (city?.Record != null && !city.IsGone() && city.Religion == old) BackgroundReligionSystem.Convert(city, church, old);
     }
-#endif
 
     #endregion
 

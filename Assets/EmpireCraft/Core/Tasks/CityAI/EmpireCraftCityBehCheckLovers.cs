@@ -9,12 +9,10 @@ public class EmpireCraftCityBehCheckLovers: GameAICityBase
 {
     public override Type OriginalBeh => GetType();
 
-#if EC_PENDING
-    public override BehResult execute(City pCity)
+    public override BehResult Execute(City pCity)
     {
         
         return BehResult.Continue;
     }
-#endif
 }
 }

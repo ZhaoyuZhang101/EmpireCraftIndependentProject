@@ -108,7 +108,7 @@ public static class CityRelocationSystem
         RuralSettlementSystem.Touch();
         CityDistricts.Reset();
         // 本城当即重画；邻城接过来的官道换了走向，指纹跟着变(见 PureMapPatch.Stamp)，按轮重建时(约十秒一轮)重画
-        PureMapPatch.Redraw(city);
+        GameView.Redraw(city);
         RoadNetwork.ReplanCity(city);
         AdministrativeControlSystem.Refresh(city.Realm);
         done = true;
@@ -138,8 +138,8 @@ public static class CityRelocationSystem
         try
         {
             Building old = city.getBuildingOfType("type_bonfire", pCountOnlyFinished: false);
-            if (old?.asset == null || old.isOnRemove() || old.current_tile?.zone == target.Zone) return;
-            BuildingAsset asset = old.asset;
+            if (old?.Asset == null || old.IsOnRemove() || old.Cell?.Zone == target.Zone) return;
+            BuildingKind asset = old.Asset;
             Cell spot = null;
             int best = BonfireReach * BonfireReach + 1;
             var zones = new List<Cell> { target.Zone };

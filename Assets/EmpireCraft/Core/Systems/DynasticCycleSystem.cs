@@ -30,55 +30,41 @@ public static class DynasticCycleSystem
         Keep
     }
 
-#if EC_PENDING
     public static bool Applies(Empire empire) => MonarchyLegitimacy.UsesTraditionalModel(empire) &&
         !RepublicSystem.IsRepublic(empire);
     public static float GetPressure(Empire empire) => Applies(empire)
         ? Math.Max(0f, Math.Min(100f, empire.data.constitutional_economy?.dynastic_strain ?? 0f)) : 0f;
     public static bool InCrisis(Empire empire) => GetPressure(empire) >= DynasticCycleRules.CrisisPressure;
-#endif
 
     // 末世克扣军饷的成数(本国所在的王朝，见 DynasticCycleRules.PayArrears)
-#if EC_PENDING
     public static float PayArrears(Realm kingdom)
     {
         Empire empire = kingdom?.Record == null || kingdom.IsGone() ? null : kingdom.GetEmpire();
         return empire == null ? 0f : DynasticCycleRules.PayArrears(GetPressure(empire));
     }
     public static bool IsSaturated(Empire empire) => GetPressure(empire) >= DynasticCycleRules.SaturatedPressure;
-#endif
 
     // 正统崩坏(见 DynasticCycleRules.CollapseLegitimacy)。开国气象里不算；分封制王室本就衰微，春秋战国自有规则，也不算
-#if EC_PENDING
     public static bool LegitimacyCollapsed(Empire empire) => Applies(empire) && !empire.InFoundingGrace &&
         !ZhouEraSystem.Applies(empire) && empire.Legitimacy < DynasticCycleRules.CollapseLegitimacy;
-#endif
 
     // 民变与倒戈不再看城的忠诚、稳定度(见 DynasticCycleRules.MayRise)
-#if EC_PENDING
     public static bool UprisingsUnbound(Empire empire) => IsSaturated(empire) || LegitimacyCollapsed(empire);
-#endif
 
     // 积弊入危机线：不能和平转现代(立宪、和平改制、退位)，革命照旧，改朝换代后积弊降下来才能转
-#if EC_PENDING
     public static bool TooDecayedToReform(Empire empire) => InCrisis(empire);
-#endif
 
     // 满额了几年(未满额返回 0)
-#if EC_PENDING
     public static float SaturatedYears(Empire empire)
     {
         double since = empire?.data?.constitutional_economy?.dynastic_saturated_since ?? -1d;
         if (since < 0d || EmpireWorld.Current == null || !IsSaturated(empire) || GameClock.Now < since) return 0f;
         return Math.Max(0, GameClock.YearsSince(since));
     }
-#endif
 
     // 满额后的民变已经起了(群雄割据入口的前提，见 ProvincialCollapseSystem)
-#if EC_PENDING
     public static bool SaturatedUprisingStarted(Empire empire) =>
         IsSaturated(empire) && (empire.data.constitutional_economy?.saturated_uprising_at ?? -1d) >= 0d;
-#endif
 
     public static int GetAge(Empire empire)
     {
@@ -163,7 +149,6 @@ public static class DynasticCycleSystem
 #endif
 
     // 危机线、满额的记载。积弊不再回落，以前回到 40 以下记"走出危机"的那一笔删了；改朝换代降到危机线下才重新记
-#if EC_PENDING
     private static void Settle(Empire empire, ConstitutionalEconomyState state, double now)
     {
         if (state.dynastic_strain >= DynasticCycleRules.CrisisPressure && !state.dynastic_crisis_announced)
@@ -180,7 +165,6 @@ public static class DynasticCycleSystem
         state.dynastic_saturated_since = now;
         EventRecorder.Record(empire, string.Format(LM.Get("dynastic_saturated_history"), empire.GetEmpireFullName()));
     }
-#endif
 
     private static void ClearSaturation(ConstitutionalEconomyState state)
     {
@@ -193,7 +177,6 @@ public static class DynasticCycleSystem
     //   · 头一年结算还没跑过的，先把王朝起点定下来——否则头一次结算按旧档估算整个盖掉；
     //   · 调到同岁数补底线以下，差额记进 dynastic_floor_relief，补底线跟着降，不再每年补回去；
     //   · 过危机线、到满额照常记史、起满额民变；降回线下，危机与满额的记录照改朝换代那样清掉
-#if EC_PENDING
     public static void SetPressure(Empire empire, float value)
     {
         if (empire?.data == null || EmpireWorld.Current == null || !Applies(empire)) return;
@@ -208,12 +191,10 @@ public static class DynasticCycleSystem
         LogService.LogInfo($"[EmpireCraft][王朝积弊] {empire.GetEmpireName()} 积弊直接定为{state.dynastic_strain:0.0}，" +
                            $"王朝{GetAge(empire)}年，补底让出{state.dynastic_floor_relief:0.0}");
     }
-#endif
 
     #region 换君：早逝、更替频繁
 
     // 记下的在位君主不是当今(旧档、绕过即位登记的换君)：按当今补记，即位时间取帝国记的即位时间
-#if EC_PENDING
     private static void TrackRuler(Empire empire, ConstitutionalEconomyState state, double now)
     {
         Person ruler = empire.Emperor;
@@ -229,7 +210,6 @@ public static class DynasticCycleSystem
         state.reign_ruler_since = since;
         state.reign_ruler_start_age = Math.Max(0, AgeOf(ruler) - GameClock.YearsSince(since));
     }
-#endif
 
     private static int AgeOf(Person actor) => Math.Max(0, (int)Math.Round((double)actor.Age()));
 
@@ -244,7 +224,6 @@ public static class DynasticCycleSystem
     // 换君(Empire.NewEmperor 即位登记的末尾)：本朝之内前任在位不满 10 年或卒年不满 30 算早逝，王朝积弊一次 +2.5；
     // 记下这次换君(近 20 年换了 3 位以上每年另加，见 Update)。新朝开国(清空、减半两档已清掉在位记录)从这一位重新记；
     // 权臣外戚代立(保留)照记一次换君，早逝不另算(篡位另有 +5)
-#if EC_PENDING
     public static void OnSuccession(Empire empire, Person ruler, bool newDynasty)
     {
         if (empire?.data == null || ruler?.Record == null || EmpireWorld.Current == null || !Applies(empire)) return;
@@ -272,7 +251,6 @@ public static class DynasticCycleSystem
         state.reign_ruler_since = now;
         state.reign_ruler_start_age = AgeOf(ruler);
     }
-#endif
 
     #endregion
 
@@ -304,7 +282,6 @@ public static class DynasticCycleSystem
     // inheritCourt：朝廷里的易代(权臣篡位、外戚代立、太后另立、议立外姓、争位得胜)——保留一档；
     // 调用方用 Expect 声明了档位的按声明(兵变禅让——减半)；其余(打进京城、外藩入继、新开帝国)清空。
     // 保留、减半两档都是篡位，另加一次积弊(禅让篡位列在加速因素里，用户 2026-10-26)
-#if EC_PENDING
     public static void OnDynastyChanged(Empire empire, bool inheritCourt = false)
     {
         Transition transition = empire != null && _expectedEmpire >= 0L && _expectedEmpire == empire.Key ? _expected
@@ -342,7 +319,6 @@ public static class DynasticCycleSystem
         LogService.LogInfo($"[EmpireCraft][王朝积弊] {empire.GetEmpireName()} 改朝换代({transition}{(usurped ? "，篡位" : "")})，" +
                            $"积弊{state.dynastic_strain:0.0}，王朝{GetAge(empire)}年");
     }
-#endif
 
     // 积弊降了：苛政里积弊那一项跟着变，危机线、满额按新的数重记
     private static void AfterCarry(Empire empire, ConstitutionalEconomyState state, int previousBurden, double now)
@@ -383,7 +359,6 @@ public static class DynasticCycleSystem
 
     // 新朝承接旧朝的王朝积弊与六弊：保留——原样，王朝年岁接着算(两朝分治、权臣分立、绝嗣裂土据地称帝)；
     // 减半——减半、王朝年岁从头算(宗室另立、皇族王国延续)。新朝自己的满额民变、换君记录从头记
-#if EC_PENDING
     public static void Inherit(Empire to, Legacy legacy, Transition transition)
     {
         if (to?.data == null || legacy == null || EmpireWorld.Current == null) return;
@@ -424,7 +399,6 @@ public static class DynasticCycleSystem
         LogService.LogInfo($"[EmpireCraft][王朝积弊] {to.GetEmpireName()} 承接旧朝积弊({transition})：{legacy.strain:0.0} → " +
                            $"{state.dynastic_strain:0.0}，王朝{GetAge(to)}年");
     }
-#endif
 
     #endregion
 
@@ -435,7 +409,6 @@ public static class DynasticCycleSystem
         { "rebellion_reason_harsh_rule", "rebellion_reason_land", "rebellion_reason_famine" };
 
     // 满额后第一场民变起了(见 HarshRuleSystem.TryUprising)：记下时间与本帝国原有的城数(连同本朝民变已占去的)
-#if EC_PENDING
     public static void OnSaturatedUprising(Empire empire)
     {
         ConstitutionalEconomyState state = empire?.data?.constitutional_economy;
@@ -447,7 +420,6 @@ public static class DynasticCycleSystem
         LogService.LogInfo($"[EmpireCraft][王朝积弊] {empire.GetEmpireName()} 积弊满额{SaturatedYears(empire):0}年，民变已起，" +
                            $"原有{state.saturated_origin_cities}城");
     }
-#endif
 
     // 本朝(王朝起点以来，after 给了就从那时起)民变、起义立的国：还在、没回归本帝国的有几家、占了几座城，
     // 其中起事最早的一场过了几年(没有返回 0)

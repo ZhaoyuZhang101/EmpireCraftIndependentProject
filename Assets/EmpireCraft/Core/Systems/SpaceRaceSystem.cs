@@ -35,7 +35,6 @@ public static class SpaceRaceSystem
     private static string TechFor(int step) => step == Satellite ? SatelliteTech : ProgramTech;
 
     // 每年(WorldOrderSystem.Scan)
-#if EC_PENDING
     internal static void Yearly(List<Empire> states, List<Empire> greats, double now)
     {
         Data.space_levels ??= new Dictionary<long, int>();
@@ -88,7 +87,6 @@ public static class SpaceRaceSystem
             }
         }
     }
-#endif
 
     public static string StepName(int step) => LM.Get("space_step_" + Mathf.Clamp(step, 0, Moon));
 }

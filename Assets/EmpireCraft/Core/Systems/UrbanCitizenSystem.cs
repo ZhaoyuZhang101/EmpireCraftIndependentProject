@@ -18,7 +18,6 @@ public static class UrbanCitizenSystem
         !actor.IsGone() && actor.Alive && actor.IsAdult() &&
         actor.GetOrCreate().urban_citizen_city_id == actor.City.Key;
 
-#if EC_PENDING
     public static void UpdateCity(City city, List<Person> residents)
     {
         if (city == null || city.IsGone() || residents == null) return;
@@ -49,14 +48,14 @@ public static class UrbanCitizenSystem
 
     public static int GetCapacity(City city, int adultPopulation)
     {
-        if (city?.buildings == null || adultPopulation <= 0) return 0;
+        if (city?.Buildings == null || adultPopulation <= 0) return 0;
         // 高级民居：实体连同建筑台账里的(见 CityLedger)
-        var built = new Dictionary<BuildingAsset, int>();
+        var built = new Dictionary<BuildingKind, int>();
         CityLedger.CollectCounts(city, built);
         int housing = 0;
-        foreach (KeyValuePair<BuildingAsset, int> pair in built)
-            if (pair.Key.type == "type_house" && pair.Key.upgrade_level >= MinimumHouseLevel)
-                housing += (pair.Key.upgrade_level - MinimumHouseLevel + 1) * pair.Value;
+        foreach (KeyValuePair<BuildingKind, int> pair in built)
+            if (pair.Key.Type == "type_house" && pair.Key.UpgradeLevel >= MinimumHouseLevel)
+                housing += (pair.Key.UpgradeLevel - MinimumHouseLevel + 1) * pair.Value;
         if (housing <= 0) return 0;
         int stage = Math.Max(0, Math.Min(3, (int)InstitutionSystem.GetFeature(
             CultureService.GetMainCulture(city), InstitutionFeatures.UrbanProductionStage)));
@@ -77,6 +76,5 @@ public static class UrbanCitizenSystem
         actor.GetOrCreate().urban_citizen_city_id = -1L;
         actor.SetSocialClass(EmpireCaftActorJudgeClass.JudgeClass(actor));
     }
-#endif
 }
 }

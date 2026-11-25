@@ -148,7 +148,6 @@ public static class WarObjective
         if (add && !data.goal_city_ids.Contains(city.Key)) data.goal_city_ids.Add(city.Key);
     }
 
-#if EC_PENDING
     private static bool CanInherit(Realm attacker, Realm defender, float strength) =>
         strength >= SuccessionStrength && !defender.IsEmpire() && attacker.Ruler != null &&
         PersonalUnionService.IsUnionRegime(attacker) && !PersonalUnionService.IsAtFeudalRealmLimit(attacker.Ruler) &&
@@ -163,7 +162,6 @@ public static class WarObjective
         string theirs = ReligionSphere.SphereOfCulture(CultureService.GetRealmCulture(defender));
         return !string.IsNullOrEmpty(theirs) && !string.Equals(ours, theirs, StringComparison.Ordinal);
     }
-#endif
 
     private static List<City> DefenderCities(War war) => war.Defenders
         .Where(kingdom => kingdom?.Cities != null && !kingdom.IsGone())
@@ -172,7 +170,6 @@ public static class WarObjective
     private static int Size(City city) => (city.Zones?.Count ?? 0) + (city.IsCapital() ? 1000 : 0);
 
     // 收复：对方一边手里本方法理的城；主城池是其中的法理都城，否则最大的一座
-#if EC_PENDING
     private static bool SetReclaim(War war, Realm attacker, WarExtension.WarExtraData data)
     {
         List<City> claimed = WarGoalSystem.Claimed(attacker, DefenderCities(war));
@@ -184,7 +181,6 @@ public static class WarObjective
         data.goal_title_id = main.GetTitle()?.Key ?? -1L;
         return true;
     }
-#endif
 
     // 割地落到具体：争法理 → 夺城 → 争夺资源 → 侵略；一座接壤城都挑不出就求赔款
 #if EC_PENDING
@@ -204,7 +200,7 @@ public static class WarObjective
                      .Distinct())
         {
             if (!WarGoalSystem.ClaimsTitle(realm, title)) continue;
-            List<City> theirs = title.getCities().Where(city => city?.Record != null && !city.IsGone() && city.Realm != null &&
+            List<City> theirs = title.GetCities().Where(city => city?.Record != null && !city.IsGone() && city.Realm != null &&
                                                                  defenders.Contains(city.Realm)).ToList();
             if (theirs.Count > (bestCities?.Count ?? 0))
             {
@@ -353,7 +349,6 @@ public static class WarObjective
     }
 
     // 每场仗约每月一次(WarPatch.update)
-#if EC_PENDING
     public static void Check(War war)
     {
         if (war?.Record == null || war.HasEnded() || EmpireWorld.Current == null) return;
@@ -382,12 +377,10 @@ public static class WarObjective
             LogService.LogWarning($"[EmpireCraft][战争目标] 查主城池失败: {exception.Message}");
         }
     }
-#endif
 
     private static bool OnDefenderSide(War war, City city) => city.Realm != null && war.Defenders.Contains(city.Realm);
 
     // 主城池落到第三家手里或没了：换目标里还在对方一边的另一座；都没了就改为赔款
-#if EC_PENDING
     private static void Retarget(War war, WarExtension.WarExtraData data)
     {
         City next = (data.goal_city_ids ?? new List<long>()).Select(id => EmpireWorld.Current.CityByKey(id))
@@ -404,11 +397,9 @@ public static class WarObjective
         data.goal_main_city_id = -1L;
         WarChronicle.Record(war, WarChronicle.Goal, string.Format(LM.Get("war_log_goal_lost"), war.MainAttacker.GetKingdomName()));
     }
-#endif
 
     // 叛乱、革命攻下京城即胜(清君侧另有规矩，见 FactionPurgeSystem；藩王争位见 CityPatch)：认开战时的京城(朝廷迁都不算数)，
     // 只占了过半地块的，京城随和约归起事一方(议和时会清掉占领)
-#if EC_PENDING
     private static bool TakesCapital(War war)
     {
         if (!RebelWar(war)) return false;
@@ -421,7 +412,6 @@ public static class WarObjective
         EmpireWorld.Current.EndWar(war, WarOutcome.Attackers);
         return true;
     }
-#endif
 
     // 叛乱要攻的京城：开战时记下的(见 WarPatch.update)，没记的按眼下的
     public static City RebelTarget(War war)
@@ -508,7 +498,6 @@ public static class WarObjective
 #endif
 
     // 兼领王位：宣称者(开战时的攻方君主)还在、还能兼领
-#if EC_PENDING
     private static bool Inherit(War war, WarExtension.WarExtraData data, Realm attacker, Realm defender)
     {
         Person claimant = EmpireWorld.Current.PersonByKey(data.goal_claimant_id) ?? attacker?.Ruler;
@@ -522,7 +511,6 @@ public static class WarObjective
             former?.FullName() ?? ""), attacker);
         return true;
     }
-#endif
 
     // 和约里的改归属在结束战争之后几帧做(WarGoalSystem.Tick 开头调)
     internal static void Tick()

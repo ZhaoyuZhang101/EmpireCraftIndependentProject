@@ -34,10 +34,8 @@ public static class VassalInvestitureService
     private const float DefianceVictoryAutonomyBonus = 15f;
 
     // 附庸自行继承由制度特性 vassal_self_succession 提供，任何线的节点都可以声明
-#if EC_PENDING
     public static bool IsSelfSuccessionEnacted(Empire empire) =>
         empire != null && InstitutionSystem.HasFeature(empire, InstitutionFeatures.VassalSelfSuccession);
-#endif
 
     public static InvestitureMode Evaluate(float authority, float autonomy, bool selfSuccession)
     {
@@ -49,7 +47,6 @@ public static class VassalInvestitureService
 
     #region 分数
 
-#if EC_PENDING
     private static float GetSuzerainAuthority(Empire empire, float coreStrengthShare)
     {
         // 已施行的集权制度给宗主权威的加成：制度特性 vassal_authority 的最高值(0~100)
@@ -72,10 +69,8 @@ public static class VassalInvestitureService
                       bonus;
         return Mathf.Clamp(score, 0f, 100f);
     }
-#endif
 
     // 同一立场在不同政体下叫法不同(华夏"尊王/诸侯"、西方"中央/自治")，取其中最强的一支
-#if EC_PENDING
     private static float GetFactionShare(Empire empire, params FactionType[] types)
     {
         return empire.CoreKingdom?.GetRegime()?.GetPlayerFactions()
@@ -91,11 +86,9 @@ public static class VassalInvestitureService
                                faction.Type is FactionType.诸侯 or FactionType.自治)
             .OrderByDescending(faction => faction.CentralRatio).FirstOrDefault();
     }
-#endif
 
     // 有效兵力：只看这个王国自己的在编士兵。帝国直辖的战争不会调动下辖行政区，没钱招不到新兵，
     // 正统(天命)低落还会拖累战斗力，所以核心王国再大也可能一个能打的兵都没有。
-#if EC_PENDING
     private static float GetMilitaryStrength(Realm kingdom, Empire empireOfCore = null)
     {
         if (kingdom == null || kingdom.IsGone()) return 0f;
@@ -105,6 +98,7 @@ public static class VassalInvestitureService
         return strength;
     }
 
+#if EC_PENDING
     private static void EvaluateKingdom(Empire empire, Realm vassal, out float authority, out float autonomy)
     {
         float coreStrength = GetMilitaryStrength(empire.CoreKingdom, empire);
@@ -197,7 +191,6 @@ public static class VassalInvestitureService
     }
 
     // 自立：只有核心王国自己有兵、有钱养兵、天命尚在，且有效兵力达到封国 1.5 倍时才敢兴兵，否则只能追认。
-#if EC_PENDING
     private static bool WillWageDefianceWar(Empire empire, Realm vassal)
     {
         if (empire.Mandate < 40 || empire.CoreKingdom.GetMoney() <= 0) return false;
@@ -215,6 +208,7 @@ public static class VassalInvestitureService
         if (vassalFaction != null) empire.CoreKingdom.TryIncreaseFactionRatio(vassalFaction, 3);
     }
 
+#if EC_PENDING
     private static bool ReplaceKing(Realm vassal, Person replacement)
     {
         if (vassal == null || vassal.IsGone() || replacement == null || replacement.IsGone()) return false;
@@ -327,14 +321,13 @@ public static class VassalInvestitureService
 
     // 律令制王爵的支系承袭。branchHeir 是老藩王这一支的后代，crownCandidate 是按"皇帝兄弟→皇子"
     // 顺序由朝廷另选的人(可能为 null)。返回最终承袭的人；改立时 predecessor 置空(视为新封)。
-#if EC_PENDING
     public static Person ResolveVirtualSuccession(Empire empire, KingdomTitle title, Person branchHeir,
         Person crownCandidate, ref PersonalClanIdentity predecessor)
     {
         if (empire?.CoreKingdom == null || title == null || branchHeir == null) return branchHeir;
         int empireCities = empire.kingdoms_list.Where(kingdom => kingdom != null && !kingdom.IsGone())
             .Sum(kingdom => kingdom.CountCities());
-        int titleCities = title.getCities().Count(city => city != null && !city.IsGone());
+        int titleCities = title.GetCities().Count(city => city != null && !city.IsGone());
         float sizeShare = empireCities <= 0 ? 0f : 100f * titleCities / empireCities;
         float coreShare = 100f - sizeShare;
         float authority = GetSuzerainAuthority(empire, coreShare);
@@ -363,7 +356,6 @@ public static class VassalInvestitureService
         predecessor = null;
         return crownCandidate;
     }
-#endif
 
     #endregion
 
@@ -391,6 +383,7 @@ public static class VassalInvestitureService
                ?? (emperorIdentity == null ? null : Pick(SpecificClanManager.GetSiblingsWithRelation(emperorIdentity)))
                ?? (emperorIdentity == null ? null : Pick(SpecificClanManager.getChildren(emperorIdentity)));
     }
+#endif
 
     private static void Record(Empire empire, Realm vassal, Person actor, string key, params object[] args)
     {
@@ -403,6 +396,5 @@ public static class VassalInvestitureService
         if (!key.StartsWith("investiture_granted_history"))
             EmpireCraft.Core.TranslateHelper.LogEventMessage(content, vassal ?? empire.CoreKingdom);
     }
-#endif
 }
 }

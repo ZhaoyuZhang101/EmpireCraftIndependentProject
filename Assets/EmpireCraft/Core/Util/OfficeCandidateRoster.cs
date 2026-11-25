@@ -24,7 +24,6 @@ internal static class OfficeCandidateRoster
     public static long Hits { get; private set; }
     public static void Invalidate() { if (CityPopulationSystem.AbstractPopulationEnabled) _revision++; }
 
-#if EC_PENDING
     public static IEnumerable<Person> Empire(IEnumerable<Realm> kingdoms)
     {
         if (kingdoms == null) yield break;
@@ -45,12 +44,11 @@ internal static class OfficeCandidateRoster
             foreach (Person actor in entry.Actors)
             {
                 if (kingdom.Record == null || kingdom.IsGone()) break;
-                if (actor?.Record == null || actor.asset == null || !actor.Alive || actor.asset.is_boat || actor.Realm != kingdom ||
+                if (actor?.Record == null || actor.Asset == null || !actor.Alive || actor.Asset.IsBoat || actor.Realm != kingdom ||
                     AncientWarfareCompatibility.Owns(actor)) continue;
                 yield return actor;
             }
         }
     }
-#endif
 }
 }

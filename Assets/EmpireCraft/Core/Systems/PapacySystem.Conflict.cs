@@ -32,10 +32,8 @@ public static partial class PapacySystem
     private const float AuthorityLapse = 30f;
     private const float PartyDistance = 60f;
 
-#if EC_PENDING
     public static bool IsSecularPath(Empire empire) =>
         InstitutionSystem.IsEnacted(empire, NodeSecular) || InstitutionSystem.IsEnacted(empire, "western_centralized_monarchy");
-#endif
 
     public static bool InContest(Empire empire) => State(empire)?.investiture_contest_at >= 0d;
 
@@ -108,7 +106,6 @@ public static partial class PapacySystem
                                  state.excommunicated_at >= 0d || state.coerced_at >= 0d);
     }
 
-#if EC_PENDING
     public static void Excommunicate(Empire empire, PapalRelationState state, string reasonKey)
     {
         Person emperor = empire.Emperor;
@@ -138,10 +135,8 @@ public static partial class PapacySystem
         ReligionChronicle.Record(ReligionOf(empire), ReligionChronicle.KindPapacy, line);
         MonarchyLegitimacy.Invalidate(empire);
     }
-#endif
 
     // 悔罪(卡诺莎)：献上年度经常收入的一半，教权 +10，放弃叙任权之争
-#if EC_PENDING
     private static void TryPenance(Empire empire, PapalRelationState state, Religion religion, Realm papacy)
     {
         if (GameClock.YearsSince(state.excommunicated_at) < 1) return;
@@ -167,7 +162,6 @@ public static partial class PapacySystem
         Lift(empire, state, string.Format(LM.Get("papal_penance_history"), empire.Emperor?.FullName() ?? "",
             ObeyedSeeCity(empire, religion)?.GetCityName() ?? "", empire.GetEmpireFullName()));
     }
-#endif
 
     // 绝罚期间教皇党成员国倒戈：离开帝国另立(地方独立)
 #if EC_PENDING
@@ -192,7 +186,6 @@ public static partial class PapacySystem
 #endif
 
     // 两党：离帝都越远越亲教廷；教皇国、统治者有宗教特质的亲教廷；有滞后，不轻易换边
-#if EC_PENDING
     private static void UpdateParties(Empire empire)
     {
         Realm core = empire.CoreKingdom;
@@ -215,13 +208,11 @@ public static partial class PapacySystem
             data.papal_party = party;
         }
     }
-#endif
 
     public static List<Realm> PartyMembers(Empire empire, int party) =>
         empire?.kingdoms_list?.Where(kingdom => kingdom?.Record != null && !kingdom.IsGone() && kingdom != empire.CoreKingdom &&
                                                 kingdom.GetOrCreate().papal_party == party).ToList() ?? new List<Realm>();
 
-#if EC_PENDING
     public static int Party(Realm kingdom)
     {
         Empire empire = kingdom?.GetEmpire();
@@ -234,6 +225,5 @@ public static partial class PapacySystem
         empire.RecordHistory(directContent: text, actorId: empire.Emperor?.Key ?? -1L, kingdomId: empire.CoreKingdom.Key);
         TranslateHelper.LogEventMessage(text, empire.CoreKingdom);
     }
-#endif
 }
 }

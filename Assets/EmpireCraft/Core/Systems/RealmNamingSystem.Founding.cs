@@ -36,13 +36,11 @@ public static partial class RealmNamingSystem
     public static void BeginChallengeFounding() => _challengeFounding++;
     public static void EndChallengeFounding() => _challengeFounding = Math.Max(0, _challengeFounding - 1);
 
-#if EC_PENDING
     private static bool UsesFoundingRules(Realm kingdom)
     {
         RegimeType? type = kingdom?.GetRegime()?.type;
         return type != null && type != RegimeType.Modern && !RegimeManager.IsPrimitive(type);
     }
-#endif
 
     // 华夏选号(Empire.SelectFoundingEmpireName → SelectFoundingName)
 #if EC_PENDING
@@ -108,7 +106,6 @@ public static partial class RealmNamingSystem
 #endif
 
     // ② 够格的帝国法理：握着首府、无主、名字没别国在用、不是地名
-#if EC_PENDING
     private static EmpireCore TitleNameCore(Realm kingdom, Empire founding)
     {
         EmpireCore core = SeatCore(kingdom, founding);
@@ -117,10 +114,8 @@ public static partial class RealmNamingSystem
             ? core
             : null;
     }
-#endif
 
     // 握着首府的帝国法理(至少三城)：主法理所在的那个优先，其次据城多的
-#if EC_PENDING
     public static EmpireCore SeatCore(Realm kingdom, Empire founding = null)
     {
         if (kingdom?.Record == null || EmpireCoreControl.Sovereign(kingdom) != kingdom) return null;
@@ -141,10 +136,8 @@ public static partial class RealmNamingSystem
         }
         return best;
     }
-#endif
 
     // 国君是不是前朝皇族的后人(分家往上找，见 RestorationHouse)、可以打旧号
-#if EC_PENDING
     private static bool OldDynastyHeir(Person king, Empire founding)
     {
         SpecificClan house = RestorationHouse(king, founding);
@@ -153,19 +146,15 @@ public static partial class RealmNamingSystem
         return RealmNameRules.TakesOldName(fall >= 0d, fall >= 0d ? GameClock.YearsSince(fall) : 0,
             NameInUse(EmpireCoreManager.NormalizeCoreName(house.empire_name), founding));
     }
-#endif
 
     // 这个名字眼下有现存帝国在用(不论前缀)
-#if EC_PENDING
     private static bool NameInUse(string name, Empire except) =>
         !string.IsNullOrWhiteSpace(name) && ModClass.EMPIRE_MANAGER?.Any(other => other?.data != null && other != except &&
                                                                                !other.IsGone() && !other.IsArchived() &&
                                                                                other.CoreKingdom != null &&
                                                                                string.Equals(other.GetEmpireName(), name, StringComparison.Ordinal)) == true;
-#endif
 
     // ③ 自家王国法理名：发家的主法理，其次都城所在的王国法理(据点)；照地名起的跳过，place 带回第一个跳过的
-#if EC_PENDING
     private static string OwnTitleName(Realm kingdom, out string place)
     {
         place = null;
@@ -178,7 +167,6 @@ public static partial class RealmNamingSystem
         }
         return "";
     }
-#endif
 
     // ④ 美号：本文化美号词库，没有就用华夏的；本天下用过的(现存、前朝)跳过。返回去掉前缀字的有效国号(大乾 → 乾)，
     // 前缀由 prefix 带回，调用方设成 directPre。词库、前缀可在文化规则里配(Setting.GrandName，政体编辑器"命名规则"页)：
@@ -263,7 +251,6 @@ public static partial class RealmNamingSystem
 #endif
 
     // 旧存档里国号整个记成"大某"的美号：改成去掉前缀字的有效国号、前缀照本文化美号前缀(读档时，见 DataManager)
-#if EC_PENDING
     public static void NormalizeGrandName(Empire empire)
     {
         if (empire?.data == null || empire.CoreKingdom == null || empire.IsGone() || empire.IsArchived()) return;
@@ -275,7 +262,6 @@ public static partial class RealmNamingSystem
         empire.data.directPre = prefix;
         empire.SetEmpireName(core, preserveEmpireType: true);
     }
-#endif
 
     // 美号的取义(取义词库或语言文件里，key 是美号词条的 key 加 _meaning，如"取《易》'大哉乾元'之义")；没有返回空
     public static string GrandNameMeaning(string culture, string name)
@@ -354,7 +340,6 @@ public static partial class RealmNamingSystem
     }
 
     // ③ 起义军：起事时打了前朝旗号的，称帝用前朝号；本天下有人在用同号按复国规则加方位或"后"
-#if EC_PENDING
     private static EmpireFoundingNameChoice SelectBannerName(Empire empire, Realm kingdom)
     {
         var extra = kingdom.GetOrCreate();
@@ -379,10 +364,8 @@ public static partial class RealmNamingSystem
         LogService.LogInfo($"[EmpireCraft][选定国号] 起义军 {kingdom.GetKingdomName()} 打前朝旗号称帝，号 {banner}{(prefix.Length > 0 ? "，冠 " + prefix : "")}");
         return new EmpireFoundingNameChoice(banner, EmpireFoundingNameSource.RebelBanner);
     }
-#endif
 
     // 起事(KingdomExtension.StartLocalRebelling，地方叛乱)：三成打前朝旗号，号称"复某军"
-#if EC_PENDING
     public static void TryRaiseBanner(Realm rebels, Empire origin)
     {
         if (!Enabled || rebels?.Record == null || rebels.HasMainTitle() || !IsHuaxia(rebels) || rebels.Capital == null) return;
@@ -395,10 +378,8 @@ public static partial class RealmNamingSystem
         rebels.Name = string.Format(LM.Get("rebel_banner_army"), name).UseLocalizedNameSeparator();
         LogService.LogInfo($"[EmpireCraft][起义旗号] {rebels.Capital.GetCityName()} 起事，号 {rebels.Name}");
     }
-#endif
 
     // 前朝：本天下当前在位王朝之前、已亡的那一朝(最近亡的)，名字与在位王朝不同、眼下没人在用
-#if EC_PENDING
     private static (string name, long coreId) FormerDynasty(EmpireCore lead, Empire reigning)
     {
         if (lead == null || ModClass.EMPIRE_MANAGER == null) return ("", -1L);
@@ -429,7 +410,6 @@ public static partial class RealmNamingSystem
         }
         return best == null ? ("", -1L) : (EmpireCoreManager.NormalizeCoreName(best.empire_name), bestCore?.id ?? -1L);
     }
-#endif
 
     // 帝国内部改朝换代(权臣篡位、外戚代立、太后另立……，见 Empire.NewEmperor)：用篡位者的封国名(他持有的王国法理)，没有封国用美号；
     // 宗室复辟(篡位者的宗族建过帝国)沿用旧号，不走这里。返回 false = 不是华夏、照旧规则

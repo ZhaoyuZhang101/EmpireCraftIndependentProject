@@ -94,7 +94,6 @@ public static class LivelihoodSystem
         }
     }
 
-#if EC_PENDING
     private static Surroundings Survey(RuralSettlement settlement)
     {
         int land = 0, rough = 0, forest = 0, woodland = 0, grass = 0, dry = 0, arable = 0, sea = 0;
@@ -127,7 +126,6 @@ public static class LivelihoodSystem
         return new Surroundings(rough / total, forest / total, woodland / total, grass / total, dry / total, arable / total,
             sea / (float)Mathf.Max(1, sea + land));
     }
-#endif
 
     private const float MarketMines = 3f;
 
@@ -230,7 +228,6 @@ public static class LivelihoodSystem
 #endif
 
     // 本文化这一行做到第几级(原矿场、伐木场五级，农具、渔船，都随科技换代，见 FarmlandSystem.FarmTools)
-#if EC_PENDING
     public static int Level(City city, int trade) => trade switch
     {
         Mine => Mathf.Max(1, IndustryBuildingSystem.UnlockedTier(city, IndustryBuildingSystem.MineChain)),
@@ -239,10 +236,8 @@ public static class LivelihoodSystem
         Fish => FarmlandSystem.FishToolTier(city),
         _ => 1
     };
-#endif
 
     // 小窗口里生计后面跟的：矿、林第几级，农、渔用什么农具渔船
-#if EC_PENDING
     public static string LevelText(City city, int trade) => city == null ? "" : trade switch
     {
         Mine or Forest => string.Format(LM.Get("livelihood_level"), Level(city, trade)),
@@ -250,7 +245,6 @@ public static class LivelihoodSystem
         Fish => " · " + LM.Get("fish_tool_" + Level(city, trade)),
         _ => ""
     };
-#endif
 
     // 折成几座原来的矿场、伐木场、牧场
 #if EC_PENDING
@@ -401,10 +395,8 @@ public static class LivelihoodSystem
 
     // ---- 纯净地图下不再建的原版建筑 ----
 
-#if EC_PENDING
-    public static bool Replaces(BuildingAsset asset) =>
+    public static bool Replaces(BuildingKind asset) =>
         Active && asset != null && (IndustryBuildingSystem.IsMine(asset) || IndustryBuildingSystem.IsLumber(asset) ||
-                                    asset.type == AnimalHusbandrySystem.PastureType || asset.type == AnimalHusbandrySystem.SlaughterhouseType);
-#endif
+                                    asset.Type == AnimalHusbandrySystem.PastureType || asset.Type == AnimalHusbandrySystem.SlaughterhouseType);
 }
 }

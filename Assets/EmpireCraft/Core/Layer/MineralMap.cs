@@ -13,8 +13,8 @@ public sealed class MineralMapColor : RecordObject<IdeologyMapColorData>
 {
     private Tint _color;
 
+    public override EntityKind KindOfEntity => MetaTypeExtension.Mineral;
 #if EC_PENDING
-    public override MetaType meta_type => MetaTypeExtension.Mineral;
     public override ColorLibrary getColorLibrary() => AssetManager.culture_colors_library;
 #endif
     public override Tint GetColor() => _color;

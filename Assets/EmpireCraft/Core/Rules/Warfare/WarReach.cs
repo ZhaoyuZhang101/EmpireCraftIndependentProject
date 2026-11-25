@@ -79,7 +79,6 @@ public static class WarReach
     //   · 拦的是国与国之间 AI 自己开的仗；玩家在外交面板、神力里开的不拦(DiplomacyLaws 里看 MembershipCooldown.GodActing)；
     //   · 剧本点名的战争、神力挑拨煽动、全面战争不拦；
     //   · 起兵、内乱一类不算外交，归「禁止叛乱」管(见 Uprising)。
-#if EC_PENDING
     public static bool LawForbids(Realm attacker, Realm defender, WarKind type)
     {
         if (attacker?.Record == null || defender?.Record == null || attacker == defender) return false;
@@ -90,7 +89,6 @@ public static class WarReach
             LogService.LogInfo($"{LogTag} 拦下 {attacker.GetKingdomName()} 对 {defender.GetKingdomName()} 宣战(来自 {caller})：世界法则禁止AI宣战");
         return true;
     }
-#endif
 
     // 起兵、内乱：同一帝国里有一方正在叛乱，刚离开或反过对方帝国(起兵、叛离、独立)，封建上下级，宗主与殖民地。
     // 同一帝国里两个都没在叛乱的成员互相开战(私战、诸侯互伐)照样算 AI 宣战
@@ -195,6 +193,7 @@ public static class WarReach
         }
         return false;
     }
+#endif
 
     private static bool Walks(City city, IEnumerable<City> nearby, HashSet<Realm> others)
     {
@@ -207,7 +206,6 @@ public static class WarReach
         }
         return false;
     }
-#endif
 
     // 走得通的邻城：地块相接、或只隔着无人区，且两边城心军队走得到一起(任一方的走法，同 Borders)。
     // 天下大势量两家接壤用(见 UnificationSystem.Borders；2026-11-07 群友"帝国不会主动出击统一天下"：那边以前只认地块相接的原版邻城，
@@ -441,7 +439,6 @@ public static class WarReach
     // 叛乱开战不拦(起事的城本来就在原主境内)，可打着打着两边隔开了：归化的明教军隔着燕国、隔着海跟济南国打了二十多年，
     // 谁也够不着谁，地图上一条箭头横穿燕国，看着像燕国的仗僵在那里。叛军与原主(连同两边盟友)都够不着的不画箭头，
     // 连着 RebelClearMonths 个月判和，叛军就此自立
-#if EC_PENDING
     private static void SweepRebellion(War war, Realm attacker, Realm defender)
     {
         long id = war.Key;
@@ -456,6 +453,7 @@ public static class WarReach
         EmpireWorld.Current.EndWar(war, WarOutcome.Peace);
     }
 
+#if EC_PENDING
     private static bool Near(Realm a, Realm b, Dictionary<(long, long), bool> cache)
     {
         Realm x = RealmOf(a), y = RealmOf(b);

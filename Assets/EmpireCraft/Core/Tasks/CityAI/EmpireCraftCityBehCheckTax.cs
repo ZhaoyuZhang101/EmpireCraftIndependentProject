@@ -10,7 +10,7 @@ public class EmpireCraftCityBehCheckTax : GameAICityBase
     public override Type OriginalBeh => GetType();
 
 #if EC_PENDING
-    public override BehResult execute(City pCity)
+    public override BehResult Execute(City pCity)
     {
         if (!pCity.IsNeedToSubmitTax()) return BehResult.Continue;
         if (pCity.getLoyalty() <= 0)

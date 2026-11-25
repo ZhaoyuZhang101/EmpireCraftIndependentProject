@@ -11,7 +11,7 @@ public class EmpireCraftKingdomBehCheckEmpire:GameAIKingdomBase
     public override Type OriginalBeh => GetType();
 
 #if EC_PENDING
-    public override BehResult execute(Realm pKingdom)
+    public override BehResult Execute(Realm pKingdom)
     {
         pKingdom.CheckEmpire();
         CheckPossible(pKingdom);
@@ -75,7 +75,7 @@ public class EmpireCraftKingdomBehCheckEmpire:GameAIKingdomBase
             if (pKingdom.HasRuler()&&pKingdom.Ruler.HasCulture())
             {
                 empire.data.directPre = "";
-                var nameEmpire = pKingdom.Ruler.Culture.getOnomasticData(MetaType.Kingdom).generateName();
+                var nameEmpire = pKingdom.Ruler.Culture.GetOnomasticData(EntityKind.Realm).GenerateName();
                 empire.SetEmpireName(nameEmpire);
                 // 有宗族编号不等于宗族还在(旧档里身份上的宗族可能已经没了)
                 pKingdom.Ruler.GetSpecificClan()?.RecordHistoryEmpire(empire, pKingdom.Capital);
@@ -247,11 +247,9 @@ public class EmpireCraftKingdomBehCheckEmpire:GameAIKingdomBase
 #endif
 
     // 按制度文化看(旧制犹存的看旧制所属的文化，见 LegacyInstitutionSystem)
-#if EC_PENDING
     private static bool CultureAbolishedMonarchy(Realm kingdom) =>
         !TechnologySystem.PremodernLocked &&
         InstitutionSystem.GetFeature(CultureService.GetInstitutionCulture(kingdom), RepublicSystem.FeatureAbolishMonarchy) > 0f;
-#endif
 
     // 称帝资格：基础条件 + 不在失败冷却期 + 至少满足一条称帝路线(见 EmpireFormationService)
 #if EC_PENDING

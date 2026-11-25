@@ -57,13 +57,11 @@ public static class RoadPaintSystem
 
     public static Dictionary<int, PaintedRoad> Save() => _tiles;
 
-#if EC_PENDING
     public static Cell TileOf(int id)
     {
-        Cell[] list = EmpireWorld.Current?.Zones;
+        Cell[] list = EmpireWorld.Current?.AllCells;
         return list != null && id >= 0 && id < list.Length ? list[id] : null;
     }
-#endif
 
     // 这一格画路画几等(画不上为 0)：画路与城池全图一键连路的寻路(见 CityPlanWorks.ConnectAll)同一个规矩
 #if EC_PENDING
@@ -151,7 +149,6 @@ public static class RoadPaintSystem
 #endif
 
     // 交战的城的领地上每月受损(同干道)
-#if EC_PENDING
     internal static bool MonthlyWarDamage(float amount)
     {
         if (_tiles.Count == 0 || FrontSystem.Battles.Count == 0) return false;
@@ -163,10 +160,8 @@ public static class RoadPaintSystem
         }
         return changed;
     }
-#endif
 
     // 养护：按所在国家合计，出得起(或统一帝国中央代付)的路况回升，出不起与无主之地的变差
-#if EC_PENDING
     internal static bool YearlyUpkeep(float decay)
     {
         if (_tiles.Count == 0) return false;
@@ -202,7 +197,6 @@ public static class RoadPaintSystem
         foreach (int id in unkept) changed |= Damage(id, decay);
         return changed;
     }
-#endif
 
     // 路况变差；坏到底降一等，土路就荒了
     private static bool Damage(int id, float amount)

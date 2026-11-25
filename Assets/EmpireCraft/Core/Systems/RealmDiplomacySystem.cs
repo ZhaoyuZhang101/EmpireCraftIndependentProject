@@ -7,7 +7,6 @@ namespace EmpireCraft.Core
 public static class RealmDiplomacySystem
 {
     // 托管行政区不拥有出让国家主权的资格；地方自行称臣不能顺便将其从原帝国中解绑。
-#if EC_PENDING
     public static bool CanChooseOverlord(Realm kingdom)
     {
         if (kingdom == null || kingdom.IsGone()) return false;
@@ -19,6 +18,5 @@ public static class RealmDiplomacySystem
         if (empire?.CoreKingdom?.GetRegime()?.type == RegimeType.LvLing) return false;
         return empire == null || kingdom.GetRegime()?.IsAllowDiplomacy() == true;
     }
-#endif
 }
 }

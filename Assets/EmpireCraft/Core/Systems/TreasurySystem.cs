@@ -57,7 +57,6 @@ public static class TreasurySystem
         }
     }
 
-#if EC_PENDING
     public static IEnumerable<(string key, string value)> Details(TreasuryReport report)
     {
         foreach (TreasuryCategory category in Enum.GetValues(typeof(TreasuryCategory)))
@@ -72,7 +71,6 @@ public static class TreasurySystem
                 MoneyDisplay.Format(income), MoneyDisplay.Format(expense)));
         }
     }
-#endif
 
     public static TreasuryReport Consolidated(Realm authority)
     {
@@ -108,7 +106,6 @@ public static class TreasurySystem
         if (central != city.Realm && Enabled(central)) Add(Report(central));
         return total;
     }
-#if EC_PENDING
     public static string FlowText(TreasuryReport report) => string.Format(LM.Get("fiscal_flows_format"),
         report.months, MoneyDisplay.Format(report.income), MoneyDisplay.Format(report.expense));
     public static string TransferText(TreasuryReport report) => string.Format(LM.Get("fiscal_transfers_format"),
@@ -116,7 +113,6 @@ public static class TreasurySystem
     public static string SpendingText(TreasuryReport report) => string.Format(LM.Get("fiscal_spending_format"),
         MoneyDisplay.Format(report.military), MoneyDisplay.Format(report.research), MoneyDisplay.Format(report.construction),
         MoneyDisplay.Format(report.corruption));
-#endif
     public static bool Enabled(Realm kingdom) => !ModClass.IS_CLEAR && EmpireWorld.Current != null &&
         kingdom?.Record != null && !kingdom.IsGone() &&
         !kingdom.IsWild && !AncientWarfareCompatibility.Owns(kingdom);
@@ -154,7 +150,6 @@ public static class TreasurySystem
     public static long DiscretionaryBalance(City city) => city == null || city.IsGone() ? 0L
         : TreasuryRules.AvailableBalance(city.GetTreasuryBalance(), SafetyReserve(city), 0);
 
-#if EC_PENDING
     public static bool TrySpend(Realm kingdom, int amount, TreasuryCategory category, bool discretionary = true)
     {
         if (kingdom == null || kingdom.IsGone() || amount < 0) return false;
@@ -163,7 +158,6 @@ public static class TreasurySystem
         if (amount > 0) kingdom.SubMoney(amount, category);
         return true;
     }
-#endif
 
     // 世袭成员向中央缴的税(城留两成五，其余中央拿走这些、本国留下余数)：
     //   · 西方封建帝国的封地缴两成五、本国留五成(以前两成、留五成五)。用户 2026-10-21 选"西欧会长大"：封建称帝后中央太穷，
@@ -173,7 +167,6 @@ public static class TreasurySystem
     public const int FiefCentralPercent = 25, HanCentralPercent = 30;
 
     // 与政体引擎一样，制度性质读模板；旧档中的政体克隆可能缺少新增字段。
-#if EC_PENDING
     public static (int city, int local, int central) TaxShares(Realm local)
     {
         var empire = local?.GetEmpire();
@@ -219,7 +212,6 @@ public static class TreasurySystem
         if (SchismSystem.IsBreakaway(local)) centralPercent = 0;
         return (25, 75 - centralPercent, centralPercent);
     }
-#endif
 
     // 税级是本国向百姓收税的税率(见 KingdomExtension.GetTaxRate)，设成"无"就一分税收不上。自治的成员、军府的"不交税"
     // 是不向中央上缴(见 TaxShares)，不是不收税：税级为"无"的改回"低"。直接写选项——议会掌握征税权时 SetTaxLevel
@@ -233,7 +225,6 @@ public static class TreasurySystem
 
     // 旧档修补(每年随帝国年度结算，见 ConstitutionalEconomySystem)：以前国家联盟式帝国(封建制、古典共和)的成员一入帝国
     // 税级就被设成"无"(CityStateService.GrantAutonomy)，转军府也设"无"——这些成员税级为"无"的改回"低"
-#if EC_PENDING
     public static void RepairExemptTaxLevels(Empire empire)
     {
         Realm core = empire?.CoreKingdom;
@@ -252,6 +243,7 @@ public static class TreasurySystem
         var shares = TaxShares(kingdom);
         return string.Format(LM.Get("fiscal_tax_shares_format"), shares.city, shares.local, shares.central);
     }
+#if EC_PENDING
     public static string TaxSharingText(City city) => city.getLoyalty() <= 0 && !CityStabilitySystem.ControlsTax(city)
         ? LM.Get("fiscal_tax_withheld") : TaxSharingText(city.Realm);
 #endif

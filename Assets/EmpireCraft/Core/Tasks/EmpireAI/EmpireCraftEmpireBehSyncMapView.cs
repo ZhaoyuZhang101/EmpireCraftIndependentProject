@@ -11,7 +11,7 @@ public class EmpireCraftEmpireBehSyncMapView:GameAIEmpireBase
     public override Type OriginalBeh => GetType();
 
 #if EC_PENDING
-    public override BehResult execute(Realm pKingdom)
+    public override BehResult Execute(Realm pKingdom)
     {
         pKingdom.CheckEmpire();
         if (!pKingdom.IsEmpire()) return BehResult.Continue;

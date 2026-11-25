@@ -35,29 +35,22 @@ public static class CaliphateFaith
         return empire?.data?.pre_caliphate_faith == true && empire.CoreKingdom == kingdom;
     }
 
-#if EC_PENDING
     public static bool IsCaliphate(Empire empire) =>
         empire?.data != null && !empire.IsGone() && !empire.IsArchived() && empire.CoreKingdom?.Record != null &&
         !empire.CoreKingdom.IsGone() && EmirateSystem.Applies(empire) && PapacySystem.IsCaliphal(empire) &&
         !RepublicSystem.IsRepublic(empire);
-#endif
 
     // 受"只奉伊斯兰"约束的：哈里发国，剧本开局就奉别教的古帝国除外
-#if EC_PENDING
     public static bool Bound(Empire empire) => IsCaliphate(empire) && !empire.data.pre_caliphate_faith;
-#endif
 
     // 这个国家能不能改奉 faith：哈里发国的中央只能改奉伊斯兰，成员与别国不管
-#if EC_PENDING
     public static bool MayAdopt(Realm realm, Religion faith)
     {
         Empire empire = realm?.GetEmpire();
         return empire == null || empire.CoreKingdom != realm || !Bound(empire) || ReligionFaith.IsCaliphal(faith);
     }
-#endif
 
     // 国教吸引力更高的：哈里发国的中央，与奉同教的成员
-#if EC_PENDING
     public static bool Attracts(Realm kingdom)
     {
         if (kingdom?.Record == null || !kingdom.HasReligion() || !ReligionFaith.IsCaliphal(kingdom.Religion)) return false;
@@ -66,10 +59,8 @@ public static class CaliphateFaith
     }
 
     public static float StateFactor(Realm kingdom) => Attracts(kingdom) ? AttractionFactor : 1f;
-#endif
 
     // 世界地图开局：阿拉伯一线的帝国奉着别教的记下来(见 WorldMapReligion.Apply)；法教传统不算，它们有自己的称谓(大君)
-#if EC_PENDING
     public static void MarkScenarioFaith(Empire empire, Religion religion)
     {
         if (empire?.data == null || ReligionFaith.IsCaliphal(religion)) return;
@@ -77,7 +68,6 @@ public static class CaliphateFaith
         if (InstitutionSystem.GetCultureLine(culture) == "Arabic" && !culture.HasPoliticalTrait(PapacySystem.DharmicTrait))
             SetPreIslamic(empire, true);
     }
-#endif
 
     // 帝号的类别键是存着的(见 Empire.GetBaseEmpireFullName)，改记号时清掉，下次取国号时按新记号重取
     private static void SetPreIslamic(Empire empire, bool value)
@@ -111,7 +101,6 @@ public static class CaliphateFaith
 #endif
 
     // 这里出错不许打断称帝、改制(下一年还会补查)
-#if EC_PENDING
     public static void TrySettle(Empire empire)
     {
         try
@@ -154,14 +143,12 @@ public static class CaliphateFaith
         // 都城原是旧教的圣地：圣地迁到还奉它的城，不留在改了宗的都城
         if (current != null && current.GetCity() == capital) ReligionSphere.RelocateHolyCity(current, capital);
     }
-#endif
 
     // 境内奉的伊斯兰里信众最多的(成员国的国教算境内有，城还没改过来也算)
-#if EC_PENDING
     private static Religion LargestInRealm(Empire empire)
     {
         var people = new Dictionary<Religion, float>();
-        foreach (City city in empire.getCities())
+        foreach (City city in empire.GetCities())
             if (city?.Record != null && !city.IsGone() && city.HasReligion() && ReligionFaith.IsCaliphal(city.Religion))
                 Add(people, city.Religion, Mathf.Max(1, city.CountLivingPopulation()));
         foreach (Realm member in empire.kingdoms_list)
@@ -169,10 +156,8 @@ public static class CaliphateFaith
                 Add(people, member.Religion, 1f);
         return Top(people);
     }
-#endif
 
     // 本天下的伊斯兰：正教是伊斯兰就是它，否则取信众最多的；都没人奉了取本天下立过的，在都城复兴(同 NativeFaithSystem.Dormant，不另立)
-#if EC_PENDING
     private static Religion InSphere(string sphere, City capital)
     {
         if (sphere.Length == 0) return null;
@@ -194,10 +179,8 @@ public static class CaliphateFaith
         }
         return null;
     }
-#endif
 
     // 在都城立教：世界上还没有伊斯兰的从名库取名，否则以都城命名；本天下有别教的正教时记它为母宗教
-#if EC_PENDING
     private static Religion Found(Person ruler, City capital, string sphere)
     {
         bool first = !EmpireWorld.Current.Religions.list.Any(religion => religion?.data != null && !religion.IsGone() && ReligionFaith.IsCaliphal(religion));
@@ -224,7 +207,6 @@ public static class CaliphateFaith
         LogService.LogInfo($"[EmpireCraft][宗教] {capital.GetCityName()} 立{sect.Name}(母宗教 {parent?.Name ?? "无"})");
         return sect;
     }
-#endif
 
     private static void Add(Dictionary<Religion, float> people, Religion religion, float count)
     {

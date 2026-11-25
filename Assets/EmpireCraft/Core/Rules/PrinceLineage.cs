@@ -139,7 +139,6 @@ public static class PrinceLineage
 #endif
 
     // 本朝在世藩王已用的地名(王号去掉"王")
-#if EC_PENDING
     private static HashSet<string> UsedTitles(Empire empire)
     {
         var used = new HashSet<string>();
@@ -150,10 +149,8 @@ public static class PrinceLineage
         used.Add(empire.GetEmpireName() ?? "");
         return used;
     }
-#endif
 
     // 下一个王号用的地名：本国的法理头衔(城多的先)，再是本国的城(大的先)；都城那块留给天子
-#if EC_PENDING
     private static string NextPlace(Empire empire, HashSet<string> used)
     {
         Realm core = empire.CoreKingdom;
@@ -161,12 +158,12 @@ public static class PrinceLineage
         if (ModClass.KINGDOM_TITLE_MANAGER != null)
             foreach (KingdomTitle title in ModClass.KINGDOM_TITLE_MANAGER
                          .Where(title => title?.data != null && !title.IsGone() && title.title_capital?.Realm?.GetEmpire() == empire)
-                         .OrderByDescending(title => title.getCities().Count()).ThenBy(title => title.Key))
+                         .OrderByDescending(title => title.GetCities().Count()).ThenBy(title => title.Key))
             {
                 string name = title.data.name;
                 if (!string.IsNullOrWhiteSpace(name) && name != capitalTitle && !used.Contains(name)) return name;
             }
-        foreach (City city in empire.getCities().Where(city => city?.Record != null && !city.IsGone() && city != core?.Capital)
+        foreach (City city in empire.GetCities().Where(city => city?.Record != null && !city.IsGone() && city != core?.Capital)
                      .OrderByDescending(city => CityPopulationSystem.GetBackgroundTotal(city)))
         {
             string name = city.GetCityName();
@@ -174,7 +171,6 @@ public static class PrinceLineage
         }
         return null;
     }
-#endif
 
     // 藩王身后定谥(用户 2026-10-16："藩王去世后也有谥号的")：王号里的地名 + 单字谥 + 王，如"湘献王"；
     // 用字同封国国君(见 PosthumousNameGenerator.DecideVassal：早夭殇、冲、悼，死于非命烈、愍、庄，其余孝、恭、惠……)，

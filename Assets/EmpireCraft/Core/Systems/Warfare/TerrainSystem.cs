@@ -104,14 +104,12 @@ public static class TerrainSystem
     }
 
     // 地面格水陆变了(挖河、填海)：水体大小跟着变，别处的地块算不算河上也可能变，整表清掉(见 MapWallPatch.AfterSetTileType)
-#if EC_PENDING
     public static void GroundChanged(TerrainKind before, TerrainKind after)
     {
         bool wasWater = before != null && (Marks(before) & MarkWater) != 0;
         bool isWater = after != null && (Marks(after) & MarkWater) != 0;
         if (wasWater != isWater) RiverZones.Clear();
     }
-#endif
 
     // 河上的地块(城市扩张不越过大河，见 CityExpansionPatch.Bordering)：水面占一成二以上，且水都是小水体。
     // 世界地图上的河每 14 格留渡口(见 EarthTerrain.RiverTiles)，一段段只有几十格；海、大湖连成一大片，
@@ -147,7 +145,6 @@ public static class TerrainSystem
     private const float MountainShare = 0.2f;
     private static readonly Dictionary<int, bool> MountainZones = new();
 
-#if EC_PENDING
     public static bool Mountainous(Cell zone)
     {
         if (zone?.Tiles == null) return false;
@@ -166,7 +163,6 @@ public static class TerrainSystem
         MountainZones[zone.Index] = result;
         return result;
     }
-#endif
 
     // 两块相邻的地之间走不走得过去(用户 10-29 "军队不应该跨越"山、"不仅国土跨越了军队也跨越了")：
     // 以前只看一块地本身(山占四分之三、或里面被山隔断)，两块都能走、交界却是一道山脊时，军团照样翻过去、战线照样推过去。
@@ -180,7 +176,6 @@ public static class TerrainSystem
     public static int EdgeFlushes;
     private static int EdgeCap() => Math.Max(200_000, (EmpireWorld.Current?.Zones?.All?.Count ?? 0) * 10);
 
-#if EC_PENDING
     public static bool Crossable(Cell a, Cell b, bool seatOpen = true)
     {
         if (a == null || b == null) return false;
@@ -192,11 +187,9 @@ public static class TerrainSystem
         bool seat = !seatOpen && (Seat(a) || Seat(b));
         return EdgeOpen(a, b, dx, dy, seatOpen, seat);
     }
-#endif
 
     // 只看地形的 Crossable(seatOpen 为真)：城心随占领挪动、路线随路网改，多核快照另按当时的补上(见 FrontSystem.Parallel)。
     // Crossable(a, b) = 有一头是城心 || 路线跨过这条交界(RoadNetwork.Spans) || CrossableTerrain(a, b)
-#if EC_PENDING
     internal static bool CrossableTerrain(Cell a, Cell b)
     {
         if (a == null || b == null) return false;
@@ -205,15 +198,11 @@ public static class TerrainSystem
         if (Math.Abs(dx) > 1 || Math.Abs(dy) > 1) return true;
         return EdgeOpen(a, b, dx, dy, true, false);
     }
-#endif
 
     // 只看地形的 Impassable(同上)：Impassable(zone) = ImpassableTerrain(zone) && 不是城心 && 不是路线(RoadNetwork.IsTrail)
-#if EC_PENDING
     internal static bool ImpassableTerrain(Cell zone) => zone != null && Lookup(zone).Impassable;
-#endif
 
     // 交界查表(没有就按格子算出来记下)
-#if EC_PENDING
     private static bool EdgeOpen(Cell a, Cell b, int dx, int dy, bool seatOpen, bool seat)
     {
         long key = (a.Index < b.Index ? (long)a.Index * 1_000_000L + b.Index : (long)b.Index * 1_000_000L + a.Index) * (seat ? -1L : 1L);
@@ -230,10 +219,8 @@ public static class TerrainSystem
         Edges[key] = open;
         return open;
     }
-#endif
 
     // a 朝 (dx, dy) 那一边的交界上，两边都不是阻挡格的格子对数
-#if EC_PENDING
     private static int OpenPairs(Cell a, int dx, int dy)
     {
         int size = Land.ZoneSize, ox = a.X * size, oy = a.Y * size, count = 0;
@@ -245,7 +232,6 @@ public static class TerrainSystem
         }
         return count;
     }
-#endif
 
     // 军牌在两块地之间按格走一步的代价(见 CorpsSystem.MarchLine；只管画在哪，行军快慢照旧按地块算)：
     // 修通的路最省(桥也是路，过得了河)；平地 1；林地、丛林 1.4；丘陵、沼泽 2；山地、山巅、水面、岩浆走不了，返回负数
@@ -267,7 +253,6 @@ public static class TerrainSystem
 #endif
 
     // 一格挡不挡路：原版的阻挡格(山地、山巅)，看地面层与顶层(同 ClassifyTiles)
-#if EC_PENDING
     private static bool Blocks(Cell tile)
     {
         TerrainKind type = tile?.Type;
@@ -277,74 +262,58 @@ public static class TerrainSystem
         int under = tile.MainType != null ? Marks(tile.MainType) : 0;
         return ((marks | under) & MarkBlock) != 0;
     }
-#endif
 
     public static TerrainEffect Effect(FrontTerrain terrain) =>
         Effects.TryGetValue(terrain, out TerrainEffect effect) ? effect : Effects[FrontTerrain.Plains];
 
-#if EC_PENDING
     public static FrontTerrain Of(Cell zone) => Lookup(zone).Terrain;
-#endif
 
     // 地形与能否通行一次取出(地形阻力两样都要，免得查两遍缓存)
-#if EC_PENDING
     public static FrontTerrain Of(Cell zone, out bool impassable)
     {
         Entry entry = Lookup(zone);
         impassable = zone != null && entry.Impassable && !Seat(zone);
         return entry.Terrain;
     }
-#endif
 
     // 不可通行(见类头)：军团绕行、战线不从这里推进；城心那一块总能进，路线经过的地块也能进(见 RoadNetwork.IsTrail)
-#if EC_PENDING
     public static bool Impassable(Cell zone) => zone != null && Lookup(zone).Impassable && !Seat(zone) && !RoadNetwork.IsTrail(zone);
-#endif
 
     // 只看地形的不可通行(路线找路用：不认路线自己，免得走过一回的绝路下回就算通了)
-#if EC_PENDING
     public static bool ImpassableGround(Cell zone) => zone != null && Lookup(zone).Impassable && !Seat(zone);
-#endif
 
     // 山脉无人区里其实是丘陵的地块(用户 2026-11-04 转群友"还有丘陵能走军团，哪怕他是无人区里的"，问答定"山格不到四分之一")：
     // 阻挡格不到陆地的四分之一，又没被山脊隔断(见 WildernessPassage.Blocking)
     private const float HillyRockShare = 0.25f;
 
-#if EC_PENDING
     public static bool Hilly(Cell zone)
     {
         if (zone == null) return false;
         Entry entry = Lookup(zone);
         return !entry.Impassable && entry.Rock < entry.Land * HillyRockShare;
     }
-#endif
 
     private static bool Seat(Cell zone) => zone.City != null && zone.City.SeatCell()?.Zone == zone;
 
     // 地块里的陆地格数与旱地格数(水土，见 ShuiTuSystem)
-#if EC_PENDING
     public static (int land, int dry) DryCounts(Cell zone)
     {
         if (zone == null) return (0, 0);
         Entry entry = Lookup(zone);
         return (entry.Land, entry.Dry);
     }
-#endif
 
     // 旱地地块：陆地里一半以上是旱地
-#if EC_PENDING
     public static bool IsDry(Cell zone)
     {
         (int land, int dry) = DryCounts(zone);
         return land > 0 && dry * 2 > land;
     }
-#endif
 
     // 宜居度(0~1，用户 2026-10-22 见荒漠帐比中原城人多："设置的地块大是因为他是沙漠和荒原，实际居住面积应该很小")：
     // 一块地 64 格按地面加权(见 LivableWeight)。民居上限按它折算(见 NoCommonersPatch.AfterRecalculateMaxHouses)
     // 纯沙漠、纯冻土(城心那块除外)住不了人，为零(见 BarrenLandSystem)
     // 雨林全开发(见 WildernessSystem.JungleDeveloped)：丛林格按草地住人，这里现算不进缓存，开关一改就生效，剧本不受影响
-#if EC_PENDING
     public static float Livability(Cell zone)
     {
         if (zone == null || BarrenLandSystem.Barren(zone)) return 0f;
@@ -352,43 +321,33 @@ public static class TerrainSystem
         float livable = entry.Livable + (WildernessSystem.JungleDeveloped ? entry.Jungle * JungleLivableGain : 0f);
         return Math.Min(1f, livable / (64f * LivableScale));
     }
-#endif
 
     // 地块里的陆地格数与其中的高寒高原格数
-#if EC_PENDING
     public static (int land, int alpine) AlpineCounts(Cell zone)
     {
         if (zone == null) return (0, 0);
         Entry entry = Lookup(zone);
         return (entry.Land, entry.Alpine);
     }
-#endif
 
     // 可耕格里有几格在黄土高原、草原高原上(收成各打八折、五折，见 FarmlandSystem)
-#if EC_PENDING
     public static (int loess, int steppe) PlateauArable(Cell zone)
     {
         if (zone == null) return (0, 0);
         Entry entry = Lookup(zone);
         return (entry.LoessArable, entry.SteppeArable);
     }
-#endif
 
     public const byte LowlandSide = 0, EdgeSide = 255;
 
     // 这块地在哪种高原上(见类头)：0 平地、1 高寒、2 黄土、3 草原、255 外缘
-#if EC_PENDING
     public static byte PlateauSide(Cell zone) => zone == null ? LowlandSide : Lookup(zone).Side;
-#endif
 
     // 陆地全是沙地、荒漠为 1(纯沙漠)，全是冻土(连冻住的沙地)为 2(纯冻土)，混着别的地、没有陆地为 0。
     // 只看地形；城心那块不算的口径见 BarrenLandSystem.KindOf
-#if EC_PENDING
     public static int BarrenKind(Cell zone) => zone == null ? 0 : Lookup(zone).Barren;
-#endif
 
     // 陆地格数与其中的可耕格数(城郊收成按可耕比例折算，见 FarmlandSystem)
-#if EC_PENDING
     public static (int land, int arable) ArableCounts(Cell zone)
     {
         if (zone == null) return (0, 0);
@@ -396,7 +355,6 @@ public static class TerrainSystem
         // 雨林全开发：丛林格也能种地
         return (entry.Land, WildernessSystem.JungleDeveloped ? Math.Min(entry.Land, entry.Arable + entry.Jungle) : entry.Arable);
     }
-#endif
 
     private const float LivableScale = 3f;
     // 丛林格按草地算比原来多多少(丛林 0.6，草地 1，见 LivableWeight)
@@ -407,7 +365,6 @@ public static class TerrainSystem
     // 一座城的地块宜居度合计(几块"整块草地")：盖房上限、民居选址都要用，按城缓存几秒(真实时间)
     private static readonly Dictionary<City, (float value, float at)> CityLivable = new();
 
-#if EC_PENDING
     public static float CityLivability(City city)
     {
         if (city?.Zones == null) return 0f;
@@ -419,11 +376,9 @@ public static class TerrainSystem
         CityLivable[city] = (sum, now);
         return sum;
     }
-#endif
 
     // 一格地能住多少人(相对草地)：草地、可耕地 1，林地 0.8，黄土高原 0.7，丛林 0.6，稀树草原 0.5，沼泽 0.4，冻土、高寒高原 0.3，
     // 丘陵山石、沙地 0.2，荒原 0.2，沙漠 0.15，地狱 0.05，水、岩浆 0
-#if EC_PENDING
     public static float LivableWeight(TerrainKind type)
     {
         if (type == null) return 0f;
@@ -465,15 +420,12 @@ public static class TerrainSystem
         hit = fresh;
         return fresh;
     }
-#endif
 
     // 交战地形：城中心那块地是城池
-#if EC_PENDING
     public static FrontTerrain OfBattle(City city, Cell zone) =>
         zone != null && city?.SeatCell()?.Zone == zone ? FrontTerrain.Urban : Of(zone);
 
     public static bool SlowsMarch(Cell zone) => zone != null && Effect(Of(zone)).SlowMarch;
-#endif
 
     public static string Name(FrontTerrain terrain) => LM.Get("terrain_" + terrain.ToString().ToLowerInvariant());
 
@@ -502,10 +454,9 @@ public static class TerrainSystem
     private static int[] _marks = new int[0];
     private static TerrainKind[] _markTypes = new TerrainKind[0];
 
-#if EC_PENDING
     private static int Marks(TerrainKind type)
     {
-        int index = type.index_id;
+        int index = type.Index;
         if (index < 0) return ComputeMarks(type);
         if (index >= _marks.Length)
         {
@@ -520,7 +471,6 @@ public static class TerrainSystem
         _markTypes[index] = type;
         return marks;
     }
-#endif
 
     private static int ComputeMarks(TerrainKind type)
     {
@@ -591,7 +541,6 @@ public static class TerrainSystem
 
     // 按地块里 64 格的构成判定：山多为山地，山与丘陵多为丘陵，其次沼泽、水网(河湖)、丛林、森林、沙漠、雪原，都不够为平原。
     // 门槛按本地大地图实测：城市地块里平原约四成，丛林、雪原、水网、山地、丘陵各占一到两成(视地图而定)
-#if EC_PENDING
     private static Entry Classify(Cell zone)
     {
         (FrontTerrain terrain, bool impassable, int land, int dry, int livable, int arable, int barren, int jungle, int rock) =
@@ -685,8 +634,8 @@ public static class TerrainSystem
             else if ((marks & MarkWoods) != 0) woods++;
             else if ((marks & MarkDesert) != 0) desert++;
             if ((marks & MarkSnow) != 0) snow++;
-            BuildingAsset flora = tile.building?.asset;
-            if (flora != null && flora.flora && flora.flora_type == FloraType.Tree) trees++;
+            BuildingKind flora = tile.Building?.Asset;
+            if (flora != null && flora.Flora && flora.FloraType == FloraType.Tree) trees++;
         }
         int livable = (int)Math.Round(livableSum * LivableScale);
         int highLand = plateau + steppe;
@@ -711,6 +660,5 @@ public static class TerrainSystem
         if (Share(snow) >= 0.4f) return (FrontTerrain.Snow, impassable, land, dry, livable, arable, barren, jungle, blocked);
         return (FrontTerrain.Plains, impassable, land, dry, livable, arable, barren, jungle, blocked);
     }
-#endif
 }
 }

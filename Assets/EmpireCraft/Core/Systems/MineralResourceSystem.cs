@@ -307,10 +307,10 @@ public static class MineralResourceSystem
         if (LivelihoodSystem.Active)
             return LivelihoodSystem.Shares(city, LivelihoodSystem.Mine) > 0f ? LivelihoodSystem.Level(city, LivelihoodSystem.Mine) : 0;
         int tier = 0;
-        if (city?.buildings == null) return 0;
-        foreach (Building building in city.buildings)
-            if (building?.asset != null && IndustryBuildingSystem.IsMine(building.asset) && !building.isUnderConstruction())
-                tier = Mathf.Max(tier, Mathf.Max(1, IndustryBuildingSystem.Tier(building.asset)));
+        if (city?.Buildings == null) return 0;
+        foreach (Building building in city.Buildings)
+            if (building?.Asset != null && IndustryBuildingSystem.IsMine(building.Asset) && !building.IsUnderConstruction())
+                tier = Mathf.Max(tier, Mathf.Max(1, IndustryBuildingSystem.Tier(building.Asset)));
         return tier;
     }
 #endif
@@ -402,7 +402,6 @@ public static class MineralResourceSystem
         counts[id] = count + 1;
     }
 
-#if EC_PENDING
     private static void FlushDigest()
     {
         if (EmpireWorld.Current == null) return;
@@ -444,7 +443,6 @@ public static class MineralResourceSystem
         }
         Depleted.Clear();
     }
-#endif
 
     // 城市面板：本城有哪些矿藏(能否开采、剩余储量、枯竭冷却剩余年数)
 #if EC_PENDING

@@ -66,7 +66,6 @@ public static partial class TechnologySystem
         Config.eras.OrderBy(era => era.tier).Select(era => (era.tier, LM.Get(era.key))).ToList();
 
     // 眼下最先进的文化到了哪个时代(给管理员看锁不锁得住)
-#if EC_PENDING
     public static int TopEraTier()
     {
         int top = 0;
@@ -74,6 +73,5 @@ public static partial class TechnologySystem
             top = Math.Max(top, GetEraTier(culture));
         return top;
     }
-#endif
 }
 }

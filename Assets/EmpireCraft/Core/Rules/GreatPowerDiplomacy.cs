@@ -43,13 +43,10 @@ public static class GreatPowerDiplomacy
         return ea != null && eb != null && ea != eb && Active(ea, eb);
     }
 
-#if EC_PENDING
     private static bool SameCivilization(Realm a, Realm b) =>
         CultureService.SameKin(CultureService.GetRealmCulture(a), CultureService.GetRealmCulture(b));
-#endif
 
     // 两个皇帝之间的好感(见 EmpireCraftOpinionAddition)
-#if EC_PENDING
     public static int EmperorRivalry(Realm a, Realm b)
     {
         if (Bound(a, b)) return 0;
@@ -66,7 +63,6 @@ public static class GreatPowerDiplomacy
         float distance = Vector2.Distance(a.Capital.Center, b.Capital.Center);
         return distance > 300f ? -5 : distance > 150f ? -20 : -50;
     }
-#endif
 
     // 通好之国的好感
     public static int PactOpinionOf(Realm main, Realm target) =>
@@ -118,7 +114,6 @@ public static class GreatPowerDiplomacy
 #endif
 
     // 编旗的政权(入关前的后金也算)要入主中原：不与华夏各朝通好(一纸三十年互不侵犯，入关就打不下去了)
-#if EC_PENDING
     private static bool BarredByConquest(Realm a, Realm b) =>
         BannerSystem.Organized(a) && IsHuaxia(b) || BannerSystem.Organized(b) && IsHuaxia(a);
 
@@ -134,7 +129,6 @@ public static class GreatPowerDiplomacy
         if (empire != null && empire.CoreKingdom == core && RepublicSystem.CustomHeadTitle(empire) is string custom) return custom;
         return regime == null ? LM.Get("actor_emperor_B") : LM.Get(DynastyNaming.RankKey(regime.Value, 0, core));
     }
-#endif
 
     // 依约相助(王国 AI 每月一查，帝国核心自己查)
 #if EC_PENDING

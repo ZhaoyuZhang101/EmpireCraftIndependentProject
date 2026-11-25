@@ -69,7 +69,6 @@ public static class LandEconomySystem
         data.economic_income_current_year = IncomeStatisticsMath.Add(data.economic_income_current_year, amount);
     }
 
-#if EC_PENDING
     public static bool IsLandlord(Person actor)
     {
         if (actor?.City == null || !IsLandMarketOpen(actor.City.Realm)) return false;
@@ -80,11 +79,9 @@ public static class LandEconomySystem
     public static bool IsLandlessResident(Person actor) => actor?.City != null &&
         IsLandMarketOpen(actor.City.Realm) && IsAgrarianCommoner(actor) &&
         GetHouseholdShare(actor.City, GetHouseholdKey(actor)) <= 0f;
-#endif
 
     // 土地买卖开放：本国开过(制度完成时逐国打开)，或本文化已完成开放土地买卖的制度——
     // 以前只打开制度完成那一刻在帝国里的国家，后来加入的成员国、同文化的独立王国永远停在贵族八成
-#if EC_PENDING
     public static bool IsLandMarketOpen(Realm kingdom)
     {
         if (kingdom == null || kingdom.IsGone()) return false;
@@ -93,11 +90,9 @@ public static class LandEconomySystem
         if (!data.private_land_market_open && CultureOpensLandMarket(kingdom)) data.private_land_market_open = true;
         return data.private_land_market_open;
     }
-#endif
 
     private static readonly Dictionary<string, (float at, bool open)> CultureLandMarket = new();
 
-#if EC_PENDING
     private static bool CultureOpensLandMarket(Realm kingdom)
     {
         Empire empire = kingdom.GetEmpire();
@@ -120,6 +115,7 @@ public static class LandEconomySystem
         return regime != null && RegimeManager.AllowsLandlordClass(regime.type);
     }
 
+#if EC_PENDING
     public static void OpenPrivateLandMarket(Realm kingdom, bool redistribute, bool revolutionary)
     {
         if (kingdom == null || kingdom.IsGone()) return;
@@ -193,6 +189,7 @@ public static class LandEconomySystem
                 TryStartPeasantLandRebellion(city, landlessRatio);
         }
     }
+#endif
 
     public static CityLandReport GetReport(City city)
     {
@@ -233,6 +230,7 @@ public static class LandEconomySystem
         return report;
     }
 
+#if EC_PENDING
     public static List<FamilyLandHoldingView> GetFamilyHoldings(Family family)
     {
         var result = new List<FamilyLandHoldingView>();
@@ -263,7 +261,6 @@ public static class LandEconomySystem
 #endif
 
     // 宗族在各城的土地占有(只列有地的城市)，Rank 是在该城私人持地者里的名次
-#if EC_PENDING
     public static List<ClanLandHoldingView> GetSpecificClanHoldings(SpecificClan clan)
     {
         var result = new List<ClanLandHoldingView>();
@@ -285,7 +282,6 @@ public static class LandEconomySystem
         }
         return result.OrderByDescending(view => view.Share).ThenBy(view => view.CityName).ToList();
     }
-#endif
 
     // 分家时按迁出人数的比例把原宗族在该城的土地分给分支
     public static void TransferClanLand(City city, SpecificClan from, SpecificClan to, float ratio)
@@ -674,10 +670,8 @@ public static class LandEconomySystem
 #endif
 
     // 背景人口的私田：私有土地里实体家户没占的部分(实体家户占的多了，背景农民的地就少了)
-#if EC_PENDING
     private static float BackgroundLandPool(City city, CityExtension.CityExtraData data) =>
         Mathf.Max(0f, GetPrivateLandCapacity(city) - data.household_land_shares.Values.Where(value => value > 0f).Sum());
-#endif
 
     // 背景人口的进账按税率交进城市国库(卖地的钱、商人利润)，返回应交的税
 #if EC_PENDING
@@ -730,14 +724,11 @@ public static class LandEconomySystem
 #endif
 
     // 城市无地农民占人口的比例(土地买卖未开放时为 0)，供理念传播等使用
-#if EC_PENDING
     public static float GetLandlessRatio(City city) => CalculateLandlessPopulationRatio(city);
-#endif
 
     // 无地比例按城缓存两秒：城市忠诚、稳定、起义判定每帧都要问，逐人算地权不便宜
     private static readonly Dictionary<long, (float at, float ratio)> LandlessCache = new();
 
-#if EC_PENDING
     private static float CalculateLandlessPopulationRatio(City city)
     {
         if (city == null || !IsLandMarketOpen(city.Realm)) return 0f;
@@ -764,7 +755,6 @@ public static class LandEconomySystem
         }
         return total <= 0f ? 0f : landless / total;
     }
-#endif
 
     // ---- 背景人口的土地(无小人模式) ----
     // 背景人口没有一户一户的地权，按城汇总一个"农民无地比例"，每年演变：
@@ -792,7 +782,6 @@ public static class LandEconomySystem
 
     // 卖粮收入里归地主的比例：无地农民的收成一半交租，地主把租粮拿到市场上卖。
     // 城里没有背景商人、地主(地都在实体家户手里)就不算
-#if EC_PENDING
     public static float BackgroundRentShare(City city)
     {
         if (!CityPopulationSystem.AbstractPopulationEnabled || !IsLandMarketOpen(city?.Realm)) return 0f;
@@ -800,7 +789,6 @@ public static class LandEconomySystem
         if (data?.groups == null || BackgroundBuyers(data) < 1f) return 0f;
         return Mathf.Clamp01(data.background_landless) * RentRate;
     }
-#endif
 
     // 背景商人、地主的真实收入：市场买卖里商人赚的一成利润(城里没有背景商人就是损耗)，加上卖租粮的钱。
     // 利润按税率交税；租粮在收割时已经算进产出交过税(见 PopulationEconomySystem.PayTaxes)，不再交。
@@ -880,6 +868,7 @@ public static class LandEconomySystem
         data.background_landless = Mathf.Clamp01(landless);
         data.background_peasants_last = peasants;
     }
+#endif
 
     private static bool IsAgrarianCommoner(Person actor)
     {
@@ -887,11 +876,10 @@ public static class LandEconomySystem
             actor.GetOrCreate().is_economic_merchant || IsLandlord(actor) ||
             UrbanEmploymentSystem.IsEmployed(actor)) return false;
         if (actor.GetOrCreate().socialClass == SocialClass.Noble) return false;
-        string job = actor.citizen_job?.id ?? "";
+        string job = actor.Job?.Id ?? "";
         return job != "woodcutter" && job != "miner" && job != "miner_deposit" &&
                job != "road_builder" && job != "cleaner" && job != "manure_cleaner";
     }
-#endif
 
     // 开国均田：新帝国立国(开国气象期)或改朝换代后开国君主在位期间，辖下每座城(含后来打下、归附的城)
     // 平均一次地权，此后 RebellionCooldownYears 年内不再爆发农民起义。
@@ -916,7 +904,6 @@ public static class LandEconomySystem
     // 一个政权(在帝国里就按整个帝国)各城无地农民比例的平均，按年缓存
     private static readonly Dictionary<long, (double time, float ratio)> RealmLandlessCache = new();
 
-#if EC_PENDING
     public static float GetRealmLandlessRatio(Realm kingdom)
     {
         if (kingdom == null || kingdom.IsGone()) return 0f;
@@ -938,13 +925,11 @@ public static class LandEconomySystem
         RealmLandlessCache[key] = (now, ratio);
         return ratio;
     }
-#endif
 
     // 民心归附：本城土地兼并严重(无地农民 >= RebellionLandlessThreshold)，而来攻的政权兼并轻得多
     // (平均无地率至少低 SurrenderLandlessGap)时，百姓望风归降，占领进度大幅加快(见 CaptureSpeedPatch)
     public const float SurrenderLandlessGap = 0.10f;
 
-#if EC_PENDING
     public static bool WouldSurrenderTo(City city, Realm attacker, out float cityRatio)
     {
         cityRatio = 0f;
@@ -953,7 +938,6 @@ public static class LandEconomySystem
         if (cityRatio < RebellionLandlessThreshold) return false;
         return GetRealmLandlessRatio(attacker) <= cityRatio - SurrenderLandlessGap;
     }
-#endif
 
     // 起义门槛随苛政降低(见 HarshRuleSystem)：苛政 60 时无地一成二即可起义，最低一成二
     public static float EffectiveRebellionThreshold(City city) =>
@@ -1141,6 +1125,7 @@ public static class LandEconomySystem
         }
         return false;
     }
+#endif
 
     private static void RecordRebellionHistory(Realm kingdom, string content, Person actor = null)
     {
@@ -1150,7 +1135,6 @@ public static class LandEconomySystem
                 kingdomId: kingdom.Key);
         (actor ?? kingdom?.Ruler)?.RecordPersonalHistory(content, "peasant_land_rebellion");
     }
-#endif
 
     // 某宗族在这座城占的私田(点数，同土地买卖的口径)；内帑的皇庄用(见 PrivyPurse)
     public static float ClanShare(City city, SpecificClan clan) => clan == null ? 0f : GetHouseholdShare(city, $"s:{clan.id}");
@@ -1211,7 +1195,6 @@ public static class LandEconomySystem
         return empire?.CoreKingdom == city.Realm ? 50f : 20f;
     }
 
-#if EC_PENDING
     private static float GetNobleShare(City city)
     {
         if (city?.Realm == null || city.Realm.GetOrCreate().is_peasant_revolutionary_government) return 0f;
@@ -1232,6 +1215,5 @@ public static class LandEconomySystem
         foreach (string key in data.household_land_shares.Keys.ToList())
             data.household_land_shares[key] = Mathf.Max(0f, data.household_land_shares[key] * scale);
     }
-#endif
 }
 }

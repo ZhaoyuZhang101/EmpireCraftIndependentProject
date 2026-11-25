@@ -33,9 +33,7 @@ public static class WarExtension
         public int peace_momentum_attacker;
         public int peace_momentum_defender;
         public long war_goal_capital_id = -1L;
-#if EC_PENDING
-        public MetaType metaType = MetaType.None;
-#endif
+        public EntityKind metaType = EntityKind.None;
         public long metaID = -1L;
         public FixedFaction belongingFaction = null;
         // 各方参战时的城市数(帝国记帝国 id，独立王国记王国 id)：用于判断谁在这场仗里丢了城(见 WarSituation)
@@ -189,7 +187,7 @@ public static class WarExtension
         }
         if (nanoObject != null)
         {
-            w.GetOrCreate().metaType = nanoObject.meta_type;
+            w.GetOrCreate().metaType = nanoObject.KindOfEntity;
             w.GetOrCreate().metaID = nanoObject.id;
         }
         switch (type)
@@ -205,6 +203,7 @@ public static class WarExtension
                 break;
         }
     }
+#endif
 
     public static KingdomTitle GetTitleTarget(this War w)
     {
@@ -216,7 +215,6 @@ public static class WarExtension
         }
         return null;
     }
-#endif
 
     public static bool IsMainDefenderEliminated(this War war)
     {
@@ -224,13 +222,12 @@ public static class WarExtension
         return defender == null || defender.IsGone() || defender.Cities == null || defender.Cities.Count == 0;
     }
 
-#if EC_PENDING
     public static bool AreAllDeJureTitleZonesControlledByAttackers(this War war,
         KingdomTitle title)
     {
         if (war == null || title == null || title.IsGone()) return false;
         var result = OccupationReadIndex.ReadControl(war, title, () => CountTitleControl(war, title),
-            () => OccupationReadIndex.Membership(title.getCities()));
+            () => OccupationReadIndex.Membership(title.GetCities()));
         return DeJureTitleClaimRules.ControlsAll(result.Controlled, result.Total);
     }
 
@@ -239,7 +236,7 @@ public static class WarExtension
         int controlled = 0;
         int total = 0;
         HashSet<int> seenZones = new HashSet<int>();
-        foreach (City city in title.getCities())
+        foreach (City city in title.GetCities())
         {
             if (city == null || city.IsGone() || city.Zones == null) continue;
             foreach (Cell zone in city.Zones)
@@ -288,7 +285,6 @@ public static class WarExtension
         }
         data.legitimacy_initial_zone_count = zoneIds.Count;
     }
-#endif
 
     public static bool HasLegitimacyOccupationThreshold(this War war)
     {
@@ -322,7 +318,6 @@ public static class WarExtension
         return new OccupationReadIndex.Control(controlled, seenZones.Count);
     }
 
-#if EC_PENDING
     public static Empire GetEmpireTarget(this War w)
     {
         var metaType = w.GetOrCreate().metaType;
@@ -333,7 +328,6 @@ public static class WarExtension
         }
         return null;
     }
-#endif
     public static EmpireWarType GetEmpireWarType(this War w)
     {
         return GetOrCreate(w).empireWarType;

@@ -11,7 +11,7 @@ public class EmpireCraftEmpireBehCheckMandate : GameAIEmpireBase
     public override Type OriginalBeh => GetType();
 
 #if EC_PENDING
-    public override BehResult execute(Realm pKingdom)
+    public override BehResult Execute(Realm pKingdom)
     {
         pKingdom.CheckEmpire();
         if (!pKingdom.IsEmpire()) return BehResult.Continue;
@@ -35,7 +35,7 @@ public class EmpireCraftEmpireBehCheckMandate : GameAIEmpireBase
         if (empire.Emperor != null && empire.IsNeedToIncreaseMandate())
         {
             empire.AddMandate(1);
-            empire.data.last_increase_mandate_timestamp = world.getCurWorldTime();
+            empire.data.last_increase_mandate_timestamp = world.Now();
             foreach (var memberKingdom in empire.kingdoms_list.ToList())
             {
                 if (memberKingdom == null || memberKingdom.IsGone()) continue;

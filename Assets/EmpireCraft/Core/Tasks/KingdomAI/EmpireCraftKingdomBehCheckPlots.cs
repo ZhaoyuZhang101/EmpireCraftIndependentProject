@@ -14,7 +14,7 @@ public class EmpireCraftKingdomBehCheckPlots : GameAIKingdomBase
 {
     public override Type OriginalBeh => GetType();
 #if EC_PENDING
-    public override BehResult execute(Realm pKingdom)
+    public override BehResult Execute(Realm pKingdom)
     {
         pKingdom.CheckEmpire();
         var ked = pKingdom.GetOrCreate();
@@ -64,7 +64,7 @@ public class EmpireCraftKingdomBehCheckPlots : GameAIKingdomBase
                         : null;
         if (plotId == null) return;
 
-        PlotAsset plot = AssetManager.plots_library?.get(plotId);
+        PlotKind plot = AssetManager.plots_library?.get(plotId);
         if (plot?.try_to_start_advanced == null) return;
         if (plot.try_to_start_advanced(minister, plot, true))
         {
@@ -229,9 +229,7 @@ public class EmpireCraftKingdomBehCheckPlots : GameAIKingdomBase
 
     public static void ResetWorldState() => JoinedWarAt.Clear();
 
-#if EC_PENDING
     private static bool PerMemberJoin(Empire empire) => empire?.CoreKingdom?.GetRegime()?.type == RegimeType.Feudalism;
-#endif
 
     private static bool JoinCoolingDown(Realm kingdom)
     {
@@ -242,7 +240,6 @@ public class EmpireCraftKingdomBehCheckPlots : GameAIKingdomBase
         return false;
     }
 
-#if EC_PENDING
     private static bool TryJoinWarOnSameSide(War war, Realm sideKingdom, Realm joiningKingdom)
     {
         if (war == null ||
@@ -276,7 +273,6 @@ public class EmpireCraftKingdomBehCheckPlots : GameAIKingdomBase
         // 只有最终真的出现在阵营名单中，才允许播报和写入历史。
         return IsWarMember(war, joiningKingdom);
     }
-#endif
 
     private static bool IsWarMember(War war, Realm kingdom)
     {

@@ -326,7 +326,6 @@ public static class LawEvents
     #region 赈灾克扣
 
     // 灾城的主官：城的官职(州郡长官)在任者，没有就是城主
-#if EC_PENDING
     private static Person Steward(City city)
     {
         Person officer = city?.GetOffice()?.GetActor();
@@ -334,7 +333,6 @@ public static class LawEvents
         Person leader = city?.Leader;
         return Living(leader) && !leader.IsRuler() ? leader : null;
     }
-#endif
 
     // 朝议"赈济灾荒"发粮(TempFac_赈济灾荒)：到手不足 SkimLine 时，灾城主官按克扣的比例暗中记贪污
 #if EC_PENDING

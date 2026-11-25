@@ -101,7 +101,6 @@ public static partial class GentrySystem
     }
 
     // 郡望："某城某氏"
-#if EC_PENDING
     public static string JunWang(SpecificClan clan)
     {
         if (clan == null) return "";
@@ -109,7 +108,6 @@ public static partial class GentrySystem
         City seat = Seat(clan);
         return string.Format(LM.Get("gentry_junwang"), seat?.GetCityName() ?? "", surname);
     }
-#endif
 
     // 郡望在本帝国的世家，门第从高到低
     public static List<SpecificClan> Of(Empire empire)
@@ -127,7 +125,6 @@ public static partial class GentrySystem
         return kingdom.IsEmpire() || kingdom.IsInEmpire() ? kingdom.GetEmpire() : null;
     }
 
-#if EC_PENDING
     private static bool Huaxia(City city)
     {
         if (city == null) return false;
@@ -140,14 +137,12 @@ public static partial class GentrySystem
             return false;
         }
     }
-#endif
 
     #endregion
 
     #region 仕途
 
     // 官缺由世家子弟补上的机会
-#if EC_PENDING
     public static float Monopoly(Realm kingdom)
     {
         // 选官之制照制度文化(旧制犹存的照旧制，见 LegacyInstitutionSystem)
@@ -165,7 +160,6 @@ public static partial class GentrySystem
         if (InstitutionSystem.IsEnacted(culture, NineRankNode)) return NineRankMonopoly;
         return InstitutionSystem.IsEnacted(culture, RecommendationNode) ? RecommendationMonopoly : HereditaryMonopoly;
     }
-#endif
 
     private static readonly Dictionary<long, (double at, List<long> clans)> Registry = new();
 
@@ -247,7 +241,6 @@ public static partial class GentrySystem
 
     #region 庄园部曲
 
-#if EC_PENDING
     private static float ShelterShare(City city)
     {
         if (city?.Record == null || !Sheltered.TryGetValue(city.Key, out float share) || share <= 0f) return 0f;
@@ -255,20 +248,14 @@ public static partial class GentrySystem
         string culture = CultureService.GetMainCulture(city, initialize: false);
         return CultureService.IsValidCulture(culture) && InstitutionSystem.IsEnacted(culture, EqualFieldNode) ? share * 0.5f : share;
     }
-#endif
 
     // 荫户少收的税(乘在税率上，见 PopulationEconomySystem.PayTaxes)
-#if EC_PENDING
     public static float TaxFactor(City city) => 1f - ShelterShare(city);
-#endif
 
     // 荫户不服兵役(见 CorpsSystem)
-#if EC_PENDING
     public static float ShelteredPeople(City city) => CityPopulationSystem.GetBackgroundTotal(city) * ShelterShare(city);
-#endif
 
     // 每月：郡望之城告急，世家聚部曲守城
-#if EC_PENDING
     private static void Monthly()
     {
         double now = GameClock.Now;
@@ -290,7 +277,6 @@ public static partial class GentrySystem
             Record(seat, string.Format(LM.Get("gentry_retainers_history"), JunWang(clan), raised, seat.GetCityName()), force: true);
         }
     }
-#endif
 
     private static bool Threatened(City city)
     {
@@ -384,7 +370,6 @@ public static partial class GentrySystem
 #endif
 
     // 篡位(Empire.NewEmperor)：出自世家的诸世家多附之，起于寒门的诸世家耻之
-#if EC_PENDING
     public static void OnUsurpation(Empire empire, Person usurper)
     {
         if (empire?.data == null || usurper?.Record == null) return;
@@ -407,7 +392,6 @@ public static partial class GentrySystem
         LogService.LogInfo("[EmpireCraft][世家] " + content);
         empire.RecordHistory(directContent: content, actorId: usurper.Key);
     }
-#endif
 
     private static bool Due(double at, int years) =>
         at < 0d || GameClock.Now < at || GameClock.YearsSince(at) >= years;
@@ -416,7 +400,6 @@ public static partial class GentrySystem
         empire?.data != null && Due(empire.data.gentry_register_at, RegisterYears) && Of(empire).Count >= 3;
 
     // 修氏族志：族中有人在朝的世家门第上升(每人 5，至多 15)，没人出仕的降 15；返回升、降的家数
-#if EC_PENDING
     public static (int raised, int lowered) ReviseRegister(Empire empire)
     {
         if (empire?.data == null) return (0, 0);
@@ -442,7 +425,6 @@ public static partial class GentrySystem
         empire.RecordHistory(directContent: string.Format(LM.Get("gentry_register_history"), empire.GetEmpireFullName(), raised, lowered));
         return (raised, lowered);
     }
-#endif
 
     public static bool CanCurbMagnates(Empire empire) =>
         empire?.data != null && Due(empire.data.gentry_curbed_at, CurbYears) &&
@@ -450,7 +432,6 @@ public static partial class GentrySystem
 
     // 抑豪强：门第最高三家的田产减半(空出的田归民田)、家财入国库(每家 150，族众每人再 0.5)、门第 -10、族众折三成；
     // 返回家数、入库钱数
-#if EC_PENDING
     public static (int clans, int money) CurbMagnates(Empire empire)
     {
         if (empire?.data == null || empire.CoreKingdom == null) return (0, 0);
@@ -479,7 +460,6 @@ public static partial class GentrySystem
                 string.Join("、", targets.Select(JunWang))));
         return (targets.Count, money);
     }
-#endif
 
     #endregion
 
@@ -634,6 +614,7 @@ public static partial class GentrySystem
             TryAutonomy(clan, seat);
         }
     }
+#endif
 
     private static void Decline(SpecificClan clan, bool extinct)
     {
@@ -644,7 +625,6 @@ public static partial class GentrySystem
         Record(seat, text);
         NoteClan(clan, "clan_history_gentry_decline", text);
     }
-#endif
 
     private const int TrendYears = 80, ClanHistoryCap = 40;
     // 门第走势只给世家与够得着世家的(门第 20 以上)记，跌到 20 以下再记一笔就停，免得每个寒门都存八十年
@@ -652,7 +632,6 @@ public static partial class GentrySystem
     private const float GradeMargin = 2f;
 
     // 门第换了等(离分界 2 分以上才算，回落、被括户抑豪强压下去的也在这里记)
-#if EC_PENDING
     private static void NoteGrade(SpecificClan clan)
     {
         float pedigree = clan.gentry_pedigree;
@@ -664,7 +643,6 @@ public static partial class GentrySystem
         NoteClan(clan, "clan_history_gentry_grade", string.Format(LM.Get(grade < noted ? "clan_history_grade_up" : "clan_history_grade_down"),
             JunWang(clan), GradeName(clan)));
     }
-#endif
 
     // 门第走势记一笔：同一年只留一笔(读档重算、补算时覆盖)
     private static void NoteTrend(SpecificClan clan)
@@ -782,7 +760,6 @@ public static partial class GentrySystem
         return score;
     }
 
-#if EC_PENDING
     private static void Record(City seat, string content, bool force = false)
     {
         LogService.LogInfo("[EmpireCraft][世家] " + content);
@@ -794,7 +771,6 @@ public static partial class GentrySystem
         empire.RecordHistory(directContent: content);
         if (force) TranslateHelper.LogEventMessage(content, seat?.Realm);
     }
-#endif
 
     #endregion
 }

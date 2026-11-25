@@ -39,16 +39,13 @@ public static class CourtActions
     private static void Mark(Empire empire, string target, string kind) =>
         Cooldown[Key(empire, target, kind)] = GameClock.Now;
 
-#if EC_PENDING
     private static int Funds(Empire empire) => StateSettlementSystem.DiscretionaryFunds(empire.CoreKingdom);
 
     public static int RewardCost(Empire empire) => Math.Max(RewardFloor, (int)(Funds(empire) * RewardShare));
     public static int AppeaseCost(Empire empire) => Math.Max(AppeaseFloor, (int)(Funds(empire) * AppeaseShare));
-#endif
 
     // ───────── 对一派 ─────────
     // 成了返回 null，否则返回缘由的文字键
-#if EC_PENDING
     public static string Reward(Empire empire, FixedFaction faction)
     {
         if (!Usable(empire, faction)) return "court_act_fail";
@@ -70,10 +67,8 @@ public static class CourtActions
         Mark(empire, faction.GetID(), "rebuke");
         return null;
     }
-#endif
 
     // 首领在中枢担着的官职
-#if EC_PENDING
     public static List<OfficeObject> LeaderOffices(Empire empire, FixedFaction faction)
     {
         Person leader = faction?.GetLeader();
@@ -99,14 +94,13 @@ public static class CourtActions
     private static bool Usable(Empire empire, FixedFaction faction) =>
         empire?.data != null && !empire.IsGone() && empire.CoreKingdom?.Record != null && faction != null &&
         CourtSystem.Factions(empire).Contains(faction);
-#endif
 
     // ───────── 对权臣 ─────────
-#if EC_PENDING
     public static FixedFaction MinisterFaction(Empire empire, Person minister) =>
         minister == null ? null : CourtSystem.Factions(empire).FirstOrDefault(faction => faction.GetLeader() == minister) ??
                                   CourtSystem.Factions(empire).FirstOrDefault(faction => minister.GetFaction() == faction);
 
+#if EC_PENDING
     public static string Appease(Empire empire)
     {
         Person minister = empire?.GetPowerfulMinister();
@@ -153,7 +147,7 @@ public static class CourtActions
         int stage = empire.data.powerful_minister_stage;
         if (stage > 0) Pull("court_w_minister_stage", 1f + 0.35f * stage);
         if (empire.data.is_been_controlled) Pull("court_w_controlled", 1.6f);
-        if (minister.hasArmy() || CorpsSystem.IsGeneral(minister)) Pull("court_w_minister_army", 1.5f);
+        if (minister.HasArmy() || CorpsSystem.IsGeneral(minister)) Pull("court_w_minister_army", 1.5f);
         return push / pull;
     }
 #endif

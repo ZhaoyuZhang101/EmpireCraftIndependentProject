@@ -69,7 +69,6 @@ public static class JimiTributeSystem
 #endif
 
     // 册封：首领更替时遣使册封(头一回见到只记下，不算更替)
-#if EC_PENDING
     private static void Invest(Empire empire, Realm core, Realm region, ref int popups)
     {
         EmpireData data = empire.data;
@@ -90,13 +89,11 @@ public static class JimiTributeSystem
         Announce(string.Format(LM.Get("jimi_invest_log"), core.GetKingdomName(), region.GetKingdomName(), region.Ruler.FullName()),
             region, history: false, ref popups);
     }
-#endif
 
     private static bool Uninvested(Empire empire, Realm region) =>
         empire.data.jimi_chiefs.TryGetValue(region.Key, out long chief) && chief != region.Ruler.Key;
 
     // 入朝进贡，厚往薄来
-#if EC_PENDING
     private static bool Tribute(Empire empire, Realm core, Realm region, ref int popups, ref bool honoured)
     {
         EmpireData data = empire.data;
@@ -119,7 +116,6 @@ public static class JimiTributeSystem
             region, history: false, ref popups);
         return true;
     }
-#endif
 
     // 叛：朝廷先看能否安抚，不能就由它叛去、发兵征讨
 #if EC_PENDING
@@ -205,7 +201,6 @@ public static class JimiTributeSystem
 #endif
 
     // 册封、入朝只弹提示(每国每年至多两条)；叛服连史册一起记
-#if EC_PENDING
     private static void Announce(string text, Realm kingdom, bool history, ref int popups)
     {
         LogService.LogInfo("[EmpireCraft][羁縻朝贡] " + text);
@@ -218,6 +213,5 @@ public static class JimiTributeSystem
         popups++;
         TranslateHelper.LogEventOnly(text, kingdom);
     }
-#endif
 }
 }

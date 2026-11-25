@@ -112,10 +112,10 @@ public static partial class FrontSystem
         return ++_pushDetailLines <= MaxDetailPerMinute;
     }
 
-#if EC_PENDING
     private static string KingdomLabel(Realm kingdom) =>
         kingdom?.Record == null ? "无" : kingdom.IsGone() ? $"已亡#{kingdom.Key}" : $"{kingdom.GetKingdomName()}#{kingdom.Key}";
 
+#if EC_PENDING
     private static string PushLine(Push push)
     {
         try
@@ -131,10 +131,10 @@ public static partial class FrontSystem
             return $"城#{push.City} 地块 {push.Zone} (取详情失败: {exception.Message})";
         }
     }
+#endif
 
     private static string ZoneCityLabel(Cell zone) =>
         zone?.City?.Record == null ? "无" : $"{zone.City.GetCityName()}#{zone.City.Key}";
-#endif
 
     // 一年一行合计
     private static void FlushPushCounts()

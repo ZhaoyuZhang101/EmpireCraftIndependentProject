@@ -50,19 +50,14 @@ public static class WarBalanceDiagnostics
     private static bool Cooling(Dictionary<long, double> logged, long id) =>
         logged.TryGetValue(id, out double at) && GameClock.Now >= at && GameClock.MonthsSince(at) < CooldownMonths;
 
-#if EC_PENDING
     private static bool Nomad(Realm kingdom) => FrontierRelations.IsNomadRealm(FrontSystem.ModRealm(kingdom));
-#endif
 
     // 阿拉伯政体：本国或所在帝国的核心
-#if EC_PENDING
     private static bool Arabic(Realm kingdom) =>
         kingdom?.Record != null && !kingdom.IsGone() &&
         (kingdom.GetRegime()?.type == RegimeType.Arabic || FrontSystem.ModRealm(kingdom)?.GetRegime()?.type == RegimeType.Arabic);
-#endif
 
     // 文化线(帝国按核心)：罗马线(西方各文化默认走罗马线)、华夏线
-#if EC_PENDING
     private static string Line(Realm kingdom)
     {
         Realm realm = FrontSystem.ModRealm(kingdom);
@@ -72,14 +67,11 @@ public static class WarBalanceDiagnostics
     private static bool Roman(Realm kingdom) => kingdom?.Record != null && !kingdom.IsGone() && Line(kingdom) == "Roma";
 
     private static bool Huaxia(Realm kingdom) => kingdom?.Record != null && !kingdom.IsGone() && Line(kingdom) == "Huaxia";
-#endif
 
     // 这一方属于哪一路(游牧、阿拉伯、罗马、华夏依次)；都不是返回 -1
-#if EC_PENDING
     private static int ChannelOf(Realm kingdom) =>
         Nomad(kingdom) ? NomadChannel : Arabic(kingdom) ? ArabicChannel : Roman(kingdom) ? RomaChannel :
         Huaxia(kingdom) ? HuaxiaChannel : -1;
-#endif
 
     // 本国(连同所在帝国的核心)在跟某类国家打仗，或自己就是
     private static bool AtWarWith(Realm kingdom, global::System.Func<Realm, bool> watched)
@@ -99,16 +91,13 @@ public static class WarBalanceDiagnostics
     }
 
     // 记哪一路：游牧优先，其次阿拉伯、罗马、华夏；都不是返回 -1
-#if EC_PENDING
     private static int RealmChannel(Realm kingdom) =>
         AtWarWith(kingdom, Nomad) ? NomadChannel : AtWarWith(kingdom, Arabic) ? ArabicChannel :
         AtWarWith(kingdom, Roman) ? RomaChannel : AtWarWith(kingdom, Huaxia) ? HuaxiaChannel : -1;
 
     private static string Name(Realm kingdom) => kingdom?.Record == null ? "?" : kingdom.GetKingdomName();
-#endif
 
     // 每月征召时(CorpsSystem.Mobilize，打仗时)
-#if EC_PENDING
     public static void ModRealm(Realm kingdom, float background, float pool, float budget, float levyShare)
     {
         try
@@ -148,7 +137,6 @@ public static class WarBalanceDiagnostics
             LogService.LogWarning($"[EmpireCraft][战力平衡] 兵源诊断失败: {exception.Message}");
         }
     }
-#endif
 
     // 每月交战结算后(FrontSystem.ResolveCity)
 #if EC_PENDING

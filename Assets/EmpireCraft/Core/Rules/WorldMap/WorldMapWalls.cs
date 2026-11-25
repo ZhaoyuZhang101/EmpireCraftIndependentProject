@@ -305,13 +305,13 @@ internal static class WorldMapWalls
         return seats;
     }
 
-#if EC_PENDING
     private static Cell Tile(int id)
     {
-        Cell[] tiles = EmpireWorld.Current?.Zones;
+        Cell[] tiles = EmpireWorld.Current?.AllCells;
         return tiles != null && id >= 0 && id < tiles.Length ? tiles[id] : null;
     }
 
+#if EC_PENDING
     private static TerrainKind WallType()
     {
         TerrainKind fallback = null;

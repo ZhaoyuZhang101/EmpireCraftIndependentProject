@@ -21,7 +21,6 @@ public static class BookExtension
     }
 
     // 不创建扩展，只看这本书是不是理念著作
-#if EC_PENDING
     public static bool TryGetIdeologyTreatise(this Book book, out BookExtraData data)
     {
         data = book == null ? null : ExtensionManager<Book, BookExtraData>.GetOrCreate(book, true);
@@ -30,15 +29,12 @@ public static class BookExtension
 
     public static BookExtraData GetOrCreate(this Book book, bool isSave = false) =>
         book.GetOrCreate<Book, BookExtraData>(isSave);
-#endif
 
     // 不创建扩展，只看这本书是不是名著(读书补丁每次都会问，普通书不应该因此挂上空扩展)
-#if EC_PENDING
     public static bool TryGetLandmark(this Book book, out BookExtraData data)
     {
         data = book == null ? null : ExtensionManager<Book, BookExtraData>.GetOrCreate(book, true);
         return data != null && !string.IsNullOrEmpty(data.landmark_id);
     }
-#endif
 }
 }

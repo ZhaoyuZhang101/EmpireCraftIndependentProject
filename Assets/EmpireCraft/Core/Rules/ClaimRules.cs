@@ -212,14 +212,12 @@ public static class ClaimRules
 #endif
 
     // 已采纳中原制度的游牧政权(元、清式)：复合帝国，统治文化属游牧线、制度文化属华夏线
-#if EC_PENDING
     private static bool IsSinicizedNomad(Empire empire)
     {
         if (!CompositeEmpireService.IsComposite(empire)) return false;
         return InstitutionSystem.GetCultureLine(CompositeEmpireService.GetRulingCulture(empire)) == "Youmu" &&
                InstitutionSystem.GetCultureLine(CompositeEmpireService.GetInstitutionalCulture(empire)) == "Huaxia";
     }
-#endif
 
     private static string NodeName(string id, string culture)
     {
@@ -228,7 +226,6 @@ public static class ClaimRules
     }
 
     // 文化特性：本文化有，或复合帝国的统治族群有(元、清式的游牧王朝治下照样出兵游牧扩张)
-#if EC_PENDING
     public static bool HasTrait(Empire empire, string trait)
     {
         if (empire?.CoreKingdom == null) return false;
@@ -237,7 +234,6 @@ public static class ClaimRules
         return CompositeEmpireService.IsComposite(empire) &&
                CompositeEmpireService.GetRulingCulture(empire).HasPoliticalTrait(trait);
     }
-#endif
 
     private static string EraName(int tier)
     {

@@ -33,7 +33,6 @@ public static class IdeologySpreadSystem
                Enum.TryParse(feature.Substring("ideology:".Length), out ideology);
     }
 
-#if EC_PENDING
     public static void SetStateIdeology(string culture, PartyIdeology ideology, Empire pioneer)
     {
         CultureInstitutionState state = InstitutionSystem.GetOrCreateCultureState(culture);
@@ -44,7 +43,6 @@ public static class IdeologySpreadSystem
             culture.GetCultureTranslate(), PartySystem.GetIdeologyName(ideology), pioneer?.GetEmpireName() ?? ""),
             pioneer?.CoreKingdom);
     }
-#endif
 
     public static bool TryGetStateIdeology(string culture, out PartyIdeology ideology)
     {

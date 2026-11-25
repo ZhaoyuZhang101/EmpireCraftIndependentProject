@@ -32,7 +32,6 @@ public static class AdministrationReorganizationSystem
     public static bool IsRunning(Empire empire) => empire != null && Active.Contains(empire.Key);
     public static void ResetWorldState() { Pending.Clear(); Active.Clear(); }
 
-#if EC_PENDING
     public static bool CanPropose(Person actor) => actor != null && !actor.IsGone() && actor.IsRuler() &&
         actor.Realm?.GetEmpire() is Empire empire && empire.Emperor == actor && actor.Realm == empire.CoreKingdom &&
         CanContinue(empire) && !empire.data.administrative_reorganization_pending;
@@ -49,6 +48,7 @@ public static class AdministrationReorganizationSystem
         empire.Legitimacy > 80 && !empire.HasTerritorialWar() && !ZhouEraSystem.RoyalReclaimBlocked(empire) &&
         !AncientWarfareCompatibility.Owns(empire.CoreKingdom);
 
+#if EC_PENDING
     public static bool Begin(Person actor)
     {
         if (!CanPropose(actor)) return false;
@@ -92,7 +92,6 @@ public static class AdministrationReorganizationSystem
         kingdom.GetEmpire() == empire && kingdom.Cities?.Count > 0 && !AncientWarfareCompatibility.Owns(kingdom) &&
         !kingdom.GetOrCreate().scenario_autonomy;
 
-#if EC_PENDING
     private static void RefreshProtected(Work work)
     {
         Realm core = work.Empire.CoreKingdom;
@@ -105,6 +104,7 @@ public static class AdministrationReorganizationSystem
         work.Protected = work.Empire.GetProtectedDirectCityIds();
     }
 
+#if EC_PENDING
     public static void Tick()
     {
         if (Pending.Count == 0 || !SimulationFrameBudget.HasTime) return;

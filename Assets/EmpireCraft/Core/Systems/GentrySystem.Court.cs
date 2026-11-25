@@ -35,7 +35,6 @@ public static partial class GentrySystem
     }
 
     // 选官之制定的底色(照帝国核心的制度文化)
-#if EC_PENDING
     private static float FavorBase(Empire empire)
     {
         string culture = CultureService.GetInstitutionCulture(empire.CoreKingdom);
@@ -44,7 +43,6 @@ public static partial class GentrySystem
         if (InstitutionSystem.IsEnacted(culture, NineRankNode)) return FavorNineRank;
         return InstitutionSystem.IsEnacted(culture, RecommendationNode) ? FavorRecommendation : FavorHereditary;
     }
-#endif
 
     // 每年(一轮门第结算开始时)：有世家的帝国，朝廷关系向底色靠、按关系增减法统；世家相争(见 GentrySystem.Events)
 #if EC_PENDING
@@ -86,7 +84,7 @@ public static partial class GentrySystem
         if (realm == null || node?.politics == null) return (0f, 0f);
         IEnumerable<SpecificClan> clans = realm.IsEmpire
             ? Of(realm.Empire)
-            : GentryIds.Select(SpecificClanManager.Get).Where(clan => clan != null && clan.gentry && Seat(clan)?.Realm == realm.Kingdom);
+            : GentryIds.Select(SpecificClanManager.Get).Where(clan => clan != null && clan.gentry && Seat(clan)?.Realm == realm.Realm);
         float weight = Mathf.Min(LeanWeightCap, Influence(clans) / LeanPer);
         if (weight <= 0f) return (0f, 0f);
         bool hurts = node.id == ExamNode || node.id == EqualFieldNode ||

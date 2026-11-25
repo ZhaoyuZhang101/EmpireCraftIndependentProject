@@ -285,7 +285,7 @@ public static class ClanBranchSystem
         {
             try
             {
-                vanillaClan = EmpireWorld.Current.clans.newClan(founderActor, true);
+                vanillaClan = EmpireWorld.Current.Clans.newClan(founderActor, true);
             }
             catch
             {
@@ -332,6 +332,7 @@ public static class ClanBranchSystem
             LandEconomySystem.TransferClanLand(pair.Key, parent, branch, pair.Value);
         return branch;
     }
+#endif
 
     private static void Announce(SpecificClan branch, Realm kingdom, string content, PersonalClanIdentity person)
     {
@@ -340,7 +341,6 @@ public static class ClanBranchSystem
         else person?.RecordPersonalHistory(content, eventKey: "clan_branch");
         TranslateHelper.LogEventMessage(content, kingdom);
     }
-#endif
 
     #endregion
 

@@ -22,7 +22,6 @@ public static class KejuSystem
     private const float CostShare = 0.02f, FraudBase = 0.08f, FraudGraft = 0.25f, PunishRelief = 4f, LenientGraft = 3f;
     private const int MinCost = 20;
 
-#if EC_PENDING
     public static bool HasKeju(Empire empire)
     {
         Realm core = empire?.CoreKingdom;
@@ -31,7 +30,6 @@ public static class KejuSystem
         string culture = CultureService.GetInstitutionCulture(core);
         return CultureService.IsValidCulture(culture) && InstitutionSystem.IsEnacted(culture, ExamNode);
     }
-#endif
 
     private static int Cost(Empire empire) =>
         Math.Max(MinCost, (int)(StateDebtSystem.AnnualStableIncome(empire.CoreKingdom) * (double)CostShare));
@@ -119,9 +117,7 @@ public static class KejuSystem
 
     #region 科场舞弊
 
-#if EC_PENDING
     public static bool FraudOpen(Empire empire) => HasKeju(empire) && empire.data.keju_fraud_at >= 0d;
-#endif
 
     // 严鞫此案、另开一科
 #if EC_PENDING
@@ -139,7 +135,6 @@ public static class KejuSystem
     #endregion
 
     // 每年(见 ConstitutionalEconomySystem.Update 的年度段)
-#if EC_PENDING
     public static void Yearly(Empire empire)
     {
         if (empire?.data == null || empire.IsGone() || empire.IsArchived() || empire.CoreKingdom == null) return;
@@ -178,6 +173,5 @@ public static class KejuSystem
             LogService.LogWarning($"[EmpireCraft][科举] {empire.GetEmpireName()} 年度结算失败: {exception.Message}");
         }
     }
-#endif
 }
 }

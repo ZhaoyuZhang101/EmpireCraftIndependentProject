@@ -31,12 +31,9 @@ public static class AirPowerSystem
         Bombed.Clear();
     }
 
-#if EC_PENDING
     private static bool Has(Realm kingdom, string tech) => TechnologySystem.HasTech(TechnologySystem.GetCultureOf(kingdom), tech);
-#endif
 
     // 每年(WorldOrderSystem.Scan)
-#if EC_PENDING
     internal static void Yearly(double now)
     {
         Fire.Clear();
@@ -87,7 +84,6 @@ public static class AirPowerSystem
         }
         foreach (long city in Bombed.Where(pair => pair.Value.until <= now).Select(pair => pair.Key).ToList()) Bombed.Remove(city);
     }
-#endif
 
     private static List<Realm> Alive(IEnumerable<Realm> side) =>
         side?.Where(kingdom => kingdom?.Record != null && !kingdom.IsGone()).ToList() ?? new List<Realm>();
@@ -96,7 +92,6 @@ public static class AirPowerSystem
         Fire[kingdom.Key] = Mathf.Clamp((Fire.TryGetValue(kingdom.Key, out float value) ? value : 1f) * factor, 0.8f, 1.3f);
 
     // 每场战争每样事只记一回
-#if EC_PENDING
     private static void Note(War war, int bit, string key, Realm from, Realm to, City city)
     {
         var data = war.GetOrCreate();
@@ -106,10 +101,8 @@ public static class AirPowerSystem
         EventRecorder.Record(from, text);
         if (to.GetEmpire() is { } other) other.RecordHistory(directContent: text, kingdomId: other.CoreKingdom?.Key ?? -1L);
     }
-#endif
 
     // 轰炸：打对方工业最多的那座城
-#if EC_PENDING
     private static void Strike(War war, List<Realm> from, List<Realm> to, float bomberStrength, float effect, double now)
     {
         float power = bomberStrength;
@@ -147,14 +140,11 @@ public static class AirPowerSystem
             }
         Note(war, bomberStrength > 0f ? 2 : 4, bomberStrength > 0f ? "air_bombing_history" : "air_missile_history", from[0], target.Realm ?? to[0], target);
     }
-#endif
 
     // 陆军火力(见 FrontSystem.Firepower)：制空权，再乘末代的"军事精进"
-#if EC_PENDING
     public static float FirepowerFactor(Realm kingdom) => kingdom?.Record == null ? 1f
         : (Fire.TryGetValue(kingdom.Key, out float value) ? value : 1f) *
           TechnologySystem.RepeatFactor(TechnologySystem.GetCultureOf(kingdom), "military");
-#endif
 
     // 挨了轰炸的城工厂减产(见 FactorySystem.Produce)
     public static float BombedFactor(City city) =>

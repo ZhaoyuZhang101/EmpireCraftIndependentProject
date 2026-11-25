@@ -16,7 +16,7 @@ public class EmpireCraftCityCombineHouses: GameAICityBase
     private static readonly Dictionary<long, double> FailedAt = new();
 
 #if EC_PENDING
-    public override BehResult execute(City pCity)
+    public override BehResult Execute(City pCity)
     {
         if (pCity?.Realm == null) return BehResult.Continue;
         if (!pCity.Realm.HasEnemies()) pCity.ClearOccupiedStatus();
@@ -26,23 +26,23 @@ public class EmpireCraftCityCombineHouses: GameAICityBase
         int population = CityPopulationSystem.AbstractPopulationEnabled
             ? CityPopulationSystem.Households(pCity)
             : pCity.PopulationCount();
-        if (!pCity.buildings.ToList().Any(b => b.asset.id.Contains("city_")))
+        if (!pCity.Buildings.ToList().Any(b => b.Asset.Id.Contains("city_")))
         {
             // 世界法则关掉合并时保留原版民居(modernmod 的 6~11 级民居也是民居，合并会把它们全拆掉)；
             // 已经住进 modernmod 高级民居的城市也不再合并
             if (WorldLaws.CombineHouses?.IsEnabled() == false) return BehResult.Continue;
-            if (pCity.buildings.Any(b => b.asset.type == "type_house" && b.asset.id.EndsWith("_modernmod")))
+            if (pCity.Buildings.Any(b => b.Asset.Type == "type_house" && b.Asset.Id.EndsWith("_modernmod")))
                 return BehResult.Continue;
             if (population > 80) Combine(pCity, population);
         }
         else
         {
-            var building = pCity.buildings.Find(b=>b.asset.id.Contains("city_"));
+            var building = pCity.Buildings.Find(b=>b.Asset.Id.Contains("city_"));
             if (building != null)
             {
                 if (population >= 100)
                 {
-                    if (building.asset.upgrade_level == 1)
+                    if (building.Asset.UpgradeLevel == 1)
                     {
                         building.upgradeBuilding();
                     }
@@ -50,7 +50,7 @@ public class EmpireCraftCityCombineHouses: GameAICityBase
 
                 if (population >= 150 || (pCity.IsCapital() && pCity.Realm.IsEmpire()))
                 {
-                    if (building.asset.upgrade_level <= 1)
+                    if (building.Asset.UpgradeLevel <= 1)
                     {
                         building.upgradeBuilding();
                         building.upgradeBuilding();
@@ -75,7 +75,7 @@ public class EmpireCraftCityCombineHouses: GameAICityBase
         if (FailedAt.TryGetValue(city.Key, out double failed) && GameClock.YearsSince(failed) < 1) return;
         var culture = city.Realm?.GetEmpireCraftCulture();
         culture = EmpireCraftBuildingLibrary.BuildingCulture(culture);
-        BuildingAsset asset = AssetManager.buildings.get($"city_{culture?.ToLower()}_0");
+        BuildingKind asset = BuildingKinds.Table.Get($"city_{culture?.ToLower()}_0");
         if (asset == null) return;
         Building placed = Place(city, asset);
         if (placed == null)
@@ -84,14 +84,14 @@ public class EmpireCraftCityCombineHouses: GameAICityBase
             return;
         }
         FailedAt.Remove(city.Key);
-        if (placed.isUnderConstruction()) return;
-        int spare = city.status.housing_total + asset.housing_slots - households;
-        foreach (Building house in city.buildings.ToList())
+        if (placed.IsUnderConstruction()) return;
+        int spare = city.status.housing_total + asset.HousingSlots - households;
+        foreach (Building house in city.Buildings.ToList())
         {
-            if (house == null || house == placed || house.isOnRemove() || house.asset.type != "type_house" ||
-                house.asset.id.Contains("city_")) continue;
-            if (spare - house.asset.housing_slots < 0) continue;
-            spare -= house.asset.housing_slots;
+            if (house == null || house == placed || house.IsOnRemove() || house.Asset.Type != "type_house" ||
+                house.Asset.Id.Contains("city_")) continue;
+            if (spare - house.Asset.HousingSlots < 0) continue;
+            spare -= house.Asset.HousingSlots;
             house.startRemove();
         }
     }
@@ -99,7 +99,7 @@ public class EmpireCraftCityCombineHouses: GameAICityBase
 
     // 从城中心往外找：不放进规划农田(见 FarmlandSystem，风车范围里不盖民居)
 #if EC_PENDING
-    private static Building Place(City city, BuildingAsset asset)
+    private static Building Place(City city, BuildingKind asset)
     {
         if (city.Zones == null) return null;
         Vector2 center = city.Center;

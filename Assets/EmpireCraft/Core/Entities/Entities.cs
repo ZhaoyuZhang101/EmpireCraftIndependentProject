@@ -32,6 +32,11 @@ namespace EmpireCraft.Core
         public bool IsWild=>false;
         public bool IsNeutral()=>false;
         public bool IsCivilized()=>true;
+        public override EntityKind KindOfEntity=>EntityKind.Realm;
+        public Clan GetRulingClan()=>RulingClan;
+        // The people of the realm. This world has one; the peoples of the game are decided later.
+        public string SpeciesId=PersonKind.HumanId;
+        public string GetSpecies()=>SpeciesId;
 
         // The realm's colours as the ported systems ask for them, from its map colour.
         Tint _tint;uint _tintOf;
@@ -77,7 +82,17 @@ namespace EmpireCraft.Core
         public Tint GetColor()=>Realm==null?null:Realm.GetColor();   // a city wears its realm's colours
         public int CountZones()=>Tiles.Count;
         public bool IsCapital()=>Realm!=null&&Realm.Capital==this;
+        public override EntityKind KindOfEntity=>EntityKind.City;
+        // What stands in the city is counted on a ledger; there are no building objects, so no library either.
+        static readonly List<Building> NoBuildings=new List<Building>();
+        public List<Building> Buildings=>NoBuildings;
+        public bool HasBuildingType(string type)=>false;
+        public Building GetBuildingWithBookSlot()=>null;
+        public bool HasBookSlots()=>false;
+        public bool HasRealm()=>Realm!=null&&Realm.Alive;
+        public string GetSpecies()=>Realm==null?PersonKind.HumanId:Realm.SpeciesId;
         public int PopulationCount()=>(int)System.Math.Min(int.MaxValue,Population);
+        public int GetPopulationMaximum()=>World==null?0:(int)System.Math.Min(int.MaxValue,SkeletonRules.Capacity(World,this));
         // The faith and the culture held, if any; set by whichever system converts or assimilates.
         public Religion Religion;public Culture Culture;
         public bool HasReligion()=>Religion!=null&&Religion.Alive;
@@ -153,6 +168,13 @@ namespace EmpireCraft.Core
         public bool HasClan()=>Clan!=null;
         public int Age()=>(int)(((Alive?GameClock.Now:DeathMonth)-BirthMonth)/12);
         public bool IsAdult()=>Age()>=AdultAge;
+        public override EntityKind KindOfEntity=>EntityKind.Person;
+        public PersonKind Asset=>PersonKind.Human;
+        public JobKind Job=>null;            // persons on record are not labourers
+        // The army this person leads, if any. Soldiers are counted, so only a captain is ever in one.
+        public Army Army;
+        public bool HasArmy()=>Army!=null&&Army.Alive;
+        public bool IsArmyCaptain=>HasArmy()&&Army.Captain==this;
 
         // Standing, purse and the four talents. They start at zero; the ported systems that
         // hand them out (birth, office, deeds) set them once they run.
@@ -222,6 +244,7 @@ namespace EmpireCraft.Core
         public override long Key=>Id;
         public override bool Alive=>true;   // a house is never struck from the record
         public Clan Record=>this;
+        public override EntityKind KindOfEntity=>EntityKind.Clan;
         public string Name=>Surname;
     }
 

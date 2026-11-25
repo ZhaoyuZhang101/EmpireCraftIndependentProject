@@ -78,7 +78,6 @@ public static class ReligionSchismSystem
 
     #region 异文明立教
 
-#if EC_PENDING
     private static void TryNativeTurns()
     {
         foreach (Empire empire in ModClass.EMPIRE_MANAGER?.ToList() ?? new List<Empire>())
@@ -106,10 +105,8 @@ public static class ReligionSchismSystem
             NationalChurch(empire, current, sphere);
         }
     }
-#endif
 
     // 从外来宗教分出本国教会：中心在帝都，天下记本文明，帝国各国各城当场改奉
-#if EC_PENDING
     private static void NationalChurch(Empire empire, Religion old, string sphere)
     {
         Realm core = empire.CoreKingdom;
@@ -145,7 +142,6 @@ public static class ReligionSchismSystem
         ReligionChronicle.Record(old, church, ReligionChronicle.KindSchism, text);
         LogService.LogInfo($"[EmpireCraft][宗教] {empire.GetEmpireName()}(天下 {sphere})不奉外来的{old.Name}，另立{church.Name}");
     }
-#endif
 
     #endregion
 
@@ -190,7 +186,6 @@ public static class ReligionSchismSystem
 #endif
 
     // 候选：奉本教的同天下帝国(罗马一线或文化属本教天下，不论政体——拜占庭是元首制)，够大，不握也不护教廷，本朝皇帝没受教宗加冕
-#if EC_PENDING
     private static bool EasternCandidate(Empire empire, Religion religion, Realm papacy, Realm patron)
     {
         Realm core = empire?.CoreKingdom;
@@ -203,10 +198,8 @@ public static class ReligionSchismSystem
             return false;
         return !PapacySystem.IsCrowned(empire) || PapacySystem.State(empire).self_crowned;
     }
-#endif
 
     // 教廷一边(候选帝国自己不算)奉本教各城的重心、城数与主流文化
-#if EC_PENDING
     private static (Vector2 centroid, int cities, string culture) PapalBloc(Religion religion, Realm core, Realm see, Realm patron)
     {
         Vector2 sum = Vector2.zero;
@@ -230,10 +223,8 @@ public static class ReligionSchismSystem
         string top = cultures.Count == 0 ? "" : cultures.OrderByDescending(pair => pair.Value).First().Key;
         return (count > 0 ? sum / count : Vector2.zero, count, top);
     }
-#endif
 
     // 教廷一边：教廷所在国、庇护者；在教廷往来之列的帝国；罗马一线的君主国(独立王国)
-#if EC_PENDING
     private static bool InPapalBloc(Realm realm, Realm see, Realm patron)
     {
         if (realm == see || realm == patron) return true;
@@ -242,10 +233,8 @@ public static class ReligionSchismSystem
         return InstitutionSystem.GetCultureLine(CultureService.GetRealmCulture(realm)) == PapacySystem.Line &&
                RegimeManager.IsMonarchy(realm.GetRegime()?.type);
     }
-#endif
 
     // 隔阂几项：与教廷或其庇护者交战、遭绝罚、对立教宗、教权低落、两帝并立、法理上声索圣地
-#if EC_PENDING
     private static int Estrangement(Empire empire, Religion religion, Realm see, Realm patron, City holy)
     {
         Realm core = empire.CoreKingdom;
@@ -259,6 +248,7 @@ public static class ReligionSchismSystem
         return count;
     }
 
+#if EC_PENDING
     private static bool EasternSplit(Empire empire, Religion old, City oldHoly, string reference)
     {
         Realm core = empire.CoreKingdom;
@@ -335,7 +325,6 @@ public static class ReligionSchismSystem
     //   · 本教已分出过什叶派、它还在：争位者 ContestJoinShiaChance 投向它(连随攻方的割据成员)；
     //   · 帝国本就奉什叶派(伊玛目之位相争，原型 765 年)：争位者 ContestIsmailiChance 另立伊斯玛仪派(每个什叶派一次)。
     // 争位分出的什叶派记下分支(IslamicSchismSystem.MarkShia)，此后同一母宗教不再另立什叶派(争位之外的立、改奉见 IslamicSchismSystem)
-#if EC_PENDING
     public static void OnSuccessionContest(Empire empire, int kind, Realm claimant, List<Realm> followers)
     {
         if (kind != SchismSystem.Caliph && kind != SchismSystem.Sultan || !Alive(claimant)) return;
@@ -390,7 +379,6 @@ public static class ReligionSchismSystem
         if (empire.data != null) empire.RecordHistory(directContent: text, actorId: head.Key, kingdomId: claimant.Key);
         LogService.LogInfo($"[EmpireCraft][宗教] {claimant.GetKingdomName()} 争位，另奉{shia.Name}(分自{old.Name})");
     }
-#endif
 
     #endregion
 
@@ -399,19 +387,16 @@ public static class ReligionSchismSystem
     // 教权低落、圣战屡败：改革者提早发端(见 PapacySystem.TrySpark)
     private const int EarlyReformLosses = 2;
 
-#if EC_PENDING
     public static bool EarlyReformation(Religion religion)
     {
         var data = religion?.GetOrCreate();
         return data != null && PapacySystem.Papacy(religion) != null &&
                PapacySystem.Authority(religion) < PapacySystem.EarlyReformAuthority && data.CrusadeLosses >= EarlyReformLosses;
     }
-#endif
 
     #endregion
 
     // 一国改奉分出来的教会：国、君主、奉旧教的城(连城中实体)
-#if EC_PENDING
     private static void ConvertKingdom(Realm kingdom, Religion old, Religion church)
     {
         kingdom.SetReligion(church);
@@ -419,6 +404,5 @@ public static class ReligionSchismSystem
         foreach (City city in kingdom.Cities.ToList())
             if (city?.Record != null && !city.IsGone() && city.Religion == old) BackgroundReligionSystem.Convert(city, church, old);
     }
-#endif
 }
 }

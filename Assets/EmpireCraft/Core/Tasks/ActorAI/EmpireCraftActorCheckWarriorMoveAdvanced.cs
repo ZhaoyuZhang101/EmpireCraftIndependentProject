@@ -61,7 +61,7 @@ public class EmpireCraftActorCheckWarriorMoveAdvanced : GameAIActorBase
     }
 
 #if EC_PENDING
-    public override BehResult execute(Person pActor)
+    public override BehResult Execute(Person pActor)
     {
         return BehResult.Continue;
         if (!WorldLaws.SwitchOccupyMode.IsEnabled())
@@ -100,7 +100,7 @@ public class EmpireCraftActorCheckWarriorMoveAdvanced : GameAIActorBase
             return BehResult.Continue;
         }
 
-        if (!pActor.hasArmy())
+        if (!pActor.HasArmy())
         {
             pActor.ClearFrontLineMoveTarget();
             return BehResult.Continue;
@@ -144,9 +144,9 @@ public class EmpireCraftActorCheckWarriorMoveAdvanced : GameAIActorBase
         }
 
         pActor.SetFrontLineMoveTarget(targetTile);
-        if (pActor.is_army_captain)
+        if (pActor.IsArmyCaptain)
         {
-            pActor.army._prev_captain_position = targetTile;
+            pActor.Army._prev_captain_position = targetTile;
         }
         pActor.goTo(targetTile);
         if (!EmpireCraft.Core.PureMapMode.Enabled)
@@ -745,7 +745,7 @@ public class EmpireCraftActorCheckWarriorMoveAdvanced : GameAIActorBase
             return null;
         }
 
-        if (!actor.hasArmy())
+        if (!actor.HasArmy())
         {
             return null;
         }

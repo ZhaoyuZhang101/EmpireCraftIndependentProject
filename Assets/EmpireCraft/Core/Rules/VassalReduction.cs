@@ -293,7 +293,6 @@ public static class VassalReduction
 
     // ───────── 其余藩属自危 ─────────
     // 帝国里不是行政区的成员、朝贡国、朝廷的封建附庸，对朝廷的好感各添一笔会淡去的不满
-#if EC_PENDING
     public static void Alarm(Empire empire, Realm except, int amount)
     {
         Realm core = empire?.CoreKingdom;
@@ -316,7 +315,6 @@ public static class VassalReduction
             data.vassal_alarm_empire = empire.Key;
         }
     }
-#endif
 
     private static float Years(double at) => at < 0d || GameClock.Now < at ? 0f : GameClock.YearsSince(at);
 

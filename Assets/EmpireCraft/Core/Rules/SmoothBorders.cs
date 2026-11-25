@@ -102,11 +102,11 @@ public static partial class SmoothBorders
         if (zone == null) return null;
         // 文化图层(按城市那几档)按模组记的主流文化取归属，同它的 draw_zones(见 EmpireCraftNamePlateLibrary)：原版按城市
         // 身上的原版文化取，没对上原版文化对象的城平滑成了透明，文化图层只剩名字没有颜色
-        if (layer.map_mode == MetaType.Culture && !layer.isMetaZoneOptionSelectedFluid() &&
+        if (layer.map_mode == EntityKind.Culture && !layer.isMetaZoneOptionSelectedFluid() &&
             EmpireCraft.Core.EmpireCraftNamePlateLibrary.TryCultureLayerMeta(zone, out IMetaObject culture))
             return culture;
-        IMetaObject meta = layer.map_mode == MetaType.City ? zone.City
-            : layer.map_mode == MetaType.Alliance ? AllianceMeta(zone, option)
+        IMetaObject meta = layer.map_mode == EntityKind.City ? zone.City
+            : layer.map_mode == EntityKind.Alliance ? AllianceMeta(zone, option)
             : layer.tile_get_metaobject?.Invoke(zone, option);
         // 帝国图层上没被哪个帝国(或同盟视图)覆盖的王国：模组按本国颜色补画(见 EmpireCraftMetaTypeLibrary)，这里也按本国归属
         if ((meta == null || !meta.Alive) && layer.map_mode == MetaTypeExtension.Empire &&
@@ -131,7 +131,7 @@ public static partial class SmoothBorders
     // 平滑国界接手的图层：城市、联盟，以及原版按地块取归属的图层
 #if EC_PENDING
     private static bool Smoothable(MetaTypeAsset layer) =>
-        layer != null && (layer.map_mode == MetaType.City || layer.map_mode == MetaType.Alliance || layer.tile_get_metaobject != null);
+        layer != null && (layer.map_mode == EntityKind.City || layer.map_mode == EntityKind.Alliance || layer.tile_get_metaobject != null);
 #endif
 
     // 这一层的重画指纹折进了实际归属、颜色、所属帝国(见 Fingerprint)：全图重画请求只需让下一轮巡检(见 ZonePaintBudget.BeforeDirtyAndClear)
@@ -139,7 +139,7 @@ public static partial class SmoothBorders
     internal static bool FingerprintCovers(MetaTypeAsset layer) => Smoothable(layer);
 
     private static bool ControlLayer(MetaTypeAsset layer) =>
-        layer.map_mode == MetaType.Kingdom || layer.map_mode == MetaTypeExtension.Empire;
+        layer.map_mode == EntityKind.Realm || layer.map_mode == MetaTypeExtension.Empire;
 #endif
 
     // 某国在国家/帝国图层上的归属：帝国图层取它所属的帝国
@@ -181,7 +181,7 @@ public static partial class SmoothBorders
         _cx = center.X;
         _cy = center.Y;
         _controlGeometry = ControlLayer(layer);
-        _cityGeometry = _controlGeometry || layer.map_mode == MetaType.City;
+        _cityGeometry = _controlGeometry || layer.map_mode == EntityKind.City;
         _hover = HoveredProvince(layer, option);
         for (int dy = -2; dy <= 2; dy++)
         for (int dx = -2; dx <= 2; dx++)
@@ -370,7 +370,7 @@ public static partial class SmoothBorders
     // 图层归属只看地块所属的城(城市图层；国家、帝国图层的"按城池归属"那一档，见 EnclaveFill：补洞只补没有城的地块)
 #if EC_PENDING
     private static bool CityKeyed(MetaTypeAsset layer, int option) =>
-        layer.map_mode == MetaType.City || option == 0 && ControlLayer(layer);
+        layer.map_mode == EntityKind.City || option == 0 && ControlLayer(layer);
 #endif
 
     // QuantumSpriteLibrary.colorZones 的前缀：记下这一帧要高亮哪些地块(及其归属)，不画方片。
@@ -478,7 +478,7 @@ public static partial class SmoothBorders
 #if EC_PENDING
     private static bool LiftAround(ZoneGrid calc, Color32[] pixels, int zoneId, int stamp)
     {
-        if (!calc._zones_dict_id.TryGetValue(zoneId, out Cell zone) || zone == null) return false;
+        if (!calc.Lookup.TryGetValue(zoneId, out Cell zone) || zone == null) return false;
         bool changed = false;
         for (int dy = -ZoneReach; dy <= ZoneReach; dy++)
         for (int dx = -ZoneReach; dx <= ZoneReach; dx++)
@@ -694,8 +694,8 @@ public static partial class SmoothBorders
         IMetaObject native = ShadeOf(zone, LayerMeta(layer, layer.getZoneOptionState(), zone));
         Remember(zone, own);
         bool clearInside = inside.a == 0;
-        bool goldLayer = layer.map_mode == MetaType.Kingdom;
-        bool frontLayer = CorpsSystem.Enabled && (layer.map_mode == MetaType.Kingdom || layer.map_mode == MetaTypeExtension.Empire);
+        bool goldLayer = layer.map_mode == EntityKind.Realm;
+        bool frontLayer = CorpsSystem.Enabled && (layer.map_mode == EntityKind.Realm || layer.map_mode == MetaTypeExtension.Empire);
         Hostility.Clear();
         int width = EmpireWorld.Current.Width, height = EmpireWorld.Current.Height;
         foreach (Cell tile in zone.Tiles)
@@ -2265,7 +2265,7 @@ public static partial class SmoothBorders
         IMetaObject real = RealMetaOf(layer, layer.getZoneOptionState(), zone);
         if (!LastMeta.TryGetValue(zone.Index, out var last))
         {
-            if (real == null || pixels == null || !ControlLayer(layer) && layer.map_mode != MetaType.City) return false;
+            if (real == null || pixels == null || !ControlLayer(layer) && layer.map_mode != EntityKind.City) return false;
             foreach (Cell tile in zone.Tiles)
             {
                 int id = tile?.Index ?? -1;

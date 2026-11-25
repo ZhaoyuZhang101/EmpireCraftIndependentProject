@@ -11,7 +11,6 @@ namespace EmpireCraft.Core
 public static class EventRecorder
 {
     // empire 为空时只显示日志不入史书；logKingdom 为空时用帝国核心王国；actor 为空时记在元首名下
-#if EC_PENDING
     public static void Record(Empire empire, string text, Person actor = null, Realm logKingdom = null)
     {
         if (string.IsNullOrWhiteSpace(text)) return;
@@ -21,12 +20,10 @@ public static class EventRecorder
                 kingdomId: kingdom?.Key ?? -1L);
         if (kingdom != null) TranslateHelper.LogEventMessage(text, kingdom);
     }
-#endif
 
     // 例行政事(选举、组阁、议程、党派分合)：照常写进史书；屏幕日志只给举足轻重的国家(城数不少于 8、
     // 且不少于最大国的四分之一，或玩家正在看的国家)，并全局限流(每 2 秒最多一条)。
     // 玩家反馈：进入现代后小国林立，每国都在选举，日志一直跳、卡爆
-#if EC_PENDING
     public static void RecordRoutine(Empire empire, string text, Person actor = null)
     {
         if (string.IsNullOrWhiteSpace(text)) return;
@@ -36,18 +33,16 @@ public static class EventRecorder
                 kingdomId: kingdom?.Key ?? -1L);
         if (kingdom != null && ShowRoutine(empire)) TranslateHelper.LogEventMessage(text, kingdom);
     }
-#endif
 
     private const float RoutineInterval = 2f, LargestCacheSeconds = 10f;
     private const int NotableMinCities = 8;
     private static float _lastRoutine = -100f, _largestAt = -100f;
     private static int _largestCities;
 
-#if EC_PENDING
     public static bool ShowRoutine(Empire empire)
     {
         if (empire?.data == null || empire.IsGone()) return false;
-        bool watched = EmpireCraft.Core.EmpireCraftMetaTypeLibrary.selected_empire == empire;
+        bool watched = GameView.SelectedEmpire == empire;
         if (!watched)
         {
             int cities = CityCount(empire);
@@ -58,7 +53,6 @@ public static class EventRecorder
         _lastRoutine = now;
         return true;
     }
-#endif
 
     private static int CityCount(Empire empire) =>
         empire.kingdoms_list?.Where(kingdom => kingdom?.Cities != null && !kingdom.IsGone()).Sum(kingdom => kingdom.Cities.Count) ?? 0;
@@ -75,9 +69,7 @@ public static class EventRecorder
     }
 
     // 以某个政权的名义记录：它组建了政府(帝国层)就入该帝国史书，否则只显示日志
-#if EC_PENDING
     public static void Record(Realm kingdom, string text, Person actor = null) =>
         Record(kingdom != null && kingdom.IsEmpire() ? kingdom.GetEmpire() : null, text, actor ?? kingdom?.Ruler, kingdom);
-#endif
 }
 }

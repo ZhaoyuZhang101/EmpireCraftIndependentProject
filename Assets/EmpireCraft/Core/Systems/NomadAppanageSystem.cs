@@ -62,6 +62,7 @@ public static class NomadAppanageSystem
             }
         }
     }
+#endif
 
     private static bool Due(Realm kingdom, Person khan)
     {
@@ -78,6 +79,7 @@ public static class NomadAppanageSystem
         return EcRandom.value < Mathf.Min(MaxChance, BaseChance + PerCity * (scale - MinCities));
     }
 
+#if EC_PENDING
     private static void Partition(Realm kingdom, Person khan)
     {
         int total = kingdom.Cities.Count;

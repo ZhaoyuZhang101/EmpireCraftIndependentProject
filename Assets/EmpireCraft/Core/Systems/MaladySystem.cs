@@ -48,31 +48,24 @@ public static class MaladySystem
     // 积弊已经经王朝积弊(StrainShare)压正统，这里再直接扣是第二份：LegitimacyRate 0.25 → 0.1(用户 2026-10-21 选"积弊不再双扣正统")
     private const float LegitimacyFloor = 30f, LegitimacyRate = 0.1f, CollapseFloor = 50f, CollapseSpan = 40f, CrisisAverage = 70f;
 
-#if EC_PENDING
     public static bool Applies(Empire empire) => empire?.data != null && DynasticCycleSystem.Applies(empire);
-#endif
 
     public static float Get(Empire empire, string key) =>
         empire?.data?.maladies != null && empire.data.maladies.TryGetValue(key, out float value) ? value : 0f;
 
-#if EC_PENDING
     public static float Severity(Empire empire, string key) => Applies(empire) ? Mathf.Clamp01(Get(empire, key) / 100f) : 0f;
 
     public static float Average(Empire empire) => Applies(empire) ? All.Average(key => Get(empire, key)) : 0f;
-#endif
 
     // 王朝积弊托着的底：六弊治不到这条线以下(见类头)
     private const float StrainFloorShare = 0.5f;
 
-#if EC_PENDING
     public static float Floor(Empire empire) => FloorOf(DynasticCycleSystem.GetPressure(empire));
-#endif
 
     // 某个王朝积弊托着的底(剧本编辑器显示六弊默认值用，见 WorldMapScenario.StartingStrain)
     public static float FloorOf(float strain) => strain * StrainFloorShare;
 
     // 减的时候至多减到王朝积弊托着的底(本来就在底下的不再往下减)
-#if EC_PENDING
     private static void Add(Empire empire, string key, float delta)
     {
         empire.data.maladies ??= new Dictionary<string, float>();
@@ -85,15 +78,12 @@ public static class MaladySystem
     {
         if (Applies(empire)) Add(empire, key, -Mathf.Abs(amount));
     }
-#endif
 
     // 别的系统加重某条积弊(如派系失衡，见 FactionBalanceSystem)
-#if EC_PENDING
     public static void Aggravate(Empire empire, string key, float amount)
     {
         if (Applies(empire)) Add(empire, key, Mathf.Abs(amount));
     }
-#endif
 
     // 改朝换代：旧弊一扫而空，各留两成；兵变禅让、宗室复国减半(keep 0.5，用户 2026-10-26，见 DynasticCycleSystem.OnDynastyChanged)
     public static void OnDynastyChanged(Empire empire, float keep = 0.2f)
@@ -196,7 +186,6 @@ public static class MaladySystem
     // 王朝年岁的快慢(不含开国气象与天命动荡)；王朝积弊的同岁数补底也照它算(见 DynasticCycleRules.AgeFloor)
     public static float PaceAt(int age) => age < EarlyYears ? EarlyPace : age < MiddleYears ? MiddlePace : 1f;
 
-#if EC_PENDING
     public static float Pace(Empire empire)
     {
         if (empire.InFoundingGrace) return 0f;
@@ -204,10 +193,8 @@ public static class MaladySystem
         // 天命动荡时积弊长得快一半(用户 2026-10-19 选"以天命为准")
         return TianxiaSystem.PhaseOf(empire.CoreKingdom) == TianxiaSystem.Unrest ? pace * 1.5f : pace;
     }
-#endif
 
     // 每年才结算的效果：吏治(各城腐败)、冗费(行政开支)、党争(各派怨望)
-#if EC_PENDING
     private static void Apply(Empire empire)
     {
         float graft = Severity(empire, Graft);
@@ -231,7 +218,6 @@ public static class MaladySystem
             foreach (CourtFactionState state in CourtSystem.State(empire).factions.Values)
                 if (state != null) state.grievance = Mathf.Min(100f, state.grievance + FactionGrievance * faction);
     }
-#endif
 
     #endregion
 
@@ -240,69 +226,46 @@ public static class MaladySystem
     private static Empire EmpireOf(Realm kingdom) => kingdom?.GetEmpire();
 
     // 土地兼并：有地农民卖地的速度
-#if EC_PENDING
     public static float AnnexationFactor(Realm kingdom) => 1f + Severity(EmpireOf(kingdom), Annexation);
-#endif
 
     // 武备废弛：本帝国各军战力
-#if EC_PENDING
     public static float MilitaryFactor(CorpsData corps)
     {
         if (corps == null || EmpireWorld.Current == null) return 1f;
         return 1f - MilitaryPenalty * Severity(EmpireOf(EmpireWorld.Current.RealmByKey(corps.kingdom_id)), Military);
     }
-#endif
 
     // 武备废弛：兵籍虚冒、军户逃亡，可征之兵(兵源)打折(见 CorpsSystem.Mobilize、CityPopulationSystem.WarPotential)
-#if EC_PENDING
     public static float LevyFactor(Realm kingdom) => 1f - LevyPenalty * Severity(EmpireOf(kingdom), Military);
-#endif
 
     // 武备废弛：操练荒疏，组织度上限压低、休整恢复变慢(见 CorpsSystem.Recover)
-#if EC_PENDING
     public static float OrgCeiling(Realm kingdom) => 100f - OrgCapPenalty * Severity(EmpireOf(kingdom), Military);
 
     public static float RecoveryFactor(Realm kingdom) => 1f - RecoveryPenalty * Severity(EmpireOf(kingdom), Military);
-#endif
 
     // 武备废弛：禁军空饷再多
-#if EC_PENDING
     public static float PhantomExtra(Empire empire) => PhantomShare * Severity(empire, Military);
-#endif
 
     // 合计：积弊深重损正统(见 MonarchyLegitimacy)，平均不到三十不损
-#if EC_PENDING
     public static int LegitimacyPenalty(Empire empire) =>
         -Mathf.RoundToInt(Mathf.Max(0f, Average(empire) - LegitimacyFloor) * LegitimacyRate);
-#endif
 
     // 合计：土崩瓦解的内忧(0~1，见 ProvincialCollapseSystem.Crisis)
-#if EC_PENDING
     public static float CollapseFactor(Empire empire) => Mathf.Clamp01((Average(empire) - CollapseFloor) / CollapseSpan);
-#endif
 
     // 合计：积弊危局——苛政民变打仗时也会爆发(见 HarshRuleSystem)
-#if EC_PENDING
     public static bool InCrisis(Empire empire) => Average(empire) >= CrisisAverage;
-#endif
 
     // 党争：奏议准奏率
-#if EC_PENDING
     public static float ApprovalMalus(Empire empire) => ApprovalPenalty * Severity(empire, Factionalism);
-#endif
 
     // 苛捐杂税：苛政
-#if EC_PENDING
     public static float LeviesHarsh(Realm core) => LeviesBurden * Severity(EmpireOf(core), Levies);
-#endif
 
     // 合计：王朝积弊(周期压力)每年多涨
-#if EC_PENDING
     public static float StrainDelta(Empire empire) => Average(empire) / 100f * StrainShare;
-#endif
 
     // 界面上每条积弊的后果(本地化参数)
-#if EC_PENDING
     public static string EffectText(Empire empire, string key)
     {
         float s = Severity(empire, key);
@@ -320,7 +283,6 @@ public static class MaladySystem
             _ => Mathf.RoundToInt(LeviesBurden * s).ToString()
         });
     }
-#endif
 
     #endregion
 }

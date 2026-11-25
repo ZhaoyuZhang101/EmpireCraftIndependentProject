@@ -41,7 +41,6 @@ public static partial class PapacySystem
     }
 
     // 圣战告捷后成立骑士团
-#if EC_PENDING
     private static void TryFoundOrder(Religion religion, Realm host)
     {
         // 骑士团只有普世教会有(吉哈德告捷不建圣殿、医院骑士团，见 ReligionFaith)
@@ -74,13 +73,12 @@ public static partial class PapacySystem
         foreach (Person actor in host.People)
         {
             if (actor?.Record == null || actor.IsGone() || !actor.Alive || !actor.IsAdult() || actor.IsRuler() ||
-                actor.asset == null || !actor.asset.civ || CityPopulationSystem.IsVehicle(actor)) continue;
+                actor.Asset == null || !actor.Asset.Civ || CityPopulationSystem.IsVehicle(actor)) continue;
             if (best == null || actor.Warfare > best.Warfare) best = actor;
         }
         order.grand_master_id = best?.Key ?? -1L;
         best?.RecordPersonalHistory(string.Format(LM.Get("knight_order_master_history"), order.name));
     }
-#endif
 
     public static Person GrandMaster(KnightOrderData order)
     {

@@ -10,7 +10,7 @@ public class EmpireCraftKingdomBehCheckTax : GameAIKingdomBase
     public override Type OriginalBeh => GetType();
 
 #if EC_PENDING
-    public override BehResult execute(Realm pKingdom)
+    public override BehResult Execute(Realm pKingdom)
     {
         pKingdom.CheckEmpire();
         if (!TreasurySystem.Enabled(pKingdom) && !pKingdom.IsInEmpire())

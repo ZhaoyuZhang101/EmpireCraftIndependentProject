@@ -41,12 +41,10 @@ public static partial class HolyRomanSystem
     }
 
     // 封建制帝国(圣座帝国除外)，至少两个成员国
-#if EC_PENDING
     public static bool HasDiet(Empire empire) =>
         empire?.data != null && !empire.IsGone() && !empire.IsArchived() && empire.CoreKingdom?.Record != null &&
         !empire.CoreKingdom.IsGone() && empire.CoreKingdom.GetRegime()?.type == RegimeType.Feudalism &&
         !PapacySystem.IsHolySee(empire) && Members(empire).Count >= 2;
-#endif
 
     public static List<Realm> Members(Empire empire) =>
         empire?.kingdoms_list?.Where(kingdom => kingdom?.Record != null && !kingdom.IsGone() && kingdom != empire.CoreKingdom &&
@@ -60,7 +58,6 @@ public static partial class HolyRomanSystem
     }
 
     // 三院席位：选帝侯(本人)，其余成员国按自由城市与诸侯分院；被禁者不得列席
-#if EC_PENDING
     public static List<DietVoter> Voters(Empire empire)
     {
         var result = new List<DietVoter>();
@@ -81,7 +78,6 @@ public static partial class HolyRomanSystem
         }
         return result;
     }
-#endif
 
     private static bool SameHouse(Person a, Person b) =>
         a?.Record != null && b?.Record != null && SpecificClanManager.SameLineage(a.GetSpecificClan(), b.GetSpecificClan());
@@ -204,14 +200,12 @@ public static partial class HolyRomanSystem
     }
 
     // 记抗命(以备禁令)，帝国权威 −2(每年至多 −8)
-#if EC_PENDING
     private static void MarkDefiance(Empire empire, HolyRomanState state, Realm kingdom)
     {
         state.defiance ??= new Dictionary<long, double>();
         state.defiance[kingdom.Key] = GameClock.Now;
         AuthorityDefiance(empire, state, kingdom);
     }
-#endif
 
     #region 年度
 
@@ -235,6 +229,7 @@ public static partial class HolyRomanSystem
         if (years < (agenda is AgendaLevy or AgendaReform ? DietIntervalYears : UrgentDietGapYears)) return;
         Convene(empire, agenda, subject);
     }
+#endif
 
     public static (string agenda, Realm subject) PickAgenda(Empire empire, HolyRomanState state)
     {
@@ -261,14 +256,11 @@ public static partial class HolyRomanSystem
         if (core.GetMoney() < income / 2 || OutsideFoes(empire).Any()) return (AgendaLevy, null);
         return (null, null);
     }
-#endif
 
     // 帝国改革可以付议：文化节点已施行、本帝国未颁行、权威够门槛、距上次付议满四年
-#if EC_PENDING
     private static bool ReformDue(Empire empire, HolyRomanState state) =>
         ReformNodeEnacted(empire) && !ReformEnacted(empire) && Authority(empire) >= ReformThreshold &&
         (state.last_reform_agenda_at < 0d || GameClock.YearsSince(state.last_reform_agenda_at) >= ReformAgendaGapYears);
-#endif
 
     #endregion
 
@@ -479,7 +471,6 @@ public static partial class HolyRomanSystem
 
     // 不听调遣：家族领地薄弱时比中央大的诸侯一概不理；投了反对票的有三成抗命，投赞成的偶尔也赖掉；
     // 帝国权威高则少抗命(×1.5 − 权威/100，夹 0.5~1.5)
-#if EC_PENDING
     private static bool Refuses(Empire empire, Realm member, Dictionary<Realm, bool> ballots)
     {
         // 分裂进程里割据的诸侯不奉诏(见 SchismSystem，用户 2026-10-21 选"先割据后独立")，同不听调遣的大诸侯
@@ -491,7 +482,6 @@ public static partial class HolyRomanSystem
         chance *= ImperialAuthorityRules.RefusalFactor(Authority(empire));
         return EcRandom.value < chance;
     }
-#endif
 
     private static string Names(List<string> names) => names.Count == 0 ? LM.Get("label_none") : string.Join("、", names);
 
@@ -519,7 +509,6 @@ public static partial class HolyRomanSystem
 #endif
 
     // 禁令期满(或被禁者已不在帝国)解除；执行禁令的战争打完后解除
-#if EC_PENDING
     private static void CleanupBan(Empire empire, HolyRomanState state)
     {
         if (state.banned_kingdom_id < 0) return;
@@ -537,7 +526,6 @@ public static partial class HolyRomanSystem
         state.ban_war_id = -1L;
         state.banned_name = "";
     }
-#endif
 
     #endregion
 
@@ -648,6 +636,7 @@ public static partial class HolyRomanSystem
         if (!HasDiet(empire) || ReformEnacted(empire) || !ReformNodeEnacted(empire)) return null;
         return Convene(empire, AgendaReform, null);
     }
+#endif
 
     public static bool ActLiftBan(Empire empire)
     {
@@ -656,7 +645,6 @@ public static partial class HolyRomanSystem
         LiftBan(empire, state, LM.Get("hre_ban_lifted_history"));
         return true;
     }
-#endif
 
     #endregion
 }

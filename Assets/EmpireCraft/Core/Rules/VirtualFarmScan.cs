@@ -36,8 +36,8 @@ public static class VirtualFarmScan
                     if (tile.Type.CanBeFarm) city.calculated_place_for_farms.Add(tile);
                     if (!tile.Type.FarmField) continue;
                     city.calculated_farm_fields.Add(tile);
-                    Building crop = tile.building;
-                    if (crop?.asset?.wheat != true) continue;
+                    Building crop = tile.Building;
+                    if (crop?.Asset?.Wheat != true) continue;
                     city.calculated_crops.Add(tile);
                     if (crop.component_wheat.isMaxLevel()) city.calculated_grown_wheat.Add(tile);
                 }

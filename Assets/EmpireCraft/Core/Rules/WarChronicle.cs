@@ -39,7 +39,6 @@ public static class WarChronicle
 
     // 宣战(开战定目标之后，见 WarGoalSystem.Ensure；没有目标的仗见 WarPatch.update)：只记一次，排在最前
     // (盟国、附庸开战当时就加入了，"加入攻方"会先记下)
-#if EC_PENDING
     public static void Declared(War war)
     {
         if (war?.Record == null) return;
@@ -74,27 +73,22 @@ public static class WarChronicle
         if (war?.Record == null || war.HasEnded() || kingdom?.Record == null) return;
         Record(war, Diplomacy, string.Format(LM.Get("war_log_left"), kingdom.GetKingdomName()));
     }
-#endif
 
     // 战败退出：灭了国的"亡于此战"，还在的(攻下都城认输、称臣)"认输"
-#if EC_PENDING
     public static void Fallen(War war, Realm kingdom)
     {
         if (war?.Record == null || kingdom?.Record == null) return;
         Record(war, Diplomacy, string.Format(LM.Get(kingdom.Alive && !kingdom.IsGone() ? "war_log_surrendered" : "war_log_fallen"),
             kingdom.GetKingdomName()));
     }
-#endif
 
     // 攻下一座城：新主人与旧主人对立的仗都记
-#if EC_PENDING
     public static void CityTaken(City city, Realm from, Realm to)
     {
         if (city?.Record == null || from?.Record == null || to?.Record == null) return;
         Record(to, from, City, string.Format(LM.Get("war_log_city_taken"), to.GetKingdomName(), city.GetCityName(),
             from.GetKingdomName()));
     }
-#endif
 
     // 一国参与的进行中的仗都记(统帅阵亡、兵败如山倒)
     public static void RecordFor(Realm kingdom, int kind, string text)
@@ -104,7 +98,6 @@ public static class WarChronicle
             Record(war, kind, text);
     }
 
-#if EC_PENDING
     public static void Ended(War war, WarOutcome winner)
     {
         if (war?.Record == null) return;
@@ -117,7 +110,6 @@ public static class WarChronicle
         Record(war, End, string.Format(LM.Get(key), war.MainAttacker?.GetKingdomName() ?? "",
             war.MainDefender?.GetKingdomName() ?? ""));
     }
-#endif
 
     // 军团战损(CorpsSystem.Casualties)：记进这国参与的各场仗，按场平分
     public static void Casualties(long kingdomId, float dead)

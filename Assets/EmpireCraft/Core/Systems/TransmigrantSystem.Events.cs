@@ -144,6 +144,7 @@ public static partial class TransmigrantSystem
         TranslateHelper.LogMajor(string.Format(LM.Get("transmigrant_event_first_siege_history"), kingdom.GetKingdomFullName(), home.GetCityName(),
             from.GetCityName(), Mathf.RoundToInt(moved)), kingdom);
     }
+#endif
 
     private static void BopuDefense(Realm kingdom, TransmigrantState state, int year)
     {
@@ -155,7 +156,6 @@ public static partial class TransmigrantSystem
         TranslateHelper.LogMajor(string.Format(LM.Get("transmigrant_event_bopu_defense_history"), kingdom.GetKingdomFullName(), home.GetCityName(),
             troop == null ? "" : CorpsSystem.Name(troop)), kingdom);
     }
-#endif
 
     // 女仆革命：外派站的人先买了女仆，执委会没有章程，元老们从咖啡馆一路游行到执委会大院。
     // 主席当众认错辞职，全体执委辞职组成看守内阁，设女仆状态委员会；取消配给、盖住宅要花钱，都城民心一时不稳
@@ -247,6 +247,7 @@ public static partial class TransmigrantSystem
         }
         return islandClear || titleClear;
     }
+#endif
 
     private static void HomelandSecured(Realm kingdom, TransmigrantState state, int year)
     {
@@ -255,7 +256,6 @@ public static partial class TransmigrantSystem
         TranslateHelper.LogMajor(string.Format(LM.Get("transmigrant_event_homeland_secured_history"), kingdom.GetKingdomFullName(),
             BaseCity(kingdom, state)?.GetCityName() ?? ""), kingdom);
     }
-#endif
 
     #endregion
 
@@ -438,7 +438,6 @@ public static partial class TransmigrantSystem
 #endif
 
     // 第三次全体大会：内阁制在 Milestones 里施行，改选在 Stage 里
-#if EC_PENDING
     private static void ThirdCongress(Realm kingdom, TransmigrantState state, int year)
     {
         Mark(state, "third_congress", year);
@@ -454,7 +453,6 @@ public static partial class TransmigrantSystem
             ? empire.GetEmpireFullName() : LM.Get("transmigrant_event_mainland_fallback");
         TranslateHelper.LogMajor(string.Format(LM.Get("transmigrant_event_mainland_campaign_history"), kingdom.GetKingdomFullName(), lord), kingdom);
     }
-#endif
 
     #endregion
 }

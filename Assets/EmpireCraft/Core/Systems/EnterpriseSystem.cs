@@ -40,12 +40,10 @@ public static class EnterpriseSystem
 
     private static bool Active => CityPopulationSystem.AbstractPopulationEnabled;
 
-#if EC_PENDING
-    public static bool IsEnterprise(BuildingAsset asset) =>
+    public static bool IsEnterprise(BuildingKind asset) =>
         asset != null && (IndustryBuildingSystem.IsMine(asset) || IndustryBuildingSystem.IsLumber(asset) ||
-                          asset.type == AnimalHusbandrySystem.PastureType ||
-                          asset.type == AnimalHusbandrySystem.SlaughterhouseType || TechnologySystem.IsFactory(asset));
-#endif
+                          asset.Type == AnimalHusbandrySystem.PastureType ||
+                          asset.Type == AnimalHusbandrySystem.SlaughterhouseType || TechnologySystem.IsFactory(asset));
 
     public static float Pool(City city) => Active && city?.Record != null ? CityPopulationSystem.Get(city)?.investment_pool ?? 0f : 0f;
 
@@ -83,14 +81,12 @@ public static class EnterpriseSystem
     }
 
     // 本月可用来交税的民间现金：每户底线以上部分的一半(其余留作投资、借贷与日用)
-#if EC_PENDING
     public static long TaxableCash(City city, CityPopulationData data)
     {
         if (!Active || data == null) return 0L;
         long surplus = Cash(data) - (long)CityPopulationSystem.BackgroundHouseholds(city) * CashReservePerHousehold;
         return Math.Max(0L, surplus / 2);
     }
-#endif
 
     public static long TakeCash(CityPopulationData data, long amount)
     {
@@ -140,7 +136,6 @@ public static class EnterpriseSystem
 
     // 商品市场的货款(见 CommodityMarketSystem.DomesticPayments / ImportCash)：买方城百姓拿闲着的现钱(每户底线以上的 share 那一份)付，
     // 返回付了多少；卖方城收下，家底估值同额转出(出产时已经按估值记过收入，货卖成了钱，家底不变)
-#if EC_PENDING
     public static long PayIdleCash(City city, CityPopulationData data, long amount, float share)
     {
         if (!Active || amount <= 0L || city?.Record == null || data == null) return 0L;
@@ -148,6 +143,7 @@ public static class EnterpriseSystem
         return idle <= 0L ? 0L : TakeCash(data, Math.Min(amount, (long)Math.Floor(idle * (double)Mathf.Clamp01(share))));
     }
 
+#if EC_PENDING
     public static void ReceiveSaleCash(City city, CityPopulationData data, long amount)
     {
         if (!Active || amount <= 0L || city?.Record == null || data == null) return;
@@ -159,7 +155,6 @@ public static class EnterpriseSystem
     // ---- 2. 民间投资 ----
     // 只投真钱：民间现金超过每户底线的部分，每年按 InvestSharePerYear 转入投资池
     // (投资花出去的工钱回到民间现金并交工资税——投资与收税都是真钱流转，不由估值变出钱来)
-#if EC_PENDING
     public static void AccrueInvestment(City city, CityPopulationData data, float years)
     {
         if (!Active || data == null || years <= 0f) return;
@@ -175,7 +170,6 @@ public static class EnterpriseSystem
         data.investment_pool = Mathf.Max(0f, data.investment_pool) + move;
         data.investment_acc += move;
     }
-#endif
 
     // ---- 2b. 跨城投资(用户 2026-11-25 选"做跨城投资") ----
     // 真钱只在国库发工钱的地方落下来(都城、驻军的城)，囤在那几座城里；别的城百姓卖粮卖货的收入只记家底估值，手里没有现钱，
@@ -184,7 +178,6 @@ public static class EnterpriseSystem
     // 钱付给办产业那座城的工匠(工钱回到那座城的民间现金并交工资税)，记作出钱那座城的民间实投。只在一国之内，不跨国
     private const float HomeIdleShare = 0.5f, OutsideIdleShare = 0.25f;
 
-#if EC_PENDING
     private static long IdleOffer(City source, City target)
     {
         if (source?.Record == null || source.IsGone()) return 0L;
@@ -194,6 +187,7 @@ public static class EnterpriseSystem
         return idle <= 0L ? 0L : (long)Math.Floor(idle * (double)(source == target ? HomeIdleShare : OutsideIdleShare));
     }
 
+#if EC_PENDING
     private static IEnumerable<City> Investors(City city)
     {
         Realm kingdom = city.Realm;
@@ -262,7 +256,6 @@ public static class EnterpriseSystem
 #endif
 
     // 付得起吗(privateFirst：连民间投资池一起算)
-#if EC_PENDING
     public static bool CanPay(City city, int cost, bool privateFirst)
     {
         if (cost <= 0) return true;
@@ -271,7 +264,6 @@ public static class EnterpriseSystem
                          (kingdom == null || kingdom.IsWild ? 0 : Math.Max(0, StateSettlementSystem.DiscretionaryFunds(kingdom)));
         return available >= cost;
     }
-#endif
 
     // 民间投资池 → 城市国库 → 国家可用资金，依次付款；全额付得起才付。返回是否付清
 #if EC_PENDING
@@ -342,16 +334,14 @@ public static class EnterpriseSystem
     // 定了私有化的国家(见 ModernPolicySystem)：新办的产业国库不出钱，民间出不起就不办(以前退回国库出钱、记成官营，和国策对不上)
     private static bool PrivateOnly(Realm kingdom) => ModernPolicySystem.StatePreferred(kingdom) == false;
 
-#if EC_PENDING
-    public static int EnterpriseCost(BuildingAsset asset) => BaseEnterpriseCost + Math.Max(0, asset.construction_progress_needed) / 2;
-#endif
+    public static int EnterpriseCost(BuildingKind asset) => BaseEnterpriseCost + Math.Max(0, asset.ConstructionProgressNeeded) / 2;
 
     // 新开工的建筑：产业建筑按出资方登记所有权
 #if EC_PENDING
     public static void OnConstructionStarted(City city, Building building)
     {
-        if (!Active || city?.Record == null || building?.asset == null || !IsEnterprise(building.asset)) return;
-        int cost = EnterpriseCost(building.asset);
+        if (!Active || city?.Record == null || building?.Asset == null || !IsEnterprise(building.Asset)) return;
+        int cost = EnterpriseCost(building.Asset);
         bool state = StatePreferred(city.Realm);
         if (state && PayPublicFirst(city, cost)) { RegisterPublic(city, building); return; }
         if (SpendPrivate(city, cost)) return;
@@ -362,13 +352,13 @@ public static class EnterpriseSystem
     public static bool IsPublic(City city, Building building)
     {
         List<long> ids = city?.Record == null ? null : city.GetOrCreate().public_enterprise_ids;
-        return ids != null && building != null && ids.Contains(building.data.id);
+        return ids != null && building != null && ids.Contains(building.Record.id);
     }
 
     private static void RegisterPublic(City city, Building building)
     {
         var ids = city.GetOrCreate().public_enterprise_ids ??= new List<long>();
-        if (!ids.Contains(building.data.id)) { ids.Add(building.data.id); FiscalDiagnostics.Count("官营开办"); }
+        if (!ids.Contains(building.Record.id)) { ids.Add(building.Record.id); FiscalDiagnostics.Count("官营开办"); }
     }
 #endif
 
@@ -418,15 +408,15 @@ public static class EnterpriseSystem
             LivelihoodSystem.CountEnterprises(city, out total, out publicCount);
             return;
         }
-        if (city?.buildings == null) return;
+        if (city?.Buildings == null) return;
         List<long> ids = city.GetOrCreate().public_enterprise_ids;
         HashSet<long> alive = ids != null && ids.Count > 0 ? new HashSet<long>() : null;
-        foreach (Building building in city.buildings)
+        foreach (Building building in city.Buildings)
         {
-            if (building?.asset == null || building.data == null || !IsEnterprise(building.asset)) continue;
-            bool registered = ids != null && ids.Contains(building.data.id);
-            if (registered) alive.Add(building.data.id);
-            if (building.isUnderConstruction()) continue;
+            if (building?.Asset == null || building.Record == null || !IsEnterprise(building.Asset)) continue;
+            bool registered = ids != null && ids.Contains(building.Record.id);
+            if (registered) alive.Add(building.Record.id);
+            if (building.IsUnderConstruction()) continue;
             total++;
             if (registered) publicCount++;
         }

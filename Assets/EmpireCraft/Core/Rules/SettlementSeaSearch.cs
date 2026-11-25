@@ -26,7 +26,6 @@ internal sealed class SettlementSeaSearch
         internal SeaNode sea;
         public int distance => sea.distance;
 
-#if EC_PENDING
         public void Apply(StateSettlementProject project)
         {
             project.overseas = true;
@@ -39,7 +38,6 @@ internal sealed class SettlementSeaSearch
             project.sea_route.Reverse();
             project.travel_months = TravelMonths(project.sea_route.Count, sea.portCity);
         }
-#endif
 
         private static Candidate Create(Cell zone, Cell landfall, SeaNode sea) =>
             new() { zone = zone, landfall = landfall, sea = sea };
@@ -170,12 +168,12 @@ internal sealed class SettlementSeaSearch
 
     private static bool CanTransport(City city, Building port)
     {
-        if (port?.component_docks?.tiles_ocean == null || port.asset?.boat_types == null ||
+        if (port?.component_docks?.tiles_ocean == null || port.Asset?.boat_types == null ||
             city.getActorAsset()?.architecture_asset == null) return false;
         // 按本族建筑和已有科技验证运输能力；不要求实体移民或运输船完成登船任务。
-        foreach (string type in port.asset.boat_types)
+        foreach (string type in port.Asset.boat_types)
         {
-            string id = port.asset.getBoatAssetIDFromType(type, city);
+            string id = port.Asset.getBoatAssetIDFromType(type, city);
             if (!string.IsNullOrEmpty(id) && AssetManager.actor_library.get(id)?.is_boat_transport == true &&
                 TechnologySystem.CanSpawnUnit(id, city)) return true;
         }
@@ -184,24 +182,19 @@ internal sealed class SettlementSeaSearch
 #endif
 
     // 近海小岛沿用基础运输能力；远洋必须确实完成研究，不能用旧档引导期的 CanUse 放行。
-#if EC_PENDING
     private static bool HasOceanNavigation(City city) =>
         TechnologySystem.HasTech(TechnologySystem.GetCultureOf(city), OceanNavigationTech);
-#endif
     // 航程：近海 64 格；远洋航海 96 + 港口等级×32(≤192)；工业化 384 + 港口等级×64；电力或机动化后不限
-#if EC_PENDING
     private static int Range(City city, Building port)
     {
         string culture = TechnologySystem.GetCultureOf(city);
-        int level = Math.Min(3, Math.Max(0, port.asset.upgrade_level));
+        int level = Math.Min(3, Math.Max(0, port.Asset.UpgradeLevel));
         if (TechnologySystem.HasTech(culture, "electricity") || TechnologySystem.HasTech(culture, "motorization"))
             return UnlimitedSeaRange;
         if (TechnologySystem.HasTech(culture, IndustrialNavigationTech)) return IndustrialSeaRange + level * 64;
         return HasOceanNavigation(city) ? 96 + level * 32 : NearSeaRange;
     }
-#endif
     // 航行月数：帆船每月 32 格，工业化(蒸汽船)96 格，电力/机动化 192 格；不知道出发港时按帆船算
-#if EC_PENDING
     internal static int TravelMonths(int routeLength, City port = null)
     {
         int speed = 32;
@@ -213,7 +206,6 @@ internal sealed class SettlementSeaSearch
         }
         return Math.Max(1, (routeLength + speed - 1) / speed);
     }
-#endif
     internal static int TransportGold(StateSettlementProject project) => project.overseas && !project.spontaneous
         ? 50 + (project.sea_route.Count + 7) / 8 * 5 : 0;
 

@@ -30,7 +30,7 @@ namespace EmpireCraft.Core
         {
             Map=map??throw new ArgumentNullException(nameof(map));Seed=seed;
             TileCity=new int[map.Count];for(int i=0;i<TileCity.Length;i++)TileCity[i]=-1;
-            Religions=new ReligionStore(this);Cultures=new CultureStore(this);
+            Religions=new ReligionStore(this);Cultures=new CultureStore(this);Books=new BookStore(this);Plots=new PlotStore(this);
         }
 
         public int Year=>StartYear+Month/12;
@@ -49,6 +49,8 @@ namespace EmpireCraft.Core
         public readonly KingdomTitleManager Titles=new KingdomTitleManager();
         public readonly ReligionStore Religions;                // faiths on record (see Beliefs.cs)
         public readonly CultureStore Cultures;
+        public readonly BookStore Books;                        // written works and plots on record (see Works.cs); empty until a system fills them
+        public readonly PlotStore Plots;
         // Makes this the world the static ported systems act on.
         public void Activate(){Current=this;ModClass.EMPIRE_MANAGER=Empires;ModClass.KINGDOM_TITLE_MANAGER=Titles;ModClass.IS_CLEAR=false;}
 
@@ -67,6 +69,9 @@ namespace EmpireCraft.Core
         public Cell CellAt(int index){if(index<0||index>=TileCity.Length)return null;var cells=_cells??(_cells=new Cell[TileCity.Length]);return cells[index]??(cells[index]=new Cell(this,index));}
         public Cell CellAt(int x,int y){int index=Map.Index(x,y);return index<0?null:CellAt(index);}
         public ZoneGrid Zones=>_grid??(_grid=new ZoneGrid(this));
+        Cell[] _allCells;
+        // Every cell as an array, made on first use.
+        public Cell[] AllCells{get{if(_allCells==null)_allCells=Zones.All.ToArray();return _allCells;}}
         // Which stretch of connected land a tile is on; -1 for sea. Worked out once per world.
         public int LandmassOf(int tile){if(_landmass==null)_landmass=EmpireBootstrap.Landmasses(this);return tile<0||tile>=_landmass.Length?-1:_landmass[tile];}
         public War WarByKey(long key){var x=key>=0&&key<Wars.Count?Wars[(int)key]:null;return x!=null&&x.Alive?x:null;}

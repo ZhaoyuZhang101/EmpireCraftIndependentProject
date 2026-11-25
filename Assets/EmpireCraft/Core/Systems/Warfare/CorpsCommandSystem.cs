@@ -40,7 +40,6 @@ public static class CorpsCommandSystem
     }
 
     // 下令或撤销，返回提示
-#if EC_PENDING
     public static string Command(Realm kingdom, City city)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || city?.Realm == null) return LM.Get("force_vassal_no_kingdom");
@@ -65,7 +64,6 @@ public static class CorpsCommandSystem
         Attacks[kingdom.Key] = city.Key;
         return string.Format(LM.Get("corps_command_attack"), kingdom.GetKingdomName(), city.GetCityName());
     }
-#endif
 
     // 军事页：这支军是不是正在奉令(固守或攻打军令所指的城)
     public static bool Ordered(Realm kingdom, CorpsData corps) =>

@@ -95,7 +95,6 @@ public static class StateDebtSystem
     }
 
     // 每月一次(挂在 CityPatch 的世界扫描轮转上)
-#if EC_PENDING
     public static void TryMonthlyScan()
     {
         if (EmpireWorld.Current?.LiveRealms == null || ModClass.IS_CLEAR) return;
@@ -236,7 +235,6 @@ public static class StateDebtSystem
         }
         bonds.RemoveAll(bond => bond.principal <= 0L);
     }
-#endif
 
     private static bool Restructure(Realm kingdom, List<StateBond> bonds)
     {

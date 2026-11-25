@@ -191,7 +191,6 @@ public static class CommodityMarketSystem
     public static Realm UnionOf(Realm kingdom) => kingdom?.Record == null ? null : UnionLeader(kingdom);
 
     // 签关税同盟、退出(外交界面的操作；AI 每年自己签退见 Unions)：返回没办成的原因键，办成返回 null
-#if EC_PENDING
     public static string JoinUnion(Realm kingdom, Realm leader)
     {
         if (kingdom?.Record == null || leader?.Record == null || kingdom.IsGone() || leader.IsGone() || kingdom == leader)
@@ -213,11 +212,9 @@ public static class CommodityMarketSystem
             leader.GetKingdomFullName()), kingdom);
         return null;
     }
-#endif
 
     // ───────── 通商政策 ─────────
     // 这个国家眼下实行的政策：被和约逼开了港的不能闭关、不能保护关税；制度定了锁国的只能闭关
-#if EC_PENDING
     public static TradePolicy PolicyOf(Realm leader)
     {
         if (leader?.Record == null) return TradePolicy.Mercantile;
@@ -226,11 +223,9 @@ public static class CommodityMarketSystem
             return stored is TradePolicy.Closed or TradePolicy.Protective ? TradePolicy.Mercantile : stored;
         return TradeRouteSystem.ClosedByLaw(leader) ? TradePolicy.Closed : stored;
     }
-#endif
 
     // 改政策(外交界面、市场窗口的按钮；AI 每二十年自己定一次，见 Policies)：办不成返回原因键
     // 这项政策定不定得了(诉求"关税壁垒""自由贸易"先问一遍)：定不了返回原因键，定得了返回 null
-#if EC_PENDING
     public static string CanSetPolicy(Realm leader, TradePolicy policy)
     {
         if (leader?.Record == null || leader.IsGone()) return "diplomacy_reason_invalid";
@@ -257,7 +252,6 @@ public static class CommodityMarketSystem
 
     private static void LogPolicy(Realm leader, TradePolicy policy) =>
         TranslateHelper.LogEventOnly(string.Format(LM.Get("market_policy_changed"), leader.GetKingdomFullName(), PolicyName(policy)), leader);
-#endif
 
     public static string PolicyName(TradePolicy policy) => LM.Get("market_policy_" + policy.ToString().ToLowerInvariant());
 
@@ -341,7 +335,6 @@ public static class CommodityMarketSystem
     // 科研：离不开的物资缺得越多越慢(本文化最大的国家所在的市场)；最慢三成
     private static readonly Dictionary<string, (int year, Realm realm)> CultureRealm = new();
 
-#if EC_PENDING
     public static float ResearchFactor(string culture, string techId)
     {
         if (!_ready || string.IsNullOrEmpty(culture) || !Config.techs.TryGetValue(techId ?? "", out List<string> needs) || needs.Count == 0)
@@ -358,7 +351,6 @@ public static class CommodityMarketSystem
         float worst = needs.Max(good => Shortage(cached.realm, good));
         return 1f - 0.7f * worst;
     }
-#endif
 
     // 工厂：投入缺得越多减产越多(最多减八成)
     public static float FactoryFactor(City city, string unitType)
@@ -1088,7 +1080,6 @@ public static class CommodityMarketSystem
     private const float EdgePremium = 0.5f, EdgePremiumMax = 3f, EdgeDisplace = 0.15f, EdgeDisplaceMax = 0.6f;
     private static readonly Dictionary<long, int> EraTiers = new();
 
-#if EC_PENDING
     private static int EraTier(Realm kingdom)
     {
         if (kingdom?.Record == null) return 0;
@@ -1097,7 +1088,6 @@ public static class CommodityMarketSystem
         EraTiers[kingdom.Key] = tier;
         return tier;
     }
-#endif
 
     // 成交不到这个量不算一笔(小国一年只要零点几份，以前一笔不到半份就不做，小市场的奢侈品永远缺一百)
     private const float MinLot = 0.01f;
@@ -1105,9 +1095,7 @@ public static class CommodityMarketSystem
     // 基础物资(粮、木、石、金属)跨市场买卖另加的运费(占底价)
     private const float BasicFreight = 0.5f;
 
-#if EC_PENDING
     private static int TechEdge(Market seller, Market buyer) => Math.Max(0, EraTier(seller.leader) - EraTier(buyer.leader));
-#endif
 
     // 二档(用户 2026-11-06 同意，见 ConnectivitySystem)：市场之间按货物路线连通、算运费——
     //   · 连通：每个市场连成本最低的 market_links 个市场(成员国各自的货物路线里取一对最近的)，另加海上商路、丝路、澳宋船队的伙伴；
@@ -1128,7 +1116,6 @@ public static class CommodityMarketSystem
     }
 
     // 买方从卖方进这样物资的运费(占货价，含过境税)
-#if EC_PENDING
     private static float FreightOf(Market buyer, Market seller, CommodityConfig good)
     {
         if (!_routed) return good.tier == "basic" ? BasicFreight : 0f;
@@ -1152,16 +1139,13 @@ public static class CommodityMarketSystem
             FreightFactors[market.leader.Key] = factor = ConnectivitySystem.FreightFactor(market.leader);
         return factor;
     }
-#endif
 
     // 两个市场之间的运费(界面用，按制成品；通达层没算好时为 0)
-#if EC_PENDING
     public static float FreightBetween(Market buyer, Market seller, string tier = "manufactured")
     {
         if (!_routed || buyer?.leader == null || seller?.leader == null) return 0f;
         return FreightOf(buyer, seller, new CommodityConfig { tier = tier });
     }
-#endif
 
     // 按货物路线连通(见上)
 #if EC_PENDING
@@ -1634,7 +1618,6 @@ public static class CommodityMarketSystem
     private static bool Transits(CommodityConfig good) => good.tier == "luxury";
 
     // 一程程的运费相加(买方 → 中间市场 → … → 卖方)
-#if EC_PENDING
     private static float PathFreight(Market buyer, List<Market> via, Market seller, CommodityConfig good)
     {
         float total = 0f;
@@ -1646,7 +1629,6 @@ public static class CommodityMarketSystem
         }
         return total + FreightOf(from, seller, good);
     }
-#endif
 
     private static void AddTrade(Dictionary<string, Dictionary<long, float>> book, string good, long partner, float amount)
     {
@@ -1792,7 +1774,6 @@ public static class CommodityMarketSystem
     private const int PolicyYears = 20;
     private const float PolicyChance = 0.2f;
 
-#if EC_PENDING
     private static void Policies()
     {
         foreach (Market market in Markets.Values.ToList())
@@ -1827,7 +1808,6 @@ public static class CommodityMarketSystem
         if (behind && !ahead && bought > sold && market.demandFactory.Count > 0) return TradePolicy.Protective;
         return market.great && sold > bought * 1.5f ? TradePolicy.Free : TradePolicy.Mercantile;
     }
-#endif
 
     private static float AverageShortage(Market market)
     {
@@ -1843,7 +1823,6 @@ public static class CommodityMarketSystem
         return count == 0 ? 0f : total / count;
     }
 
-#if EC_PENDING
     private static void Log()
     {
         foreach (Market market in Markets.Values.OrderByDescending(market => market.power).Take(5))
@@ -1854,7 +1833,6 @@ public static class CommodityMarketSystem
                                $"成员 {market.members.Count} 国，{market.policy}，外贸 {Mathf.RoundToInt(market.trade_value)}，缺：{(shortages.Length == 0 ? "无" : shortages)}");
         }
     }
-#endif
 
     #endregion
 }

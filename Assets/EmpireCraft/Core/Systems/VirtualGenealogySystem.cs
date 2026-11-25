@@ -597,7 +597,6 @@ public static partial class VirtualGenealogySystem
 
     #endregion
 
-#if EC_PENDING
     private static City FindHomeCity(PersonalClanIdentity person)
     {
         City home = person.virtual_city_id > 0 ? EmpireWorld.Current.CityByKey(person.virtual_city_id) : null;
@@ -618,7 +617,6 @@ public static partial class VirtualGenealogySystem
         }
         return best;
     }
-#endif
 
     // 每年结算一次虚拟族人的身故、整理一遍族谱(由 CityPopulationSystem 每帧调用，年度到期才做)。
     // 这两条线隔帧轮流，一条没活时当帧让给另一条，谁排在谁前面都会把后面的饿死：
@@ -1473,7 +1471,7 @@ public static partial class VirtualGenealogySystem
             recordedAge = 0,
             birthday = GameClock.DateText(now),
             sex = EcRandom.value < 0.5f ? Sex.Male : Sex.Female,
-            species = !string.IsNullOrEmpty(parent.species) ? parent.species : royal.asset?.id,
+            species = !string.IsNullOrEmpty(parent.species) ? parent.species : royal.Asset?.Id,
             culture = parent.culture,
             generation = parent.generation + 1,
             is_main = true
@@ -1518,7 +1516,7 @@ public static partial class VirtualGenealogySystem
         if (adults >= 2) return 0;
         double now = GameClock.Now;
         City city = founder.City ?? founder.Realm?.Capital;
-        string species = !string.IsNullOrEmpty(self.species) ? self.species : founder.asset?.id;
+        string species = !string.IsNullOrEmpty(self.species) ? self.species : founder.Asset?.Id;
         int sons = age >= 50 ? 3 : 2, added = 0;
         int fatherAge = 19 + EcRandom.Range(0, 8);
         for (int i = 0; i < sons && fatherAge <= age - 16; i++)
@@ -1555,7 +1553,7 @@ public static partial class VirtualGenealogySystem
         if (clan.SnapshotPeople().Any(person => person != self && person.is_alive && person.isMale())) return 0;
         double now = GameClock.Now;
         City city = ruler.City ?? ruler.Realm?.Capital;
-        string species = !string.IsNullOrEmpty(self.species) ? self.species : ruler.asset?.id;
+        string species = !string.IsNullOrEmpty(self.species) ? self.species : ruler.Asset?.Id;
         int added = 0;
         for (int years = age - 18 - EcRandom.Range(0, 4); added < 2 && years >= 1; years -= 2 + EcRandom.Range(0, 4))
         {
@@ -1603,7 +1601,7 @@ public static partial class VirtualGenealogySystem
         string given = "";
         for (int attempt = 0; attempt < 5 && string.IsNullOrWhiteSpace(given); attempt++)
         {
-            string generated = CultureService.GenerateCulturalName(MetaType.Unit, child.id + attempt, parent.culture, child.sex);
+            string generated = CultureService.GenerateCulturalName(EntityKind.Person, child.id + attempt, parent.culture, child.sex);
             string[] parts = (generated ?? "").SplitNameParts();
             given = parts.Length > 0 ? parts[parts.Length - 1] : generated ?? "";
         }

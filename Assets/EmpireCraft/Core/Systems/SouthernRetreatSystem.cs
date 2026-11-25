@@ -41,14 +41,12 @@ public static class SouthernRetreatSystem
     private static bool Alive(Realm kingdom) => kingdom?.Record != null && !kingdom.IsGone();
 
     // 异族：本国(帝国按核心)的文化与朝廷的不同族
-#if EC_PENDING
     private static bool Alien(Realm realm, string culture)
     {
         if (!Alive(realm)) return false;
         string other = CultureService.GetRealmCulture(realm);
         return CultureService.IsValidCulture(other) && !CultureService.SameKin(other, culture);
     }
-#endif
 
     // 每月看一次(见 Empire.update)
 #if EC_PENDING

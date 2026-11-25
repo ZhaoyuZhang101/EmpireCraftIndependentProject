@@ -74,7 +74,6 @@ public static class TradeWarSystem
     }
 
     // 挑起关税战(a 向 b 加征)：办不成返回原因键
-#if EC_PENDING
     public static string Start(Empire a, Empire b, string cause)
     {
         string reason = CanStart(a, b);
@@ -85,10 +84,8 @@ public static class TradeWarSystem
             a.GetEmpireFullName(), b.GetEmpireFullName()), a, new[] { b });
         return null;
     }
-#endif
 
     // 罢手言和：办不成返回原因键
-#if EC_PENDING
     public static string Settle(Empire a, Empire b)
     {
         TradeWarData war = Between(a, b);
@@ -104,10 +101,8 @@ public static class TradeWarSystem
         WorldOrderSystem.Record(string.Format(LM.Get("trade_war_settled_history"), a.GetEmpireFullName(), b.GetEmpireFullName(),
             GameClock.YearsSince(war.since)), a, new[] { b });
     }
-#endif
 
     // 一国刚高筑关税：货卖给它最多的那个国家当场掂量要不要报复
-#if EC_PENDING
     internal static void Provoke(Empire protector, string cause)
     {
         Empire rival = BiggestSeller(protector);
@@ -115,7 +110,6 @@ public static class TradeWarSystem
         float chance = RetaliateChance * 2f * (EconomicCycleSystem.InCrisis(rival) ? SlumpFactor : 1f);
         if (EcRandom.value < chance) Start(rival, protector, cause);
     }
-#endif
 
     // 货卖给这个国家最多的外国(照上一年的市场账)；账上还没有买卖的，退而看通商的市场里最大的那个；市场还没算出来返回 null
     private static Empire BiggestSeller(Empire buyer)
@@ -144,7 +138,6 @@ public static class TradeWarSystem
     }
 
     // 每年(WorldOrderSystem.Scan)
-#if EC_PENDING
     internal static void Yearly(List<Empire> states, double now)
     {
         var modern = new HashSet<long>(states.Select(empire => empire.Key));
@@ -206,6 +199,5 @@ public static class TradeWarSystem
             WorldOrderSystem.Record(string.Format(LM.Get("trade_war_escalated_history"), a.GetEmpireFullName(), b.GetEmpireFullName()), a, new[] { b });
         }
     }
-#endif
 }
 }

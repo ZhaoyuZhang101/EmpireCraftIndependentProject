@@ -22,13 +22,16 @@ namespace EmpireCraft.Core
             else Thrones(w);
         }
 
+        // How many people a city's land can carry: every tile a little, fertile tiles much more.
+        public static double Capacity(EmpireWorld w,City c){var m=w.Map;double capacity=0;foreach(int t in c.Tiles)capacity+=150+2600*m.Fertility[t];return capacity;}
+
         static void Population(EmpireWorld w)
         {
             var m=w.Map;
             foreach(var c in w.Cities)
             {
                 if(!c.Alive)continue;
-                double capacity=0;foreach(int t in c.Tiles)capacity+=150+2600*m.Fertility[t];
+                double capacity=Capacity(w,c);
                 double growth=.018/12*c.Population*(1-c.Population/Math.Max(1,capacity));
                 c.Population=Math.Max(50,c.Population+growth);
             }
@@ -50,7 +53,7 @@ namespace EmpireCraft.Core
             for(int id=0;id<count;id++)
             {
                 var c=w.Cities[id];if(!c.Alive)continue;
-                double capacity=0;foreach(int t in c.Tiles)capacity+=150+2600*m.Fertility[t];
+                double capacity=Capacity(w,c);
                 if(c.Population<capacity*.75)continue;
                 int best=-1;float bestScore=-1;
                 foreach(int t in c.Tiles)

@@ -17,11 +17,9 @@ public static class GraceEdictService
     // 推恩令 / 郡国并行(封国绝嗣则除国为郡，分封制下也能设郡) 分别由制度特性
     // grace_edict / commandery_kingdom 提供，任何线的节点都可以声明。
 
-#if EC_PENDING
     public static bool IsCommanderyKingdomActive(Empire empire) =>
         empire != null && !empire.IsGone() && !empire.IsArchived() &&
         InstitutionSystem.HasFeature(empire, InstitutionFeatures.CommanderyKingdom);
-#endif
 
     // 由 EmpireCraftKingdomBehCheckKing 在封国没有国王时调用；返回 true 表示已按推恩令处理完毕。
 #if EC_PENDING
@@ -140,10 +138,10 @@ public static class GraceEdictService
             fief.SetRuler(heir);
         }
     }
+#endif
 
     public static bool IsActive(Empire empire) =>
         empire != null && !empire.IsGone() && !empire.IsArchived() && InstitutionSystem.HasFeature(empire, InstitutionFeatures.GraceEdict);
-#endif
 
     // 推恩令下一人不得兼领两国：某人刚成为 kingdom 的国王时，如果他还是同一帝国里别的封国的国王，
     // 那个封国从他的宗室里另立一君(子女→兄弟姐妹→同宗族其他成年人)；宗室无人可立则收归郡县。
@@ -197,6 +195,7 @@ public static class GraceEdictService
                    .OrderByDescending(actor => actor.Age()).FirstOrDefault() ??
                KinRoster.RealizeAdultKin(king.GetSpecificClan(), realm => realm?.GetEmpire() == empire, IsAvailable);
     }
+#endif
 
     private static void Record(Empire empire, Realm kingdom, string key, params object[] args)
     {
@@ -204,7 +203,6 @@ public static class GraceEdictService
         empire.RecordHistory(directContent: content, kingdomId: kingdom?.Key ?? empire.CoreKingdom?.Key ?? -1L);
         EmpireCraft.Core.TranslateHelper.LogEventMessage(content, kingdom ?? empire.CoreKingdom);
     }
-#endif
 
     // 绝嗣：城市收归核心王国，再一并设为行政区；有法理的由行政区接管原法理
 #if EC_PENDING

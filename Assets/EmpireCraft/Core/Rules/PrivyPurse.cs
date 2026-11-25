@@ -99,7 +99,6 @@ public static class PrivyPurse
         tier <= 0 || tier >= TierShare.Length ? 0 : (int)(MonthlyIncome(realm) * TierShare[tier]);
 
     // ───────── 每月(战略调度经 FrameJobs 调来) ─────────
-#if EC_PENDING
     public static void Tick()
     {
         if (EmpireWorld.Current == null || Books.Count == 0) return;
@@ -130,7 +129,6 @@ public static class PrivyPurse
         foreach (FixedFaction faction in CourtSystem.Factions(empire))
             CourtSystem.AdjustFaction(empire, faction, "favor", tier >= 3 ? -3f : -1f);
     }
-#endif
 
     // 皇庄：本宗在本国各城的私田，每 1 点每月 RentPerPoint 两(零头累计)
     public static float RoyalLand(Realm realm, out List<(City city, float share)> holdings)
@@ -176,11 +174,11 @@ public static class PrivyPurse
 
     public static int LandPrice(City city) => Mathf.CeilToInt(LandEconomySystem.LandPrice(BuyPoints));
 
-#if EC_PENDING
     public static bool CanBuyLand(Realm realm, City city) =>
         city?.Record != null && !city.IsGone() && city.Realm == realm && realm?.Ruler?.GetSpecificClan() != null &&
         CityPopulationSystem.AbstractPopulationEnabled && LandEconomySystem.IsLandMarketOpen(realm);
 
+#if EC_PENDING
     public static string BuyLand(Realm realm, City city)
     {
         Person king = realm?.Ruler;
@@ -200,7 +198,6 @@ public static class PrivyPurse
     public const int OfficeFloor = 40;
     public static int OfficePrice(Realm realm) => Math.Max(OfficeFloor, MonthlyIncome(realm) / 5);
 
-#if EC_PENDING
     public static List<(int slot, OfficeObject office)> VacantOffices(Empire empire)
     {
         var list = new List<(int, OfficeObject)>();
@@ -218,6 +215,7 @@ public static class PrivyPurse
         return list;
     }
 
+#if EC_PENDING
     public static string SellOffice(Empire empire, int slot, out string buyer)
     {
         buyer = null;
@@ -246,7 +244,6 @@ public static class PrivyPurse
     // 挪用不管留存，按国库现银拿
     public static int TakeAmount(Realm realm, float share) => realm == null ? 0 : (int)(Math.Max(0, realm.GetMoney()) * share);
 
-#if EC_PENDING
     public static string Embezzle(Realm realm, float share, out bool exposed, out int taken)
     {
         exposed = false;
@@ -267,6 +264,5 @@ public static class PrivyPurse
         }
         return null;
     }
-#endif
 }
 }

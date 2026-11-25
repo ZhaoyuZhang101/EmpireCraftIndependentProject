@@ -9,9 +9,9 @@ public class EmpireCraftCityBehCheckOffice:GameAICityBase
 {
     public override Type OriginalBeh => GetType();
 #if EC_PENDING
-    public override BehResult execute(City pCity)
+    public override BehResult Execute(City pCity)
     {
-        if (pCity.hasKingdom())
+        if (pCity.HasRealm())
         {
             SyncOffice(pCity);
         }
@@ -29,9 +29,10 @@ public class EmpireCraftCityBehCheckOffice:GameAICityBase
         office.meta_object = pCity;
         office.is_local = true;
     }
+#endif
     public void UpdateOffice(City pCity)
     {
-        if (!pCity.hasKingdom()) return;
+        if (!pCity.HasRealm()) return;
         Realm pKingdom = pCity.Realm;
         if (pCity.Realm.GetRegime()==null) return;
         var regime = pKingdom.GetRegime();
@@ -48,6 +49,5 @@ public class EmpireCraftCityBehCheckOffice:GameAICityBase
                 break;
         }
     }
-#endif
 }
 }

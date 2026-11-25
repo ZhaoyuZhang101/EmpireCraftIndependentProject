@@ -21,7 +21,6 @@ public static partial class NomadRaidSystem
     private const float RaidYears = 1f;
 
     // 劫掠之战的记录(旧档补出来)
-#if EC_PENDING
     private static RaidWarState Ensure(War war)
     {
         var extra = war.GetOrCreate();
@@ -37,7 +36,6 @@ public static partial class NomadRaidSystem
         };
         return extra.raid;
     }
-#endif
 
     // 劫掠打了几年(从开战或读档后头一回看到时起算)
     private static float RaidAge(War war, RaidWarState state) =>
@@ -205,7 +203,6 @@ public static partial class NomadRaidSystem
     #region 收场
 
     // 战争收尾(WarPatch.end_war，结算占领之前)：联盟散伙、记史书，盟主威望(见雄主一节)
-#if EC_PENDING
     public static void OnWarEnded(War war, WarOutcome winner)
     {
         if (war?.Record == null || war.GetEmpireWarType() != EmpireWarType.劫掠) return;
@@ -245,7 +242,6 @@ public static partial class NomadRaidSystem
             LogService.LogWarning($"{LogTag} {war.Name} 收场结算失败: {exception.Message}");
         }
     }
-#endif
 
     // 盟主威望与成雄主、失败内讧(见雄主一节)
     static partial void AfterRaid(War war, RaidWarState state, Realm leader, List<Realm> members, bool success);

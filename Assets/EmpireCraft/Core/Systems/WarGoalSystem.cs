@@ -307,16 +307,15 @@ public static class WarGoalSystem
         (TradeRouteSystem.Closed(defender) || strength >= AnnexStrength)
             ? WarGoal.通商
             : WarGoal.赔款;
+#endif
 
     internal static bool Convertible(Realm attacker, Realm defender) =>
         attacker?.Religion != null && defender?.Record != null && !defender.IsGone() && defender.Religion != attacker.Religion &&
         CaliphateFaith.MayAdopt(defender, attacker.Religion);
-#endif
 
     // 改宗：对方国教、君主、都城改奉攻方的宗教；其余的城只当场改与该教同天下的(或无教的)，外天下的城改走国教推行
     // (此后四十年国教势能加倍，见 ReligionConversionSystem.RecentlyConverted；用户 2026-11-06 "古典时代全世界都信基督"，
     // 以前一场圣战整国连城改宗，不看天下)
-#if EC_PENDING
     internal static bool Convert(Realm defender, Realm attacker)
     {
         if (!Convertible(attacker, defender)) return false;
@@ -344,7 +343,6 @@ public static class WarGoalSystem
             attacker.GetKingdomName(), faith.Name), attacker);
         return true;
     }
-#endif
 
     // 扶立：对方宗室里另一位成年人(不是现任君主)，威望最高的
     // realize：地图上没有时从对方宗室的虚拟族人里落成一位(真要扶立时)；只看有没有人用 HasInstallCandidate
@@ -484,7 +482,6 @@ public static class WarGoalSystem
 #endif
 
     // cities 里攻方一方(帝国按整个帝国算)有宣称的、不在攻方一方手里的城；挑宣战目标也按它先收法理(见 DeJureAgenda)
-#if EC_PENDING
     internal static List<City> Claimed(Realm claimant, IEnumerable<City> cities)
     {
         var result = new List<City>();
@@ -504,12 +501,10 @@ public static class WarGoalSystem
         }
         return result;
     }
-#endif
 
     // 这一方(帝国按整个帝国算)对这个王国法理有宣称(用户 2026-10-26 "感觉所有国家都没有按照法理扩张"，
     // 问答选"握都城或过半就宣称整个法理"；以前只认法理主国，全图多半法理没有主国，宣称几乎没有)：
     // 法理主国或持有人在这一方；以它为行政法理的省份在这一方；法理都城在这一方手里；这一方占着它过半的城
-#if EC_PENDING
     public static bool ClaimsTitle(Realm realm, KingdomTitle title)
     {
         if (realm == null || title == null || title.IsGone()) return false;
@@ -519,7 +514,7 @@ public static class WarGoalSystem
         City capital = title.title_capital;
         if (capital?.Realm != null && !capital.IsGone() && FrontSystem.ModRealm(capital.Realm) == realm) return true;
         int total = 0, ours = 0;
-        foreach (City city in title.getCities())
+        foreach (City city in title.GetCities())
         {
             if (city?.Record == null || city.IsGone()) continue;
             total++;
@@ -527,7 +522,6 @@ public static class WarGoalSystem
         }
         return ours * 2 > total;
     }
-#endif
 
     // 以这个王国法理为行政法理的省份(一帧查一次表)
     private static int _adminFrame = -1;
@@ -552,15 +546,12 @@ public static class WarGoalSystem
     public static string Name(WarGoal goal) => LM.Get("war_goal_" + goal);
 
     // 不行封建附庸的攻方：迫使附庸称"迫使称臣"(战后对方称臣纳贡，见 Tick)
-#if EC_PENDING
     public static string Name(WarGoal goal, Realm attacker) =>
         goal == WarGoal.迫使附庸 && attacker?.Record != null && !FeudalVassalService.UsesFeudalVassals(attacker)
             ? LM.Get("war_goal_迫使称臣")
             : Name(goal);
-#endif
 
     // 战争窗口：目标与战况(双方各已得几城)
-#if EC_PENDING
     public static string Describe(War war)
     {
         WarGoal goal = Get(war);
@@ -569,7 +560,6 @@ public static class WarGoalSystem
         (int attackerGain, int defenderGain) = Gains(war);
         return string.Format(LM.Get("war_goal_standing"), WarCatalog.GoalText(war), attackerGain, defenderGain);
     }
-#endif
 
     // 攻守双方在这场仗里各得几城：对方参战以来少了的城 + 己方占了一半以上地块的对方城市
     public static (int attackerGain, int defenderGain) Gains(War war)
@@ -891,7 +881,6 @@ public static class WarGoalSystem
 
     // 割地把法理补完整(用户 2026-10-26 问答选"占了的照割，法理城优先")：割完以后攻方一方握着哪个王国法理的都城、或占了它过半的城，
     // 守方一方手里这个法理余下的城一并割给主攻方。返回多割了几座
-#if EC_PENDING
     private static int CompleteTitles(War war, Realm attacker, List<(City city, Realm holder)> held)
     {
         Realm realm = FrontSystem.ModRealm(attacker);
@@ -903,7 +892,7 @@ public static class WarGoalSystem
         foreach (KingdomTitle title in held.Select(entry => entry.city.GetTitle()).Where(title => title != null && !title.IsGone())
                      .Distinct().ToList())
         {
-            List<City> cities = title.getCities().Where(city => city?.Record != null && !city.IsGone()).ToList();
+            List<City> cities = title.GetCities().Where(city => city?.Record != null && !city.IsGone()).ToList();
             City capital = title.title_capital;
             bool claimed = capital?.Record != null && !capital.IsGone() && Ours(capital) || cities.Count(Ours) * 2 > cities.Count;
             if (!claimed) continue;
@@ -917,7 +906,6 @@ public static class WarGoalSystem
         }
         return added;
     }
-#endif
 
     // 收复：我方法理的城里占了一半以上的归还占领者；占了法理城的一半以上时全部归还主攻方。对方手里没有我方法理的城时按割地
 #if EC_PENDING

@@ -12,16 +12,15 @@ namespace EmpireCraft.Core
 public sealed class RadianceMapColor : RecordObject<IdeologyMapColorData>
 {
     private Tint _color;
-#if EC_PENDING
-    private MetaType _type;
+    private EntityKind _type;
 
-    public override MetaType meta_type => _type;
+    public override EntityKind KindOfEntity => _type;
+#if EC_PENDING
     public override ColorLibrary getColorLibrary() => AssetManager.culture_colors_library;
 #endif
     public override Tint GetColor() => _color;
 
-#if EC_PENDING
-    public static RadianceMapColor Create(MetaType type, string name, string hex)
+    public static RadianceMapColor Create(EntityKind type, string name, string hex)
     {
         // 原版 tryMakeNewColorAsset 新建的颜色要手动 initColor()，不然全是透明色
         Tint asset = Tint.FromHex(hex);
@@ -30,7 +29,6 @@ public sealed class RadianceMapColor : RecordObject<IdeologyMapColorData>
         color.LoadData(new IdeologyMapColorData { name = name });
         return color;
     }
-#endif
 }
 
 // 两个图层共用的画法：每座城一个档(同档连成一片只描交界，或按城市边界描)，悬停显示本城明细
@@ -116,7 +114,6 @@ public static class EdificationMap
         return Levels.Length;
     }
 
-#if EC_PENDING
     private static (string key, RadianceMapColor color) BucketOf(City city)
     {
         (string culture, float share) = CultureRadiation.Dominant(city);
@@ -131,6 +128,7 @@ public static class EdificationMap
         return ($"{culture}:{level}", color);
     }
 
+#if EC_PENDING
     public static void Configure(MetaTypeAsset asset) => RadianceLayers.Configure(asset, BucketOf, TooltipType);
 #endif
 
@@ -175,7 +173,6 @@ public static class GovernanceMap
     public static int Bucket(float control) =>
         control >= 0.9f ? 4 : control >= 0.7f ? 3 : control >= 0.5f ? 2 : control >= 0.3f ? 1 : 0;
 
-#if EC_PENDING
     private static (string key, RadianceMapColor color) BucketOf(City city)
     {
         if (!AdministrativeControlSystem.Known(city)) return (null, null);
@@ -184,6 +181,7 @@ public static class GovernanceMap
         return (bucket.ToString(), _colors[bucket]);
     }
 
+#if EC_PENDING
     public static void Configure(MetaTypeAsset asset) => RadianceLayers.Configure(asset, BucketOf, TooltipType);
 #endif
 

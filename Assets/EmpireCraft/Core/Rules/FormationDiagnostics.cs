@@ -49,11 +49,11 @@ public static class FormationDiagnostics
             LogService.LogWarning($"[EmpireCraft][称帝诊断] 失败: {exception.Message}");
         }
     }
+#endif
 
     private static bool HasEmpire(string culture) => ModClass.EMPIRE_MANAGER.Any(empire =>
         empire != null && !empire.IsGone() && !empire.IsArchived() && empire.CoreKingdom != null &&
         string.Equals(CultureService.GetRealmCulture(empire.CoreKingdom), culture, StringComparison.Ordinal));
-#endif
 
     // 上次打仗至今几年；从没打过的按建国至今算
 #if EC_PENDING
@@ -69,7 +69,7 @@ public static class FormationDiagnostics
     private static string WarGate(Realm kingdom)
     {
         Person king = kingdom.Ruler;
-        PlotAsset war = PlotsLibrary.new_war ?? AssetManager.plots_library.get("new_war");
+        PlotKind war = PlotsLibrary.new_war ?? AssetManager.plots_library.get("new_war");
         if (king == null) return "没有君主";
         if (war == null) return "原版开战剧情不存在";
         if (kingdom.GetRegime()?.IsAllowDiplomacy() == false) return "政体不许自主外交";

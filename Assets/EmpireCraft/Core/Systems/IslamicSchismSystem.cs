@@ -152,7 +152,6 @@ public static class IslamicSchismSystem
     }
 
     // 这个帝国所奉哈里发的座(对立哈里发之国或圣地之国)
-#if EC_PENDING
     public static Realm SeatFor(Empire empire, Religion religion)
     {
         RivalCaliphateData rival = ObedienceOf(empire, religion);
@@ -160,14 +159,12 @@ public static class IslamicSchismSystem
         Realm seat = Seat(rival);
         return seat != null && seat.Religion == religion ? seat : null;
     }
-#endif
 
     // 以 realm 为座的对立哈里发
     public static RivalCaliphateData RivalSeatedIn(Religion religion, Realm realm) =>
         realm == null ? null : ActiveRivals(religion).FirstOrDefault(rival => Seat(rival) is Realm seat && ModRealm(seat) == realm);
 
     // 本教是怎么分出来的(BranchShia / BranchIsmaili / BranchRival，本教或未记为 "")
-#if EC_PENDING
     public static string BranchOf(Religion religion)
     {
         if (!Alive(religion)) return "";
@@ -179,11 +176,9 @@ public static class IslamicSchismSystem
     }
 
     public static bool IsShia(Religion religion) => BranchOf(religion) == BranchShia;
-#endif
 
     // 母宗教分出的什叶派(没分过、已经没了返回空)。旧档、剧本(WorldMapReligion)只在母宗教上记了 ShiaSplit：
     // 头一次查时取它最早分出的伊斯兰分支补记为什叶派
-#if EC_PENDING
     public static Religion ShiaOf(Religion parent)
     {
         if (!Alive(parent) || !parent.GetOrCreate().ShiaSplit || !ReligionFaith.IsCaliphal(parent)) return null;
@@ -210,10 +205,8 @@ public static class IslamicSchismSystem
         Religion shia = state.shia_id >= 0 ? EmpireWorld.Current.Religions.Get(state.shia_id) : null;
         return Alive(shia) ? shia : null;
     }
-#endif
 
     // 先代哈里发之裔：君主出自曾据本教哈里发座的宗族世系，而不是现任哈里发一系(史上什叶派奉阿里一系)
-#if EC_PENDING
     public static bool Alid(Religion religion, Person ruler)
     {
         SpecificClan clan = ruler?.GetSpecificClan();
@@ -228,7 +221,6 @@ public static class IslamicSchismSystem
         }
         return false;
     }
-#endif
 
     // 圣战响应(见 PapacySystem.Crusade.Rally)：号召者是圣地哈里发时，奉对立哈里发的帝国响应减半，对立哈里发本国不响应；没有对立哈里发为 1
     public static float RallyFactor(Realm kingdom, Religion religion, Realm caller)
@@ -288,7 +280,6 @@ public static class IslamicSchismSystem
     }
 
     // 记下现任哈里发(圣地之主)的宗族
-#if EC_PENDING
     private static void NoteCaliphHouse(Religion religion)
     {
         SpecificClan clan = PapacySystem.Pope(religion)?.GetSpecificClan();
@@ -298,7 +289,6 @@ public static class IslamicSchismSystem
         state.caliph_houses.Add(clan.id);
         if (state.caliph_houses.Count > MaxHouses) state.caliph_houses.RemoveRange(0, state.caliph_houses.Count - MaxHouses);
     }
-#endif
 
     #endregion
 
@@ -322,6 +312,7 @@ public static class IslamicSchismSystem
             if (TryFatimid(empire, religion) || ProclaimRival(religion, empire.CoreKingdom, "rival_caliph_proclaimed_log") != null) return;
         }
     }
+#endif
 
     private static bool Candidate(Empire empire, Religion religion, Realm orthodox, Realm see, int seeCities, out bool hostile)
     {
@@ -349,10 +340,8 @@ public static class IslamicSchismSystem
         bool far = holy != null && Vector2.Distance(capital.Center, holy.Center) >= Span * RivalFarShare;
         return hostile || far;
     }
-#endif
 
     // 哈里发争位相持分裂(见 SchismSystem.Settle)：争位者离开帝国自立，仍奉本教的有 ContestRivalChance 自称哈里发
-#if EC_PENDING
     public static void OnContestSplit(Empire empire, Realm claimant)
     {
         try
@@ -370,10 +359,8 @@ public static class IslamicSchismSystem
             LogService.LogWarning($"{Tag} 争位者自称哈里发失败: {exception.Message}");
         }
     }
-#endif
 
     // 立对立哈里发：seat 的君主自称哈里发(文字：{0} 国号、{1} 君主、{2} 都城、{3} 圣地、{4} 本教、{5} extra)
-#if EC_PENDING
     public static RivalCaliphateData ProclaimRival(Religion religion, Realm seat, string logKey, string extra = "")
     {
         Person ruler = seat?.Ruler;
@@ -416,7 +403,6 @@ public static class IslamicSchismSystem
                            $"圣地 {holy}，现有对立哈里发 {ActiveRivals(religion).Count} 位)");
         return rival;
     }
-#endif
 
     // 法蒂玛式：先代哈里发之裔、民心不附、境内多什叶派的，改立什叶派(或伊斯玛仪派)而自为伊玛目-哈里发
 #if EC_PENDING
@@ -446,7 +432,6 @@ public static class IslamicSchismSystem
 #endif
 
     // 什叶派的伊玛目之座已失(圣地不在奉它的国手里)：率国改奉，伊玛目之座迁到本都
-#if EC_PENDING
     private static bool RestoreImamate(Empire empire, Religion shia, Religion old)
     {
         Realm core = empire.CoreKingdom;
@@ -462,7 +447,6 @@ public static class IslamicSchismSystem
         LogService.LogInfo($"{Tag} {empire.GetEmpireName()} 改奉{shia.Name}，伊玛目之座迁到 {capital.GetCityName()}");
         return true;
     }
-#endif
 
     // 自立者当场算受册封(加冕状态与 PapacySystem 同一份)
     private static void InvestSelf(Empire empire, Person ruler)
@@ -479,7 +463,6 @@ public static class IslamicSchismSystem
 
     #region 对立哈里发：每年核对、终结、自成一派
 
-#if EC_PENDING
     private static void UpdateRivals(Religion religion)
     {
         IslamicSchismState state = Peek(religion);
@@ -505,10 +488,8 @@ public static class IslamicSchismSystem
                      .OrderBy(rival => rival.ended_at).Take(ended - MaxRivalRecords).ToList())
             state.rivals.Remove(old);
     }
-#endif
 
     // 终结的缘由(文字键后缀)；不终结返回 null。顺带让哈里发座随帝国迁中央、随本国迁都
-#if EC_PENDING
     private static string Ending(Religion religion, RivalCaliphateData rival)
     {
         Realm seat = LiveKingdom(rival.seat_kingdom_id);
@@ -532,7 +513,6 @@ public static class IslamicSchismSystem
             return "abolished";
         return LineEnded(rival, seat) ? "line" : null;
     }
-#endif
 
     // 易姓：帝国看皇室宗族，独立王国看君主宗族；与自立者不同世系即绝。宗族不可考(空)的不判
     private static bool LineEnded(RivalCaliphateData rival, Realm seat)
@@ -545,7 +525,6 @@ public static class IslamicSchismSystem
         return founder == null || !SpecificClanManager.SameLineage(current, founder);
     }
 
-#if EC_PENDING
     private static void End(Religion religion, RivalCaliphateData rival, string end, bool announce)
     {
         IslamicSchismState state = State(religion);
@@ -577,10 +556,8 @@ public static class IslamicSchismSystem
         else TranslateHelper.LogEventMessage(text, PapacySystem.Papacy(religion));
         ReligionChronicle.Record(religion, ReligionChronicle.KindSchism, text);
     }
-#endif
 
     // 自成一派：以对立哈里发的都城为圣地另立分支，本国与同奉旧教的成员当场改奉，奉它的帝国中央改奉
-#if EC_PENDING
     private static void Recognize(Religion religion, RivalCaliphateData rival)
     {
         Realm seat = Seat(rival);
@@ -611,7 +588,6 @@ public static class IslamicSchismSystem
                 rival.adherents.Remove(id);
         }
     }
-#endif
 
     // 历任对立哈里发(同 ReligionHeads.Note 的写法)
     private static void NoteHeads(RivalCaliphateData rival)
@@ -650,7 +626,6 @@ public static class IslamicSchismSystem
 
     #region 奉哪位哈里发
 
-#if EC_PENDING
     private static void UpdateObedience(Religion religion)
     {
         List<RivalCaliphateData> active = ActiveRivals(religion);
@@ -676,7 +651,6 @@ public static class IslamicSchismSystem
             if (chosen != current) Switch(empire, religion, current, chosen);
         }
     }
-#endif
 
     private static RivalCaliphateData Choose(Empire empire, Religion religion, List<RivalCaliphateData> active,
         RivalCaliphateData current, Realm orthodox)
@@ -713,7 +687,6 @@ public static class IslamicSchismSystem
     }
 
     // 改奉：从原哈里发名下移到新的；先前的册封作废(自立者本国当场算受册封)；史书、世界日志、本教大事记各记一笔
-#if EC_PENDING
     private static void Switch(Empire empire, Religion religion, RivalCaliphateData from, RivalCaliphateData to)
     {
         from?.adherents?.Remove(empire.Key);
@@ -742,7 +715,6 @@ public static class IslamicSchismSystem
         EventRecorder.Record(empire, text);
         ReligionChronicle.Record(religion, ReligionChronicle.KindPapacy, text);
     }
-#endif
 
     #endregion
 
@@ -790,7 +762,6 @@ public static class IslamicSchismSystem
 #endif
 
     // 改奉已有的什叶派：治下多奉什叶派(民心所向)，或先代哈里发之裔与哈里发座交战
-#if EC_PENDING
     private static void TryAdoptShia(Realm realm, Religion faith, Realm orthodox)
     {
         Religion shia = ShiaOf(faith);
@@ -803,7 +774,6 @@ public static class IslamicSchismSystem
         ReligionConversionSystem.Convert(realm, shia, faith, "shia_adopt_log");
         LogService.LogInfo($"{Tag} {realm.GetKingdomName()} 改奉{shia.Name}(治下奉之者 {share:P0})");
     }
-#endif
 
     // 争位分出的什叶派(见 ReligionSchismSystem.OnSuccessionContest)：记下分支，此后同一母宗教不再另立
     public static void MarkShia(Religion parent, Religion shia)
@@ -814,14 +784,12 @@ public static class IslamicSchismSystem
     }
 
     // 什叶派的争位(见 ReligionSchismSystem.OnSuccessionContest)：争位者另立伊斯玛仪派，随攻方的成员同改
-#if EC_PENDING
     public static Religion OnShiaContest(Religion shia, Realm claimant, List<Realm> followers, out string text)
     {
         text = null;
         if (!IsShia(shia) || State(shia).sub_split || EcRandom.value >= ContestIsmailiChance) return null;
         return FoundBranch(shia, claimant, BranchIsmaili, "ismaili_split_log", followers, 0f, out text);
     }
-#endif
 
     #endregion
 
@@ -829,7 +797,6 @@ public static class IslamicSchismSystem
 
     // 立伊斯兰分支：圣地在 realm 的都城，realm 的君主即其伊玛目(哈里发座)。realm 当场改奉；realm 是帝国中央的，同奉旧教的成员
     // 各 memberShare 随之；followers 同改。文字：{0} 国号、{1} 君主、{2} 都城、{3} 新分支、{4} 原奉之教
-#if EC_PENDING
     public static Religion FoundBranch(Religion parent, Realm realm, string branch, string logKey, IEnumerable<Realm> followers,
         float memberShare, out string text)
     {
@@ -873,10 +840,8 @@ public static class IslamicSchismSystem
         LogService.LogInfo($"{Tag} {name} 另立{faith.Name}({branch}，分自{parent.Name}，原奉{old.Name})，改奉 {converted.Count} 国");
         return faith;
     }
-#endif
 
     // 一国(连同帝国内随之的成员、指明的随从)改奉：国、君主、奉旧教的城
-#if EC_PENDING
     private static List<Realm> ConvertRealm(Realm realm, Religion old, Religion faith, IEnumerable<Realm> followers, float memberShare)
     {
         var converted = new List<Realm> { realm };
@@ -910,7 +875,6 @@ public static class IslamicSchismSystem
         foreach (City city in kingdom.Cities.ToList())
             if (city?.Record != null && !city.IsGone() && city.Religion == old) BackgroundReligionSystem.Convert(city, faith, old);
     }
-#endif
 
     #endregion
 
@@ -936,7 +900,6 @@ public static class IslamicSchismSystem
 #endif
 
     // 宽纵失教：王朝末世、苛政、与所奉的哈里发交战、治下多奉异教
-#if EC_PENDING
     private static bool Lax(Realm realm, Religion religion)
     {
         Empire empire = realm.GetEmpire();
@@ -955,6 +918,7 @@ public static class IslamicSchismSystem
         return total > 0 && other >= total * LaxMinorityShare;
     }
 
+#if EC_PENDING
     private static bool StartMovement(Religion religion, Realm realm, City city)
     {
         string name = LM.Get("reform_movement_name_" + EcRandom.Range(1, MovementNames + 1));
@@ -1026,7 +990,6 @@ public static class IslamicSchismSystem
 #endif
 
     // 起事成功：圣战之国——本教教权回升，国内政教合一
-#if EC_PENDING
     private static void BecomeJihadState(Religion religion, ReformMovementData movement, Realm state)
     {
         movement.stage = 1;
@@ -1040,7 +1003,6 @@ public static class IslamicSchismSystem
         ReligionChronicle.Record(religion, ReligionChronicle.KindHolyWar, text);
         LogService.LogInfo($"{Tag} {movement.name}起事告成，{state.GetKingdomName()} 成圣战之国");
     }
-#endif
 
     // 圣战：接壤(或隔海相望)、城数不过本国 JihadTargetRatio 倍的——先异教、后别的伊斯兰教派、再宽纵的故国，同档挑城多的
 #if EC_PENDING
@@ -1073,6 +1035,7 @@ public static class IslamicSchismSystem
         ReligionChronicle.Record(religion, ReligionChronicle.KindHolyWar, text);
         LogService.LogInfo($"{Tag} {state.GetKingdomName()}({movement.name})第 {movement.jihads} 次圣战：伐 {target.GetKingdomName()}");
     }
+#endif
 
     private static void EndMovement(Religion religion, ReformMovementData movement, string key, Realm witness)
     {
@@ -1083,7 +1046,6 @@ public static class IslamicSchismSystem
         if (witness != null) EventRecorder.Record(witness, text);
         ReligionChronicle.Record(religion, ReligionChronicle.KindSchism, text);
     }
-#endif
 
     #endregion
 
@@ -1111,7 +1073,6 @@ public static class IslamicSchismSystem
     }
 
     // 治下奉 faith 的人口占比
-#if EC_PENDING
     private static float ShareFollowing(Realm realm, Religion faith)
     {
         float total = 0f, followers = 0f;
@@ -1123,7 +1084,6 @@ public static class IslamicSchismSystem
         }
         return total <= 0f ? 0f : followers / total;
     }
-#endif
 
     // 民心不附：治下 UnhappyShare 以上的城稳定低于起事线，或王朝已入末世
 #if EC_PENDING
@@ -1146,16 +1106,13 @@ public static class IslamicSchismSystem
     #region 窗口用
 
     // 分支的叫法(什叶派 / 伊斯玛仪派 / 对立哈里发自成一派)；本教或未记为 ""
-#if EC_PENDING
     public static string BranchLabel(Religion religion)
     {
         string branch = BranchOf(religion);
         return branch.Length == 0 ? "" : LM.Get("islam_branch_" + branch);
     }
-#endif
 
     // 帝国奉哪位哈里发(教廷页的帝国一行)：本教没有对立哈里发时为 ""
-#if EC_PENDING
     public static string ObedienceLabel(Empire empire)
     {
         Religion religion = PapacySystem.ReligionOf(empire);
@@ -1166,10 +1123,8 @@ public static class IslamicSchismSystem
         if (seat != null && seat == empire.CoreKingdom) return LM.Get("caliph_obedience_self");
         return string.Format(LM.Get("caliph_obedience_rival"), seat?.Capital?.GetCityName() ?? rival.seat_name);
     }
-#endif
 
     // 对立哈里发一行："{国号} · 哈里发 {某} · 自 {年} · 奉之者 {n} 国"
-#if EC_PENDING
     public static string RivalSummary(RivalCaliphateData rival)
     {
         Realm seat = Seat(rival);
@@ -1178,7 +1133,6 @@ public static class IslamicSchismSystem
         return string.Format(LM.Get("rival_caliph_row"), realm, Caliph(rival)?.FullName() ?? LM.Get("label_none"),
             HistoryDateFormatter.GetYear(rival.proclaimed_at), rival.adherents?.Count ?? 0, seat?.Capital?.GetCityName() ?? rival.seat_name);
     }
-#endif
 
     // 已终结的对立哈里发一行："{国号}(都 {城}) · {起}—{止} · {缘由}"
     public static string RivalEndedSummary(RivalCaliphateData rival) =>
@@ -1186,11 +1140,9 @@ public static class IslamicSchismSystem
             HistoryDateFormatter.GetYear(rival.ended_at), LM.Get("rival_caliph_end_label_" + rival.end));
 
     // 复古运动一行："{名}(起于 {城}) · {阶段} · 圣战 {n} 次"
-#if EC_PENDING
     public static string MovementSummary(ReformMovementData movement) =>
         string.Format(LM.Get("reform_movement_row"), movement.name, movement.city_name, LM.Get("reform_movement_stage_" + movement.stage),
             movement.jihads, LiveKingdom(movement.kingdom_id)?.GetKingdomName() ?? LM.Get("label_none"));
-#endif
 
     public static List<ReformMovementData> Movements(Religion religion) =>
         Peek(religion)?.movements?.Where(movement => movement != null).ToList() ?? new List<ReformMovementData>();

@@ -28,10 +28,10 @@ public static class FrontierRelations
 
     public static void ResetWorldState() => _lastScan = -1d;
 
-#if EC_PENDING
     public static bool IsNomadRealm(Realm kingdom) =>
         kingdom?.Record != null && !kingdom.IsGone() && CultureService.GetRealmCulture(kingdom).IsNomadCulture();
 
+#if EC_PENDING
     public static void TryYearlyScan()
     {
         if (EmpireWorld.Current?.LiveRealms == null || ModClass.EMPIRE_MANAGER == null || ModClass.IS_CLEAR) return;
@@ -92,7 +92,6 @@ public static class FrontierRelations
 #endif
 
     // 互市、商路：两国相安时各得市易之利
-#if EC_PENDING
     private static void Market(Realm a, Realm b, bool frontier)
     {
         bool caravanA = HasCaravan(a), caravanB = HasCaravan(b);
@@ -114,20 +113,17 @@ public static class FrontierRelations
         // 游牧一方记下互市(断了两年算互市断绝，见 NomadRaidSystem 草原压力)
         if (frontier) NomadRaidSystem.NoteMarket(a, b);
     }
-#endif
 
     private static void Pay(Realm kingdom, int amount)
     {
         if (amount > 0 && TreasurySystem.Enabled(kingdom)) kingdom.AddMoney(amount, TreasuryCategory.PublicTrade);
     }
 
-#if EC_PENDING
     private static bool HasCaravan(Realm kingdom) =>
         InstitutionSystem.HasFeature(CultureService.GetInstitutionCulture(kingdom), CaravanFeature);
 
     private static int Population(Realm kingdom) =>
         CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.Households(kingdom) : kingdom.PopulationCount();
-#endif
 
     private static bool RaidedWithin(Realm kingdom, int years)
     {

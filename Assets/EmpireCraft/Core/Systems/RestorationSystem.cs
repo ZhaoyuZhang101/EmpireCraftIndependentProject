@@ -37,10 +37,10 @@ public static class RestorationSystem
         empire?.data?.constitutional_economy?.restoration_stage == 2;
 
     // 称帝期间的国号与元首称号
-#if EC_PENDING
     public static string ImperialName(Empire empire) =>
         string.Format(LM.Get("restoration_empire_name"), empire.GetEmpireName());
 
+#if EC_PENDING
     public static void Update(Empire empire, ConstitutionalEconomyState state)
     {
         if (empire?.CoreKingdom == null || state == null || empire.IsGone() || empire.IsArchived()) return;
@@ -71,7 +71,6 @@ public static class RestorationSystem
         state.tenure_since = GameClock.Now;
     }
 
-#if EC_PENDING
     private static bool CanAttempt(Empire empire, ConstitutionalEconomyState state, Person head)
     {
         if (head == null || head.IsGone() || !state.is_republic || RepublicSystem.IsTransitioning(empire)) return false;
@@ -99,6 +98,7 @@ public static class RestorationSystem
             empire.GetEmpireFullName(), head.FullName()), head);
     }
 
+#if EC_PENDING
     private static void UpdatePreparation(Empire empire, ConstitutionalEconomyState state, Person head)
     {
         if (head == null || head.IsGone() || head.Key != state.restoration_head_id)
@@ -194,7 +194,6 @@ public static class RestorationSystem
     }
 
     // 民间的共和思想：保守、威权、保守自由主义、中间派以外的理念信众占比
-#if EC_PENDING
     private static float RepublicanShare(Empire empire)
     {
         Dictionary<PartyIdeology, int> counts = IdeologyPopulationSystem.GetEmpireCounts(empire);
@@ -206,7 +205,6 @@ public static class RestorationSystem
             .Sum(pair => pair.Value);
         return (float)republican / total;
     }
-#endif
 
     private static void AdjustGrievances(Empire empire, float delta)
     {

@@ -37,7 +37,6 @@ public static class PartyFinanceSystem
     #region 党产
 
     // 每年(PartySystem.Update 过了年度门槛后)：结党产、执政表现、民调
-#if EC_PENDING
     public static void Yearly(Empire empire)
     {
         ConstitutionalEconomyState state = State(empire);
@@ -82,7 +81,6 @@ public static class PartyFinanceSystem
         party.PartyIncome = income;
         party.PartyFunds = Mathf.Clamp(party.PartyFunds + income, 0f, FundsCap);
     }
-#endif
 
     #endregion
 
@@ -102,7 +100,6 @@ public static class PartyFinanceSystem
     }
 
     // 竞选得票倍数：只算最近一届(一年内)的竞选；各党都没花就不变
-#if EC_PENDING
     public static float CampaignFactor(Empire empire, FixedFaction party)
     {
         if (party == null || party.CampaignAt < 0d || GameClock.YearsSince(party.CampaignAt) >= 1) return 1f;
@@ -112,7 +109,6 @@ public static class PartyFinanceSystem
         if (average <= 0f) return 1f;
         return Mathf.Clamp(1f + 0.2f * (party.CampaignSpend / average - 1f), 0.85f, 1.2f);
     }
-#endif
 
     // 地方执政带来的全国得票：赢下的行政区占全部的比例 × 0.15
     public static float ProvinceFactor(Empire empire, FixedFaction party)
@@ -124,7 +120,6 @@ public static class PartyFinanceSystem
     }
 
     // 执政表现带来的得票：首相党 0.75 + 0.5 × 表现/100，执政联盟的友党一半效果
-#if EC_PENDING
     public static float ApprovalFactor(Empire empire, FixedFaction party)
     {
         ConstitutionalEconomyState state = State(empire);
@@ -134,14 +129,11 @@ public static class PartyFinanceSystem
         if (party.GetID() == state.prime_minister_faction_id) return full;
         return ParliamentSystem.IsGoverningFaction(empire, party.GetID()) ? 1f + (full - 1f) * 0.5f : 1f;
     }
-#endif
 
     // 竞选与执政表现，ApplyOpinionSwing 里乘到各党得票上(地方选举也算)；地方执政只进全国大选与选区(见 PartySystem.CountVotes)，
     // 不进地方选举，免得赢了几个省就越选越稳
-#if EC_PENDING
     public static float VoteFactor(Empire empire, FixedFaction party) =>
         CampaignFactor(empire, party) * ApprovalFactor(empire, party) * ConglomerateSystem.VoteFactor(empire, party);
-#endif
 
     // 普选分区：这个行政区的地方执政党在本区多得一成
     public static float DistrictFactor(Empire empire, FixedFaction party, long districtId)
@@ -174,7 +166,6 @@ public static class PartyFinanceSystem
         state.government_approval_parts.Clear();
     }
 
-#if EC_PENDING
     public static void Adjust(Empire empire, string key, float delta)
     {
         ConstitutionalEconomyState state = State(empire);
@@ -205,14 +196,12 @@ public static class PartyFinanceSystem
         int opinion = PublicOpinionSystem.GetLevel(empire);
         if (opinion > 0) Adjust(empire, "approval_opinion", -3f * opinion);
     }
-#endif
 
     #endregion
 
     #region 民调
 
     // 每年按眼下的选情估一次各党得票率(不改议席)
-#if EC_PENDING
     private static void TakePoll(Empire empire)
     {
         List<FixedFaction> parties = PartySystem.GetParties(empire).Where(party => !party.Ban &&
@@ -227,7 +216,6 @@ public static class PartyFinanceSystem
             if (party.PollHistory.Count > PollYears) party.PollHistory.RemoveRange(0, party.PollHistory.Count - PollYears);
         }
     }
-#endif
 
     #endregion
 }

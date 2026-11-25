@@ -8,10 +8,8 @@ namespace EmpireCraft.Core
 
 public static class MoneyDisplay
 {
-#if EC_PENDING
     public static string Format(double amount) => Format(amount,
-        PlayerConfig.dict.TryGetValue("language", out var language) && language.stringVal == "en");
-#endif
+        GameOptions.All.TryGetValue("language", out var language) && language.StringVal == "en");
 
     public static string Format(double amount, bool english)
     {

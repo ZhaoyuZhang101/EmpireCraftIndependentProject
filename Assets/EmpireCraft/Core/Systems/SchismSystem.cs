@@ -284,7 +284,6 @@ public static class SchismSystem
 #endif
 
     // 化解的缘由(日志用)；不化解返回 null
-#if EC_PENDING
     private static string Resolution(Empire empire)
     {
         EmpireData data = empire.data;
@@ -310,7 +309,6 @@ public static class SchismSystem
             return $"新君在位满{RulerYears}年，正统{legitimacy}(不低于门槛{gate})";
         return null;
     }
-#endif
 
     // 化解：割据的复奉号令，史书记"人心渐定"一类；不记大分裂冷却
 #if EC_PENDING
@@ -438,7 +436,6 @@ public static class SchismSystem
 #endif
 
     // 争位之战每月：争位者已亡或离开帝国，算兵败；中央已不在这场仗里(原中央覆灭、由别家接续)，算争位者胜；满五年强制议和
-#if EC_PENDING
     private static void ContestMonthly(Empire empire)
     {
         EmpireData data = empire.data;
@@ -488,7 +485,6 @@ public static class SchismSystem
         }
         if (years >= ContestMaxYears) EmpireWorld.Current.EndWar(war, WarOutcome.Peace);
     }
-#endif
 
     // 开战时某一方的都城(cityId)眼下落在另一方手里
     private static bool CapitalFallen(War war, long cityId, bool attackerSide)
@@ -651,7 +647,6 @@ public static class SchismSystem
 #endif
 
     // 进程作罢(争位之战被别处移除之类)：割据的复奉号令；已打过争位之战，照样记冷却
-#if EC_PENDING
     private static void Abandon(Empire empire, string reason)
     {
         int kind = empire.data.schism_kind;
@@ -661,7 +656,6 @@ public static class SchismSystem
         LogService.LogInfo($"{Tag} {empire.GetEmpireName()} {KindName(kind)}作罢：{reason}；{LogNames(back)} 复奉号令");
         Clear(empire);
     }
-#endif
 
     #endregion
 
@@ -708,7 +702,6 @@ public static class SchismSystem
     // 声势(用户 2026-10-21 选"连锁观望"，见设计第四节)：首义各省的都城都还在自己手里 ×1；叛省近 12 个月打下了城
     // (比起事时多，"中央在打这些叛省的仗里丢了城")×1.5；中央收复了任何一家首义省的都城 ×0.3；首义各省都已平定
     // (覆灭，或都城失守后归回帝国)×0——观望的就此不动，两年收束时复奉号令。update 为假时只看不记(帝国窗口用)
-#if EC_PENDING
     public static float Momentum(Empire empire, bool update = true)
     {
         EmpireData data = empire?.data;
@@ -747,11 +740,9 @@ public static class SchismSystem
         }
         return factor;
     }
-#endif
 
     // 土崩瓦解收束(两年满、近代革命战争打完、帝国已不适用瓦解)：还在观望的割据之省先复奉号令(帝国灭亡时照直辖规则并入或独立，
     // 见 ProvincialCollapseSystem.TryFall/Absorb——Absorb 按 Obeys 认直辖，割据标记得先清)；返回它们的名字
-#if EC_PENDING
     public static List<string> ReleaseWatchers(Empire empire)
     {
         var names = new List<string>();
@@ -764,10 +755,8 @@ public static class SchismSystem
         empire.data.schism_members?.Clear();
         return names;
     }
-#endif
 
     // 收束之后：帝国存续时史书记观望的复奉号令；进程清掉(各省起义时已各自记过大分裂冷却)
-#if EC_PENDING
     public static void EndRising(Empire empire, List<string> watchers, bool fell)
     {
         if (!InRising(empire)) return;
@@ -778,16 +767,13 @@ public static class SchismSystem
             Chronicle(empire, Collapse, "settled", empire.GetEmpireName(), count);
         Clear(empire);
     }
-#endif
 
     #endregion
 
     #region 帝国窗口、悬停提示
 
     // 类别的叫法(印度的哈里发称大君、苏丹称摄政，见 DynastyNaming.CultureVariant)
-#if EC_PENDING
     public static string KindLabel(Empire empire) => LocalizedVariant(empire, "schism_kind_" + KindKey(KindOf(empire)));
-#endif
 
     public static string StageLabel(Empire empire) => LM.Get("schism_stage_" + StageOf(empire));
 
@@ -813,7 +799,6 @@ public static class SchismSystem
     }
 
     // 争位者："某国·某人"(争位阶段)
-#if EC_PENDING
     public static string ClaimantLabel(Empire empire)
     {
         if (StageOf(empire) != Contest) return null;
@@ -822,7 +807,6 @@ public static class SchismSystem
         return $"{LiveKingdom(data.schism_claimant_id)?.GetKingdomName() ?? data.schism_claimant_realm}·{data.schism_claimant_name}" +
                (string.IsNullOrEmpty(war) ? "" : $"  ({war})");
     }
-#endif
 
     // 化解的条件(预警、割据两阶段)；之后的阶段已不能化解，返回 null
     public static string ResolveHint(Empire empire)
@@ -837,7 +821,6 @@ public static class SchismSystem
     }
 
     // 成员在进程里的处境：离心、割据、割据观望、举兵争位；不在名单上返回 null
-#if EC_PENDING
     public static string StatusText(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone()) return null;
@@ -850,7 +833,6 @@ public static class SchismSystem
             : "schism_member_breakaway";
         return string.Format(LM.Get(key), KindLabel(empire));
     }
-#endif
 
     #endregion
 
@@ -925,7 +907,6 @@ public static class SchismSystem
 #endif
 
     // 称呼：汗；哈里发(印度称大君)；苏丹(印度称摄政王)；征夷大将军；土崩瓦解不用
-#if EC_PENDING
     private static string Title(Empire empire, int kind)
     {
         string key = kind switch
@@ -941,7 +922,6 @@ public static class SchismSystem
 
     private static string LocalizedVariant(Empire empire, string key) =>
         LM.Get(DynastyNaming.CultureVariant(empire?.CoreKingdom, key) ?? key);
-#endif
 
     private static string KindKey(int kind) => kind switch
     {
@@ -976,7 +956,6 @@ public static class SchismSystem
     };
 
     // 史书、世界日志：每个类别 × 每个阶段一句(schism_<阶段>_<类别>，有文化变体的先用，如印度的哈里发、苏丹)
-#if EC_PENDING
     private static void Chronicle(Empire empire, int kind, string stage, params object[] args)
     {
         string key = $"schism_{stage}_{KindKey(kind)}";
@@ -984,16 +963,13 @@ public static class SchismSystem
         if (!LM.Has(variant)) return;
         EventRecorder.Record(empire, string.Format(LM.Get(variant), args));
     }
-#endif
 
     // 史书里点名的成员(至多 NamesShown 家)
-#if EC_PENDING
     private static string Names(List<Realm> kingdoms) =>
         string.Join(LM.Get("schism_name_separator"), kingdoms.Take(NamesShown).Select(kingdom => kingdom.GetKingdomName()));
 
     private static string LogNames(List<Realm> kingdoms) =>
         kingdoms.Count == 0 ? "无" : string.Join("、", kingdoms.Select(kingdom => kingdom.GetKingdomName()));
-#endif
 
     private static Realm LiveKingdom(long id)
     {

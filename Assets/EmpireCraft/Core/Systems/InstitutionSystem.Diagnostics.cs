@@ -82,10 +82,9 @@ public static partial class InstitutionSystem
         { "institution_reform_force_disabled", "不许强推" }
     };
 
-#if EC_PENDING
     private static void ResetDiagnostics()
     {
-        Clear();
+        Diagnostics.Clear();
         _kingdomPassSize = 0;
         _kingdomPassYears = -1d;
     }
@@ -93,7 +92,7 @@ public static partial class InstitutionSystem
     private static ReformDiagnostics DiagnosticsFor(string culture)
     {
         culture ??= "";
-        if (!TryGetValue(culture, out ReformDiagnostics diagnostics))
+        if (!Diagnostics.TryGetValue(culture, out ReformDiagnostics diagnostics))
             Diagnostics[culture] = diagnostics = new ReformDiagnostics();
         return diagnostics;
     }
@@ -118,10 +117,8 @@ public static partial class InstitutionSystem
     private static void NoteAiTry(string culture) => DiagnosticsFor(culture).Tries++;
 
     private static void NoteAiStart(string culture) => DiagnosticsFor(culture).Starts++;
-#endif
 
     // AI 挑候选时某个节点推不了：只记前沿节点(前置已齐、未施行)的缘故；缺科技再分本文化没发明、本国没采纳
-#if EC_PENDING
     private static void NoteCandidateBlock(InstitutionRealm realm, string culture, InstitutionNodeConfig node, string reason)
     {
         if (node == null || string.IsNullOrEmpty(reason) || NotFrontierReasons.Contains(reason)) return;
@@ -140,7 +137,6 @@ public static partial class InstitutionSystem
         diagnostics.Blocks[reason] = diagnostics.Blocks.TryGetValue(reason, out int count) ? count + 1 : 1;
         if (!diagnostics.Samples.ContainsKey(reason)) diagnostics.Samples[reason] = GetNodeName(node, culture);
     }
-#endif
 
     // 王国扫描排空一轮(见 TryYearlyKingdomScan)：这一轮从排队到扫完用了几年
     private static void NoteKingdomPassDone(double now)
@@ -160,13 +156,12 @@ public static partial class InstitutionSystem
         !TechnologySystem.ModernInstitutionBlocked(node);
 
     // 每年每个文化一行(见 TryYearlyCultureDrift)，记过的数随即清零
-#if EC_PENDING
     private static void LogCultureProgress(string culture)
     {
         CultureInstitutionState state = GetOrCreateCultureState(culture);
         if (state == null || EmpireWorld.Current == null) return;
-        TryGetValue(culture, out ReformDiagnostics diagnostics);
-        Remove(culture);
+        Diagnostics.TryGetValue(culture, out ReformDiagnostics diagnostics);
+        Diagnostics.Remove(culture);
         double now = GameClock.Now;
 
         List<Empire> empires = (ModClass.EMPIRE_MANAGER ?? Enumerable.Empty<Empire>())
@@ -248,7 +243,6 @@ public static partial class InstitutionSystem
         else text.Append("无可推");
         LogService.LogInfo(text.ToString());
     }
-#endif
 
     private static string DescribeReform(string realmName, InstitutionReformState reform, string culture, double now)
     {

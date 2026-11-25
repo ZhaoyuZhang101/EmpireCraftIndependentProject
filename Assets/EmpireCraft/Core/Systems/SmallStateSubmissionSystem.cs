@@ -56,6 +56,7 @@ public static class SmallStateSubmissionSystem
             LogService.LogWarning($"[EmpireCraft][小国归附] 结算失败: {exception.Message}");
         }
     }
+#endif
 
     private static bool Candidate(Realm small)
     {
@@ -69,7 +70,6 @@ public static class SmallStateSubmissionSystem
         double founded = small.FoundedStamp;
         return founded >= 0d && GameClock.Now >= founded && GameClock.YearsSince(founded) >= GraceYears;
     }
-#endif
 
     // 陆上四邻里占 MinShare 以上的那一家(宗主、帝国中央)，国力够、两家不交战
 #if EC_PENDING

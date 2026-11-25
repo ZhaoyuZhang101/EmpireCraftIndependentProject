@@ -31,7 +31,6 @@ public static class PuppetStateSystem
     }
 
     // 界面上的身份(帝国窗口左栏、国家概况、提示)："日本扶植的傀儡政权"；不是傀儡返回 null
-#if EC_PENDING
     public static string StandingLine(Realm kingdom)
     {
         Realm master = Master(kingdom);
@@ -43,7 +42,6 @@ public static class PuppetStateSystem
         Realm master = Master(kingdom);
         return master == null ? "" : string.Format(LM.Get("puppet_standing_tip"), master.GetKingdomName(), Years(kingdom));
     }
-#endif
 
     public static int Years(Realm puppet)
     {
@@ -151,7 +149,6 @@ public static class PuppetStateSystem
 #endif
 
     // 主国执政党的理念：有执政党按执政党；共和国按建国理念；君主国没有政党的按国家主理念；都没有按君主本人的
-#if EC_PENDING
     public static PartyIdeology MasterIdeology(Realm master)
     {
         Empire empire = master?.GetEmpire();
@@ -163,7 +160,6 @@ public static class PuppetStateSystem
         }
         return master?.Ruler != null ? IdeologyPopulationSystem.Get(master.Ruler) : PartyIdeology.Centrism;
     }
-#endif
 
     // 傀儡奉行主国的理念：元首与京城的官员、名人随之改；傀儡自己有政党的，由这一理念的党一党执政
 #if EC_PENDING
@@ -188,7 +184,6 @@ public static class PuppetStateSystem
 #endif
 
     // 离了原来的官职、城主之位
-#if EC_PENDING
     private static void Detach(Person actor)
     {
         if (actor.IsOnOffice())
@@ -199,6 +194,7 @@ public static class PuppetStateSystem
         if (actor.IsCityLeader() && actor.City != null) actor.City.RemoveLeader();
     }
 
+#if EC_PENDING
     public static void Release(Realm puppet, string historyKey)
     {
         if (puppet?.Record == null) return;
@@ -217,7 +213,6 @@ public static class PuppetStateSystem
 #endif
 
     // 主国(连同主国所在帝国的中央)正在打的仗：傀儡补进同一方
-#if EC_PENDING
     private static void JoinWars(Realm puppet, Realm master)
     {
         var sides = new HashSet<Realm> { master, ModRealm(master) };
@@ -239,7 +234,6 @@ public static class PuppetStateSystem
             }
         }
     }
-#endif
 
     private static object _world;
     private static double _lastMonth = -1d;

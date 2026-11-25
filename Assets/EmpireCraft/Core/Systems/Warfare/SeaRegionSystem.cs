@@ -43,7 +43,6 @@ public static class SeaRegionSystem
     private static bool[] _seaAtBuild = new bool[0];
     private static bool _dirty;
 
-#if EC_PENDING
     public static IReadOnlyList<Region> All
     {
         get
@@ -52,7 +51,6 @@ public static class SeaRegionSystem
             return Regions;
         }
     }
-#endif
 
     public static void ResetWorldState()
     {
@@ -66,13 +64,11 @@ public static class SeaRegionSystem
     }
 
     // 设地面格之后(MapWallPatch)：这块地算不算海和上次划分时不一样了，记下要重划
-#if EC_PENDING
     public static void OnTileChanged(Cell zone)
     {
         if (_dirty || zone == null || zone.Index < 0 || zone.Index >= _seaAtBuild.Length) return;
         if (_seaAtBuild[zone.Index] != IsSea(zone)) _dirty = true;
     }
-#endif
 
     // 城的海岸：本城临海的陆上地块(中心格坐标)及外面海区所在的水域；Offset 是离城心最远的一处(按距离粗筛用)。
     // 水师辐射量到对方最近的海岸，不量城心(玩家反馈"两个隔海的国家一千五百年没打下来"：城心在内陆几十格的城，
@@ -85,7 +81,6 @@ public static class SeaRegionSystem
 
     private static readonly Dictionary<long, (double at, int zones, Shore shore)> ShoreCache = new();
 
-#if EC_PENDING
     public static Shore ShoreOf(City city)
     {
         var empty = new Shore();
@@ -112,7 +107,7 @@ public static class SeaRegionSystem
     }
 
     public static bool IsSea(Cell zone) =>
-        zone != null && !zone.OnEdge && zone.GroundTiles <= MaxGround && zone.LiquidTiles > 0;
+        zone != null && !zone.OnEdge && zone.GroundCount <= MaxGround && zone.LiquidCount > 0;
 
     public static Region Get(int id)
     {
@@ -224,10 +219,8 @@ public static class SeaRegionSystem
             if (region.Center != null && oldControl.TryGetValue(region.Center.Index, out var control))
                 (region.ControllerId, region.ControlledAt) = control;
     }
-#endif
 
     // 与城市地块相邻的海区(港口城出海、登陆点)
-#if EC_PENDING
     public static List<Region> RegionsAround(City city)
     {
         var result = new List<Region>();
@@ -240,10 +233,8 @@ public static class SeaRegionSystem
                     result.Add(Regions[id]);
         return result;
     }
-#endif
 
     // 两组海区之间的最短航线(按海区数，含首尾)；不通返回 null。blocked：不能经过的海区(终点除外)
-#if EC_PENDING
     public static List<Region> Route(IEnumerable<Region> from, ICollection<Region> to, Func<Region, bool> blocked = null)
     {
         EnsureBuilt();
@@ -278,7 +269,6 @@ public static class SeaRegionSystem
         }
         return null;
     }
-#endif
 
     public static float Distance(Region a, Region b) =>
         a?.Center == null || b?.Center == null ? float.MaxValue

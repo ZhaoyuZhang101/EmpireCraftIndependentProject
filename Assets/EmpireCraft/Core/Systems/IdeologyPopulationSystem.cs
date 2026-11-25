@@ -40,7 +40,6 @@ public static partial class IdeologyPopulationSystem
     }
 
     // 读档可能复用 EmpireWorld.Current 实例，因此不能只靠对象引用判断世界是否变化。
-#if EC_PENDING
     public static void ResetWorldState()
     {
         ClearCaches();
@@ -53,7 +52,6 @@ public static partial class IdeologyPopulationSystem
         LandmarkBookSystem.ResetRuntimeState();
         IdeologySpreadSystem.ResetWorldState();
     }
-#endif
 
     public static void SetTraitsReady()
     {
@@ -99,7 +97,6 @@ public static partial class IdeologyPopulationSystem
         SyncedTraits.Add(actor);
     }
 
-#if EC_PENDING
     public static PartyIdeology Get(Person actor)
     {
         if (actor == null) return PartyIdeology.Conservatism;
@@ -143,14 +140,12 @@ public static partial class IdeologyPopulationSystem
         // A newborn may inherit through setParent later; migrants keep their existing conviction.
         Set(actor, EcRandom.value < 0.7f ? GetDominant(city) : PickInitial(actor));
     }
-#endif
 
     private static readonly Dictionary<string, PartyIdeology> ParsedIdeologies =
         Enum.GetValues(typeof(PartyIdeology)).Cast<PartyIdeology>()
             .ToDictionary(ideology => ideology.ToString(), ideology => ideology, StringComparer.Ordinal);
 
     // 现算城市主理念(不走一个月的缓存)，给地图图层的轮换缓存用；用数组计数，不分配 LINQ 分组
-#if EC_PENDING
     public static PartyIdeology ComputeDominant(City city)
     {
         if (city == null) return PartyIdeology.Conservatism;
@@ -195,10 +190,8 @@ public static partial class IdeologyPopulationSystem
         int total = counts.Values.Sum();
         return total == 0 ? 0f : (float)(counts.TryGetValue(ideology, out int count) ? count : 0) / total;
     }
-#endif
 
     // 各处(年度交往、藏书影响、提示框、核心民心)频繁调用：用循环计数，不走 LINQ GroupBy 的分配
-#if EC_PENDING
     public static Dictionary<PartyIdeology, int> GetCityCounts(City city)
     {
         var counts = new Dictionary<PartyIdeology, int>();
@@ -218,7 +211,7 @@ public static partial class IdeologyPopulationSystem
     public static Dictionary<PartyIdeology, int> GetEmpireCounts(Empire empire)
     {
         if (empire == null) return new Dictionary<PartyIdeology, int>();
-        Dictionary<PartyIdeology, int> counts = empire.getUnits()
+        Dictionary<PartyIdeology, int> counts = empire.GetUnits()
             .Where(actor => actor != null && !actor.IsGone() && actor.Alive)
             .GroupBy(Get).ToDictionary(group => group.Key, group => group.Count());
         CityPopulationSystem.AddBackgroundCounts(CityPopulationSystem.CitiesOf(empire.kingdoms_list), counts,
@@ -258,17 +251,15 @@ public static partial class IdeologyPopulationSystem
         }
         return population == 0 ? 0f : (float)supporters / population;
     }
-#endif
 
     private const int MilitarySampleSize = 10;
 
-#if EC_PENDING
     public static float GetMilitaryShare(Empire empire, PartyIdeology ideology)
     {
         if (empire == null) return 0f;
         int soldiers = 0;
         int supporters = 0;
-        foreach (Person actor in empire.getUnits())
+        foreach (Person actor in empire.GetUnits())
         {
             if (actor == null || actor.IsGone() || !actor.Alive || !actor.IsWarrior()) continue;
             soldiers++;
@@ -288,7 +279,7 @@ public static partial class IdeologyPopulationSystem
     public static void SeedNewPartyPolitics(Empire empire)
     {
         if (empire == null) return;
-        foreach (Person actor in empire.getUnits().Where(actor => actor != null && !actor.IsGone() && actor.Alive))
+        foreach (Person actor in empire.GetUnits().Where(actor => actor != null && !actor.IsGone() && actor.Alive))
         {
             ActorExtension.ActorExtraData data = actor.GetOrCreate();
             if (string.IsNullOrEmpty(data.personal_ideology)) Set(actor, PickInitial(actor));
@@ -312,10 +303,8 @@ public static partial class IdeologyPopulationSystem
         if (changed > 0) RegisterIdea(culture, ideology);
         return changed;
     }
-#endif
 
     // 外力(如城中藏书)对一座城的持续说服：成年人按阶级亲和度折算后以 intensity 的概率改信
-#if EC_PENDING
     public static int InfluenceCity(City city, PartyIdeology ideology, float intensity)
     {
         if (city?.People == null || city.IsGone() || intensity <= 0f) return 0;
@@ -347,11 +336,9 @@ public static partial class IdeologyPopulationSystem
     }
 
     private static readonly FrameBudgetQueue<City> ContactQueue = new(2d, ContactCity, "理念交往");
-#endif
     private static int _contactFrame = -1;
 
     // 每帧最多花约 2 ms 处理排队的城市；一轮处理完后开始结算藏书的理念影响(同样分帧)
-#if EC_PENDING
     public static void TickContact()
     {
         if (Time.frameCount == _contactFrame) return;
@@ -369,7 +356,6 @@ public static partial class IdeologyPopulationSystem
         if (_contactWavePending && PendingContact.Count == 0)
         { _contactWavePending = false; LandmarkBookSystem.StartCityInfluence(); }
     }
-#endif
 
     // 外来理念从哪座外国邻城来。通达层算好后(用户 2026-11-06，见 ConnectivitySystem)：挑通达最强的外国邻城，
     // 再按强度掷一次——隔着雪山大漠的邻城多半传不过来，那就按本城自己的主流理念算
@@ -393,7 +379,6 @@ public static partial class IdeologyPopulationSystem
         return best != null && EcRandom.value < strongest ? best : null;
     }
 
-#if EC_PENDING
     private static void ContactCity(City city)
     {
         if (city?.People == null || city.IsGone()) return;
@@ -550,7 +535,6 @@ public static partial class IdeologyPopulationSystem
             return EcRandom.value < chance;
         }
     }
-#endif
 
     private delegate bool ContactDecision(SocialClass socialClass, PartyIdeology current, int age, bool classChanged,
         out PartyIdeology target);
@@ -597,14 +581,11 @@ public static partial class IdeologyPopulationSystem
 
 
 
-#if EC_PENDING
     public static float CityProsperity(City city) => CachedEconomy(city).Prosperity;
-#endif
 
     // 一轮年度交往/藏书影响里同一座城会被反复问(本城、作为邻城……)，经济形态一年内变化不大，每轮只算一次
     private static readonly Dictionary<City, CityEconomyProfile> EconomyCache = new();
 
-#if EC_PENDING
     public static CityEconomyProfile CachedEconomy(City city)
     {
         if (city == null) return default;
@@ -613,7 +594,6 @@ public static partial class IdeologyPopulationSystem
         EconomyCache[city] = profile;
         return profile;
     }
-#endif
 
     public readonly struct CityEconomyProfile
     {
@@ -645,7 +625,6 @@ public static partial class IdeologyPopulationSystem
     //   工业化 = 工人占成年人口的比例(三成即满)占七成 + 有工厂占三成 → 社会主义；
     //   农业化 = 农民占成年人口的比例(一半即满)，再按无地农民比例(五成即满)拆成：
     //     有地的小农 → 保守主义、教派民主等传统理念；无地农民 → 共产主义、社会主义、无政府主义(农民革命)。
-#if EC_PENDING
     public static CityEconomyProfile CityEconomy(City city)
     {
         if (city?.People == null) return default;
@@ -690,7 +669,6 @@ public static partial class IdeologyPopulationSystem
         return new CityEconomyProfile(prosperity, 0.7f * labour + 0.3f * factories,
             agrarian * (1f - landless) * settledFactor, agrarian * landless);
     }
-#endif
 
 
 
@@ -719,7 +697,6 @@ public static partial class IdeologyPopulationSystem
     private const float PluralismBoost = 1f;
     private const float IndustrySocialistBoost = 1.5f;
 
-#if EC_PENDING
     private static PartyIdeology SampleLocal(Dictionary<PartyIdeology, int> counts,
         Dictionary<PartyIdeology, int> organizers, SocialClass socialClass, City city, HashSet<PartyIdeology> available)
     {
@@ -758,7 +735,6 @@ public static partial class IdeologyPopulationSystem
             if ((roll -= weights[index]) <= 0f) return choices[index];
         return choices[choices.Length - 1];
     }
-#endif
 
     public static void RegisterIdea(string culture, PartyIdeology ideology)
     {
@@ -843,7 +819,6 @@ public static partial class IdeologyPopulationSystem
     }
 
     // 解锁节点只给尚无人信奉的新思想补充传播起点，不再次改写已经出现过的思想分布。
-#if EC_PENDING
     private static void EnsureUnlockedIdeologiesSeeded()
     {
         foreach (IGrouping<string, City> cultureCities in EmpireWorld.Current.Cities
@@ -884,7 +859,6 @@ public static partial class IdeologyPopulationSystem
         }
         DominantCache.Clear();
     }
-#endif
 
     private static PartyIdeology PickClassResponse(SocialClass socialClass, Realm kingdom,
         HashSet<PartyIdeology> available, float grievance)
@@ -930,7 +904,6 @@ public static partial class IdeologyPopulationSystem
         CityPopulationSystem.ConvertBackground(city, ideology, socialClass =>
             Mathf.Clamp01(intensity) * Mathf.Clamp01((PartySystem.GetAffinity(ideology, socialClass) + 100f) / 200f));
 
-#if EC_PENDING
     private static int Introduce(IEnumerable<Person> actors, PartyIdeology ideology, float intensity)
     {
         int changed = 0;
@@ -970,6 +943,5 @@ public static partial class IdeologyPopulationSystem
         foreach (City city in kingdom.Cities ?? Enumerable.Empty<City>()) DominantCache.Remove(city);
         return changed;
     }
-#endif
 }
 }

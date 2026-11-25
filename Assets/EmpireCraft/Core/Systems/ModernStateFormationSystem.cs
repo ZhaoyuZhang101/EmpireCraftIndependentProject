@@ -50,7 +50,6 @@ public static class ModernStateFormationSystem
     // 现代国家的省、州建制时关了自主外交(见 Empire 的直辖区划分)，政府解散或脱离后这项留在了独立的地方势力身上：
     // 外交权关着就不能谋求法理(KingdomExtension.CanPursueDeJureTitle)，没有法理又组建不了政府，永远是"某某自治军"。
     // 独立的现代势力(不在任何国家里、也没有宗主)一律恢复自主外交
-#if EC_PENDING
     private static void RestoreSovereignRights(Realm kingdom)
     {
         Regime regime = kingdom.GetRegime();
@@ -58,7 +57,6 @@ public static class ModernStateFormationSystem
             PuppetStateSystem.IsPuppet(kingdom)) return;
         regime.SetAllowDiplomacy(true);
     }
-#endif
 
     // 没有主法理的现代势力认领都城所在的法理。原先只调 ReconcileMainTitle(GetControlledTitle())，
     // 可那只认君主名下已有的法理；政府解散或省州脱离后，这片法理还记在前任元首名下(ModernTitleCentralization 收归中央)，
@@ -236,7 +234,6 @@ public static class ModernStateFormationSystem
 
     // 新国家依建国首领的理念立制；首领理念尚未被本文化解锁时，采用光谱上最接近的
     // 已解锁理念。文化刚进入现代、批量承接旧法理王国时也必须走同一套判定。
-#if EC_PENDING
     public static PartyIdeology ResolveGovernmentIdeology(Realm kingdom)
     {
         PartyIdeology personal = IdeologyPopulationSystem.Get(kingdom.Ruler);
@@ -255,13 +252,11 @@ public static class ModernStateFormationSystem
     {
         ApplyNonGovernmentName(kindom);
     }
-#endif
 
     // 尚未组建正常政府的现代势力统一按理念称呼，是否已有法理不改变它当前的武装身份；
     // 法理只决定它日后是否有资格组建政府。中间派为军阀，社会主义为人民武装等。
     // 未组建政府的势力称呼：按本文化文化包里该理念的词库(Party.untitled_groups)抽一个，没配用 PartyNames 的默认称呼。
     // 抽中后记在王国上，理念不变就不再重抽。称呼可能含 {0}(见 FormatLabel)。
-#if EC_PENDING
     public static string GetNonGovernmentLabel(Realm kingdom)
     {
         // 民族情绪高涨(都城 ≥ 60)：改用民族主义武装的称呼(国民革命军、民族解放军……)
@@ -279,7 +274,6 @@ public static class ModernStateFormationSystem
         int pick = StablePick(pool.Count, ideology, ref data.non_government_label_ideology, ref data.non_government_label_pick);
         return pick >= 0 ? pool[pick].Trim() : PartySystem.GetIdeologyName(ideology);
     }
-#endif
 
     // 称呼含 {0} 时把名号代进去(如"{0}系军阀")，否则接在名号后面
     public static string FormatLabel(string front, string label)
@@ -303,17 +297,14 @@ public static class ModernStateFormationSystem
     }
 
     // 未组建政府的势力按都城的主流理念称呼，与悬浮提示里的"理念"一致(不按君主个人理念)
-#if EC_PENDING
     public static PartyIdeology NonGovernmentIdeology(Realm kingdom) =>
         kingdom?.Capital != null && !kingdom.Capital.IsGone()
             ? IdeologyPopulationSystem.GetDominant(kingdom.Capital)
             : IdeologyFamilies.StateIdeology(kingdom);
-#endif
 
 
     // 已组建政府、但尚未取得中央地位或完成统一时，使用另一套理念临时政府称呼。
     // ideology：按哪个理念取称呼。临时政府传它的立国理念，免得执政党一换称呼就跟着变
-#if EC_PENDING
     public static string GetProvisionalGovernmentLabel(Realm kingdom, PartyIdeology? ideologyOverride = null)
     {
         PartyIdeology ideology = ideologyOverride ?? IdeologyFamilies.StateIdeology(kingdom);
@@ -330,6 +321,5 @@ public static class ModernStateFormationSystem
         // 含 {0} 的称呼(如"{0}系军阀")只能由 TryGetNonGovernmentKingdomName 代入名号，这里存去掉占位符的部分
         kingdom.GetOrCreate().ideology_country_suffix = GetNonGovernmentLabel(kingdom).Replace("{0}", "");
     }
-#endif
 }
 }

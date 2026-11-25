@@ -65,7 +65,6 @@ public static partial class MultiCapitalSystem
     }
 
     // 奉诏设直隶的那座陪京(要还在奉诏的陪京里、本朝是律令制)；没有返回空
-#if EC_PENDING
     private static (EmpireCore core, City city) DecreedZhiliSeat(Empire empire, List<(EmpireCore core, City city)> decreed)
     {
         long id = empire?.data?.decreed_zhili_city ?? -1L;
@@ -79,7 +78,6 @@ public static partial class MultiCapitalSystem
         }
         return seat;
     }
-#endif
 
     // 可以奉诏设为陪京的城：本帝国(连成员)手里的城，不是京师、还不是京、没被占着、不在代管里；人口多的在前
     public static List<City> DecreeCandidates(Empire empire, int limit)
@@ -114,7 +112,6 @@ public static partial class MultiCapitalSystem
     }
 
     // 可以奉诏设直隶的陪京：本朝是律令制；那座陪京在中央直辖或行政区(省)手里，还不是直隶
-#if EC_PENDING
     public static List<City> ZhiliCandidates(Empire empire)
     {
         var result = new List<City>();
@@ -129,7 +126,6 @@ public static partial class MultiCapitalSystem
         }
         return result;
     }
-#endif
 
     // 奉诏设陪京：记下来并当场安排；没排上(四方都占了)就不记，返回 false
 #if EC_PENDING

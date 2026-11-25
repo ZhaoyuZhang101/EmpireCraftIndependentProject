@@ -652,7 +652,6 @@ public static class NaturalizationSystem
     }
 
     // 文化慢慢跟上：已归化的人里每年一小部分改说澳洲话、过澳洲日子。身份不看这个，反过来也不算
-#if EC_PENDING
     private static float ShiftCulture(List<City> cities, float rate)
     {
         NaturalizationConfig c = Config;
@@ -684,7 +683,6 @@ public static class NaturalizationSystem
         if (total >= 1f) CityPopulationSystem.InvalidateHouseholdCaches();
         return total;
     }
-#endif
 
     // 干部覆盖、工厂配员：一年算一次，读的地方很热
     private static void UpdateEffects(List<City> cities)

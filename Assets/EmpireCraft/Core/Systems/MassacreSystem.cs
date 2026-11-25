@@ -40,7 +40,7 @@ public static class MassacreSystem
 #if EC_PENDING
     public static bool WillMassacre(Person attacker, Person target) =>
         !IsCivilian(attacker) && IsCivilian(target) && attacker.hasXenophobic() &&
-        !(attacker.Culture == target.Culture && attacker.asset == target.asset);
+        !(attacker.Culture == target.Culture && attacker.Asset == target.Asset);
 
     public static void OnCivilianKilled(Person victim, Person killer)
     {
@@ -68,7 +68,6 @@ public static class MassacreSystem
 #endif
 
     // 无小人模式：纵兵烧杀(见 ScorchedEarthSystem)杀害的背景人口也记入屠城之恨
-#if EC_PENDING
     public static void RecordBackgroundMassacre(City city, Realm killerKingdom, int victims)
     {
         if (EmpireWorld.Current == null || city?.Record == null || killerKingdom == null || victims <= 0) return;
@@ -87,11 +86,9 @@ public static class MassacreSystem
         data.massacre_noticed = true;
         Announce(city, data, killerKingdom, now);
     }
-#endif
 
     // 同一国在同一城 MemoryYears 年内只播报一次：几国轮番烧杀同一座城时，记账的屠城者来回换，
     // 以前每换一次就重播一次，消息刷屏
-#if EC_PENDING
     private static void Announce(City city, CityExtension.CityExtraData data, Realm killerKingdom, double now)
     {
         data.massacre_announced ??= new global::System.Collections.Generic.Dictionary<long, double>();
@@ -101,7 +98,6 @@ public static class MassacreSystem
         TranslateHelper.LogEventMessage(string.Format(LM.Get("massacre_event"), killerKingdom.GetKingdomName(),
             city.GetCityName()), killerKingdom);
     }
-#endif
 
     // 屠城之恨：城市现在归屠城者(或与之同一帝国)统治时的忠诚惩罚
     public static int LoyaltyPenalty(City city)

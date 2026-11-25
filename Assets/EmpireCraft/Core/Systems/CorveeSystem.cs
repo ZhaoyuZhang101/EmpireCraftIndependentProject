@@ -45,7 +45,6 @@ public static class CorveeSystem
     private const float PeasantPerIntensity = 12.5f, PeasantCap = 10f;
 
     // 记一笔工役(grand：大兴土木的大工程)；帝国成员记到帝国上
-#if EC_PENDING
     public static void Add(Realm kingdom, float labor, bool grand)
     {
         if (labor <= 0f || kingdom?.Record == null || kingdom.IsGone() || EmpireWorld.Current == null ||
@@ -66,13 +65,10 @@ public static class CorveeSystem
         data.corvee_load += labor;
         if (grand) data.grand_works += labor;
     }
-#endif
 
     // 全境性的工程(封禅等)：按政权的城数记
-#if EC_PENDING
     public static void AddPerCity(Realm kingdom, float perCity, bool grand) =>
         Add(kingdom, perCity * Mathf.Max(1, RealmCities(kingdom)), grand);
-#endif
 
     // 苛政：重徭役
     public static float CorveeBurden(Realm core, int cities) =>

@@ -217,13 +217,13 @@ public static class CityPlanEditing
     #region 改动
 
     // 规划改完：sync 时先让原版建筑跟上城区表(见 CityZoningSystem.Sync；自动的城不动)，再丢掉本城平面图重算
-    // (城市平面图层、精细层、标注、夜景灯光都按平面图指纹跟着重画，见 PureMapPatch.Redraw、Stamp)，城墙跟着重铺(见 CityPlanWorks)
+    // (城市平面图层、精细层、标注、夜景灯光都按平面图指纹跟着重画，见 GameView.Redraw、Stamp)，城墙跟着重铺(见 CityPlanWorks)
 #if EC_PENDING
     private static CityZoningSystem.Outcome Changed(City city, bool sync)
     {
         CityZoningSystem.Outcome outcome = sync ? CityZoningSystem.Sync(city) : default;
         Revision++;
-        PureMapPatch.Redraw(city);
+        GameView.Redraw(city);
         try
         {
             CityPlanWorks.SyncWalls(city);
@@ -237,14 +237,12 @@ public static class CityPlanEditing
 #endif
 
     // 别的系统改了城(村镇、道路、城墙、功能建筑)：Revision 加一，本城平面图重算重画(不记撤销、不对账)
-#if EC_PENDING
     public static void Touch(City city)
     {
         if (city?.Record == null) return;
         Revision++;
-        PureMapPatch.Redraw(city);
+        GameView.Redraw(city);
     }
-#endif
 
     // 只让界面重画预览(Revision 加一)，不重算平面图：拖着画路每帧都调，路不在平面图里(见 CityPlanWorks)
     public static void Bump() => Revision++;
@@ -516,7 +514,7 @@ public static class CityPlanEditing
         if (!Editable(city, out string reason)) return reason;
         if (zone == null || zone.City != city) return NotOwn();
         string type = CityZoningSystem.TypeOf(kind), name = KindName(kind);
-        BuildingAsset asset = type == null ? null : CityZoningSystem.BestAsset(city, type);
+        BuildingKind asset = type == null ? null : CityZoningSystem.BestAsset(city, type);
         if (asset == null) return string.Format(LM.Get("city_plan_build_no_asset"), name);
         if (!PureMapPatch.ZoneInTown(city, zone)) return LM.Get("city_plan_build_not_town");
         if (kind == "docks" && !CityZoningSystem.HasWater(zone)) return LM.Get("city_plan_build_docks");
@@ -543,12 +541,12 @@ public static class CityPlanEditing
         if (!Editable(city, out string reason)) return reason;
         if (zone == null || zone.City != city) return NotOwn();
         bool any = false;
-        foreach (BuildingAsset asset in CityZoningSystem.AssetsIn(city, zone))
-            if (!CityZoningSystem.IsHouse(asset) && asset.type != "type_hall" && asset.type != "type_bonfire")
+        foreach (BuildingKind asset in CityZoningSystem.AssetsIn(city, zone))
+            if (!CityZoningSystem.IsHouse(asset) && asset.Type != "type_hall" && asset.Type != "type_bonfire")
                 any = true;
         if (!any) return LM.Get("city_plan_demolish_none");
         bool entered = EnterManual(city);
-        List<BuildingAsset> removed = CityZoningSystem.Demolish(city, zone);
+        List<BuildingKind> removed = CityZoningSystem.Demolish(city, zone);
         if (entered) CityZoningSystem.Sync(city);
         Touch(city);
         if (removed.Count == 0) return WithManualNote(LM.Get("city_plan_demolish_none"), entered);
@@ -559,8 +557,7 @@ public static class CityPlanEditing
     // 一组建筑按种类数：民居3、市集1……
     private static readonly string[] InfoKinds = { "house", "market", "temple", "library", "barracks", "docks", "other" };
 
-#if EC_PENDING
-    private static string InfoKind(BuildingAsset asset) => asset?.type switch
+    private static string InfoKind(BuildingKind asset) => asset?.Type switch
     {
         "type_house" => "house",
         "type_market" => "market",
@@ -571,10 +568,10 @@ public static class CityPlanEditing
         _ => "other"
     };
 
-    private static string Contents(List<BuildingAsset> buildings)
+    private static string Contents(List<BuildingKind> buildings)
     {
         var counts = new Dictionary<string, int>();
-        foreach (BuildingAsset asset in buildings)
+        foreach (BuildingKind asset in buildings)
         {
             string kind = InfoKind(asset);
             counts[kind] = counts.TryGetValue(kind, out int n) ? n + 1 : 1;
@@ -585,7 +582,6 @@ public static class CityPlanEditing
                 parts.Add(string.Format(LM.Get("city_plan_info_count"), KindName(kind), count));
         return string.Join(LM.Get("city_plan_part_separator"), parts);
     }
-#endif
 
     // 这块地是什么(悬停提示用)：城区(手动城区带建筑位用了几个)：民居3、市集1 / 宫城 / 城郊：某村 / 别城的地 / 无主之地
 #if EC_PENDING
@@ -594,7 +590,7 @@ public static class CityPlanEditing
         if (!Alive(city) || zone == null) return null;
         if (zone.City == null) return LM.Get("city_plan_info_wild");
         if (zone.City != city) return string.Format(LM.Get("city_plan_info_other_city"), zone.City.GetCityName());
-        List<BuildingAsset> here = CityZoningSystem.AssetsIn(city, zone);
+        List<BuildingKind> here = CityZoningSystem.AssetsIn(city, zone);
         string contents = here.Count > 0 ? Contents(here) : null;
         if (PureMapMode.Enabled && PureMapPatch.ZoneInTown(city, zone))
         {

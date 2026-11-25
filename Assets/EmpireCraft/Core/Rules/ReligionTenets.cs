@@ -125,7 +125,6 @@ public static class ReligionTenets
     #region 本有与融来
 
     // 本有教义：按宗教类型、宗教的天下现算
-#if EC_PENDING
     public static List<string> Innate(Religion religion)
     {
         if (religion?.data == null) return new List<string>();
@@ -143,7 +142,6 @@ public static class ReligionTenets
         InnateCache[key] = list;
         return list;
     }
-#endif
 
     // 融来的教义；分出的教会头一次查时照抄母宗教的(宗教改革的改革者、诸侯分出的"正本清源"，不抄仪轨与本地圣徒)
     public static List<SyncreticTenetData> Absorbed(Religion religion) => Absorbed(religion, 0);
@@ -175,16 +173,13 @@ public static class ReligionTenets
         return list;
     }
 
-#if EC_PENDING
     public static bool Has(Religion religion, string tenet) =>
         Innate(religion).Contains(tenet) || Absorbed(religion).Any(entry => entry.tenet == tenet);
-#endif
 
     #endregion
 
     #region 合计
 
-#if EC_PENDING
     public static Effects Of(Religion religion)
     {
         if (religion?.data == null) return Empty;
@@ -212,7 +207,6 @@ public static class ReligionTenets
         }
         return effects;
     }
-#endif
 
     private static void Apply(Effects effects, ReligionTenetDef def, float k, string sphere, bool innate)
     {
@@ -245,7 +239,6 @@ public static class ReligionTenets
     #region 效果
 
     // 传教力的倍数(升格的民族宗教另加)
-#if EC_PENDING
     public static float MissionFactor(Religion religion)
     {
         if (religion?.data == null) return 1f;
@@ -253,21 +246,15 @@ public static class ReligionTenets
         if (IsOrganized(religion)) factor += Syncretism.organized_mission;
         return Mathf.Max(0.1f, factor);
     }
-#endif
 
     // 惰性的倍数(不看在哪个天下)
-#if EC_PENDING
     public static float InertiaFactor(Religion religion) => religion?.data == null ? 1f : Mathf.Max(0.1f, 1f + Of(religion).Inertia);
-#endif
 
     // 宗教的天下就是这个天下
-#if EC_PENDING
     public static bool AtHome(Religion religion, string sphere) =>
         religion?.data != null && !string.IsNullOrEmpty(sphere) && ReligionSphere.SphereOf(religion) == sphere;
-#endif
 
     // 本城惯性再乘的倍数：本天下 ×(1 + 0.5 + 祖灵护土等)，有本地圣徒的天下另加
-#if EC_PENDING
     public static float HomeFactor(Religion religion, string citySphere)
     {
         if (religion?.data == null || string.IsNullOrEmpty(citySphere)) return 1f;
@@ -277,10 +264,8 @@ public static class ReligionTenets
         if (effects.Saints.TryGetValue(citySphere, out float saint)) factor += saint;
         return factor;
     }
-#endif
 
     // 本土抗皈依(神国)：意愿再乘 1 − 这个数
-#if EC_PENDING
     public static float Resist(Religion religion) => religion?.data == null ? 0f : Mathf.Clamp(Of(religion).Resist, 0f, 0.9f);
 
     public static float HolyCityFactor(Religion religion) => religion?.data == null ? 1f : 1f + Of(religion).HolyCity;
@@ -288,7 +273,6 @@ public static class ReligionTenets
     public static float TempleResearchFactor(Religion religion) => religion?.data == null ? 1f : 1f + Of(religion).TempleResearch;
 
     public static bool CaptureImmune(Religion religion) => religion?.data != null && Of(religion).CaptureImmune;
-#endif
 
     // 以融合御同化：absorber 从 source 一系(同一宗系之首)融了 n 条，source 对它的势能与皈依意愿 ×0.85ⁿ，至多 ×0.55
     public static float Pull(Religion absorber, Religion source)
@@ -318,7 +302,6 @@ public static class ReligionTenets
     }
 
     // 升格：民族宗教(民间、腾格里、神道)融到 organized_min 条以上、其中有"经典"或"仿效教阶"，在本天下内可当皈依候选，传教另加
-#if EC_PENDING
     public static bool IsOrganized(Religion religion)
     {
         if (religion?.data == null) return false;
@@ -326,10 +309,8 @@ public static class ReligionTenets
         Effects effects = Of(religion);
         return effects.AbsorbedOrganizes && effects.AbsorbedCount >= Syncretism.organized_min;
     }
-#endif
 
     // 施行宽容制度(三教并立、神佛习合、游牧宗教宽容、罗马世俗化)的国家奉它为国教
-#if EC_PENDING
     public static bool Tolerant(Religion religion)
     {
         if (religion?.data == null || EmpireWorld.Current?.LiveRealms == null) return false;
@@ -340,10 +321,8 @@ public static class ReligionTenets
         }
         return false;
     }
-#endif
 
     // 融合槽：类型底子 + 本有的结构教义 + 宽容制度
-#if EC_PENDING
     public static int Slots(Religion religion, bool tolerant)
     {
         if (religion?.data == null) return 0;
@@ -362,11 +341,9 @@ public static class ReligionTenets
         if (tolerant) openness *= Syncretism.tolerance_openness;
         return Mathf.Max(0f, openness);
     }
-#endif
 
     // absorber 能从 source 融哪几条：普世宗教只融本地圣徒(按来源的天下，每个天下一条)；排他的只融仪轨；
     // 伦理、组织给不排他的；教理、结构不外传；已有的不再融
-#if EC_PENDING
     public static List<ReligionTenetDef> Candidates(Religion absorber, Religion source)
     {
         var result = new List<ReligionTenetDef>();
@@ -396,10 +373,8 @@ public static class ReligionTenets
         }
         return result;
     }
-#endif
 
     // 与国教同教之城的稳定加成：本天下宗教 +2，另加节庆等教义
-#if EC_PENDING
     public static float ConcordBonus(City city)
     {
         if (city?.Record == null || city.IsGone() || city.Realm?.Record == null || city.Realm.IsWild || !city.HasReligion() ||
@@ -412,10 +387,8 @@ public static class ReligionTenets
 
     public static string DescribeConcord(City city) =>
         string.Format(LM.Get("stability_faith_concord"), city?.Religion?.Name ?? "", ConcordBonus(city));
-#endif
 
     // 本土御侮：side 的国教在这座城的天下是本土宗教，又有"神国"之类的教义
-#if EC_PENDING
     public static float DefenseFactor(Realm side, City city)
     {
         Religion faith = side?.Record != null && side.HasReligion() ? side.Religion : null;
@@ -423,10 +396,8 @@ public static class ReligionTenets
         float bonus = Of(faith).Defense;
         return bonus > 0f && AtHome(faith, ReligionSphere.SphereOfCity(city)) ? 1f + bonus : 1f;
     }
-#endif
 
     // 正统(MonarchyLegitimacy)：奉本天下正教、治下过半同教 +3；礼教纲常、长生天命、敬天法祖等教义另加
-#if EC_PENDING
     public static IEnumerable<(string key, int value)> LegitimacyItems(Empire empire)
     {
         Realm core = empire?.CoreKingdom;
@@ -441,10 +412,8 @@ public static class ReligionTenets
             if (share >= need) tenets += value;
         if (tenets != 0) yield return ("mandate_faith_tenets", tenets);
     }
-#endif
 
     // 帝国(中央连同成员)人口里奉 faith 的比例；每月重算一次
-#if EC_PENDING
     private static float Share(Empire empire, Realm core, Religion faith)
     {
         double now = GameClock.Now;
@@ -469,7 +438,6 @@ public static class ReligionTenets
         ShareCache[key] = (now, faith.data.id, share);
         return share;
     }
-#endif
 
     #endregion
 }

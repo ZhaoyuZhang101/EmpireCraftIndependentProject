@@ -40,7 +40,6 @@ public static class FiscalDiagnostics
         Events[key] = previous + amount;
     }
 
-#if EC_PENDING
     public static void LogYearly()
     {
         try
@@ -53,7 +52,6 @@ public static class FiscalDiagnostics
             LogService.LogWarning($"[EmpireCraft][财政诊断] 输出失败: {exception.Message}");
         }
     }
-#endif
 
     private static void LogEvents()
     {
@@ -64,7 +62,6 @@ public static class FiscalDiagnostics
         LogService.LogInfo($"[EmpireCraft][事件统计] {line}");
     }
 
-#if EC_PENDING
     private static void LogFiscal()
     {
         if (EmpireWorld.Current?.LiveRealms == null) return;
@@ -111,6 +108,5 @@ public static class FiscalDiagnostics
                 $"{(item.ratio < 0.999d ? $"/拨付 {item.ratio:0%}" : "")}")));
         LogService.LogInfo(text.ToString());
     }
-#endif
 }
 }

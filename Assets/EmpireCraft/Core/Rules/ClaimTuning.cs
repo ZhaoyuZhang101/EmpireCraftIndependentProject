@@ -77,7 +77,6 @@ public static class ClaimTuning
     };
 
     // 一份经费 = 一年一档福利的开销
-#if EC_PENDING
     public static int Share(Empire empire, Realm localPayer = null)
     {
         int households = localPayer != null
@@ -95,7 +94,6 @@ public static class ClaimTuning
         return shares <= 0f || empire == null && localPayer == null
             ? 0 : (int)Math.Round(shares * Share(empire, localPayer));
     }
-#endif
 
     public static string OutcomeKey(TemporaryFactionType type) => "claim_outcome_" + type;
 
@@ -108,7 +106,6 @@ public static class ClaimTuning
     }
 
     // 按帝国的文化线(西方不写"推行三省六部制"……见 CultureDoctrines)；没有专门结果文本的返回 null
-#if EC_PENDING
     public static string Outcome(TemporaryFactionType type, Empire empire)
     {
         string baseKey = OutcomeKey(type);
@@ -116,6 +113,5 @@ public static class ClaimTuning
         string text = LM.Get(key);
         return string.IsNullOrWhiteSpace(text) || text == key ? Outcome(type) : text;
     }
-#endif
 }
 }

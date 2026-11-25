@@ -43,7 +43,6 @@ public static class EmpireCoreControl
     }
 
     // 各政权控制的核心城市数与核心城市总数；同一核心会被频繁询问(华夏军阀 AI、年度扫描)，缓存几秒
-#if EC_PENDING
     public static (Dictionary<Realm, int> held, int total) GetHolders(EmpireCore core)
     {
         if (core == null) return (new Dictionary<Realm, int>(), 0);
@@ -60,7 +59,6 @@ public static class EmpireCoreControl
         Cache[core.id] = (held, cities.Count, now);
         return (held, cities.Count);
     }
-#endif
 
     public static void Invalidate(EmpireCore core = null)
     {
@@ -68,20 +66,16 @@ public static class EmpireCoreControl
         else Cache.Remove(core.id);
     }
 
-#if EC_PENDING
     public static float GetControlShare(Empire empire, EmpireCore core)
     {
         if (empire?.CoreKingdom == null) return 0f;
         (Dictionary<Realm, int> held, int total) = GetHolders(core);
         return total == 0 ? 0f : (held.TryGetValue(empire.CoreKingdom, out int count) ? count : 0) / (float)total;
     }
-#endif
 
     // 核心城市中归该帝国(含其附庸)控制的那些
-#if EC_PENDING
     public static List<City> HeldCities(Empire empire, EmpireCore core) => core == null || empire?.CoreKingdom == null
         ? new List<City>()
         : EmpireCoreManager.GetCities(core).Where(city => Sovereign(city.Realm) == empire.CoreKingdom).ToList();
-#endif
 }
 }

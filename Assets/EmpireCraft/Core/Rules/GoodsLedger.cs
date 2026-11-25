@@ -39,7 +39,7 @@ public static class GoodsLedger
 #if EC_PENDING
     public static Cargo Gathered(Person actor)
     {
-        if (CityPopulationSystem.AbstractPopulationEnabled || actor?.asset == null || actor.asset.is_boat ||
+        if (CityPopulationSystem.AbstractPopulationEnabled || actor?.Asset == null || actor.Asset.IsBoat ||
             !actor.isCarryingResources() || actor.City == null || !actor.City.Alive) return null;
         Cargo cargo = null;
         foreach (ResourceContainer item in actor.inventory.getResources().Values)

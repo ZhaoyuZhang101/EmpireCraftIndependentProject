@@ -44,7 +44,6 @@ public static class FactionEditor
         return empire != null && !empire.IsGone() && !empire.IsArchived() && empire.CoreKingdom == kingdom ? empire : null;
     }
 
-#if EC_PENDING
     public static Court CourtOf(Realm kingdom)
     {
         Empire empire = EmpireOf(kingdom);
@@ -64,17 +63,13 @@ public static class FactionEditor
     };
 
     public static bool HasRoom(Realm kingdom) => Current(kingdom).Count < Seats(kingdom);
-#endif
 
     // 朝堂的文化：帝国核心按帝国的制度文化，其余按本国文化(古代学说的叫法、有无按它，见 CultureDoctrines)
-#if EC_PENDING
     public static string CultureOf(Realm kingdom) => CultureDoctrines.CultureOf(kingdom);
-#endif
 
     // 这一朝堂按理念能立(或改成)的理念：政党时代是近代理念，此前是古代理念——本文化线的学说(华夏是诸子百家，
     // 西方是经院正统、法学派……按科技陆续出现)、朝堂立场与上古信仰，本文化线没有的(西方没有宦官……)不列；
     // 固定派系另有一格"空白"(中间派)。reason 为空表示可选
-#if EC_PENDING
     public static List<(PartyIdeology ideology, string reason)> Options(Realm kingdom, FixedFaction editing = null)
     {
         var result = new List<(PartyIdeology, string)>();
@@ -104,16 +99,12 @@ public static class FactionEditor
         if (court == Court.Fixed && editing?.IsClique != true) result.Add((PartyIdeology.Centrism, null));
         return result;
     }
-#endif
 
     // 已在朝(同一理念的派系已经有了)
-#if EC_PENDING
     public static bool Seated(Realm kingdom, PartyIdeology ideology) =>
         Current(kingdom).Any(faction => PartySystem.LeaningOf(faction) == ideology);
-#endif
 
     // 本政体的默认派系(律令制的文官派、武官派……)：只有固定派系的朝堂用
-#if EC_PENDING
     public static List<FixedFaction> Defaults(Realm kingdom) =>
         CourtOf(kingdom) == Court.Fixed
             ? kingdom?.GetRegime()?.Factions?.Where(faction => faction != null).ToList() ?? new List<FixedFaction>()
@@ -132,10 +123,8 @@ public static class FactionEditor
         Attach(kingdom, faction);
         return faction;
     }
-#endif
 
     // 派系库里存过的：复制一份入朝(以前直接把库里那一份挂进国家，改国家的派系连库里的也改了)
-#if EC_PENDING
     public static FixedFaction AddFromLibrary(Realm kingdom, FixedFaction preset, out string reason)
     {
         reason = Check(kingdom);
@@ -147,6 +136,7 @@ public static class FactionEditor
         return faction;
     }
 
+#if EC_PENDING
     public static FixedFaction CreateByIdeology(Realm kingdom, PartyIdeology ideology, out string reason)
     {
         reason = Check(kingdom);
@@ -180,16 +170,15 @@ public static class FactionEditor
         Attach(kingdom, faction);
         return faction;
     }
+#endif
 
     private static string Check(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || kingdom.GetRegime() == null) return "faction_add_none";
         return HasRoom(kingdom) ? null : "faction_add_full";
     }
-#endif
 
     // 入朝：记上所属帝国、补齐诉求、重算各派中央占比
-#if EC_PENDING
     private static void Attach(Realm kingdom, FixedFaction faction)
     {
         Regime regime = kingdom.GetRegime();
@@ -201,10 +190,8 @@ public static class FactionEditor
         kingdom.ReconcileFactionRatios(regime.GetPlayerFactions());
         faction.Update();
     }
-#endif
 
     // 改理念：派系类型(诉求清单)、各阶层亲疏按新理念重设；理念记为手选。已有的诉求进度作废
-#if EC_PENDING
     public static bool ChangeIdeology(Realm kingdom, FixedFaction faction, PartyIdeology ideology, out string reason)
     {
         reason = null;
@@ -220,7 +207,6 @@ public static class FactionEditor
         faction.Update();
         return true;
     }
-#endif
 
     private static void Apply(FixedFaction faction, PartyIdeology ideology)
     {
@@ -241,7 +227,6 @@ public static class FactionEditor
 
     #region 起名
 
-#if EC_PENDING
     public static void SetNameMode(Realm kingdom, FixedFaction faction, int mode)
     {
         if (faction == null) return;
@@ -249,7 +234,6 @@ public static class FactionEditor
         if (mode == NameDefault) faction.Name = DefaultName(kingdom, faction);
         else if (mode == NameLeader) FollowLeaderName(faction);
     }
-#endif
 
     // 手改了名字：以后不再自动改
     public static void Rename(FixedFaction faction, string name)
@@ -261,7 +245,6 @@ public static class FactionEditor
 
     // 默认名：政党取本文化这一理念的党名；本政体默认派系里同类型的用它的名字(文官派、皇权派……)；
     // 其余按理念的史书称号(清流、变法派、帝党……；别的文化线按本线的叫法，如西方的王党、骑士派)，重名加序号；空白派系叫"新派系"
-#if EC_PENDING
     public static string DefaultName(Realm kingdom, FixedFaction faction)
     {
         Regime regime = kingdom?.GetRegime();
@@ -283,10 +266,8 @@ public static class FactionEditor
         }
         return label;
     }
-#endif
 
     // 魁首之姓："严党"；没有姓的用全名
-#if EC_PENDING
     public static string LeaderName(FixedFaction faction)
     {
         Person leader = faction?.GetLeader();
@@ -295,17 +276,14 @@ public static class FactionEditor
         if (string.IsNullOrWhiteSpace(surname)) surname = leader.FullName();
         return string.IsNullOrWhiteSpace(surname) ? null : string.Format(LM.Get("clique_name_party"), surname);
     }
-#endif
 
     // 按魁首之姓起名的：魁首换了人跟着改(FixedFaction.SetLeader、Update 调)
-#if EC_PENDING
     public static void FollowLeaderName(FixedFaction faction)
     {
         if (faction == null || faction.NameMode != NameLeader) return;
         string name = LeaderName(faction);
         if (!string.IsNullOrEmpty(name) && name != faction.Name) faction.Name = name;
     }
-#endif
 
     #endregion
 }

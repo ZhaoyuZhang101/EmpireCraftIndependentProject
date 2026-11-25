@@ -101,6 +101,7 @@ public static class WorldWarSystem
         }
         return blocs.Values.ToList();
     }
+#endif
 
     private static string GetPolityName(Realm kingdom)
     {
@@ -121,6 +122,5 @@ public static class WorldWarSystem
             empire.RecordHistory(directContent: text, kingdomId: bloc.Representative?.Key ?? -1L);
         }
     }
-#endif
 }
 }

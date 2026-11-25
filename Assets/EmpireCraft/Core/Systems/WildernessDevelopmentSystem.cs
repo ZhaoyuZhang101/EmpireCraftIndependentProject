@@ -312,9 +312,9 @@ public static class WildernessDevelopmentSystem
         WildDevelopmentZone state = Get(zone.Index);
         if (state != null && state.dev >= Full) return;
         Pick pick = Evaluate(zone, region, true);
-        if (pick.Kingdom == null) return;
+        if (pick.Realm == null) return;
         state ??= Start(zone, region.Kind);
-        state.by = pick.Kingdom.id;
+        state.by = pick.Realm.Key;
         Raise(zone, state, pick.Rate);
     }
 #endif
@@ -382,7 +382,7 @@ public static class WildernessDevelopmentSystem
             bool edict = EdictOf(kingdom, region.Id) != null;
             if (edict) rate *= EdictBoost;
             if (rate <= pick.Rate) continue;
-            pick.Kingdom = kingdom;
+            pick.Realm = kingdom;
             pick.Rate = rate;
             pick.Edict = edict;
         }
@@ -391,7 +391,6 @@ public static class WildernessDevelopmentSystem
 #endif
 
     // 这国的科技门槛与倍率、动荡(见类头)
-#if EC_PENDING
     private static ModRealm RealmOf(Realm kingdom, bool cached)
     {
         if (cached && Realms.TryGetValue(kingdom, out ModRealm hit)) return hit;
@@ -416,10 +415,8 @@ public static class WildernessDevelopmentSystem
         if (cached) Realms[kingdom] = realm;
         return realm;
     }
-#endif
 
     // 挨着城的前沿：人口压力 × 南迁(动荡之年、这座城不在前线)；一年推进里记下这国挨着这一片的城里最大的人口压力
-#if EC_PENDING
     private static float CityFactor(City city, ModRealm realm, WildRegion region, bool pass)
     {
         if (!pass || !Cities.TryGetValue(city, out (float pressure, bool front) hit))
@@ -429,35 +426,30 @@ public static class WildernessDevelopmentSystem
         }
         if (pass)
         {
-            (long, int) key = (realm.Kingdom.id, region.Id);
+            (long, int) key = (realm.Realm.Key, region.Id);
             if (!_pressureNow.TryGetValue(key, out float most) || most < hit.pressure) _pressureNow[key] = hit.pressure;
         }
         return hit.pressure * (realm.Unrest && !hit.front ? MigrationBoost : 1f);
     }
-#endif
 
     // 往里推的地块(挨着开发过半的地块，不挨城)：人口压力按这国挨着这一片的城里最大的(今年已记的、上一年记的)；动荡之年都算南迁
-#if EC_PENDING
     private static float InnerFactor(ModRealm realm, WildRegion region)
     {
-        (long, int) key = (realm.Kingdom.id, region.Id);
+        (long, int) key = (realm.Realm.Key, region.Id);
         float pressure = 1f;
         if (_pressureLast.TryGetValue(key, out float last)) pressure = Mathf.Max(pressure, last);
         if (_pressureNow.TryGetValue(key, out float now)) pressure = Mathf.Max(pressure, now);
         return pressure * (realm.Unrest ? MigrationBoost : 1f);
     }
-#endif
 
     // 人多地少：人口到上限九成 ×1.5，超员 ×2
-#if EC_PENDING
     private static float Pressure(City city)
     {
-        int max = city.getPopulationMaximum();
+        int max = city.GetPopulationMaximum();
         if (max <= 0) return 1f;
         float people = CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.GetTotal(city) : city.PopulationCount();
         return people >= max ? CrowdedBoost : people >= max * PressureShare ? PressureBoost : 1f;
     }
-#endif
 
     #endregion
 
@@ -599,7 +591,7 @@ public static class WildernessDevelopmentSystem
         foreach (Cell next in zone.NeighboursAll ?? Array.Empty<Cell>())
         {
             if (next?.Center == null) continue;
-            if (next.City != null || DevelopmentOf(next) >= Half || next.GroundTiles > 0 && !WildernessSystem.IsWild(next))
+            if (next.City != null || DevelopmentOf(next) >= Half || next.GroundCount > 0 && !WildernessSystem.IsWild(next))
                 Anchors.Add(next.Center);
         }
         if (Anchors.Count == 0 && zone.Center != null) Anchors.Add(zone.Center);
@@ -662,8 +654,8 @@ public static class WildernessDevelopmentSystem
         _grassHigh ??= AssetManager.top_tiles.get("grass_high");
         TerrainKind grass = high && _grassHigh != null ? _grassHigh : _grassLow;
         if (grass == null) return false;
-        Building building = tile.building;
-        if (building?.asset != null && building.asset.building_type == BuildingType.Building_Tree) building.startDestroyBuilding();
+        Building building = tile.Building;
+        if (building?.Asset != null && building.Asset.building_type == BuildingType.Building_Tree) building.startDestroyBuilding();
         MapAction.terraformTop(tile, grass, TerraformLibrary.nothing);
         return true;
     }
@@ -835,7 +827,6 @@ public static class WildernessDevelopmentSystem
 #endif
 
     // 一年开头结算诏令：国亡、那一片开完(开完的记纪事)、到期即止；付不起当年的钱罢了；否则付钱、记工役
-#if EC_PENDING
     private static void SettleEdicts()
     {
         for (int i = _data.edicts.Count - 1; i >= 0; i--)
@@ -867,7 +858,6 @@ public static class WildernessDevelopmentSystem
             CorveeSystem.Add(kingdom, EdictCorvee, false);
         }
     }
-#endif
 
     #endregion
 
@@ -885,10 +875,10 @@ public static class WildernessDevelopmentSystem
         switch (StatusOf(zone, region, out Pick pick))
         {
             case 1:
-                status = string.Format(LM.Get("wild_dev_by"), pick.Kingdom.name);
+                status = string.Format(LM.Get("wild_dev_by"), pick.Realm.Name);
                 break;
             case 2:
-                status = string.Format(LM.Get("wild_dev_by_edict"), pick.Kingdom.name);
+                status = string.Format(LM.Get("wild_dev_by_edict"), pick.Realm.Name);
                 break;
             case 3:
                 status = string.Format(LM.Get("wild_dev_missing"), pick.Lacking.Name, LM.Get("tech_" + pick.Missing));
@@ -926,7 +916,7 @@ public static class WildernessDevelopmentSystem
         if (WildernessSystem.IsNeutral(zone)) return 5;
         if (DevelopmentOf(zone) >= Full) return 0;
         pick = Evaluate(zone, region, false);
-        if (pick.Kingdom != null) return pick.Edict ? 2 : 1;
+        if (pick.Realm != null) return pick.Edict ? 2 : 1;
         if (pick.Lacking != null) return 3;
         return pick.Owner != null ? 4 : 0;
     }

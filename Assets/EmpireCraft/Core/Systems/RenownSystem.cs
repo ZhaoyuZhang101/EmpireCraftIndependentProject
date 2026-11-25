@@ -42,7 +42,6 @@ public static class RenownSystem
     public static int GentryIncome(int grade) => Math.Max(0, 6 - Math.Max(1, grade));
 
     // 这人一年的名望年入；parts 给界面列出各项(本地化键、数目)
-#if EC_PENDING
     public static int Income(Person actor, List<(string key, int value)> parts = null)
     {
         if (actor?.Record == null || actor.IsGone() || !actor.Alive || !actor.IsAdult() || actor.IsWarMachine()) return 0;
@@ -83,10 +82,8 @@ public static class RenownSystem
         if (GentrySystem.IsGentry(clan)) Add("renown_income_gentry", GentryIncome(GentrySystem.Grade(GentrySystem.Pedigree(clan))));
         return total;
     }
-#endif
 
     // 过生日(ActorPatch.UpdateAge)：先去一成，再记年入
-#if EC_PENDING
     public static void Yearly(Person actor)
     {
         if (actor?.Record == null || actor.IsGone() || !actor.Alive || actor.IsWarMachine()) return;
@@ -94,7 +91,6 @@ public static class RenownSystem
         int decay = renown > 0 ? Math.Max(1, (int)Math.Ceiling(renown * Decay)) : 0;
         actor.Renown = renown - decay + Income(actor);
     }
-#endif
 
     // 打赢一仗：按战功记名望(统领满额、战争统帅一半，见 FamousTalentSystem.OnBattle)
     public static void OnBattle(Person actor, float fame)

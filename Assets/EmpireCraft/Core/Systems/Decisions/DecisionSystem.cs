@@ -51,10 +51,8 @@ public static class DecisionSystem
     private const double TickMilliseconds = 0.35d;
     private const int MustPerTick = 2;
 
-#if EC_PENDING
-    private static readonly Dictionary<string, PlotAsset> Defs = new();
-    private static readonly List<PlotAsset> Initiable = new();
-#endif
+    private static readonly Dictionary<string, PlotKind> Defs = new();
+    private static readonly List<PlotKind> Initiable = new();
     private static readonly List<DecisionCase> Queue = new();
     private static int _queueCursor;
     private static readonly Dictionary<long, DecisionCase> Cases = new();
@@ -88,9 +86,11 @@ public static class DecisionSystem
     }
 
 #if EC_PENDING
-    public static bool Manages(PlotAsset asset) => asset != null && Adopt() && Defs.ContainsKey(asset.id);
+    public static bool Manages(PlotKind asset) => asset != null && Adopt() && Defs.ContainsKey(asset.Id);
+#endif
     public static bool Manages(Plot plot) => plot?.data != null && Cases.ContainsKey(plot.data.id);
-    public static PlotAsset Def(string id) => id != null && Adopt() && Defs.TryGetValue(id, out PlotAsset asset) ? asset : null;
+#if EC_PENDING
+    public static PlotKind Def(string id) => id != null && Adopt() && Defs.TryGetValue(id, out PlotKind asset) ? asset : null;
 #endif
 
     // 接手模组的决议：原版人物 AI(try_new_plot)从 basic_plots 里挑谋划，把模组的拿出来，改由这里发起；
@@ -102,10 +102,10 @@ public static class DecisionSystem
         PlotsLibrary library = AssetManager.plots_library;
         if (library == null || library.list.Count == 0) return false;
         _adopted = true;
-        foreach (PlotAsset asset in library.list)
+        foreach (PlotKind asset in library.list)
         {
-            if (asset?.id == null || asset.group_id != Group || Defs.ContainsKey(asset.id)) continue;
-            Defs[asset.id] = asset;
+            if (asset?.Id == null || asset.group_id != Group || Defs.ContainsKey(asset.Id)) continue;
+            Defs[asset.Id] = asset;
             if (!asset.is_basic_plot) continue;
             Initiable.Add(asset);
         }
@@ -117,13 +117,13 @@ public static class DecisionSystem
 
     // ───────── 立项(原版 newPlot 之后，见 DecisionPatch) ─────────
 #if EC_PENDING
-    public static void OnPlotCreated(Plot plot, Person author, PlotAsset asset)
+    public static void OnPlotCreated(Plot plot, Person author, PlotKind asset)
     {
         if (_restoring || plot?.data == null || author == null || !Manages(asset)) return;
         double now = GameClock.Now;
         Track(new DecisionCase
         {
-            plot = plot.data.id, def = asset.id, initiator = author.Key, started = now, next = now + GameClock.MonthLength,
+            plot = plot.data.id, def = asset.Id, initiator = author.Key, started = now, next = now + GameClock.MonthLength,
             effort = Math.Max(MinEffort, asset.progress_needed)
         });
         Started++;
@@ -140,7 +140,7 @@ public static class DecisionSystem
 #if EC_PENDING
     public static void Tick()
     {
-        if (EmpireWorld.Current?.plots == null || !Adopt()) return;
+        if (EmpireWorld.Current?.Plots == null || !Adopt()) return;
         if (Pending.Count > 0) Restore();
         if (_month < 0) AdoptOrphans();
         int month = GameClock.Year * 12 + GameClock.Month;
@@ -179,7 +179,7 @@ public static class DecisionSystem
             }
             steps++;
             item.next = now + GameClock.MonthLength;
-            Plot plot = EmpireWorld.Current.plots.get(item.plot);
+            Plot plot = EmpireWorld.Current.Plots.Get(item.plot);
             bool closed;
             try
             {
@@ -200,9 +200,9 @@ public static class DecisionSystem
 #if EC_PENDING
     private static bool Step(DecisionCase item, Plot plot, double now)
     {
-        PlotAsset def = Def(item.def);
-        Person author = plot?.getAuthor();
-        if (def == null || plot?.data == null || !plot.isActive() || author == null || !author.Alive || author.plot != plot)
+        PlotKind def = Def(item.def);
+        Person author = plot?.GetAuthor();
+        if (def == null || plot?.data == null || !plot.IsActive() || author == null || !author.Alive || author.plot != plot)
         {
             Dropped++;
             Cases.Remove(item.plot);
@@ -245,7 +245,7 @@ public static class DecisionSystem
     private static bool Close(DecisionCase item, Plot plot, bool finished)
     {
         Cases.Remove(item.plot);
-        Person author = plot?.getAuthor();
+        Person author = plot?.GetAuthor();
         if (finished)
         {
             NoteDone(item, author);
@@ -253,7 +253,7 @@ public static class DecisionSystem
             FinishedBy[item.def] = FinishedBy.TryGetValue(item.def, out int done) ? done + 1 : 1;
         }
         else Lapsed++;
-        if (plot?.data != null && plot.isActive()) plot.finishPlot(finished ? PlotState.Finished : PlotState.Cancelled, author);
+        if (plot?.data != null && plot.IsActive()) plot.finishPlot(finished ? PlotState.Finished : PlotState.Cancelled, author);
         return true;
     }
 #endif
@@ -303,7 +303,7 @@ public static class DecisionSystem
         }
         foreach (Realm kingdom in EmpireWorld.Current.LiveRealms) Add(kingdom?.Ruler);
         foreach (City city in EmpireWorld.Current.Cities) Add(city?.Leader);
-        foreach (Clan clan in EmpireWorld.Current.clans) Add(clan?.getChief());
+        foreach (Clan clan in EmpireWorld.Current.Clans) Add(clan?.getChief());
         if (NextConsider.Count > Pool.Count * 4 + 500) NextConsider.Clear();
         if (Unfit.Count > Pool.Count * 2 + 500) Unfit.Clear();
     }
@@ -314,14 +314,14 @@ public static class DecisionSystem
         ChiefDefInfos.Clear();
         for (int i = 0; i < Initiable.Count; i++)
         {
-            PlotAsset def = Initiable[i];
+            PlotKind def = Initiable[i];
             var info = new DecisionScale.DefInfo
             {
-                index = i, id = def.id, kind = DecisionScale.KindOf(def.id), minStanding = def.min_level, minRenown = def.min_renown_actor,
+                index = i, id = def.Id, kind = DecisionScale.KindOf(def.Id), minStanding = def.min_level, minRenown = def.min_renown_actor,
                 minRealmRenown = def.min_renown_kingdom, minIntelligence = def.min_intelligence, minDiplomacy = def.min_diplomacy,
                 minWarfare = def.min_warfare, minStewardship = def.min_stewardship, cost = def.money_cost,
                 byKing = def.can_be_done_by_king, byLeader = def.can_be_done_by_leader, byClan = def.can_be_done_by_clan_member,
-                manual = RulerDecrees.IsManual(def.id), minAuthority = RulerDecrees.MinAuthority(def.id), gravity = RulerDecrees.Gravity(def.id)
+                manual = RulerDecrees.IsManual(def.Id), minAuthority = RulerDecrees.MinAuthority(def.Id), gravity = RulerDecrees.Gravity(def.Id)
             };
             DefInfos.Add(info);
             if (def.can_be_done_by_clan_member || def.can_be_done_by_leader) ChiefDefInfos.Add(info);
@@ -337,7 +337,7 @@ public static class DecisionSystem
         bool rebellion = WorldLaws.Rebellions?.IsEnabled() != false;
         foreach (DecisionScale.DefInfo info in DefInfos)
         {
-            PlotAsset def = Initiable[info.index];
+            PlotKind def = Initiable[info.index];
             info.lawsAllow = (!def.requires_diplomacy || diplomacy) && (!def.requires_rebellion || rebellion);
         }
     }
@@ -493,7 +493,7 @@ public static class DecisionSystem
         bool done = false;
         foreach (DecisionScale.Option option in options)
         {
-            PlotAsset def = Initiable[option.def];
+            PlotKind def = Initiable[option.def];
             string outcome;
             if (done) outcome = "decision_outcome_skipped";
             else if (!def.canBeDoneByRole(actor) || def.check_is_possible != null && !def.check_is_possible(actor))
@@ -506,7 +506,7 @@ public static class DecisionSystem
             {
                 bool started = def.try_to_start_advanced != null
                     ? def.try_to_start_advanced(actor, def, true)
-                    : EmpireWorld.Current.plots.newPlot(actor, def, true) != null;
+                    : EmpireWorld.Current.Plots.newPlot(actor, def, true) != null;
                 if (started && actor.plot != null)
                 {
                     Pay(actor, def.money_cost);
@@ -520,10 +520,11 @@ public static class DecisionSystem
                 }
                 else outcome = "decision_outcome_unfit";
             }
-            council.options.Add((def.id, option.ratio, option.weights, outcome));
+            council.options.Add((def.Id, option.ratio, option.weights, outcome));
         }
         LastCouncil[actor.Realm.Key] = council;
     }
+#endif
 
     private static void NoteUnfit(Person actor, int def)
     {
@@ -535,15 +536,13 @@ public static class DecisionSystem
         }
         if (def >= 0 && def < unfit.Length) unfit[def] = GameClock.Now;
     }
-#endif
 
     // 办成了记下(新近办过的阻力)
-#if EC_PENDING
     private static void NoteDone(DecisionCase item, Person author)
     {
         Realm realm = author?.Realm;
         if (realm?.Record == null) return;
-        int index = Initiable.FindIndex(def => def.id == item.def);
+        int index = Initiable.FindIndex(def => def.Id == item.def);
         if (!LastDone.TryGetValue(realm.Key, out var done))
         {
             done = (new double[Math.Max(1, Initiable.Count)], new double[Enum.GetValues(typeof(DecisionKind)).Length]);
@@ -555,15 +554,14 @@ public static class DecisionSystem
         if (index >= 0 && index < done.byDef.Length) done.byDef[index] = now;
         done.byKind[(int)DecisionScale.KindOf(item.def)] = now;
     }
-#endif
 
     // 花费：先出个人钱袋；君主、城主办的是公事，个人不够的由国库(可支配的部分)出
     private static bool Public(Person actor) => actor.IsRuler() || actor.IsCityLeader();
 
-#if EC_PENDING
     private static bool CanPay(Person actor, int cost) =>
         cost <= 0 || actor.Money >= cost || Public(actor) && StateSettlementSystem.DiscretionaryFunds(actor.Realm) >= cost;
 
+#if EC_PENDING
     private static void Pay(Person actor, int cost)
     {
         if (cost <= 0) return;
@@ -622,21 +620,21 @@ public static class DecisionSystem
         DecisionScale.Snapshot snapshot = Take(actor, actor.Realm, now, GameClock.MonthLength, new Dictionary<long, DecisionScale.Snapshot>(), BusyByRealm());
         foreach (DecisionScale.Option option in DecisionScale.Weigh(snapshot, DefInfos, all: true))
         {
-            PlotAsset def = Initiable[option.def];
-            var advice = new Advice { id = def.id, ratio = option.ratio, weights = option.weights, cost = def.money_cost };
-            bool major = RulerDecrees.IsManual(def.id);
+            PlotKind def = Initiable[option.def];
+            var advice = new Advice { id = def.Id, ratio = option.ratio, weights = option.weights, cost = def.money_cost };
+            bool major = RulerDecrees.IsManual(def.Id);
             if (list.Count >= maxChecks) advice.blocked = "decision_outcome_skipped";
             else if (!def.canBeDoneByRole(actor) || def.check_is_possible != null && !def.check_is_possible(actor))
-                advice.blocked = major ? RulerDecrees.WhyNot(def.id, actor) : "decision_outcome_unfit";
+                advice.blocked = major ? RulerDecrees.WhyNot(def.Id, actor) : "decision_outcome_unfit";
             else if (!CanPay(actor, def.money_cost)) advice.blocked = "decision_outcome_cost";
             // 大政要天平压得过去才办得成(别的决议亲自发起不看读数)
             else if (major && option.ratio < DecisionScale.Threshold) advice.blocked = "decision_outcome_scale";
-            if (major && advice.blocked == null && RulerDecrees.HasTargets(def.id))
+            if (major && advice.blocked == null && RulerDecrees.HasTargets(def.Id))
             {
-                foreach (City city in RulerDecrees.Candidates(def.id, actor))
+                foreach (City city in RulerDecrees.Candidates(def.Id, actor))
                     list.Add(new Advice
                     {
-                        id = def.id, ratio = option.ratio, weights = option.weights, cost = def.money_cost,
+                        id = def.Id, ratio = option.ratio, weights = option.weights, cost = def.money_cost,
                         target = city.Key, targetName = city.GetCityName()
                     });
                 continue;
@@ -652,7 +650,7 @@ public static class DecisionSystem
 #if EC_PENDING
     public static string Launch(Person actor, string id, long target = -1L)
     {
-        PlotAsset def = Def(id);
+        PlotKind def = Def(id);
         if (def == null || !Initiable.Contains(def) || actor?.Record == null || !actor.Alive || actor.Realm?.Record == null) return "decision_outcome_unfit";
         if (actor.plot != null && actor.plot.isActive()) return "decision_fail_busy";
         bool major = RulerDecrees.IsManual(id);
@@ -680,7 +678,7 @@ public static class DecisionSystem
         {
             started = def.try_to_start_advanced != null
                 ? def.try_to_start_advanced(actor, def, true)
-                : EmpireWorld.Current.plots.newPlot(actor, def, true) != null;
+                : EmpireWorld.Current.Plots.newPlot(actor, def, true) != null;
         }
         finally
         {
@@ -710,11 +708,11 @@ public static class DecisionSystem
         var list = new List<DecisionCase>();
         foreach (DecisionCase item in Cases.Values)
         {
-            Plot plot = EmpireWorld.Current?.plots?.get(item.plot);
+            Plot plot = EmpireWorld.Current?.Plots?.Get(item.plot);
             if (plot?.data != null)
             {
                 item.war = plot.target_war?.data?.id ?? -1;
-                item.kingdom = plot.target_kingdom?.data?.id ?? -1;
+                item.kingdom = plot.TargetRealm?.Key ?? -1;
                 item.city = plot.target_city?.data?.id ?? -1;
                 item.actor = plot.target_actor?.data?.id ?? -1;
                 item.alliance = plot.target_alliance?.data?.id ?? -1;
@@ -735,16 +733,16 @@ public static class DecisionSystem
 #if EC_PENDING
     private static void AdoptOrphans()
     {
-        foreach (Plot plot in EmpireWorld.Current.plots)
+        foreach (Plot plot in EmpireWorld.Current.Plots)
         {
-            if (plot?.data == null || !plot.isActive() || Cases.ContainsKey(plot.data.id) || !Manages(plot.getAsset())) continue;
-            Person author = plot.getAuthor();
+            if (plot?.data == null || !plot.IsActive() || Cases.ContainsKey(plot.data.id) || !Manages(plot.GetKind())) continue;
+            Person author = plot.GetAuthor();
             if (author == null || !author.Alive || author.plot != plot) continue;
-            PlotAsset def = plot.getAsset();
+            PlotKind def = plot.GetKind();
             double now = GameClock.Now;
             Track(new DecisionCase
             {
-                plot = plot.data.id, def = def.id, initiator = author.Key, started = now,
+                plot = plot.data.id, def = def.Id, initiator = author.Key, started = now,
                 next = now + EcRandom.Range(0f, GameClock.MonthLength),
                 effort = Math.Max(MinEffort, def.progress_needed), progress = Math.Max(0f, plot.data.progress_current)
             });
@@ -759,15 +757,15 @@ public static class DecisionSystem
         int kept = 0, rebuilt = 0, gone = 0, busy = 0;
         foreach (DecisionCase item in Pending)
         {
-            PlotAsset def = Def(item.def);
+            PlotKind def = Def(item.def);
             Person author = EmpireWorld.Current.PersonByKey(item.initiator);
             if (def == null || author == null || !author.Alive)
             {
                 gone++;
                 continue;
             }
-            Plot plot = EmpireWorld.Current.plots.get(item.plot);
-            if (plot?.data == null || !plot.isActive() || plot.getAsset() != def || author.plot != plot)
+            Plot plot = EmpireWorld.Current.Plots.Get(item.plot);
+            if (plot?.data == null || !plot.IsActive() || plot.GetKind() != def || author.plot != plot)
             {
                 if (author.plot != null)
                 {
@@ -784,7 +782,7 @@ public static class DecisionSystem
                 _restoring = true;
                 try
                 {
-                    plot = EmpireWorld.Current.plots.newPlot(author, def, true);
+                    plot = EmpireWorld.Current.Plots.newPlot(author, def, true);
                 }
                 finally
                 {
@@ -792,7 +790,7 @@ public static class DecisionSystem
                 }
                 if (plot?.data == null) continue;
                 plot.target_war = item.war >= 0 ? EmpireWorld.Current.WarByKey(item.war) : null;
-                plot.target_kingdom = item.kingdom >= 0 ? EmpireWorld.Current.RealmByKey(item.kingdom) : null;
+                plot.TargetRealm = item.kingdom >= 0 ? EmpireWorld.Current.RealmByKey(item.kingdom) : null;
                 plot.target_city = item.city >= 0 ? EmpireWorld.Current.CityByKey(item.city) : null;
                 plot.target_actor = item.actor >= 0 ? EmpireWorld.Current.PersonByKey(item.actor) : null;
                 plot.target_alliance = item.alliance >= 0 ? EmpireWorld.Current.alliances.get(item.alliance) : null;

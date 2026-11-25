@@ -41,10 +41,8 @@ public static class InternalBoundarySystem
 #endif
 
     // 行政区自己的法理：持有的主法理，或受托管理的法理
-#if EC_PENDING
     private static KingdomTitle RegionTitle(Realm kingdom) =>
         kingdom.GetMainTitle() ?? kingdom.GetAdministrativeTitle();
-#endif
 
     private static bool Usable(KingdomTitle title) => title != null && !title.IsGone();
 

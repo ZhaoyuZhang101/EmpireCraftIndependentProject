@@ -35,7 +35,6 @@ public static class EncirclementSystem
     private static readonly Queue<Cell> Frontier = new();
 
     // 军所在的这块地是不是被围住了；算完 Seen 里是围内的地块(突围要用)
-#if EC_PENDING
     private static bool InPocket(Realm kingdom, Cell start)
     {
         Seen.Clear();
@@ -69,7 +68,6 @@ public static class EncirclementSystem
 
     private static bool Exempt(Realm kingdom, CorpsData corps) =>
         corps.embarked || corps.militia || corps.strength < 1f || CorpsArmSystem.Flies(corps) || CorpsSystem.Insurgent(kingdom);
-#endif
 
     // 每月后勤结算里(算完补给、发粮之前)：会把投降的军从 list 里拿掉
 #if EC_PENDING
@@ -110,7 +108,6 @@ public static class EncirclementSystem
         return corps.supply > 0f && home != null && !CorpsSystem.SameLand(zone, home.SeatCell()?.Zone);
     }
 
-#if EC_PENDING
     private static string Place(Cell zone) => zone?.City?.Record != null && !zone.City.IsGone()
         ? zone.City.GetCityName() : LM.Get("corps_pocket_wilds");
 
@@ -124,10 +121,8 @@ public static class EncirclementSystem
         if (corps.strength >= NoticeMen)
             WarChronicle.RecordFor(kingdom, WarChronicle.Commander, string.Format(LM.Get("corps_log_pocket"), name, place));
     }
-#endif
 
     // 围住这支军的敌国：所在地的控制者；不是敌国就看四周
-#if EC_PENDING
     private static Realm Captor(Realm kingdom, Cell zone)
     {
         Realm own = FrontSystem.Controller(zone);
@@ -164,10 +159,8 @@ public static class EncirclementSystem
         WarChronicle.RecordFor(kingdom, WarChronicle.Commander, text);
         return true;
     }
-#endif
 
     // 围外最近的己方地块(BreakoutReach 步以内，可以穿敌占区)；Seen 是这支军的围内
-#if EC_PENDING
     private static Cell NearestFriendly(Realm kingdom, Cell start)
     {
         var visited = new HashSet<int> { start.Index };
@@ -190,6 +183,7 @@ public static class EncirclementSystem
         return null;
     }
 
+#if EC_PENDING
     private static void TrySurrender(Realm kingdom, CorpsData corps, Cell zone)
     {
         if (corps.pocket_months < SurrenderFrom) return;
@@ -239,7 +233,6 @@ public static class EncirclementSystem
 
     // ───────── 战线分派 ─────────
     // 被围的军就地打仗(FrontSystem.AssignMonth 分派完之后)：敌城里就打这座城，自家的城就守
-#if EC_PENDING
     public static void Hold(Realm kingdom, List<CorpsData> list)
     {
         foreach (CorpsData corps in list)
@@ -253,12 +246,10 @@ public static class EncirclementSystem
             corps.task = city != null && FrontSystem.Hostile(kingdom, city.Realm) ? "attack" : "defend";
         }
     }
-#endif
 
     // 各城里被围的军(每月分派前重算，见 FrontSystem.BeginMonth)
     private static readonly Dictionary<long, List<Realm>> PocketCities = new();
 
-#if EC_PENDING
     public static void BeginAssign()
     {
         PocketCities.Clear();
@@ -269,7 +260,6 @@ public static class EncirclementSystem
             list.Add(kingdom);
         }
     }
-#endif
 
     public static void ResetWorldState() => PocketCities.Clear();
 

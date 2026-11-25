@@ -52,6 +52,7 @@ public static class FavouriteSystem
             LogService.LogWarning($"[EmpireCraft][宠臣] {empire.GetEmpireName()} 结算失败: {exception.Message}");
         }
     }
+#endif
 
     private static void TryPick(Empire empire, Person emperor, Realm core)
     {
@@ -91,7 +92,6 @@ public static class FavouriteSystem
             state.grievance = Mathf.Min(100f, state.grievance + GrievanceGain);
         }
     }
-#endif
 
     // 新君即位：半数诛杀先帝宠臣，否则罢黜
 #if EC_PENDING

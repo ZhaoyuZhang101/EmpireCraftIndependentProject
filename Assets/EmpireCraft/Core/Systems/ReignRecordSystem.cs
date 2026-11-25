@@ -12,7 +12,6 @@ namespace EmpireCraft.Core
 //   结局：身后是否在世(失位)、享年、是否中兴之主、是否末代之君(改朝换代时回填)。
 public static class ReignRecordSystem
 {
-#if EC_PENDING
     public static void OnReignStart(Empire empire)
     {
         EmpireCraftHistory reign = empire?.data?.currentHistory;
@@ -22,7 +21,6 @@ public static class ReignRecordSystem
         reign.max_cities = cities;
         reign.start_mandate = empire.Mandate;
     }
-#endif
 
     public static void OnYear(Empire empire)
     {
@@ -32,7 +30,6 @@ public static class ReignRecordSystem
         if (empire.data.is_been_controlled) reign.was_controlled = true;
     }
 
-#if EC_PENDING
     public static void OnReignEnd(Empire empire, Person emperor)
     {
         EmpireCraftHistory reign = empire?.data?.currentHistory;
@@ -46,7 +43,6 @@ public static class ReignRecordSystem
         reign.ruler_grade = RulerQualitySystem.Of(emperor).ToString();
         if (empire.data.is_been_controlled) reign.was_controlled = true;
     }
-#endif
 
     // 旧档的在位年数校正(读档后头一回帝国月度结算，见 Empire.RepairUnregisteredEmperor；每个存档只做一次)。
     // 用户 2026-10-21 截图：游牧汗国一位先汗"在位 136 年"——继承人本是别国(兀鲁思、封国)君主时，帝国中央直接改成他的国，
@@ -125,7 +121,6 @@ public static class ReignRecordSystem
         }
     }
 
-#if EC_PENDING
     public static void RepairLegacyTenure(Empire empire)
     {
         List<EmpireCraftHistory> history = empire?.data?.history;
@@ -168,7 +163,6 @@ public static class ReignRecordSystem
             LogService.LogWarning($"[EmpireCraft][寿数] 旧档在位年数校正失败: {exception.Message}");
         }
     }
-#endif
 
     // 在位起算：登记过的按即位时间；没登记的(中央改成继承人的国，还没等到月度补登记就走了)按上一位最后一条记事
     public static double ReignStart(Empire empire, Person emperor)
@@ -191,14 +185,12 @@ public static class ReignRecordSystem
     }
 
     // inheritCourt：朝廷里的易代(权臣篡位、外戚代立等)，积弊原样留下、王朝年岁接着算(三档之"保留"，见 DynasticCycleSystem.OnDynastyChanged)
-#if EC_PENDING
     public static void OnDynastyChanged(Empire empire, Person newEmperor, bool inheritCourt = false)
     {
         DynasticCycleSystem.OnDynastyChanged(empire, inheritCourt);
         EmpireCraftHistory last = empire?.data?.history?.LastOrDefault(reign => reign != null && !reign.is_republic);
         if (last != null && last.id != newEmperor?.Key) last.ended_dynasty = true;
     }
-#endif
 
     public static void OnWarEnded(War war, WarOutcome winner)
     {

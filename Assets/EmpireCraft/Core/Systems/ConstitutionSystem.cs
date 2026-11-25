@@ -126,7 +126,6 @@ public static class ConstitutionSystem
     private static bool IsConstitutionalMonarchy(Empire empire, ConstitutionalEconomyState state) =>
         !state.is_republic && !TransmigrantSystem.Governs(empire);
 
-#if EC_PENDING
     public static void Update(Empire empire, ConstitutionalEconomyState state)
     {
         if (state == null || empire?.CoreKingdom == null || EmpireWorld.Current == null) return;
@@ -163,10 +162,8 @@ public static class ConstitutionSystem
         if (current.last_sync >= 0d && GameClock.YearsSince(current.last_sync) < 1) return;
         SyncDerived(empire, state, current);
     }
-#endif
 
     // 共和：过渡期为临时约法，过渡结束为正式宪法；君主立宪：议会召开或已完成立宪
-#if EC_PENDING
     private static Kind RequiredKind(Empire empire, ConstitutionalEconomyState state)
     {
         // 穿越政权(用户 10-29 "以及他为什么没有宪法""这个穿越政体完全是个现代国家""这个宪法也不对，应该是共同纲领")：
@@ -181,13 +178,11 @@ public static class ConstitutionSystem
         if (!RegimeManager.IsMonarchy(empire.CoreKingdom.GetRegime()?.type)) return Kind.None;
         return state.constitutional_monarchy || ParliamentSystem.HasParliament(empire) ? Kind.Full : Kind.None;
     }
-#endif
 
     #endregion
 
     #region 颁布与废止
 
-#if EC_PENDING
     private static void Promulgate(Empire empire, ConstitutionalEconomyState state, bool provisional)
     {
         bool migrating = state.constitution == null && IsLegacyModernState(empire, state);
@@ -230,7 +225,6 @@ public static class ConstitutionSystem
         EventRecorder.Record(empire, string.Format(LM.Get("constitution_abolished_history"),
             empire.GetEmpireFullName(), old.name));
     }
-#endif
 
     // 读旧存档时已经是现代国家很久了：补建宪法不写史书
     private static bool IsLegacyModernState(Empire empire, ConstitutionalEconomyState state)
@@ -341,7 +335,6 @@ public static class ConstitutionSystem
     }
 
     // 宪法名称：本文化词库里随机取一条({0} 代入国号)，没配用默认
-#if EC_PENDING
     private static string ConstitutionName(Empire empire, bool provisional)
     {
         // 穿越政权的宪法是《共同纲领》
@@ -356,7 +349,6 @@ public static class ConstitutionSystem
             : LM.Get(provisional ? "constitution_provisional_name" : "constitution_name");
         return template.Replace("{0}", empire.GetEmpireFullName());
     }
-#endif
 
     private static void ApplyTemplate(ConstitutionClauses source, ConstitutionClauses target)
     {
@@ -377,7 +369,6 @@ public static class ConstitutionSystem
 
     // 各合法政党按议席(无议会按中央占比)为本党理念的主张投票，每条取得票最多的方案；
     // 没有政党时由执政理念一方拟定。返回得票最多的政党名(史书用)，没有政党返回空
-#if EC_PENDING
     private static string DraftByConvention(Empire empire, ConstitutionalEconomyState state, ConstitutionClauses clauses)
     {
         bool monarchy = IsConstitutionalMonarchy(empire, state);
@@ -417,14 +408,12 @@ public static class ConstitutionSystem
             delegates.Sum(delegate_ => delegate_.plan.term_years * delegate_.weight) / total), MinTermYears, MaxTermYears);
         return delegates.OrderByDescending(delegate_ => delegate_.weight).First().party.Name;
     }
-#endif
 
     #endregion
 
     #region 条款同步
 
     // 由现有制度推出的条款：按实际状况同步(手定的不动)，变化计入修正记录
-#if EC_PENDING
     private static void SyncDerived(Empire empire, ConstitutionalEconomyState state, ConstitutionData constitution,
         bool record = true)
     {
@@ -450,7 +439,6 @@ public static class ConstitutionSystem
             value => clauses.party_system = value, record);
         constitution.last_sync = GameClock.Now;
     }
-#endif
 
     private static void Set<T>(ConstitutionData constitution, string clause, T current, T derived, Action<T> apply,
         bool record) where T : struct, Enum
@@ -499,7 +487,6 @@ public static class ConstitutionSystem
     }
 
     // 与 RepublicSystem.HeadOfStateHistory 的判定一致
-#if EC_PENDING
     private static ConstitutionHeadSelection DeriveHeadSelection(Empire empire, bool monarchy)
     {
         if (monarchy) return ConstitutionHeadSelection.Hereditary;
@@ -537,7 +524,6 @@ public static class ConstitutionSystem
         return state.allied_party_ids?.Count > 0 ? ConstitutionPartySystem.UnitedFront
             : ConstitutionPartySystem.OneParty;
     }
-#endif
 
     #endregion
 
@@ -581,7 +567,6 @@ public static class ConstitutionSystem
     };
 
     // 玩家可选的方案(按显示顺序)；空表示这一行只读(国体、君主立宪的权力中心与元首、临时约法、未开放政党政治的政党制度)
-#if EC_PENDING
     public static List<string> Options(Empire empire, string row)
     {
         ConstitutionData constitution = Get(empire);
@@ -661,7 +646,6 @@ public static class ConstitutionSystem
         }
         return options;
     }
-#endif
 
     // 宪法页点一下：换到下一个方案并手定；由制度推出的条款转完一圈后回到"自动"(解除手定、按实际状况重新推导)
 #if EC_PENDING
@@ -773,7 +757,6 @@ public static class ConstitutionSystem
     };
 
     // 某个理念的政党在这一条上的主张(与制宪会议用的同一套理念模板)
-#if EC_PENDING
     public static string PartyPosition(Empire empire, PartyIdeology ideology, string clause)
     {
         ConstitutionalEconomyState state = empire?.data?.constitutional_economy;
@@ -781,7 +764,6 @@ public static class ConstitutionSystem
         return CurrentValue(Template(ideology, !state.is_republic, RepublicSystem.IsOneParty(empire),
             InstitutionSystem.GetPrimaryCulture(empire)), clause);
     }
-#endif
 
     // 修宪所需的议席占比：议会特别多数 2/3，公投与党代会过半
     public static float AmendmentThreshold(Empire empire) =>

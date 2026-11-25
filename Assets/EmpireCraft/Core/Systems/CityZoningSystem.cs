@@ -80,39 +80,36 @@ public static class CityZoningSystem
 #if EC_PENDING
     public static bool Managed(Building building)
     {
-        BuildingAsset asset = building?.asset;
-        if (asset == null || building.IsGone() || building.isOnRemove() || building.isRuin() || building.current_tile?.zone == null)
+        BuildingKind asset = building?.Asset;
+        if (asset == null || building.IsGone() || building.IsOnRemove() || building.isRuin() || building.Cell?.Zone == null)
             return false;
         if (asset.building_type != BuildingType.Building_Civ || PureMapMode.IsDecor(asset)) return false;
-        string type = asset.type ?? "";
+        string type = asset.Type ?? "";
         return !IndustryBuildingSystem.IsMine(asset) && !IndustryBuildingSystem.IsLumber(asset) && type != AnimalHusbandrySystem.PastureType &&
-               type != AnimalHusbandrySystem.SlaughterhouseType && type != "type_stockpile" && asset.id?.Contains("city_") != true;
+               type != AnimalHusbandrySystem.SlaughterhouseType && type != "type_stockpile" && asset.Id?.Contains("city_") != true;
     }
-
-    public static bool IsHouse(BuildingAsset asset) => asset?.type == HouseType;
-
-    private static bool IsCore(BuildingAsset asset) => asset?.type != null && CoreTypes.Contains(asset.type);
 #endif
+
+    public static bool IsHouse(BuildingKind asset) => asset?.Type == HouseType;
+
+    private static bool IsCore(BuildingKind asset) => asset?.Type != null && CoreTypes.Contains(asset.Type);
 
     // 这块地上本城管的建筑
 #if EC_PENDING
     public static List<Building> InZone(City city, Cell zone)
     {
         var result = new List<Building>();
-        if (city?.buildings == null || zone == null) return result;
-        foreach (Building building in city.buildings)
-            if (Managed(building) && building.current_tile.zone == zone) result.Add(building);
+        if (city?.Buildings == null || zone == null) return result;
+        foreach (Building building in city.Buildings)
+            if (Managed(building) && building.Cell.Zone == zone) result.Add(building);
         return result;
     }
 #endif
 
     // 建筑台账里的这种建筑占不占建筑位(仓库不占，同 Managed)
-#if EC_PENDING
-    private static bool Slotted(BuildingAsset asset) => asset != null && asset.type != CityLedger.StockpileType;
-#endif
+    private static bool Slotted(BuildingKind asset) => asset != null && asset.Type != CityLedger.StockpileType;
 
     // 建筑台账里记在这块地上、占建筑位的有几座
-#if EC_PENDING
     private static int LedgerIn(City city, int zoneId)
     {
         int count = 0;
@@ -120,18 +117,17 @@ public static class CityZoningSystem
             if (lot != null && lot.n > 0 && lot.zone == zoneId && Slotted(CityLedger.Asset(lot.id))) count += lot.n;
         return count;
     }
-#endif
 
     // 这块地上本城占建筑位的建筑(实体连同建筑台账里的)，一座一项
 #if EC_PENDING
-    public static List<BuildingAsset> AssetsIn(City city, Cell zone)
+    public static List<BuildingKind> AssetsIn(City city, Cell zone)
     {
-        var result = new List<BuildingAsset>();
+        var result = new List<BuildingKind>();
         if (city == null || zone == null) return result;
-        foreach (Building building in InZone(city, zone)) result.Add(building.asset);
+        foreach (Building building in InZone(city, zone)) result.Add(building.Asset);
         foreach (WorkLot lot in CityLedger.Lots(city))
         {
-            BuildingAsset asset = lot == null || lot.n <= 0 || lot.zone != zone.Index ? null : CityLedger.Asset(lot.id);
+            BuildingKind asset = lot == null || lot.n <= 0 || lot.zone != zone.Index ? null : CityLedger.Asset(lot.id);
             if (!Slotted(asset)) continue;
             for (int i = 0; i < lot.n; i++) result.Add(asset);
         }
@@ -144,12 +140,12 @@ public static class CityZoningSystem
     public static int HousesMax(City city)
     {
         HashSet<int> urban = UrbanSet(city);
-        if (urban == null || city.buildings == null) return -1;
+        if (urban == null || city.Buildings == null) return -1;
         int others = 0;
-        foreach (Building building in city.buildings)
-            if (Managed(building) && !IsHouse(building.asset)) others++;
+        foreach (Building building in city.Buildings)
+            if (Managed(building) && !IsHouse(building.Asset)) others++;
         foreach (WorkLot lot in CityLedger.Lots(city))
-            if (lot != null && lot.n > 0 && CityLedger.Asset(lot.id) is BuildingAsset asset && Slotted(asset) && !IsHouse(asset))
+            if (lot != null && lot.n > 0 && CityLedger.Asset(lot.id) is BuildingKind asset && Slotted(asset) && !IsHouse(asset))
                 others += lot.n;
         return Mathf.Max(0, urban.Count * SlotsPerZone(city) - others);
     }
@@ -160,9 +156,9 @@ public static class CityZoningSystem
     public static int Houses(City city)
     {
         int count = 0;
-        if (city?.buildings == null) return 0;
-        foreach (Building building in city.buildings)
-            if (Managed(building) && IsHouse(building.asset)) count++;
+        if (city?.Buildings == null) return 0;
+        foreach (Building building in city.Buildings)
+            if (Managed(building) && IsHouse(building.Asset)) count++;
         return count + CityLedger.CountType(city, HouseType);
     }
 #endif
@@ -213,10 +209,10 @@ public static class CityZoningSystem
         if (!Occupied.TryGetValue(city, out Dictionary<int, int> counts))
         {
             counts = new Dictionary<int, int>();
-            foreach (Building building in city.buildings)
+            foreach (Building building in city.Buildings)
             {
                 if (!Managed(building)) continue;
-                int id = building.current_tile.zone.id;
+                int id = building.Cell.Zone.Index;
                 counts[id] = counts.TryGetValue(id, out int n) ? n + 1 : 1;
             }
             foreach (WorkLot lot in CityLedger.Lots(city))
@@ -233,14 +229,12 @@ public static class CityZoningSystem
     #region 建筑
 
     private static int _assetFrame = -1;
-#if EC_PENDING
-    private static readonly Dictionary<(City, string), BuildingAsset> AssetCache = new();
-#endif
+    private static readonly Dictionary<(City, string), BuildingKind> AssetCache = new();
 
     // 本城种族建造单里这一类建筑、本文化科技许可的最高一级(顺着升级链往上找，见 TechnologySystem.CanBuild)；没有为 null。
     // 界面高亮一帧里会问很多块地，每帧每城每类只找一次
 #if EC_PENDING
-    public static BuildingAsset BestAsset(City city, string type)
+    public static BuildingKind BestAsset(City city, string type)
     {
         if (city?.Record == null || string.IsNullOrEmpty(type)) return null;
         int frame = Time.frameCount;
@@ -249,18 +243,18 @@ public static class CityZoningSystem
             _assetFrame = frame;
             AssetCache.Clear();
         }
-        if (AssetCache.TryGetValue((city, type), out BuildingAsset cached)) return cached;
-        BuildingAsset best = null;
+        if (AssetCache.TryGetValue((city, type), out BuildingKind cached)) return cached;
+        BuildingKind best = null;
         CityBuildOrderAsset orders = AssetManager.city_build_orders.get(city.getActorAsset()?.build_order_template_id ?? "");
         if (orders?.list != null)
             foreach (BuildOrder order in orders.list)
             {
-                BuildingAsset asset = order?.getBuildingAsset(city);
+                BuildingKind asset = order?.getBuildingAsset(city);
                 for (int step = 0; asset != null && step < MaxUpgradeSteps; step++)
                 {
-                    if (asset.type != type || asset.id == null || asset.id.Contains("city_")) break;
-                    if ((best == null || asset.upgrade_level > best.upgrade_level) && TechnologySystem.CanBuild(city, asset.id)) best = asset;
-                    asset = string.IsNullOrEmpty(asset.upgrade_to) ? null : AssetManager.buildings.get(asset.upgrade_to);
+                    if (asset.Type != type || asset.Id == null || asset.Id.Contains("city_")) break;
+                    if ((best == null || asset.UpgradeLevel > best.UpgradeLevel) && TechnologySystem.CanBuild(city, asset.Id)) best = asset;
+                    asset = string.IsNullOrEmpty(asset.UpgradeTo) ? null : BuildingKinds.Table.Get(asset.UpgradeTo);
                 }
             }
         AssetCache[(city, type)] = best;
@@ -278,13 +272,13 @@ public static class CityZoningSystem
     }
 
 #if EC_PENDING
-    private static bool Fits(City city, Cell tile, BuildingAsset asset) =>
+    private static bool Fits(City city, Cell tile, BuildingKind asset) =>
         tile?.Type != null && tile.canBuildOn(asset) && EmpireWorld.Current.buildings.canBuildFrom(tile, asset, city);
 #endif
 
     // 这块地里头一处放得下的格(同迁城搬篝火，见 CityRelocationSystem.MoveBonfire)
 #if EC_PENDING
-    private static Cell FindSpot(City city, Cell zone, BuildingAsset asset)
+    private static Cell FindSpot(City city, Cell zone, BuildingKind asset)
     {
         if (zone?.Tiles == null || asset == null) return null;
         foreach (Cell tile in zone.Tiles)
@@ -295,13 +289,13 @@ public static class CityZoningSystem
 
     // 当场盖一座(放下就建成，同繁荣神力推进施工的写法，见 CityConstructionSystem.Advance)
 #if EC_PENDING
-    private static Building Put(City city, BuildingAsset asset, Cell tile)
+    private static Building Put(City city, BuildingKind asset, Cell tile)
     {
         Building building = EmpireWorld.Current.buildings.addBuilding(asset, tile);
-        if (building?.asset == null) return null;
-        if (building.isUnderConstruction())
+        if (building?.Asset == null) return null;
+        if (building.IsUnderConstruction())
         {
-            building.updateBuild(Mathf.Max(1, building.asset.construction_progress_needed + 1 - building.getConstructionProgress()));
+            building.updateBuild(Mathf.Max(1, building.Asset.ConstructionProgressNeeded + 1 - building.getConstructionProgress()));
             if (city.under_construction_building == building) city.under_construction_building = null;
         }
         return building;
@@ -311,7 +305,7 @@ public static class CityZoningSystem
     // 在这块地上盖民居，盖到 want 座或放不下为止；盖起的记进 here。一块地只顺着扫一遍(放下一座，前面放不下的格往后也放不下)。
     // 纯沙漠、纯冻土住不了人，盖了也会被拆(见 BarrenLandSystem)，不盖
 #if EC_PENDING
-    private static int FillHouses(City city, Cell zone, BuildingAsset house, int want, List<Building> here)
+    private static int FillHouses(City city, Cell zone, BuildingKind house, int want, List<Building> here)
     {
         if (want <= 0 || house == null || zone?.Tiles == null || BarrenLandSystem.Barren(zone)) return 0;
         // 记台账的民居(见 CityLedger)：只记数，不看地形放不放得下
@@ -338,7 +332,7 @@ public static class CityZoningSystem
     {
         Building lowest = null;
         foreach (Building building in here)
-            if (IsHouse(building.asset) && !building.isOnRemove() && (lowest == null || building.asset.upgrade_level < lowest.asset.upgrade_level))
+            if (IsHouse(building.Asset) && !building.IsOnRemove() && (lowest == null || building.Asset.UpgradeLevel < lowest.Asset.UpgradeLevel))
                 lowest = building;
         if (lowest == null) return false;
         lowest.startRemove();
@@ -351,14 +345,14 @@ public static class CityZoningSystem
 #if EC_PENDING
     private static bool RemoveLedgerHouse(City city, int zoneId)
     {
-        BuildingAsset lowest = null;
+        BuildingKind lowest = null;
         foreach (WorkLot lot in CityLedger.Lots(city))
         {
-            BuildingAsset asset = lot == null || lot.n <= 0 || lot.zone != zoneId ? null : CityLedger.Asset(lot.id);
+            BuildingKind asset = lot == null || lot.n <= 0 || lot.zone != zoneId ? null : CityLedger.Asset(lot.id);
             if (!IsHouse(asset)) continue;
-            if (lowest == null || asset.upgrade_level < lowest.upgrade_level) lowest = asset;
+            if (lowest == null || asset.UpgradeLevel < lowest.UpgradeLevel) lowest = asset;
         }
-        return lowest != null && CityLedger.Remove(city, lowest.id, zoneId) > 0;
+        return lowest != null && CityLedger.Remove(city, lowest.Id, zoneId) > 0;
     }
 #endif
 
@@ -369,14 +363,13 @@ public static class CityZoningSystem
 #endif
 
     // 这块地用掉几个建筑位：实体、建筑台账里的、等着盖的
-#if EC_PENDING
     private static int Used(City city, int zoneId, List<Building> here) =>
         (here?.Count ?? 0) + LedgerIn(city, zoneId) + Reserved(city, zoneId);
 
     private static bool HasHouse(List<Building> here)
     {
         foreach (Building building in here)
-            if (IsHouse(building.asset)) return true;
+            if (IsHouse(building.Asset)) return true;
         return false;
     }
 
@@ -385,7 +378,6 @@ public static class CityZoningSystem
         if (!byZone.TryGetValue(zoneId, out List<Building> list)) byZone[zoneId] = list = new List<Building>();
         return list;
     }
-#endif
 
     // 本城管的建筑按地块分：城区里的记进各地块，本城城区外的另列(别城地上的不动)
 #if EC_PENDING
@@ -393,10 +385,10 @@ public static class CityZoningSystem
     {
         var byZone = new Dictionary<int, List<Building>>();
         outside = new List<Building>();
-        foreach (Building building in new List<Building>(city.buildings))
+        foreach (Building building in new List<Building>(city.Buildings))
         {
             if (!Managed(building)) continue;
-            Cell zone = building.current_tile.zone;
+            Cell zone = building.Cell.Zone;
             if (zone.City != city) continue;
             if (urban.Contains(zone.Index)) Here(byZone, zone.Index).Add(building);
             else outside.Add(building);
@@ -410,8 +402,8 @@ public static class CityZoningSystem
 #if EC_PENDING
     private static bool Move(City city, Building building, List<Cell> zones, Dictionary<int, List<Building>> byZone, int cap)
     {
-        Cell from = building.current_tile?.zone;
-        BuildingAsset asset = building.asset;
+        Cell from = building.Cell?.Zone;
+        BuildingKind asset = building.Asset;
         if (from == null || asset == null || zones.Count == 0) return false;
         var order = new List<Cell>(zones);
         order.Sort((a, b) => Distance(a, from).CompareTo(Distance(b, from)));
@@ -439,14 +431,12 @@ public static class CityZoningSystem
 
     private static int Distance(Cell a, Cell b) => (a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y);
 
-#if EC_PENDING
     private static bool HasLedgerHouse(City city, int zoneId)
     {
         foreach (WorkLot lot in CityLedger.Lots(city))
             if (lot != null && lot.n > 0 && lot.zone == zoneId && IsHouse(CityLedger.Asset(lot.id))) return true;
         return false;
     }
-#endif
 
     // 建筑台账的对账(见 Sync)。不在城区地块上的各笔：
     //   · 别的建筑(先排)：记进离城心最近、还有空位的城区地块，都满了就挤掉一座民居，实在没地方的销掉(篝火留着不定地块)；
@@ -456,21 +446,21 @@ public static class CityZoningSystem
     private static void SyncLedger(City city, HashSet<int> urban, List<Cell> zones, Dictionary<int, List<Building>> byZone, int cap,
         ref Outcome outcome)
     {
-        var loose = new List<(BuildingAsset asset, int zone, int n)>();
+        var loose = new List<(BuildingKind asset, int zone, int n)>();
         foreach (WorkLot lot in CityLedger.Lots(city))
         {
-            BuildingAsset asset = lot == null || lot.n <= 0 || urban.Contains(lot.zone) ? null : CityLedger.Asset(lot.id);
+            BuildingKind asset = lot == null || lot.n <= 0 || urban.Contains(lot.zone) ? null : CityLedger.Asset(lot.id);
             if (Slotted(asset)) loose.Add((asset, lot.zone, lot.n));
         }
         // 功能建筑先占位，民居里等级高的先放
         loose.Sort((a, b) => IsHouse(a.asset) != IsHouse(b.asset) ? IsHouse(a.asset).CompareTo(IsHouse(b.asset))
-            : b.asset.upgrade_level.CompareTo(a.asset.upgrade_level));
-        foreach ((BuildingAsset asset, int zone, int n) in loose)
+            : b.asset.UpgradeLevel.CompareTo(a.asset.UpgradeLevel));
+        foreach ((BuildingKind asset, int zone, int n) in loose)
         {
             bool house = IsHouse(asset);
             if (house && zone != -1)
             {
-                outcome.Razed += CityLedger.Remove(city, asset.id, zone, n);
+                outcome.Razed += CityLedger.Remove(city, asset.Id, zone, n);
                 continue;
             }
             for (int i = 0; i < n; i++)
@@ -494,15 +484,15 @@ public static class CityZoningSystem
                 if (target != null)
                 {
                     // 民居只是定了地块，不算挪
-                    if (CityLedger.Move(city, asset.id, zone, target.Index) > 0 && !house) outcome.Moved++;
+                    if (CityLedger.Move(city, asset.Id, zone, target.Index) > 0 && !house) outcome.Moved++;
                 }
                 else if (!IsCore(asset))
                 {
                     // 城区满了：这一笔剩下的都放不下
-                    outcome.Razed += CityLedger.Remove(city, asset.id, zone, n - i);
+                    outcome.Razed += CityLedger.Remove(city, asset.Id, zone, n - i);
                     break;
                 }
-                else if (zone != -1) CityLedger.Move(city, asset.id, zone, -1);
+                else if (zone != -1) CityLedger.Move(city, asset.Id, zone, -1);
             }
         }
     }
@@ -582,7 +572,7 @@ public static class CityZoningSystem
     {
         var outcome = new Outcome();
         HashSet<int> urban = UrbanSet(city);
-        if (urban == null || city.Zones == null || city.buildings == null) return outcome;
+        if (urban == null || city.Zones == null || city.Buildings == null) return outcome;
         try
         {
             int cap = SlotsPerZone(city);
@@ -593,7 +583,7 @@ public static class CityZoningSystem
             var movers = new List<Building>();
             foreach (Building building in outside)
             {
-                if (!IsHouse(building.asset))
+                if (!IsHouse(building.Asset))
                 {
                     movers.Add(building);
                     continue;
@@ -618,13 +608,13 @@ public static class CityZoningSystem
             foreach (Building building in movers)
             {
                 if (Move(city, building, zones, byZone, cap)) outcome.Moved++;
-                else if (!IsCore(building.asset))
+                else if (!IsCore(building.Asset))
                 {
                     building.startRemove();
                     outcome.Razed++;
                 }
             }
-            BuildingAsset house = BestAsset(city, HouseType);
+            BuildingKind house = BestAsset(city, HouseType);
             foreach (Cell zone in zones)
             {
                 List<Building> here = Here(byZone, zone.Index);
@@ -688,7 +678,7 @@ public static class CityZoningSystem
             Dictionary<int, List<Building>> byZone = null;
             foreach (Building building in InZone(city, zone))
             {
-                if (!IsCore(building.asset))
+                if (!IsCore(building.Asset))
                 {
                     building.startRemove();
                     outcome.Razed++;
@@ -705,14 +695,14 @@ public static class CityZoningSystem
                 if (Move(city, building, zones, byZone, SlotsPerZone(extra))) outcome.Moved++;
             }
             // 建筑台账里记在这块地上的：一并销掉；篝火留着，不再定地块
-            var gone = new List<(BuildingAsset asset, int n)>();
+            var gone = new List<(BuildingKind asset, int n)>();
             foreach (WorkLot lot in CityLedger.Lots(city))
-                if (lot != null && lot.n > 0 && lot.zone == zone.Index && CityLedger.Asset(lot.id) is BuildingAsset asset && Slotted(asset))
+                if (lot != null && lot.n > 0 && lot.zone == zone.Index && CityLedger.Asset(lot.id) is BuildingKind asset && Slotted(asset))
                     gone.Add((asset, lot.n));
-            foreach ((BuildingAsset asset, int n) in gone)
+            foreach ((BuildingKind asset, int n) in gone)
             {
-                if (IsCore(asset)) CityLedger.Move(city, asset.id, zone.Index, -1, n);
-                else outcome.Razed += CityLedger.Remove(city, asset.id, zone.Index, n);
+                if (IsCore(asset)) CityLedger.Move(city, asset.Id, zone.Index, -1, n);
+                else outcome.Razed += CityLedger.Remove(city, asset.Id, zone.Index, n);
             }
         }
         catch (Exception exception)
@@ -730,7 +720,7 @@ public static class CityZoningSystem
     // 在城区里这块地上当场盖一座(调用方已核过是城区、建筑是本城建造单里的)：放得下就盖，建筑位满了拆一座民居；
     // 放不下就拆一座民居腾地方，等原版收走了再盖(Waits)；没有民居可拆返回 NoRoom
 #if EC_PENDING
-    public static Placed Place(City city, Cell zone, BuildingAsset asset)
+    public static Placed Place(City city, Cell zone, BuildingKind asset)
     {
         if (city?.Record == null || zone == null || asset == null) return Placed.NoRoom;
         Placed result = Placed.NoRoom;
@@ -773,9 +763,9 @@ public static class CityZoningSystem
 
     // 拆掉这块地上的功能建筑(非民居；城心的公所、篝火不拆)，空出的位补民居(地方腾出来以前放不下的，一秒后对账时补)；返回拆掉的
 #if EC_PENDING
-    public static List<BuildingAsset> Demolish(City city, Cell zone)
+    public static List<BuildingKind> Demolish(City city, Cell zone)
     {
-        var removed = new List<BuildingAsset>();
+        var removed = new List<BuildingKind>();
         if (city?.Record == null || zone == null) return removed;
         Waits.RemoveAll(wait => wait.City == city && wait.Zone == zone.Index);
         try
@@ -784,21 +774,21 @@ public static class CityZoningSystem
             var razed = new List<Building>();
             foreach (Building building in here)
             {
-                if (IsHouse(building.asset) || IsCore(building.asset)) continue;
+                if (IsHouse(building.Asset) || IsCore(building.Asset)) continue;
                 building.startRemove();
                 razed.Add(building);
-                removed.Add(building.asset);
+                removed.Add(building.Asset);
             }
             foreach (Building building in razed) here.Remove(building);
             // 建筑台账里记在这块地上的功能建筑
-            var gone = new List<(BuildingAsset asset, int n)>();
+            var gone = new List<(BuildingKind asset, int n)>();
             foreach (WorkLot lot in CityLedger.Lots(city))
-                if (lot != null && lot.n > 0 && lot.zone == zone.Index && CityLedger.Asset(lot.id) is BuildingAsset asset &&
+                if (lot != null && lot.n > 0 && lot.zone == zone.Index && CityLedger.Asset(lot.id) is BuildingKind asset &&
                     Slotted(asset) && !IsHouse(asset) && !IsCore(asset))
                     gone.Add((asset, lot.n));
-            foreach ((BuildingAsset asset, int n) in gone)
+            foreach ((BuildingKind asset, int n) in gone)
             {
-                int count = CityLedger.Remove(city, asset.id, zone.Index, n);
+                int count = CityLedger.Remove(city, asset.Id, zone.Index, n);
                 for (int i = 0; i < count; i++) removed.Add(asset);
             }
             if (removed.Count == 0) return removed;
@@ -824,9 +814,7 @@ public static class CityZoningSystem
     {
         public City City;
         public int Zone;
-#if EC_PENDING
-        public BuildingAsset Asset;
-#endif
+        public BuildingKind Asset;
         public float Until;
     }
 

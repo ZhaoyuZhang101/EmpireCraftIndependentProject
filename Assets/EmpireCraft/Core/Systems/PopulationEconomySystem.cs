@@ -120,7 +120,7 @@ public static class PopulationEconomySystem
                 Deposit(city,data,plan.Resources[i],produced);
             }
         }
-        else foreach ((CitizenJobAsset job, (string resource, float amount)[] outputs) in JobOutputs())
+        else foreach ((JobKind job, (string resource, float amount)[] outputs) in JobOutputs())
         {
             if (job == null) continue;
             int slots = city.jobs.countCurrentJobs(job);
@@ -267,16 +267,14 @@ public static class PopulationEconomySystem
 
     // 没有农田时每户每年的自给口粮(不够吃饱：一户一年吃 1 份)
     private const float SubsistenceFoodPerYear = 0.5f;
-#if EC_PENDING
-    private static List<(CitizenJobAsset, (string, float)[])> _jobOutputs;
-#endif
+    private static List<(JobKind, (string, float)[])> _jobOutputs;
 
     // 每个原版岗位每年的产出
 #if EC_PENDING
-    private static List<(CitizenJobAsset, (string, float)[])> JobOutputs()
+    private static List<(JobKind, (string, float)[])> JobOutputs()
     {
         if (_jobOutputs != null) return _jobOutputs;
-        _jobOutputs = new List<(CitizenJobAsset, (string, float)[])>
+        _jobOutputs = new List<(JobKind, (string, float)[])>
         {
             (CitizenJobLibrary.gatherer_bushes, new[] { ("berries", 2f) }),
             (CitizenJobLibrary.gatherer_herbs, new[] { ("herbs", 1f) }),
@@ -286,7 +284,7 @@ public static class PopulationEconomySystem
             (CitizenJobLibrary.miner_deposit, new[] { ("stone", 1.5f), ("common_metals", 0.5f) })
         };
         // 这个版本没有的资源不产
-        foreach ((CitizenJobAsset job, (string, float)[] outputs) in _jobOutputs.ToArray())
+        foreach ((JobKind job, (string, float)[] outputs) in _jobOutputs.ToArray())
         {
             (string, float)[] valid = outputs.Where(output => AssetManager.resources?.get(output.Item1) != null).ToArray();
             _jobOutputs[_jobOutputs.FindIndex(item => item.Item1 == job)] = (job, valid);
@@ -304,7 +302,7 @@ public static class PopulationEconomySystem
     private static object _oreWorld;
 
 #if EC_PENDING
-    private static (string, float)[] OutputsFor(City city, CitizenJobAsset job, (string, float)[] outputs)
+    private static (string, float)[] OutputsFor(City city, JobKind job, (string, float)[] outputs)
     {
         if (job != CitizenJobLibrary.miner_deposit || city?.Zones == null) return outputs;
         if (!ReferenceEquals(_oreWorld, EmpireWorld.Current))
@@ -323,7 +321,7 @@ public static class PopulationEconomySystem
             if (minerals == null) continue;
             foreach (Building building in minerals)
             {
-                List<ResourceContainer> given = building?.asset?.resources_given;
+                List<ResourceContainer> given = building?.Asset?.resources_given;
                 if (given == null || given.Count == 0 || building.IsGone()) continue;
                 ores++;
                 foreach (ResourceContainer resource in given)
@@ -612,20 +610,20 @@ public static class PopulationEconomySystem
             // 纯净地图：矿、林、牧的岗位在村镇里(见 LivelihoodSystem.Jobs)，田是农村的田，不看风车
             if (LivelihoodSystem.Active)
                 return productive + LivelihoodSystem.Jobs(city) + (CityPopulationSystem.Get(city)?.farm_jobs ?? 0f);
-            foreach (Building building in city.buildings)
-                if (building?.asset != null && !building.isUnderConstruction() &&
-                    (IndustryBuildingSystem.IsMine(building.asset) || IndustryBuildingSystem.IsLumber(building.asset)))
+            foreach (Building building in city.Buildings)
+                if (building?.Asset != null && !building.IsUnderConstruction() &&
+                    (IndustryBuildingSystem.IsMine(building.Asset) || IndustryBuildingSystem.IsLumber(building.Asset)))
                     productive += JobsPerBuilding;
             if (city.getBuildingOfType("type_windmill", pCountOnlyFinished: true, pRandom: false) != null)
                 productive += CityPopulationSystem.Get(city)?.farm_jobs ?? 0f;
             return productive;
         }
         int buildings = 0;
-        if (city.buildings != null)
-            foreach (Building building in city.buildings)
+        if (city.Buildings != null)
+            foreach (Building building in city.Buildings)
             {
-                if (building?.asset == null || building.isUnderConstruction()) continue;
-                if (building.asset.type == "type_house") continue;
+                if (building?.Asset == null || building.IsUnderConstruction()) continue;
+                if (building.Asset.Type == "type_house") continue;
                 buildings++;
             }
         int zones = city.Zones?.Count ?? 0;
@@ -772,19 +770,18 @@ public static class PopulationEconomySystem
 #endif
 
     // 工人去工地：按攒下的施工点数推进城里在建的建筑
-#if EC_PENDING
     private static void AdvanceConstruction(City city, CityPopulationData data, float points)
     {
         data.construction_carry += points;
         int whole = Mathf.FloorToInt(data.construction_carry);
-        if (whole <= 0 || _updateBuild == null || city.buildings == null) return;
+        if (whole <= 0 || _updateBuild == null || city.Buildings == null) return;
         int used = 0;
         try
         {
-            foreach (Building building in city.buildings)
+            foreach (Building building in city.Buildings)
             {
                 if (used >= whole) break;
-                if (building?.asset == null || !building.isUnderConstruction()) continue;
+                if (building?.Asset == null || !building.IsUnderConstruction()) continue;
                 int share = Mathf.Max(1, (whole - used) / 2);
                 _updateBuild.Invoke(building, new object[] { share });
                 used += share;
@@ -799,6 +796,7 @@ public static class PopulationEconomySystem
         data.construction_carry = used > 0 ? data.construction_carry - used : 0f;
     }
 
+#if EC_PENDING
     private static List<ResourceAsset> _foodAssets;
 
     private static List<ResourceAsset> FoodAssets()

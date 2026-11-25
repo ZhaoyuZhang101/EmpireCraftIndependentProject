@@ -27,11 +27,9 @@ public static class ModernPolicySystem
     private static ConstitutionalEconomyState State(Realm kingdom) => kingdom?.GetEmpire()?.data?.constitutional_economy;
 
     // 提得出现代议题的国家：工业时代以后(穿越政权自成一套)
-#if EC_PENDING
     public static bool Industrial(Empire empire) =>
         empire?.CoreKingdom != null && !empire.IsGone() && State(empire) != null && !TransmigrantSystem.Governs(empire) &&
         TechnologySystem.GetEraTier(InstitutionSystem.GetPrimaryCulture(empire)) >= EconomicCycleSystem.IndustrialEra;
-#endif
 
     public static int Nationalization(Empire empire) => State(empire)?.nationalization ?? Mixed;
 
@@ -39,7 +37,6 @@ public static class ModernPolicySystem
         LM.Get(level >= Nationalized ? "modern_policy_nationalized" : level <= Privatized ? "modern_policy_privatized" : "modern_policy_mixed");
 
     // 改产业归属一档(toward = 1 往国有化，-1 往私有化)：返回这回发卖得的钱(国有化为 0)
-#if EC_PENDING
     public static int ShiftOwnership(Empire empire, int toward)
     {
         ConstitutionalEconomyState state = State(empire);
@@ -71,10 +68,8 @@ public static class ModernPolicySystem
         }
         return proceeds;
     }
-#endif
 
     // 社会主义、共产主义立国的国家(看立国理念)到了工业时代即国有化：只办一回，不记怨气(建政时已成定局)；此后照国策走
-#if EC_PENDING
     public static void EnsureFounding(Empire empire, ConstitutionalEconomyState state)
     {
         if (state == null || state.founding_nationalized || !Industrial(empire)) return;
@@ -86,7 +81,6 @@ public static class ModernPolicySystem
             foreach (FactorySite site in FactorySystem.InCity(city)) site.state = true;
         ConglomerateSystem.Nationalize(empire);
     }
-#endif
 
     // 新办产业谁先出资(见 EnterpriseSystem.StatePreferred)：定了国有化、私有化的照国策，没定返回 null
     public static bool? StatePreferred(Realm kingdom) => State(kingdom)?.nationalization switch
@@ -106,10 +100,8 @@ public static class ModernPolicySystem
 
     #region 国民教育
 
-#if EC_PENDING
     public static int EducationCost(Empire empire, int level) =>
         level <= 0 ? 0 : Math.Max(5, ConstitutionalEconomySystem.GetWelfareAnnualCost(empire, level) / 2);
-#endif
 
     public static bool RaiseEducation(Empire empire)
     {
@@ -120,7 +112,6 @@ public static class ModernPolicySystem
     }
 
     // 每年(ConstitutionalEconomySystem)：教育拨款
-#if EC_PENDING
     public static void UpdateYear(Empire empire, ConstitutionalEconomyState state)
     {
         if (empire?.CoreKingdom == null || state == null) return;
@@ -128,7 +119,6 @@ public static class ModernPolicySystem
         state.education_funded = cost > 0 && empire.CoreKingdom.GetMoney() >= cost;
         if (state.education_funded) empire.CoreKingdom.SubMoney(cost, TreasuryCategory.Research);
     }
-#endif
 
     // 本文化研究点的加成(见 TechnologySystem)：各国教育档按城数加权
     public static float ResearchBonus(List<City> cities)

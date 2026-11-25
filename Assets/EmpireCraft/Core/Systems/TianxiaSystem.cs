@@ -155,14 +155,12 @@ public static class TianxiaSystem
         return (EmpireCoreControl.CountHolders(cities), cities.Count);
     }
 
-#if EC_PENDING
     public static string Name(EmpireCore lead)
     {
         if (lead == null) return "";
         if (!string.IsNullOrWhiteSpace(lead.tianxia_name)) return lead.tianxia_name.Trim();
         return string.Format(LM.Get(Term(lead, "tianxia_default_name")), EmpireCoreManager.GetDisplayName(lead));
     }
-#endif
 
     public static void Rename(EmpireCore core, string name)
     {
@@ -186,7 +184,6 @@ public static class TianxiaSystem
     }
 
     // 退出联合天下，自成一个天下(天命要重新据有七成五才受)；退出的是主核心就由下一个核心接着作主
-#if EC_PENDING
     public static bool Leave(EmpireCore core, bool manual = true)
     {
         if (core == null) return false;
@@ -200,14 +197,11 @@ public static class TianxiaSystem
         ClearState(core);
         return true;
     }
-#endif
 
     // 城最多的核心(交接天下时由它作主)
-#if EC_PENDING
     private static EmpireCore Largest(IEnumerable<EmpireCore> cores) =>
         cores.Where(core => core != null).OrderByDescending(core => EmpireCoreManager.GetCities(core).Count).ThenBy(core => core.id)
             .FirstOrDefault();
-#endif
 
     // 天下交给 heir 作主：名号、天命、历代共主、天命阶段、天下朝贡国一并移交，其余成员改挂 heir
     private static void Handover(EmpireCore lead, EmpireCore heir, List<EmpireCore> members)
@@ -238,7 +232,6 @@ public static class TianxiaSystem
 
     // 帝国核心被销毁(军阀、法统之争、现代国家、神力……，见 EmpireCoreManager.DestroyEmpireCore)：它作主的天下交给
     // 城最多的成员接着作主，名号天命不丢；没有别的成员就散了，天下朝贡国的标记一并清掉
-#if EC_PENDING
     public static void OnCoreDestroyed(EmpireCore core)
     {
         if (core == null || Lead(core) != core) return;
@@ -247,7 +240,6 @@ public static class TianxiaSystem
         if (heir != null) Handover(core, heir, members);
         else MoveTributaries(core.id, -1L);
     }
-#endif
 
     // 每年(自动并分之前)：指向已不存在、或已不作主的核心的天下归属理顺——以前主核心被销毁后成员一直挂着失效的编号，
     // 天命、正统、封禅、造玺都判不成
@@ -438,6 +430,7 @@ public static class TianxiaSystem
         }
         Claim(lead, top.Key, top.Value, total, name, now);
     }
+#endif
 
     private static void Claim(EmpireCore lead, Realm kingdom, int count, int total, string name, double now)
     {
@@ -457,17 +450,14 @@ public static class TianxiaSystem
         lead.tianxia_phase_since = now;
         InvalidateLegitimacy(kingdom);
     }
-#endif
 
     // 统一完成即受天命(用户 2026-10-17 选"以天命为准"：统一了就是治世的开头)，不论据有几成；之后照常过半才守得住
-#if EC_PENDING
     public static void Grant(EmpireCore lead, Realm unifier, int count, int total, string name)
     {
         if (lead == null || unifier?.Record == null || unifier.IsGone() || unifier.IsWild || total <= 0 ||
             lead.mandate_kingdom_id >= 0 || EmpireWorld.Current == null) return;
         Claim(lead, unifier, count, total, name, GameClock.Now);
     }
-#endif
 
     // 这一国受着哪个天下的天命(没有为空)
     public static EmpireCore MandateOf(Realm kingdom) => kingdom == null ? null
@@ -539,7 +529,6 @@ public static class TianxiaSystem
 #endif
 
     // 天命动摇：地盘跌到七成五以下、正统低于三十、积弊六十以上
-#if EC_PENDING
     private static bool Shaken(Realm holder, float share)
     {
         Empire empire = holder?.GetEmpire();
@@ -548,10 +537,8 @@ public static class TianxiaSystem
         if (empire == null) return false;
         return empire.Legitimacy < ShakenMandate || DynasticCycleSystem.GetPressure(empire) >= ShakenPressure;
     }
-#endif
 
     // 天命动摇的缘由(天下窗口显示)
-#if EC_PENDING
     public static List<string> ShakenReasons(EmpireCore lead)
     {
         var reasons = new List<string>();
@@ -568,10 +555,8 @@ public static class TianxiaSystem
         if (pressure >= ShakenPressure) reasons.Add(string.Format(LM.Get("tianxia_shaken_pressure"), pressure, ShakenPressure));
         return reasons;
     }
-#endif
 
     // 换段：治世转动荡记"天命动摇"、动荡回治世记"复归治世"(乱世由失天命那一笔记过)
-#if EC_PENDING
     private static void SetPhase(EmpireCore lead, int phase, string name, Realm holder)
     {
         int old = lead.tianxia_phase;
@@ -585,7 +570,6 @@ public static class TianxiaSystem
             Record(holder, string.Format(LM.Get(Term(lead, "tianxia_peace_history")), name, holder.GetKingdomName()));
         InvalidateLegitimacy(holder);
     }
-#endif
 
     // 正统：天下共主 +8；失了天命、天下仍无主的旧朝 -5
     public static IEnumerable<(string key, int value)> LegitimacyItems(Empire empire)
@@ -614,7 +598,6 @@ public static class TianxiaSystem
     }
 
     // 界面上的天命状况
-#if EC_PENDING
     public static string MandateText(EmpireCore lead)
     {
         if (lead == null) return "";
@@ -626,7 +609,6 @@ public static class TianxiaSystem
             return string.Format(LM.Get("tianxia_mandate_vacant"), lead.mandate_holder_name, GameClock.YearsSince(lead.mandate_lost_at));
         return LM.Get("tianxia_mandate_never");
     }
-#endif
 
     private static void InvalidateLegitimacy(Realm kingdom)
     {
@@ -639,7 +621,6 @@ public static class TianxiaSystem
     private static object _announceWorld;
     private static double _announceFrom = -1d;
 
-#if EC_PENDING
     private static void Announce(Realm kingdom, string text)
     {
         Record(kingdom, text);
@@ -649,7 +630,6 @@ public static class TianxiaSystem
         if (now >= _announceFrom && GameClock.YearsSince(_announceFrom) < 1) return;
         if (kingdom?.Record != null && !kingdom.IsGone()) TranslateHelper.LogEventOnly(text, kingdom);
     }
-#endif
 
     // 记下读档(换世界)的时间：年度结算一开始就记，头一年的天命得失不公告
     private static void NoteWorld()
@@ -659,13 +639,11 @@ public static class TianxiaSystem
         _announceFrom = GameClock.Now;
     }
 
-#if EC_PENDING
     private static void Record(Realm kingdom, string text)
     {
         if (kingdom?.Record == null || kingdom.IsGone()) TranslateHelper.LogEventMessage(text);
         else EventRecorder.Record(kingdom, text);
     }
-#endif
 
     #endregion
 }

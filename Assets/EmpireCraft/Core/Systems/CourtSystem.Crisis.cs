@@ -9,7 +9,6 @@ namespace EmpireCraft.Core
 
 public static partial class CourtSystem
 {
-#if EC_PENDING
     public static float BoycottShare(Empire empire) => Factions(empire)
         .Where(faction => IsBoycotting(FactionState(empire, faction))).Sum(faction => Mathf.Max(0, faction.CentralRatio));
 
@@ -27,7 +26,6 @@ public static partial class CourtSystem
         if (state.crisis_years == 1 && empire.Legitimacy < 30 && share >= 40f)
             Log(state, "court_log_crisis", Mathf.RoundToInt(share).ToString());
     }
-#endif
 
     // 各派可暂时联合逼退失去支持的君主，无须其中一派独占两成。
     // 地方兵谏与中枢废立沿用既有战争、继承和整城归属结算，不修改城市地块。

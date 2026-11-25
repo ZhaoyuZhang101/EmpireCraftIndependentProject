@@ -25,7 +25,6 @@ public static class EthnicRankSystem
 {
     public const string Feature = "ethnic_ranks";
 
-#if EC_PENDING
     public static Scheme SchemeOf(Empire empire)
     {
         if (empire?.data == null || empire.CoreKingdom?.Record == null || empire.CoreKingdom.IsGone()) return Scheme.None;
@@ -38,7 +37,6 @@ public static class EthnicRankSystem
 
     public static Scheme SchemeOf(Realm kingdom) =>
         kingdom?.Record == null || kingdom.IsGone() ? Scheme.None : SchemeOf(kingdom.GetEmpire());
-#endif
 
     #region 分等
 
@@ -46,7 +44,6 @@ public static class EthnicRankSystem
     public static bool EarlySubject(City city, Empire empire) =>
         city?.Record != null && empire?.CoreKingdom != null && city.GetOrCreate().rank_early_core == empire.CoreKingdom.Key;
 
-#if EC_PENDING
     public static int RankOf(Scheme scheme, Empire empire, City city, PopGroup group)
     {
         string culture = string.IsNullOrEmpty(group?.culture) ? CultureService.GetMainCulture(city, initialize: false) : group.culture;
@@ -61,10 +58,8 @@ public static class EthnicRankSystem
             return scheme == Scheme.FourClasses && !EarlySubject(city, empire) ? Late : Early;
         return Allied;
     }
-#endif
 
     // 一城四等各占几成(背景人口；没有人口账的按主流文化整城算)
-#if EC_PENDING
     public static float[] Shares(City city, out Scheme scheme)
     {
         var shares = new float[Count];
@@ -88,10 +83,8 @@ public static class EthnicRankSystem
         for (int rank = 0; rank < Count; rank++) shares[rank] /= total;
         return shares;
     }
-#endif
 
     // 城里人数最多的一等
-#if EC_PENDING
     public static int MainRank(City city, out Scheme scheme)
     {
         float[] shares = Shares(city, out scheme);
@@ -100,10 +93,8 @@ public static class EthnicRankSystem
             if (shares[rank] > shares[best]) best = rank;
         return best;
     }
-#endif
 
     // 四等人的汉人、南人只在属地是华夏一系时这么叫；征服别的文明叫先附、新附
-#if EC_PENDING
     public static string RankName(Scheme scheme, int rank, Empire empire = null)
     {
         string key = $"ethnic_rank_{scheme}_{rank}";
@@ -112,7 +103,6 @@ public static class EthnicRankSystem
             key += "_generic";
         return LM.Get(key);
     }
-#endif
 
     public static string SchemeName(Scheme scheme) => LM.Get($"ethnic_rank_scheme_{scheme}");
 
@@ -120,16 +110,13 @@ public static class EthnicRankSystem
 
     #region 各项差别
 
-#if EC_PENDING
     public static float TaxFactor(City city)
     {
         float[] shares = Shares(city, out Scheme scheme);
         return EthnicRankRules.TaxFactor(scheme, shares);
     }
-#endif
 
     // 稳定度增减(正为加)，detail 写进稳定度说明
-#if EC_PENDING
     public static float StabilityShift(City city, out string detail)
     {
         detail = null;
@@ -149,10 +136,8 @@ public static class EthnicRankSystem
         float[] shares = Shares(city, out Scheme scheme);
         return EthnicRankRules.MilitiaFactor(scheme, shares);
     }
-#endif
 
     // 帝国核心择官这一次要不要先尽上等(按配额掷一次)
-#if EC_PENDING
     public static bool FavorsUpper(Realm kingdom)
     {
         Empire empire = kingdom?.GetEmpire();
@@ -160,10 +145,8 @@ public static class EthnicRankSystem
         Scheme scheme = SchemeOf(empire);
         return scheme != Scheme.None && EthnicRankRules.FavorsRuling(scheme, EcRandom.Range(0f, 1f));
     }
-#endif
 
     // 上等之人：四等人是国族、色目；满汉复职的满缺只给国族
-#if EC_PENDING
     public static bool IsUpper(Realm kingdom, Person actor)
     {
         Empire empire = kingdom?.GetEmpire();
@@ -174,10 +157,8 @@ public static class EthnicRankSystem
         return scheme == Scheme.FourClasses && CultureService.IsValidCulture(culture) &&
                !CultureService.SameKin(culture, CompositeEmpireService.GetInstitutionalCulture(empire));
     }
-#endif
 
     // 征兵：四等人的中央禁军不收南人
-#if EC_PENDING
     public static bool MayRecruit(Realm kingdom, CorpsData corps, City source, PopGroup group)
     {
         if (corps == null || source == null || group == null) return true;
@@ -187,19 +168,15 @@ public static class EthnicRankSystem
         Scheme scheme = SchemeOf(empire);
         return scheme == Scheme.None || CentralRecruits(scheme, RankOf(scheme, empire, source, group));
     }
-#endif
 
     // 融合每年少几分
-#if EC_PENDING
     public static int IntegrationDrag(Empire empire) => SchemeOf(empire) == Scheme.FourClasses ? FourIntegrationDrag : 0;
-#endif
 
     #endregion
 
     #region 每年
 
     // 每年(帝国例行检查)：四等人定制那年把治下的城都记作已归附(汉人)，以后打下的是南人；等第作废时清掉
-#if EC_PENDING
     public static void Yearly(Empire empire)
     {
         if (empire?.data == null || empire.CoreKingdom?.Record == null || empire.CoreKingdom.IsGone()) return;
@@ -228,7 +205,6 @@ public static class EthnicRankSystem
         if (scheme == Scheme.FourClasses) TranslateHelper.LogEventMessage(text, empire.CoreKingdom);
         LogService.LogInfo($"[EmpireCraft][族群等第] {empire.GetEmpireName()} 定{scheme}，{marked} 城记作已归附");
     }
-#endif
 
     #endregion
 
@@ -239,7 +215,6 @@ public static class EthnicRankSystem
         public float total;
     }
 
-#if EC_PENDING
     public static Summary SummaryOf(Empire empire)
     {
         var summary = new Summary { scheme = SchemeOf(empire) };
@@ -258,6 +233,5 @@ public static class EthnicRankSystem
         }
         return summary;
     }
-#endif
 }
 }

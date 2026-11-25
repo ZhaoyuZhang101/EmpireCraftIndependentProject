@@ -107,7 +107,6 @@ public static class CompanySystem
         : company.listed ? company.price * StockMarketSystem.Shares
         : Mathf.Max(0f, company.profit * 8f + company.capital) + company.value * 0.5f;
 
-#if EC_PENDING
     public static string OwnershipName(CompanyData company)
     {
         if (company == null) return "";
@@ -116,7 +115,6 @@ public static class CompanySystem
         if (company.state_share >= ControlStake) return LM.Get("company_kind_state_held");
         return LM.Get(company.group_clan_id >= 0 ? "company_kind_group" : "company_kind_private");
     }
-#endif
 
     // 地图上厂区标的名字(见 MapLabelOverlay)
     public static string MapLabel(FactorySite site) => Of(site)?.short_name ?? "";
@@ -159,9 +157,7 @@ public static class CompanySystem
 
     #region 年度
 
-#if EC_PENDING
     private static int Era(Empire empire) => TechnologySystem.GetEraTier(InstitutionSystem.GetPrimaryCulture(empire));
-#endif
 
     // 每年(ConstitutionalEconomySystem，先于财阀)
 #if EC_PENDING
@@ -586,7 +582,6 @@ public static class CompanySystem
     }
 
     // 财阀跨行业收购：拿旗下的资本买别的行业里最大的独立私企(控股，不并名号)
-#if EC_PENDING
     private static void GroupBuys(Empire empire, ConstitutionalEconomyState state, List<CompanyData> own)
     {
         if (state.conglomerates == null) return;
@@ -606,7 +601,6 @@ public static class CompanySystem
             EventRecorder.RecordRoutine(empire, string.Format(LM.Get("company_group_bought_history"), house.name, target.name));
         }
     }
-#endif
 
     #endregion
 
@@ -696,7 +690,6 @@ public static class CompanySystem
 #endif
 
     // 这个国家容不容外国资本：没有国有化、没有闭关、没在同买方打仗，没收过买方的产业还没过二十年的不容
-#if EC_PENDING
     private static bool OpenToForeign(Empire buyer, Empire host)
     {
         ConstitutionalEconomyState state = host?.data?.constitutional_economy;
@@ -706,7 +699,6 @@ public static class CompanySystem
         if (CommodityMarketSystem.PolicyOf(leader) == TradePolicy.Closed) return false;
         return !(state.seizures != null && state.seizures.TryGetValue(buyer.Key, out double at) && GameClock.YearsSince(at) < SeizureGrudgeYears);
     }
-#endif
 
     // 各外国在本国关键行业里控着几成
     private static void ControlLedger(ConstitutionalEconomyState state, List<CompanyData> own)
@@ -742,7 +734,6 @@ public static class CompanySystem
     }
 
     // 没收外资(国有化、厂区改官营)：被没收的一方记恨二十年，当场打起关税战
-#if EC_PENDING
     private static void Seize(Empire host, ConstitutionalEconomyState state, CompanyData company, double now)
     {
         Empire foreign = ForeignOwner(company);
@@ -755,7 +746,6 @@ public static class CompanySystem
             foreign.GetEmpireFullName()), host, new[] { foreign });
         TradeWarSystem.Start(foreign, host, "seizure");
     }
-#endif
 
     // 好感：受制于对方 +20；自己的产业被对方没收过(二十年内) −40
     public static int OpinionOf(Realm main, Realm target)

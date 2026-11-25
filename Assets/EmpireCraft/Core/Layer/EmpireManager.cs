@@ -24,15 +24,15 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
     }
 #endif
     public bool _dirty_cities = false;
+    public override void UpdateDirtyUnits()
+    {
+    }
+
+    public override void StartCollectHistoryData()
+    {
+    }
+
 #if EC_PENDING
-    public override void updateDirtyUnits()
-    {
-    }
-
-    public override void startCollectHistoryData()
-    {
-    }
-
     public override void Update(float pElapsed)
     {
         base.Update(pElapsed);
@@ -250,7 +250,6 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
 #endif
 
     // 清理失效的正统对手，并为旧存档中的既有僭越者补齐伪法理标记。
-#if EC_PENDING
     private void ClearStaleLegitimacyRivalries()
     {
         foreach (Empire empire in _empiresToProcess)
@@ -273,7 +272,6 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
             EmpireCoreManager.SyncCitiesFromTitles(legitimateCore);
         }
     }
-#endif
 
 
     // continued：皇族王国接续(见 Empire.ReplaceEmpire)，同一帝国换了中央，不记进已亡帝国名录。
@@ -433,7 +431,7 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
                 ? other
                 : empire;
             Realm kingdom = younger.CoreKingdom;
-            ActorAsset asset = kingdom.Ruler?.asset ?? kingdom.People?.FirstOrDefault(unit => unit != null)?.asset;
+            PersonKind asset = kingdom.Ruler?.Asset ?? kingdom.People?.FirstOrDefault(unit => unit != null)?.Asset;
             if (asset == null) return;
             Tint next = kingdom.getColorLibrary()?.getNextColor(asset);
             if (next == null) return;

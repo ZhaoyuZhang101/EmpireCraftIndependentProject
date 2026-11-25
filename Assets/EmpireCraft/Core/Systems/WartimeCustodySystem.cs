@@ -22,7 +22,6 @@ public static class WartimeCustodySystem
     private static double _lastScan = -1d;
 
     // 返回中央(需要代管)或 null(不代管)
-#if EC_PENDING
     public static Realm CustodianFor(Realm capturer, Realm oldKingdom)
     {
         if (capturer == null || oldKingdom == null || !capturer.IsInEmpire()) return null;
@@ -36,7 +35,6 @@ public static class WartimeCustodySystem
         if (!core.IsAtWarWith(oldKingdom)) return null;
         return core;
     }
-#endif
 
     // 城市交给中央之前调用
     public static void Record(City city, Realm capturer, Realm oldKingdom, War war)
@@ -59,7 +57,6 @@ public static class WartimeCustodySystem
     public static bool InCustody(City city) => city?.Record != null && city.GetOrCreate().custody_capturer_id >= 0;
 
     // 每月检查一次(挂在 CityPatch 的世界扫描轮转上)
-#if EC_PENDING
     public static void TryMonthlyScan()
     {
         if (EmpireWorld.Current?.Cities == null || ModClass.IS_CLEAR) return;
@@ -82,11 +79,9 @@ public static class WartimeCustodySystem
             }
         }
     }
-#endif
 
     public static void ResetWorldState() => _lastScan = -1d;
 
-#if EC_PENDING
     private static bool TrySettle(City city)
     {
         var data = city.GetOrCreate();
@@ -109,7 +104,6 @@ public static class WartimeCustodySystem
             empire.GetEmpireFullName(), city.GetCityName(), target.Name), holder);
         return true;
     }
-#endif
 
     private static bool WarOver(long warId, Realm core, long enemyId)
     {
@@ -120,7 +114,6 @@ public static class WartimeCustodySystem
         return enemy == null || enemy.IsGone() || !core.IsAtWarWith(enemy);
     }
 
-#if EC_PENDING
     private static Realm Allocate(City city, Empire empire, Realm capturer)
     {
         Realm core = empire.CoreKingdom;
@@ -155,7 +148,6 @@ public static class WartimeCustodySystem
         }
         return best ?? core;
     }
-#endif
 
     private static int Rank(Realm kingdom, Realm capturer, Realm core) =>
         kingdom == capturer ? 0 : kingdom == core ? 1 : 2;

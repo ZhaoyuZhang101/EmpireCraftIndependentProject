@@ -75,18 +75,15 @@ public static partial class FrontSystem
 #endif
 
     // 已在登陆那座城那片陆地上的军还要不要坐船：陆路走不通(隔着第三国)、还没上岸的坐；走得通的走陆路
-#if EC_PENDING
     private static bool SailsAround(CorpsData corps, Cell at, City city, bool overland)
     {
         if (overland) return false;
         Cell goal = city.SeatCell()?.Zone;
         return goal != null && !Landed(corps, at, goal, corps.task == "attack" && corps.sector_city_id == city.Key);
     }
-#endif
 
     // 上了岸：离城心不过 LandedZones 块；或这一仗(beach：军正打着这座城)坐船在那片陆地上靠了岸(见 CorpsSystem.Disembark，
     // 改派别的城时清掉，见 ForgetBeach)、还在这片陆地上——上岸后往城下走，路上绕山绕墙也不再回头坐船
-#if EC_PENDING
     private static bool Landed(CorpsData corps, Cell at, Cell goal, bool beach)
     {
         if (at == null || goal == null) return false;
@@ -95,7 +92,6 @@ public static partial class FrontSystem
         Cell shore = CorpsSystem.ZoneById(corps.landing_zone_id);
         return shore != null && !SeaRegionSystem.IsSea(shore) && CorpsSystem.SameLand(shore, goal) && CorpsSystem.SameLand(shore, at);
     }
-#endif
 
     // 改派去打别的城：上一仗的靠岸处不再算数(在船上的不动，船到了照旧在选好的海滩靠岸)。登陆派兵与陆上攻势落位时都调
     private static void ForgetBeach(CorpsData corps, City city)
@@ -115,7 +111,6 @@ public static partial class FrontSystem
 #endif
 
     // 这一段的守势(上月守军 + 团练)，与 Score 同一套
-#if EC_PENDING
     private static float DefenseOf(Realm kingdom, Sector sector)
     {
         if (SectorDefense.TryGetValue(sector, out float defense)) return defense;
@@ -124,7 +119,6 @@ public static partial class FrontSystem
         SectorDefense[sector] = defense;
         return defense;
     }
-#endif
 
     // 陆上攻势有几路(登陆战线不占名额)
     private static int LandOffensives(Dictionary<Sector, float> attackOn) => attackOn.Keys.Count(sector => !sector.Landing);
@@ -248,7 +242,6 @@ public static partial class FrontSystem
 #endif
 
     // 派去打这一路登陆(与陆上攻势同样落位)：要上船的占运力
-#if EC_PENDING
     private static void Dispatch(CorpsData corps, Sector sector, HashSet<CorpsData> assigned, Dictionary<Sector, float> attackOn,
         Dictionary<int, int> attackLoad, ref float shipping)
     {
@@ -262,7 +255,6 @@ public static partial class FrontSystem
         corps.entrench = 0f;
         assigned.Add(corps);
     }
-#endif
 
     // 运力为什么不够(诊断)
 #if EC_PENDING

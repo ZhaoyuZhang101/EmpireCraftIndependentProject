@@ -27,14 +27,12 @@ public static partial class PapacySystem
     private const int ReligiousPeaceYears = 50;
     private const float ChurchLandsYears = 2f;
 
-#if EC_PENDING
     public static bool IsHolySee(Empire empire)
     {
         Religion religion = ReligionOf(empire);
         Realm papacy = Papacy(religion);
         return papacy != null && empire?.CoreKingdom == papacy && papacy.GetKingdomType() == KingdomType.Feudalism_papal_state;
     }
-#endif
 
     // 每年随 UpdateReligion：教廷之囚的起止、大分裂(对立教宗)起头。
     // 对立教宗：教廷之囚满 SchismYears 年，或教宗正统低于 PopeLegitimacy.AntipopeBelow 时每年 AntipopeChance，扶立得成才起
@@ -67,7 +65,6 @@ public static partial class PapacySystem
 #endif
 
     // 教宗受挟：与挟持者交战的帝国遭绝罚
-#if EC_PENDING
     private static bool CaptorBan(Empire empire, PapalRelationState state, Religion religion)
     {
         if (!IsCaptive(religion)) return false;
@@ -77,10 +74,8 @@ public static partial class PapacySystem
         Excommunicate(empire, state, "papal_ban_reason_captor");
         return true;
     }
-#endif
 
     // 宗教改革脱离罗马(君主率国改宗)：改奉境内已占上风的新教会，或另立国教会
-#if EC_PENDING
     private static void TryBreakWithRome(Empire empire)
     {
         if (!IsWestern(empire) || HolyRomanSystem.KeepsOldFaith(empire)) return;
@@ -94,10 +89,8 @@ public static partial class PapacySystem
         if (church != null && share >= AdoptShare) AdoptRealmReformation(empire, church, old);
         else if (enacted) BreakWithRome(empire);
     }
-#endif
 
     // 另立国教会：本文化施行宗教改革后君主率国脱离、境内又没有占上风的新教会时(TryBreakWithRome)
-#if EC_PENDING
     public static bool BreakWithRome(Empire empire)
     {
         // 选帝制帝国的皇帝不随宗教改革脱离罗马，由诸侯另立新教会(见 HolyRomanSystem.SeedReformation)
@@ -147,10 +140,8 @@ public static partial class PapacySystem
         ReligionChronicle.Record(old, church, ReligionChronicle.KindSchism, text);
         return true;
     }
-#endif
 
     // 讨伐异端的目标：从本宗教分出去、30 年内、不在"教随国定"期间
-#if EC_PENDING
     private static Realm HereticTarget(Religion religion)
     {
         var data = religion.GetOrCreate();
@@ -169,19 +160,15 @@ public static partial class PapacySystem
         }
         return null;
     }
-#endif
 
     // 讨伐异端的圣战打完、帝国诸侯订立和约：教随国定
-#if EC_PENDING
     public static void ReligiousPeace(Religion religion)
     {
         religion.GetOrCreate().ReligiousPeaceUntil = GameClock.Now + ReligiousPeaceYears * SecondsPerYear;
         TranslateHelper.LogEventMessage(string.Format(LM.Get("papal_religious_peace_log"), religion.Name), Papacy(religion));
     }
-#endif
 
     // 骑士团国世俗化
-#if EC_PENDING
     private static bool SecularizeOrderState(KnightOrderData order)
     {
         Realm state = order.state_kingdom_id >= 0 ? EmpireWorld.Current.RealmByKey(order.state_kingdom_id) : null;
@@ -195,11 +182,9 @@ public static partial class PapacySystem
         TranslateHelper.LogEventMessage(string.Format(LM.Get("order_secularized_log"), order.name, name), state);
         return true;
     }
-#endif
 
     // 皇帝就是教宗的帝国(见 PopeIsEmperor)：天下空缺时教宗自授天下之名(RealmNamingSystem ④)；天下之名已归别家时国号改"某某圣座"，
     // 不再一直叫"教宗国"
-#if EC_PENDING
     private static void NameHolySee(Empire empire, PapalRelationState state)
     {
         if (state.holy_see_named || !PopeIsEmperor(empire) || RealmNamingSystem.HoldsUniversal(empire) ||
@@ -210,6 +195,5 @@ public static partial class PapacySystem
         empire.SetEmpireName(string.Format(LM.Get("holy_see_empire_name"), holy.GetCityName()));
         Record(empire, string.Format(LM.Get("holy_see_history"), empire.GetEmpireFullName()));
     }
-#endif
 }
 }

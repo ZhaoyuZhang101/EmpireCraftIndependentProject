@@ -145,13 +145,11 @@ public static class BackgroundReligionSystem
 #endif
 
     // 跨天下改信、改宗的几率倍数：跨了天下 ×0.5，本天下已有本土大教再 ×0.5
-#if EC_PENDING
     public static float ForeignChance(Religion religion, string citySphere)
     {
         if (religion?.data == null || string.IsNullOrEmpty(citySphere) || ReligionSphere.SphereOf(religion) == citySphere) return 1f;
         return ReligionSphere.IsForeignToNativeLand(religion, citySphere) ? CrossChanceFactor * ForeignChanceFactor : CrossChanceFactor;
     }
-#endif
 
     // 传教够得着的邻城：原版邻城；通达层算好后改为城际图上直接相连的城(陆路、海路，见类头)，这座城不在图上时
     // 照旧原版邻城加只隔无人区的邻城
@@ -176,13 +174,10 @@ public static class BackgroundReligionSystem
 
     // 从 from 城传到 to 城的通达(0~1，按传教一方的本事、消息口径)：强度到"紧密"(0.6)以上不打折；
     // 跨天下的民族宗教走不远(衰减长度 ×0.6，即强度 ^(1/0.6))；通达层没算好时为 1(照旧)
-#if EC_PENDING
     internal static float Reach(City from, City to, Religion religion, string targetSphere) =>
         Scale(ConnectivitySystem.NeighbourStrength(from, to, ConnectivityMode.Ideas), religion, targetSphere);
-#endif
 
     // 强度折成传教的通达(见 Reach；strength 为 -1 时照旧为 1)
-#if EC_PENDING
     private static float Scale(float strength, Religion religion, string targetSphere)
     {
         if (strength < 0f) return 1f;
@@ -192,7 +187,6 @@ public static class BackgroundReligionSystem
             strength = Mathf.Pow(strength, 1f / EthnicLengthFactor);
         return Mathf.Clamp01(strength / Mathf.Max(0.05f, ConnectivitySystem.Config.close_strength));
     }
-#endif
 
     // 圣地加成只给通达到 HolyReachMin 的邻城(通达层没算好、这两城没算进去时照旧给)
     private static bool HolyReach(City holy, City city)
@@ -207,7 +201,6 @@ public static class BackgroundReligionSystem
 
     // 国教势能按宗教政策放大：不宽容的国家改化异教城最力，收人头税的次之，宽容的最慢(以前国教势能恰好等于本城惯性，
     // 没有同教邻城时异教城永远改不过来)；君主皈依后 ConversionPushYears 年内再加倍(见 ReligionConversionSystem)
-#if EC_PENDING
     private static float StateFactor(Realm kingdom)
     {
         float factor = ReligiousTension.PolicyOf(kingdom) switch
@@ -220,7 +213,6 @@ public static class BackgroundReligionSystem
         factor *= CaliphateFaith.StateFactor(kingdom);
         return ReligionConversionSystem.RecentlyConverted(kingdom) ? factor * 2f : factor;
     }
-#endif
 
     // 势能：国教按本城人口算，邻城按各自人口打折，圣地加成；都乘宗教的传教力(见 ReligionFaith)，跨了天下再打折(ReligionSphere.CrossFactor)
 #if EC_PENDING
@@ -274,7 +266,6 @@ public static class BackgroundReligionSystem
 
     // 辐射圈(见 ReligionReachRules)：出了本天下的城按离圣地(教派、地方教会按自己的中心)远近给势能打折；
     // 本天下之内、没有圣地的宗教不折
-#if EC_PENDING
     internal static float RangeFactor(Religion religion, City city, string citySphere)
     {
         if (religion?.data == null || city == null) return 1f;
@@ -298,7 +289,6 @@ public static class BackgroundReligionSystem
         if (range.at == null || tile == null) return 1f;
         return ReligionReachRules.Factor(Mathf.Sqrt(Land.SquaredDist(range.at, tile)), range.radius);
     }
-#endif
 
     private static void Add(Dictionary<Religion, float> pressure, Religion religion, float weight)
     {
@@ -322,7 +312,6 @@ public static class BackgroundReligionSystem
         current.GetCity() == city || city.IsCapital() && city.Realm.Religion == current;
 
     // 城改信：城主等本城实体一并改信(君主除外，国教由他定)；没有国教的国家都城改信即立为国教
-#if EC_PENDING
     public static void Convert(City city, Religion religion, Religion old)
     {
         if (city?.Record == null || religion?.data == null) return;
@@ -338,7 +327,6 @@ public static class BackgroundReligionSystem
         kingdom.SetReligion(religion);
         if (Alive(kingdom.Ruler) && !kingdom.Ruler.HasReligion()) kingdom.Ruler.SetReligion(religion);
     }
-#endif
 
     // 君主与国教：无教的君主随都城之教；没有国教的国家，君主或都城有教即立为国教
     // (原版国教跟君主走，可从人口里补上来的君主以前不带宗教)
@@ -362,7 +350,6 @@ public static class BackgroundReligionSystem
     #region 宗教点数
 
     // 教皇国(封建、神权至上、圣地即都城)的宗教点数：信众户数 × PointsPerHousehold + 本年改信之城的户数
-#if EC_PENDING
     private static void AccruePoints(List<City> cities, Dictionary<Religion, float> gained)
     {
         Dictionary<Religion, float> households = null;
@@ -384,7 +371,6 @@ public static class BackgroundReligionSystem
             regime.religion_point += Mathf.RoundToInt(believers * PointsPerHousehold + converts);
         }
     }
-#endif
 
     #endregion
 

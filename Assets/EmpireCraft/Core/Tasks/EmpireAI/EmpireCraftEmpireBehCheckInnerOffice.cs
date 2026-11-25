@@ -10,7 +10,7 @@ public class EmpireCraftEmpireBehCheckInnerOffice: GameAIEmpireBase
 {
     public override Type OriginalBeh => GetType();
 #if EC_PENDING
-    public override BehResult execute(Realm pKingdom)
+    public override BehResult Execute(Realm pKingdom)
     {
         pKingdom.CheckEmpire();
         if (!pKingdom.IsEmpire()) return BehResult.Continue;
@@ -26,7 +26,7 @@ public class EmpireCraftEmpireBehCheckInnerOffice: GameAIEmpireBase
         SelectOfficer(empire);
         StartCalcOfficePerformance(empire);
         CheckOfficePower(empire);
-        return base.execute(pKingdom);
+        return base.Execute(pKingdom);
     }
 
     public void CheckOfficePower(Empire empire)

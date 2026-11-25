@@ -46,9 +46,7 @@ public static class RealisticAgeSystem
         return tier < 0 ? NoTechMean : EraMean[Math.Min(tier, EraMean.Length - 1)];
     }
 
-#if EC_PENDING
     public static float MeanDeathAge(Person actor) => MeanDeathAge(CultureOf(actor));
-#endif
 
     public static int MaxDeathAge(float mean) => Math.Min(DeathAgeCap, (int)Math.Round(mean + 3f * LifespanSd));
     private static int MinDeathAge(float mean) => Math.Max(DeathAgeFloor, (int)Math.Round(mean - 2.5f * LifespanSd));
@@ -69,7 +67,6 @@ public static class RealisticAgeSystem
     }
 
     // 本人文化用上了科技树按本人文化(改朝换代、被征服不跟着变)，否则按所在国、所在城
-#if EC_PENDING
     private static string CultureOf(Person actor)
     {
         string own = CultureService.GetActorCulture(actor);
@@ -81,7 +78,6 @@ public static class RealisticAgeSystem
         if (TechnologySystem.IsActiveFor(person.culture)) return person.culture;
         return person.virtual_city_id < 0 ? "" : TechnologySystem.GetCultureOf(EmpireWorld.Current?.CityByKey(person.virtual_city_id));
     }
-#endif
 
     // 每个文化的时代一年算一次(GetEraTier 要过一遍已研究的技术)；-1 没开科技树或这个文化还没用上
     private static readonly Dictionary<string, (int year, int tier)> EraCache = new(StringComparer.Ordinal);
@@ -103,7 +99,6 @@ public static class RealisticAgeSystem
     }
 
     // 每年过生日查一次(RoyalHouseSystem.OnBirthday)：到了天年就寿终
-#if EC_PENDING
     public static bool AgeDeathDue(Person actor)
     {
         if (actor.HasTrait("immortal")) return false;
@@ -112,7 +107,6 @@ public static class RealisticAgeSystem
         if (RoyalHouseSystem.IsRoyal(actor)) return actor.Age() >= RoyalLifespan(actor);
         return Due(actor.Age(), NaturalDeathAge(Seed(actor), MeanDeathAge(actor)));
     }
-#endif
 
     // 过了天年 OverdueGraceYears 年以上的(法则刚接管、读旧档、换了文化、科技失传)每年 OverdueChance，
     // 几年里错开，不在同一年成批寿终(君主、储君另有保底，见 RoyalLifespan)
@@ -186,7 +180,6 @@ public static class RealisticAgeSystem
     // 取样上限：截尾正态的极端尾巴不取(至多到本时代的天年上限 MaxDeathAge，或锚定后再 15 年)
     private const int SurvivorMaxYears = 15;
 
-#if EC_PENDING
     public static int RoyalLifespan(Person actor)
     {
         int natural = RoyalHouseSystem.RoyalDeathAge(actor);
@@ -203,16 +196,13 @@ public static class RealisticAgeSystem
         if (anchor < 0 || natural >= floor) return natural;
         return Math.Max(floor, SurvivorDeathAge(actor, anchor));
     }
-#endif
 
     // 新君即位(KingdomPatch.new_emperor，读档不算)：按即位时的年纪锚定
-#if EC_PENDING
     public static void OnCrowned(Person actor)
     {
         if (!Enabled || actor?.Record == null || !actor.Alive || !actor.IsSapient() || actor.HasTrait("immortal")) return;
         Anchor(actor, true);
     }
-#endif
 
     // 剧本开局的君主、储君(用户 2026-11-04 转玩家"一开局皇帝就死了")：剧本写的年纪多半已近天年，只有即位保底 AccessionMinYears，
     // 开局第三年成批寿终(日志里吐蕃、帕拉、甲斐、粟特罗兹同一年没)。开局保底 ScenarioMinYears 年起、按人错开 ScenarioSpreadYears 年；
@@ -230,7 +220,6 @@ public static class RealisticAgeSystem
         data.royal_seen_at = EmpireWorld.Current?.Now() ?? 0d;
     }
 
-#if EC_PENDING
     private static void Anchor(Person actor, bool crowned)
     {
         var data = actor.GetOrCreate();
@@ -253,13 +242,10 @@ public static class RealisticAgeSystem
         Log($"{(crowned ? "即位" : "补定")} {Who(actor)} {age} 岁，本来天年 {natural}，" +
             $"另定 {settled}(余寿 {settled - age} 年，至少到 {data.royal_anchor_floor})");
     }
-#endif
 
     // 活到 anchor 岁的人的天年：正态 N(平均天年, LifespanSd) 截去 anchor 以下，按人(与锚定年纪)取一个上尾概率
-#if EC_PENDING
     public static int SurvivorDeathAge(Person actor, int anchor) =>
         SurvivorDeathAge(Seed(actor), RoyalHouseSystem.RoyalMeanDeathAge(actor), anchor);
-#endif
 
     public static int SurvivorDeathAge(long seed, float mean, int anchor)
     {
@@ -348,17 +334,14 @@ public static class RealisticAgeSystem
     private const int LogsPerYear = 16;
     private static int _logYear = int.MinValue, _logCount;
 
-#if EC_PENDING
     private static string Who(Person actor)
     {
         string realm = actor.Realm?.Record == null ? "" : actor.Realm.GetKingdomName();
         string role = actor.IsRuler() ? "君主" : "储君";
         return $"{actor.FullName()}({realm}{role})";
     }
-#endif
 
     // 君主、储君老死时记一行：享年、天年怎么定的
-#if EC_PENDING
     public static void LogRoyalDeath(Person actor, string source)
     {
         if (actor?.Record == null) return;
@@ -375,7 +358,6 @@ public static class RealisticAgeSystem
             : $"{data.royal_anchor_age} 岁锚定，保底到 {data.royal_anchor_floor}";
         Log($"寿终 {Who(actor)} 享年 {age}，本来天年 {natural}，定下的天年 {settled}，{anchor}({source})");
     }
-#endif
 
     private static void Log(string text)
     {
@@ -438,7 +420,7 @@ public static class RealisticAgeSystem
         {
             foreach (Person actor in EmpireWorld.Current?.Living ?? Enumerable.Empty<Person>())
             {
-                if (actor?.Record == null || actor.asset?.id != key || !actor.Alive) continue;
+                if (actor?.Record == null || actor.Asset?.Id != key || !actor.Alive) continue;
                 lifespan = actor.Stats?["lifespan"] ?? 0f;
                 if (lifespan > 0f) break;
             }

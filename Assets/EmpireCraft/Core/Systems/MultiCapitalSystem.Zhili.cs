@@ -68,7 +68,7 @@ public static partial class MultiCapitalSystem
             KingdomTitle title = city.GetTitle();
             List<City> region = title == null
                 ? new List<City>()
-                : title.getCities().Where(c => c?.Record != null && !c.IsGone() && c.Realm == empire.CoreKingdom).ToList();
+                : title.GetCities().Where(c => c?.Record != null && !c.IsGone() && c.Realm == empire.CoreKingdom).ToList();
             if (!region.Contains(city)) region.Add(city);
             holder = empire.EstablishTerritorialDivision(region, title);
             if (holder == null || city.Realm != holder) return null;

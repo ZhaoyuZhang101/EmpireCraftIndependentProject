@@ -58,7 +58,7 @@ public static class StraitReach
     }
 
     private static Vector2 PortAt(City city) =>
-        NavySystem.Port(city)?.current_tile is Cell tile ? new Vector2(tile.X, tile.Y) : city.Center;
+        NavySystem.Port(city)?.Cell is Cell tile ? new Vector2(tile.X, tile.Y) : city.Center;
 #endif
 
     // 这座临海城在本国(或所在帝国)水师的辐射范围里：本城某处海岸离某个水师港口(码头)不过辐射半径、同一片水域

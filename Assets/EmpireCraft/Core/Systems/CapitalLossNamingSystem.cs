@@ -18,7 +18,6 @@ public static class CapitalLossNamingSystem
 
     private static readonly string[] Directions = { "Eastern", "Western", "Southern", "Northern" };
 
-#if EC_PENDING
     public static void TryYearlyScan()
     {
         if (EmpireWorld.Current == null || ModClass.EMPIRE_MANAGER == null) return;
@@ -79,7 +78,6 @@ public static class CapitalLossNamingSystem
         TranslateHelper.LogEventMessage(string.Format(LM.Get("capital_loss_renamed"), before, oldCapital.GetCityName(),
             LostYears, empire.GetEmpireFullName()), core);
     }
-#endif
 
     // 南明结成(见 SouthernRetreatSystem)：京师已失、朝廷在别处，不等五十年当场冠方位；收复京师照旧去掉(见 Check)
     public static bool ApplyNow(Empire empire)
@@ -101,7 +99,6 @@ public static class CapitalLossNamingSystem
     }
 
     // 行在：华夏王朝的核心王国(直隶)在核心首都失陷期间(不必满五十年)，类别改称"行在"
-#if EC_PENDING
     public static bool IsTemporaryCapital(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || !kingdom.IsCivilized()) return false;
@@ -113,7 +110,6 @@ public static class CapitalLossNamingSystem
         if (oldCapital.Realm != null && oldCapital.Realm.GetEmpire() == empire) return false;
         return InstitutionSystem.GetCultureLine(CultureService.GetRealmCulture(kingdom)) == "Huaxia";
     }
-#endif
 
     // 新都在旧都的哪个方向(地图 y 轴朝北)
     private static string DirectionFrom(Vector2 oldPos, Vector2 newPos)

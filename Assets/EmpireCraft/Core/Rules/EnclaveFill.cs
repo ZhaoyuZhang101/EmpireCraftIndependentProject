@@ -65,7 +65,7 @@ public static class EnclaveFill
         if (assets == null) return;
         foreach (MetaTypeAsset asset in assets)
         {
-            if (asset == null || asset.map_mode != MetaType.Kingdom && asset.map_mode != MetaTypeExtension.Empire) continue;
+            if (asset == null || asset.map_mode != EntityKind.Realm && asset.map_mode != MetaTypeExtension.Empire) continue;
             Layer layer = null;
             foreach (Layer known in Layers)
                 if (ReferenceEquals(known.asset, asset))

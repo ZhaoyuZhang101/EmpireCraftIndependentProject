@@ -11,15 +11,11 @@ namespace EmpireCraft.Core
 // 不移除组件，不改变扩散、火灾、动画、麦田或其他模组添加的组件。
 public static class NativeVegetationScheduler
 {
-#if EC_PENDING
     private static readonly HashSet<Building> Sleeping = new();
-#endif
     private static object _world;
     // 只在主线程改休眠表与原版组件列表(原版并行建筑作业打开时，果实生长的回调会跑在工作线程上)
     private static int _mainThread = -1;
-#if EC_PENDING
     public static int SleepingCount => Sleeping.Count;
-#endif
 
     private static bool OffMainThread => _mainThread >= 0 && Thread.CurrentThread.ManagedThreadId != _mainThread;
 
@@ -44,12 +40,12 @@ public static class NativeVegetationScheduler
             Sleeping.Clear();
             _world = EmpireWorld.Current;
         }
-        if (building?.batch == null || building.data == null) return;
+        if (building?.batch == null || building.Record == null) return;
 
         var components = (IList)building.components_list;
 
         bool idle = CityPopulationSystem.AbstractPopulationEnabled &&
-                    building.isUsable() &&
+                    building.IsUsable() &&
                     building.isNormal() &&
                     building.component_fruit_growth != null &&
                     components.Count == 1 &&
@@ -65,21 +61,23 @@ public static class NativeVegetationScheduler
             Sleeping.Add(building);
             building.batch.c_components.Remove(building);
         }
-        else if (Sleeping.Remove(building) && building.isUsable())
+        else if (Sleeping.Remove(building) && building.IsUsable())
         {
             building.batch.c_components.Add(building);
         }
     }
+#endif
 
     public static void Forget(Building building)
     {
         if (!OffMainThread) Sleeping.Remove(building);
     }
 
+#if EC_PENDING
     public static void Restore()
     {
         foreach (Building building in Sleeping)
-            if (building?.data != null && building.batch != null && building.isUsable())
+            if (building?.Record != null && building.batch != null && building.IsUsable())
                 building.batch.c_components.Add(building);
         Sleeping.Clear();
     }

@@ -186,16 +186,15 @@ public static class BattleDrama
             LogService.LogWarning($"[EmpireCraft][战场] {city.Name} 城破结算统领失败: {exception.Message}");
         }
     }
+#endif
 
     private static void Announce(Realm kingdom, Person general, string text, bool history)
     {
         BiographySystem.Note(general, text);
         FrontSystem.Log(kingdom, $"{general.FullName()}：{text}");
     }
-#endif
 
     // 军报都记；名将名臣、君主、储君还进史书与世界日志
-#if EC_PENDING
     private static void Report(Realm kingdom, Person general, string text, bool force = false)
     {
         FrontSystem.Log(kingdom, text);
@@ -207,6 +206,5 @@ public static class BattleDrama
         if (empire != null && !empire.IsGone()) EventRecorder.Record(empire, text, general, kingdom);
         else EventRecorder.Record(kingdom, text, general);
     }
-#endif
 }
 }

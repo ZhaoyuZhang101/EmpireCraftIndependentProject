@@ -59,11 +59,9 @@ public static class NomadCycleSystem
     private const float ArabicCrisisMalady = 50f, ArabicBaseSplit = 0.1f, ArabicMaladySplit = 0.4f;
     public const string FitnaReason = "rebellion_reason_emirate_fitna";
 
-#if EC_PENDING
     public static bool IsKhanate(Empire empire) =>
         empire != null && !empire.IsGone() && !empire.IsArchived() && empire.CoreKingdom?.GetRegime()?.type == RegimeType.YouMu &&
         CultureService.GetRealmCulture(empire.CoreKingdom).IsNomadCulture();
-#endif
 
     #region 汗位更替之乱
 
@@ -190,7 +188,6 @@ public static class NomadCycleSystem
 #endif
 
     // 会趁哈里发、苏丹更替自立的成员：世袭的埃米尔，或新近并入的别种政体成员；苏丹自己的国、苏丹同族的不反
-#if EC_PENDING
     private static bool RestiveEmir(Empire empire, Realm member, Person regent)
     {
         if (member?.Record == null || member.IsGone() || member == empire.CoreKingdom || member.GetEmpire() != empire ||
@@ -209,11 +206,9 @@ public static class NomadCycleSystem
         double joined = member.GetTimestampEmpire();
         return joined >= 0d && GameClock.Now >= joined && GameClock.YearsSince(joined) < AnnexedYears;
     }
-#endif
 
     // 会趁汗位更替自立的成员：兀鲁思(游牧政体的成员国，行省、羁縻除外)，或新近并入的别种政体成员；
     // 雄主之后第一次换汗(heroic)汗国分封的部族领主也算兀鲁思，入伙不满十年的也算(见 CanRiseAfterHero)
-#if EC_PENDING
     private static bool Restive(Empire empire, Realm member, bool heroic = false)
     {
         if (member?.Record == null || member.IsGone() || member == empire.CoreKingdom || member.GetEmpire() != empire ||
@@ -227,15 +222,12 @@ public static class NomadCycleSystem
         double joined = member.GetTimestampEmpire();
         return joined >= 0d && GameClock.Now >= joined && GameClock.YearsSince(joined) < AnnexedYears;
     }
-#endif
 
     // 雄主之后第一次换汗能否起事：同 RebellionSystem.CanAttempt，只是不看入伙十年的宽限(GraceYearsRemaining)——雄主袭掠时收拢的部众、
     // 这一回新分的兀鲁思正是雄主一死要散的人(用户 2026-10-21 选"游牧雄主死后真分裂"：以前它们都在宽限里，雄主死了只丢一成)；
     // 新朝开国雄主登基头 15 年、开国气象里、神力拉入的照旧不起事
-#if EC_PENDING
     private static bool CanRiseAfterHero(Realm member) =>
         !RulerTraitSystem.FounderShield(member) && !UnificationSystem.InGrace(member) && !MembershipCooldown.ManualJoinActive(member);
-#endif
 
     // 记下在位的游牧雄主(用户 2026-10-21 选"游牧雄主死后真分裂")：以前只有发动统一战争时才记(见 UnificationSystem)，
     // 袭掠成名的雄主(NomadRaidSystem.PromoteHero)死了只按积弊、正统判，汗国很少散。
@@ -243,7 +235,6 @@ public static class NomadCycleSystem
     // 用户选回调：称汗开国不再自动记为雄主(每个汗国的开国之君身后都必乱，太频)，那个入口已删；袭掠成名、发动统一的照旧记。
     // 只在开国雄主、中兴雄主在位时记(否则下个月就被当成不在位、凭空留下"必乱")；已记着另一位还没收场的不改记，
     // 免得吞掉他身后那一回必乱(他不在位的事由每月的 UnificationSystem.WatchHeroes 收场)
-#if EC_PENDING
     public static void RememberHero(Empire empire, string occasion)
     {
         Realm core = empire?.CoreKingdom;
@@ -256,7 +247,6 @@ public static class NomadCycleSystem
         if (recorded < 0L && empire.data.nomad_hero_id == khan.Key)
             LogService.LogInfo($"[EmpireCraft][汗位更替] {empire.GetEmpireName()} {occasion}，{khan.FullName()}记为雄主(他不在位后第一回换汗必乱)");
     }
-#endif
 
     // 拥兵自立：退出帝国、与中央开战(地方独立)，记下起因(拥兵自立决议与汗位更替之乱共用)
 #if EC_PENDING
@@ -294,7 +284,6 @@ public static class NomadCycleSystem
     private const int NamesShown = 4;
 
     // 这回换汗是否当场崩解：新汗即位登记之后、即位分封之前问(分封论功给的天命不算)
-#if EC_PENDING
     public static bool CollapseDue(Empire empire)
     {
         if (!IsKhanate(empire) || EmpireWorld.Current == null || empire.Legitimacy >= CollapseLegitimacy) return false;
@@ -306,7 +295,6 @@ public static class NomadCycleSystem
         LogService.LogInfo($"[EmpireCraft][汗国崩解] {empire.GetEmpireName()} 新汗即位(正统{empire.Legitimacy})，争位之战正打着，不判崩解");
         return false;
     }
-#endif
 
     // 当场崩解(汗庭的地已先分给新汗的兄弟)；legitimacy 是分封之前的正统，只进日志
 #if EC_PENDING
@@ -364,7 +352,6 @@ public static class NomadCycleSystem
 
     // 汗国崩解时走的成员：兀鲁思、领地(游牧政体、本族定居分封的成员)，或 AnnexedYears 年内并入的别种政体成员；
     // 行省、羁縻、起事中的、正与汗庭交战的留下
-#if EC_PENDING
     internal static bool Scatters(Empire empire, Realm member)
     {
         if (member?.Record == null || member.IsGone() || member == empire.CoreKingdom || member.GetEmpire() != empire ||
@@ -378,7 +365,6 @@ public static class NomadCycleSystem
         double joined = member.GetTimestampEmpire();
         return joined >= 0d && GameClock.Now >= joined && GameClock.YearsSince(joined) < AnnexedYears;
     }
-#endif
 
     #endregion
 
@@ -436,14 +422,12 @@ public static class NomadCycleSystem
 #endif
 
     // 兀鲁思：游牧政体的成员国(行省、羁縻除外)，有君有都、没在起事、不在入伙宽限里
-#if EC_PENDING
     private static bool Ulus(Empire empire, Realm member) =>
         member?.Record != null && !member.IsGone() && member != empire.CoreKingdom && member.GetEmpire() == empire && member.HasRuler() &&
         member.Capital != null && member.Cities?.Count > 0 && member.GetRegime()?.type == RegimeType.YouMu &&
         member.GetKingdomType() != KingdomType.YouMu_province && !JimiSystem.IsJimiAdministration(member) &&
         !JimiSystem.IsJimiRegion(member, empire) && !member.IsFactionRebelling() && !member.IsLocalRebelling() &&
         !member.IsAtWarWith(empire.CoreKingdom) && RebellionSystem.CanAttempt(member);
-#endif
 
     // 自主几档：入伙几代 × (1 + 离汗廷几个 DriftDistanceRef) × (1 + 多出的城 × DriftPerCity)
     private static float Autonomy(Realm core, Realm member)
@@ -474,14 +458,12 @@ public static class NomadCycleSystem
     #region 兵败离心
 
     // 成员"拥兵自立"的正统门槛：正统不高于它才能自立。汗国的成员按这些仗里丢城的比例抬高
-#if EC_PENDING
     public static int SecessionGate(Realm member)
     {
         Empire empire = member?.GetEmpire();
         if (!IsKhanate(empire)) return BaseGate;
         return Mathf.Min(MaxGate, BaseGate + GatePerTenth * Mathf.FloorToInt(LostShare(empire.CoreKingdom) * 10f + 0.0001f));
     }
-#endif
 
     // 汗国(连同各成员)在眼下这些仗里丢了开战时几成的城(取丢得最多的一场)
     public static float LostShare(Realm core)
@@ -503,13 +485,10 @@ public static class NomadCycleSystem
 
     #region 部众思归
 
-#if EC_PENDING
     private static bool Homesick(Realm realm) =>
         realm?.Record != null && !realm.IsGone() && IsKhanate(realm.GetEmpire()) && !RulerTraitSystem.FounderReigns(realm);
-#endif
 
     // 各城自然稳定度少多少(见 FrontCollapse.WarWeariness)：按打得最久的那场仗
-#if EC_PENDING
     public static float StabilityLoss(Realm realm)
     {
         if (!Homesick(realm)) return 0f;
@@ -518,10 +497,8 @@ public static class NomadCycleSystem
             if (war?.Record != null && !war.HasEnded()) years = Mathf.Max(years, WarSituation.WarYears(war));
         return years <= HomesickGraceYears ? 0f : Mathf.Min(HomesickStabilityCap, (years - HomesickGraceYears) * HomesickStability);
     }
-#endif
 
     // 兵源打几折(见 CorpsSystem.WarLevyShare)：months 是本国(连同所在帝国的核心)打得最久的那场仗的月数
-#if EC_PENDING
     public static float HomesickLevy(Realm kingdom, int months)
     {
         if (!Homesick(FrontSystem.ModRealm(kingdom))) return 1f;
@@ -529,10 +506,8 @@ public static class NomadCycleSystem
         return years <= HomesickGraceYears ? 1f
             : Mathf.Max(HomesickLevyFloor, 1f - HomesickLevyPerYear * (years - HomesickGraceYears));
     }
-#endif
 
     // 诊断用：按本国与所在帝国核心打得最久的那场仗
-#if EC_PENDING
     public static float HomesickLevy(Realm kingdom)
     {
         int months = 0;
@@ -544,7 +519,6 @@ public static class NomadCycleSystem
         }
         return HomesickLevy(kingdom, months);
     }
-#endif
 
     #endregion
 }

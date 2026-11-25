@@ -47,7 +47,6 @@ public static partial class GentrySystem
 #endif
 
     // 本宗凋尽：支脉承嗣；返回是否有支承了
-#if EC_PENDING
     private static bool BranchSucceeds(SpecificClan clan)
     {
         SpecificClan heir = Kin(clan).FirstOrDefault(other => other.extinct_since < 0d && !other.gentry && other.LivingPeople.Count > 0);
@@ -70,6 +69,5 @@ public static partial class GentrySystem
         NoteClan(clan, "clan_history_gentry_branch", text);
         return true;
     }
-#endif
 }
 }

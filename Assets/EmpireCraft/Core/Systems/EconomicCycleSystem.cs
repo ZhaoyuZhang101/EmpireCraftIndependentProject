@@ -40,12 +40,9 @@ public static class EconomicCycleSystem
     public static int Phase(Empire empire) => State(empire)?.cycle_phase ?? None;
     public static bool InCrisis(Empire empire) => Phase(empire) is Panic or Depression;
 
-#if EC_PENDING
     private static int Era(Empire empire) => TechnologySystem.GetEraTier(InstitutionSystem.GetPrimaryCulture(empire));
-#endif
 
     // 统制经济：国有化的社会主义国家，不随行情起落
-#if EC_PENDING
     public static bool Planned(Empire empire) =>
         State(empire)?.nationalization >= 1 && IdeologyFamilies.IsSocialist(WarlordEraSystem.GovernmentIdeology(empire));
 
@@ -55,7 +52,6 @@ public static class EconomicCycleSystem
         if (TransmigrantSystem.Governs(empire) || Planned(empire)) return false;
         return Era(empire) >= IndustrialEra;
     }
-#endif
 
     #region 年度
 
@@ -140,10 +136,8 @@ public static class EconomicCycleSystem
         state.cycle_phase_since = now;
     }
 
-#if EC_PENDING
     private static TradePolicy PolicyOf(Realm core) =>
         CommodityMarketSystem.PolicyOf(CommodityMarketSystem.MarketOf(core)?.leader ?? core);
-#endif
 
     // 通商的伙伴里今年有没有崩盘的、会不会传过来
 #if EC_PENDING
@@ -187,7 +181,6 @@ public static class EconomicCycleSystem
                GameClock.Now >= state.cycle_phase_since && GameClock.YearsSince(state.cycle_phase_since) < 1;
     }
 
-#if EC_PENDING
     private static void Crash(Empire empire, ConstitutionalEconomyState state, string cause, Empire source)
     {
         double now = GameClock.Now;
@@ -221,10 +214,8 @@ public static class EconomicCycleSystem
             _ => string.Format(LM.Get("economic_cycle_crash_history"), name)
         });
     }
-#endif
 
     // 外来的打击(大战打输，见 WorldOrderSystem.OnWorldWarEnded)：直接陷入恐慌
-#if EC_PENDING
     public static void Shock(Empire empire, string cause)
     {
         ConstitutionalEconomyState state = State(empire);
@@ -272,14 +263,12 @@ public static class EconomicCycleSystem
         state.cycle_contagion_from = -1L;
         EventRecorder.RecordRoutine(empire, string.Format(LM.Get("economic_cycle_recovery_history"), empire.GetEmpireFullName()));
     }
-#endif
 
     #endregion
 
     #region 对策
 
     // 兴办工程一年的花费：照二档福利的开支
-#if EC_PENDING
     public static int StimulusCost(Empire empire) => Math.Max(10, ConstitutionalEconomySystem.GetWelfareAnnualCost(empire, 2));
 
     private static string AiResponse(Empire empire, ConstitutionalEconomyState state)
@@ -296,10 +285,8 @@ public static class EconomicCycleSystem
         if (ideology == PartyIdeology.Libertarianism) return Laissez;
         return roll < 0.5f ? Austerity : Laissez;
     }
-#endif
 
     // 能否亲自定对策：返回不能的原因(语言键)，能则 null
-#if EC_PENDING
     public static string CanPlayerRespond(Empire empire, string kind)
     {
         ConstitutionalEconomyState state = State(empire);
@@ -318,10 +305,8 @@ public static class EconomicCycleSystem
         Respond(empire, State(empire), kind, true);
         return null;
     }
-#endif
 
     // 定下对策(诉求"救市纾困""关税壁垒"也走这里)
-#if EC_PENDING
     public static void Respond(Empire empire, ConstitutionalEconomyState state, string kind, bool byPlayer)
     {
         if (empire?.CoreKingdom == null || state == null) return;
@@ -346,7 +331,6 @@ public static class EconomicCycleSystem
         }
         EventRecorder.RecordRoutine(empire, string.Format(LM.Get("economic_cycle_response_" + kind + "_history"), empire.GetEmpireFullName()));
     }
-#endif
 
     // 紧缩：当年的福利停发(见 ConstitutionalEconomySystem.UpdateWelfare)
     public static bool WelfareSuspended(Empire empire) => State(empire) is { } state && state.cycle_phase == Depression &&
@@ -425,7 +409,6 @@ public static class EconomicCycleSystem
     #region 世界性大萧条
 
     // 每年(WorldOrderSystem.Scan)：大国过半同时陷入危机
-#if EC_PENDING
     internal static void WorldScan(WorldOrderData data, List<Empire> greats, double now)
     {
         int crisis = greats.Count(InCrisis);
@@ -442,7 +425,6 @@ public static class EconomicCycleSystem
         data.depression_ended = now;
         WorldOrderSystem.Record(string.Format(LM.Get("world_depression_ended_history"), years), greats.FirstOrDefault(), greats);
     }
-#endif
 
     #endregion
 }

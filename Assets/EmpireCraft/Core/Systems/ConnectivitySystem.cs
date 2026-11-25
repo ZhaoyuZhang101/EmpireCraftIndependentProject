@@ -221,7 +221,6 @@ public static class ConnectivitySystem
         return changed && GameClock.MonthsSince(_lastPass) >= EarlyMonths && real - _lastPassReal >= EarlyRealSeconds;
     }
 
-#if EC_PENDING
     private static void BeginPass(EmpireWorld world)
     {
         _forcePass = false;
@@ -244,6 +243,7 @@ public static class ConnectivitySystem
         _phase = Phase.Zones;
     }
 
+#if EC_PENDING
     private static void SnapshotStep(Stopwatch clock, double budget)
     {
         switch (_phase)
@@ -403,7 +403,7 @@ public static class ConnectivitySystem
         {
             City = city.Key, Zone = center.Index, ModRealm = realmIndex, Culture = cultureIndex,
             X = city.Center.x, Y = city.Center.y,
-            PortLevel = NavySystem.Port(city)?.asset?.upgrade_level ?? -1
+            PortLevel = NavySystem.Port(city)?.Asset?.UpgradeLevel ?? -1
         };
         if (node.PortLevel > Config.max_port_level) node.PortLevel = Config.max_port_level;
         SeaRegionSystem.Shore shore = SeaRegionSystem.ShoreOf(city);
@@ -540,7 +540,6 @@ public static class ConnectivitySystem
         }
     }
 
-#if EC_PENDING
     private static void Compute()
     {
         ConnectivityJob job = _job;
@@ -615,7 +614,6 @@ public static class ConnectivitySystem
         LogSummary(r);
         ClearPass();
     }
-#endif
 
     private static City[] ResolveCities(ConnectivityResult result)
     {
@@ -625,7 +623,6 @@ public static class ConnectivitySystem
     }
 
     // 日志：政权之间(消息口径)的往来等级、主障碍分布，及城最多的政权往来最密的几家
-#if EC_PENDING
     private static void LogSummary(ConnectivityResult r)
     {
         try
@@ -660,7 +657,6 @@ public static class ConnectivitySystem
             LogService.LogWarning($"{LogTag} 日志失败: {exception.Message}");
         }
     }
-#endif
 
     #endregion
 
@@ -692,7 +688,6 @@ public static class ConnectivitySystem
         return Build(mode, has, habit, CultureService.IsValidCulture(culture) && TianxiaSystem.IsArchipelago(culture), open, -1);
     }
 
-#if EC_PENDING
     public static ConnectivityTravel TravelOf(Realm kingdom, ConnectivityMode mode)
     {
         Realm realm = RealmOf(kingdom);
@@ -707,7 +702,6 @@ public static class ConnectivitySystem
         bool archipelago = CultureService.IsValidCulture(culture) && TianxiaSystem.IsArchipelago(culture);
         return Build(mode, has, habit, archipelago, MediaSystem.IsOpen(realm), MediaSystem.CommLevel(realm));
     }
-#endif
 
     private static ConnectivityTravel Build(ConnectivityMode mode, Func<string, bool> has, int habit, bool archipelago, bool open, int comm)
     {
@@ -749,9 +743,7 @@ public static class ConnectivitySystem
         return ConnectivityRules.Length(config.info_length_base, config.info_length_techs, tech => TechnologySystem.HasTech(culture, tech));
     }
 
-#if EC_PENDING
     public static float DecayLength(Realm kingdom, ConnectivityMode mode) => TravelOf(kingdom, mode).Length * Config.length_scale;
-#endif
 
     #endregion
 
@@ -1019,33 +1011,27 @@ public static class ConnectivitySystem
     }
 
     // 从 from 出发走了 cost 的强度(按 from 所在政权的衰减长度)
-#if EC_PENDING
     public static float StrengthOf(float cost, City from, ConnectivityMode mode = ConnectivityMode.People)
     {
         if (cost < 0f) return -1f;
         float length = TryNode(from, out int node) ? TravelAt(node, mode).Length : TravelOf(from?.Realm, mode).Length;
         return ConnectivityRules.Strength(cost, length, Config);
     }
-#endif
 
     // 本城所在政权人员的衰减长度、航海档(本轮记下的；不在图上的现算)
-#if EC_PENDING
     public static float PeopleLength(City city) =>
         TryNode(city, out int node) ? TravelAt(node, ConnectivityMode.People).Length : TravelOf(city?.Realm, ConnectivityMode.People).Length;
 
     public static int Band(City city) =>
         TryNode(city, out int node) ? TravelAt(node, ConnectivityMode.People).Band : TravelOf(city?.Realm, ConnectivityMode.People).Band;
-#endif
 
     // 运输科技给的运费系数(工业化 0.4、摩托化 0.25；没有为 1)
-#if EC_PENDING
     public static float FreightFactor(Realm kingdom)
     {
         Realm realm = RealmOf(kingdom);
         if (realm != null && Ready && _result.RealmIndex.TryGetValue(realm.Key, out int index)) return _result.RealmPeople[index].FreightFactor;
         return TravelOf(kingdom, ConnectivityMode.People).FreightFactor;
     }
-#endif
 
     public static float Freight(float cost, string tier, float techFactor) => ConnectivityRules.Freight(cost, tier, techFactor, Config);
 

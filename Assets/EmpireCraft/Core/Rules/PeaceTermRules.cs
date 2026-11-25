@@ -38,28 +38,21 @@ public static class PeaceTermRules
     public static readonly (double share, bool installments)[] IndemnityTiers = { (0.1d, false), (0.25d, true), (0.5d, true) };
     public const int StandardIndemnity = 1;
 
-#if EC_PENDING
     public static int CityValue(City city) =>
         city?.Record == null || city.IsGone() ? 0 : Math.Max(1, CityPopulationSystem.Households(city));
-#endif
 
     // 一国全境的价值(只算这一国自己的城，帝国的成员国各算各的)
-#if EC_PENDING
     public static int RealmValue(Realm kingdom) =>
         kingdom?.Cities == null || kingdom.IsGone() ? 0 : kingdom.Cities.Sum(CityValue);
-#endif
 
     // 一座城的平均价值：按"丢了几座城"折算打下的城时用(战争只记城数，不记是哪几座)
-#if EC_PENDING
     public static int AverageCityValue(Realm kingdom)
     {
         int cities = kingdom?.Cities?.Count ?? 0;
         return cities <= 0 ? 0 : Math.Max(1, RealmValue(kingdom) / cities);
     }
-#endif
 
     // 钱折户：按付方的户均年入
-#if EC_PENDING
     public static int MoneyValue(Realm payer, long money)
     {
         if (money <= 0L || payer?.Record == null) return 0;
@@ -69,7 +62,6 @@ public static class PeaceTermRules
         if (income <= 0L || households <= 0) return (int)Math.Round(money / 1000d * 50d);
         return (int)Math.Round(money / (income / (double)households) / MoneyYearsPerHousehold);
     }
-#endif
 
     // 这一档赔款合计多少钱(当场 + 分付)
     public static long IndemnityAmount(Realm payer, int tier)
@@ -80,9 +72,7 @@ public static class PeaceTermRules
         return installments ? amount + WarReparationsSystem.InstallmentTotal(payer) : amount;
     }
 
-#if EC_PENDING
     public static int Share(Realm kingdom, double share) => (int)Math.Round(RealmValue(kingdom) * share);
-#endif
 
     #region 民族意识、立傀儡、占领(近代)
 
@@ -112,7 +102,6 @@ public static class PeaceTermRules
         (int)Math.Round(Math.Min(Math.Max(0, occupiedResistance) * OccupationShare, Math.Max(0, realmValue) * OccupationCap));
 
     // 一国连同帝国成员的全境价值(民族国家的大小)
-#if EC_PENDING
     public static int NationValue(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone()) return 0;
@@ -121,7 +110,6 @@ public static class PeaceTermRules
             ? empire.cities_list.Where(city => city?.Record != null && !city.IsGone()).Sum(CityValue)
             : RealmValue(kingdom);
     }
-#endif
 
     #endregion
 
@@ -137,7 +125,6 @@ public static class PeaceTermRules
     }
 
     // attackers = 攻方一边的筹码，否则守方一边
-#if EC_PENDING
     public static Leverage LeverageOf(War war, bool attackers)
     {
         var result = new Leverage();
@@ -155,7 +142,6 @@ public static class PeaceTermRules
                                               RealmValue(foe));
         return result;
     }
-#endif
 
     // 攻方一边(attackers)或守方一边占了这座城几成地块
     public static float OccupiedShare(War war, City city, bool attackers)
@@ -183,7 +169,6 @@ public static class PeaceTermRules
         public int Total => years + unpaid + food + collapse + occupation;
     }
 
-#if EC_PENDING
     public static Wear WearOf(War war, bool attackers)
     {
         var result = new Wear();
@@ -210,7 +195,6 @@ public static class PeaceTermRules
         (result.occupation, result.occupiedCities) = OccupationPuppetSystem.OccupationCost(realm, foe);
         return result;
     }
-#endif
 
     // 势头：上次议和(每年一次，见 PeaceTable.Talks)以来新打下来的本钱
     public static int Momentum(War war, bool attackers, Leverage leverage)

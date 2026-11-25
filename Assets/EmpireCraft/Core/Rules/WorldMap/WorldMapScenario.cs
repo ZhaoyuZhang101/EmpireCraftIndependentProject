@@ -366,7 +366,7 @@ public static class WorldMapScenario
                     actor.GetModName().SetName(actor);
                     founder = actor;
                     // 都城单设了别的种族：君主照国家的，城里另落一户本城种族的百姓
-                    if (planned.species != null && planned.species != actor.asset?.id) SettleNative(planned, polity, founder, tile);
+                    if (planned.species != null && planned.species != actor.Asset?.Id) SettleNative(planned, polity, founder, tile);
                 }
                 else
                 {
@@ -462,7 +462,7 @@ public static class WorldMapScenario
     {
         string family = WorldMapData.PickParts(fam);
         if (string.IsNullOrEmpty(family)) actor.GetModName().familyName = "";
-        EmpireWorld.Current.clans.newClan(actor, true);
+        EmpireWorld.Current.Clans.newClan(actor, true);
         NameClan(actor.Clan, string.IsNullOrEmpty(family) ? WorldMapData.PickParts(giv) : family);
         if (string.IsNullOrEmpty(family)) actor.GetModName().familyName = "";
     }
@@ -582,7 +582,7 @@ public static class WorldMapScenario
                 // 后妃的娘家人(杨国忠之于杨贵妃)：入她那一家，外戚才连得上(见 ConsortKinSystem)
                 Person house = person.sameHouse >= 0 && person.sameHouse < polity.kinByIndex.Count ? polity.kinByIndex[person.sameHouse] : null;
                 if (house?.Clan != null) actor.setClan(house.Clan);
-                if (actor.Clan == null) EmpireWorld.Current.clans.newClan(actor, true);
+                if (actor.Clan == null) EmpireWorld.Current.Clans.newClan(actor, true);
                 if (string.IsNullOrEmpty(family))
                 {
                     actor.GetModName().familyName = "";
@@ -685,7 +685,6 @@ public static class WorldMapScenario
 
     // 老王朝(前史里开国早于开局年)：国祚接着算(dynastic_age_offset)，不算新开国、没有开国气象；王朝积弊取剧本给的，
     // 没给照同岁数最少该有的；六弊取剧本给的，没给的补到积弊对应的底线
-#if EC_PENDING
     private static void ApplyDecline(List<PlannedPolity> polities)
     {
         foreach (PlannedPolity polity in polities)
@@ -718,6 +717,7 @@ public static class WorldMapScenario
         }
     }
 
+#if EC_PENDING
     private static void ApplyRelations(List<WorldMapRelation> relations, Dictionary<string, Realm> realms)
     {
         int done = 0;
@@ -749,7 +749,6 @@ public static class WorldMapScenario
     // 排在开局外交之后，在打仗的按战时军饷算
     private const int OpeningWarChestMonths = 24;
 
-#if EC_PENDING
     private static void SeedTreasuries()
     {
         long total = 0L;
@@ -764,7 +763,6 @@ public static class WorldMapScenario
         }
         LogService.LogInfo($"[EmpireCraft][世界地图] 开局国库：共给 {total}，够各国 {OpeningWarChestMonths} 个月军饷");
     }
-#endif
 
     // 名人坐镇的城(城 id → 城)：收尾时清掉剧本的城表前记下
     private static readonly Dictionary<string, City> _famousCities = new();
@@ -799,8 +797,8 @@ public static class WorldMapScenario
         }
         if (!name.hasFirstName(actor) && native != null)
         {
-            string first = CulturePatch.GetOnomasticDataSafe(native, MetaType.Unit)
-                ?.generateName(actor.IsMale() ? Sex.Male : Sex.Female);
+            string first = Cultures.NameParts(native, EntityKind.Person)
+                ?.GenerateName(actor.IsMale() ? Sex.Male : Sex.Female);
             if (!string.IsNullOrEmpty(first)) actor.SetFirstName(first.UseLocalizedNameSeparator());
         }
     }
@@ -833,17 +831,15 @@ public static class WorldMapScenario
         if (!string.IsNullOrEmpty(given)) name.firstName = WorldMapData.PickParts(given);
     }
 
-#if EC_PENDING
     private static Culture NativeCulture(string culture, Person founder)
     {
         if (!CultureService.IsValidCulture(culture)) return null;
         Culture native = CultureService.GetNativeCultureObject(culture);
         if (native != null || founder?.City == null) return native;
         native = EmpireWorld.Current.Cultures.NewCulture(founder, true);
-        if (native != null) CulturePatch.insertCultureTemplate(native, culture);
+        if (native != null) Cultures.SetFamily(native, culture);
         return native;
     }
-#endif
 
     // 目标格所在区块附近找一块空地：先找四周都还没城的，再退一步只要本区块空着。
     // 平地优先(用户 2026-10-29："为什么城市会建造在山上")：以前丘陵、雪丘也算能建的地，又在找到的第一圈就停，
@@ -1023,7 +1019,6 @@ public static class WorldMapScenario
 
     #region 定名、文化、人口
 
-#if EC_PENDING
     private static float TargetPeople(PlannedCity planned, City city)
     {
         float fallback = Households[Mathf.Clamp(planned.rank, 0, 3)] * CityPopulationSystem.PeoplePerSlot(city);
@@ -1042,6 +1037,7 @@ public static class WorldMapScenario
         return Mathf.Clamp(real * RankWeight[Mathf.Clamp(planned.rank, 0, 3)] / total / PeopleScale, MinPeople, MaxPeople);
     }
 
+#if EC_PENDING
     private static void SettleRealms(int start)
     {
         foreach (PlannedPolity polity in _polities.Skip(start))
@@ -1065,7 +1061,7 @@ public static class WorldMapScenario
                         float missing = people - CityPopulationSystem.GetTotal(city);
                         if (missing > 0f)
                             CityPopulationSystem.AddBackground(city, SocialClass.Peasant, planned.culture ?? "",
-                                planned.species ?? polity.species ?? city.Leader?.asset?.id ?? SpeciesFor(planned.culture),
+                                planned.species ?? polity.species ?? city.Leader?.Asset?.Id ?? SpeciesFor(planned.culture),
                                 IdeologyPopulationSystem.GetDominant(city), missing);
                         _develop.Enqueue((city, people));
                     }
@@ -1120,8 +1116,7 @@ public static class WorldMapScenario
         return _reservedNames = names;
     }
 
-#if EC_PENDING
-    private static string FreshName(Culture native, MetaType type)
+    private static string FreshName(Culture native, EntityKind type)
     {
         string name = null;
         for (int i = 0; i < 8; i++)
@@ -1132,30 +1127,31 @@ public static class WorldMapScenario
         return null;
     }
 
+#if EC_PENDING
     private static void RandomNames(PlannedCity planned, PlannedPolity polity)
     {
         Culture native = NativeCulture(planned.culture, null) ?? planned.city.getCulture();
-        string city = FreshName(native, MetaType.City);
+        string city = FreshName(native, EntityKind.City);
         planned.name = string.IsNullOrWhiteSpace(city) ? planned.city.Name : city;
         if (planned != polity.capital) return;
-        string kingdom = FreshName(native, MetaType.Kingdom);
+        string kingdom = FreshName(native, EntityKind.Realm);
         polity.name = string.IsNullOrWhiteSpace(kingdom) ? planned.name : kingdom;
         planned.region.zh = planned.region.tw = planned.region.en = planned.name;
         planned.region.title = polity.name;
     }
+#endif
 
-    private static string Generate(Culture culture, MetaType type)
+    private static string Generate(Culture culture, EntityKind type)
     {
         try
         {
-            return culture == null ? null : CulturePatch.GetOnomasticDataSafe(culture, type)?.generateName().UseLocalizedNameSeparator();
+            return culture == null ? null : Cultures.NameParts(culture, type)?.GenerateName().UseLocalizedNameSeparator();
         }
         catch
         {
             return null;
         }
     }
-#endif
 
     #endregion
 
@@ -1344,7 +1340,7 @@ public static class WorldMapScenario
             List<KingdomTitle> titles = kingdom.Cities.Select(city => city.GetTitle()).Where(title => title != null).Distinct().ToList();
             foreach (City city in kingdom.Cities.ToList()) CityDissolution.Dissolve(city, wipeKingdom: true);
             foreach (KingdomTitle title in titles)
-                if (!title.IsGone() && !title.getCities().Any(city => city?.Record != null && !city.IsGone())) ModClass.KINGDOM_TITLE_MANAGER.dissolveTitle(title);
+                if (!title.IsGone() && !title.GetCities().Any(city => city?.Record != null && !city.IsGone())) ModClass.KINGDOM_TITLE_MANAGER.dissolveTitle(title);
             using (CityExpansionPatch.Manual())
                 foreach (Cell zone in zones)
                 {
@@ -1519,7 +1515,6 @@ public static class WorldMapScenario
     internal static readonly HashSet<int> PaintedCityZones = new();
 
     // 照原图归城的地块此刻归哪座城
-#if EC_PENDING
     private static Dictionary<int, long> PaintedCityOwners()
     {
         var owners = new Dictionary<int, long>();
@@ -1530,6 +1525,7 @@ public static class WorldMapScenario
         return owners;
     }
 
+#if EC_PENDING
     private static int PaintTerritory()
     {
         Dictionary<int, string> paint = ScenarioCells.ToMap(_era?.paint);
@@ -1920,7 +1916,7 @@ public static class WorldMapScenario
                 if (lon < west || lon > east || lat < south || lat > north) continue;
                 if (!AdministrativeBoundaryRules.Contains(polygons, lon, lat)) continue;
                 Cell zone = WorldMapZones.Zone(i);
-                if (zone?.Center == null || zone.GroundTiles < 16) continue;
+                if (zone?.Center == null || zone.GroundCount < 16) continue;
                 if (zone.City != null)
                 {
                     // 手绘地块、已有城心优先于默认值。
@@ -2031,7 +2027,7 @@ public static class WorldMapScenario
                     if (lon < west || lon > east || lat < south || lat > north || !AdministrativeBoundaryRules.Contains(area.polygons, lon, lat))
                         continue;
                     Cell zone = WorldMapZones.Zone(i);
-                    if (zone?.Center == null || zone.GroundTiles < 16) continue;
+                    if (zone?.Center == null || zone.GroundCount < 16) continue;
                     City holder = zone.City;
                     if (holder != null && (own.Contains(holder) || holder.SeatCell()?.Zone == zone)) continue;
                     if (holder == null && !WorldMapZones.SettledLand(i)) continue;
@@ -2120,7 +2116,7 @@ public static class WorldMapScenario
                 polity.kingdom.SetMainTitle(own);
             }
             if (regional != null && !regional.IsGone())
-                foreach (City city in own.getCities().ToList())
+                foreach (City city in own.GetCities().ToList())
                     DeJureShareSystem.ShareTitle(city, regional, true);
             _ownTitles.Add((polity.capital.region.id, own));
         }
@@ -2447,7 +2443,6 @@ public static class WorldMapScenario
     // 藩镇：律令制帝国底下的剧本节度使(唐末河朔三镇：卢龙、魏博、成德)。用户 2026-11-10 转来群友反馈"为了凑卢龙和魏博
     // 把河北拆成两块分别叫河北和河北"：以前没法理的封国按都城另立一块王国法理、省名照地区，河北劈成两块同名的。
     // 藩镇不是一国：不另立法理、不拿镇名当法理名，河北仍是一块；称呼照剧本镇名(见 MakeFanzhen)
-#if EC_PENDING
     private static bool IsFanzhen(PlannedPolity polity)
     {
         if (polity?.data == null || polity.data.empire || polity.data.king || string.IsNullOrEmpty(polity.data.overlord)) return false;
@@ -2457,7 +2452,6 @@ public static class WorldMapScenario
         if (regime == null && InstitutionSystem.TryResolveCultureRegime(lord.culture, out RegimeType resolved)) regime = resolved;
         return regime == RegimeType.LvLing;
     }
-#endif
 
     // 开局即是世袭藩镇：先照"转军府"改成军府(自主外交、拥兵、自收自支)，再改父死子继——世袭以后照旧是军府、不改封国
     // (同南明诸镇，见 SouthernGarrisonSystem.Enfeoff)。名字记作行政区名(魏博军、成德军、卢龙军)，离了这个帝国照自己握的法理改名
@@ -2491,7 +2485,6 @@ public static class WorldMapScenario
 
     // 剧本定下的入主(用户 10-29 "剧本里面让后金入关后走中华体制百分百叫大清")：记在本国上，据有那座城(北京)即算入关，
     // 采纳华夏制度走兼用，国号照剧本(见 CompositeEmpireService.ScriptedConquestName)
-#if EC_PENDING
     private static void ScriptConquests()
     {
         foreach (PlannedPolity polity in _polities)
@@ -2504,7 +2497,6 @@ public static class WorldMapScenario
             LogService.LogInfo($"[EmpireCraft][世界地图] {polity.name} 入主国号 {extra.scripted_conquest_name}，据 {seat?.GetCityName() ?? "无"} 即入关");
         }
     }
-#endif
 
     // 帝国法理记的都城(EmpireCore.CoreCapital，"还于旧都"、多京以它为京师)照开局实际的都城——等于开局之前已经迁过都
     // (明成祖迁北京)；剧本另记旧都的(明的南京)记成留都，多京时作陪京(见 MultiCapitalSystem.CandidateCapitals)
@@ -2934,7 +2926,7 @@ public static class WorldMapScenario
                 for (int i = 0; i < rounds; i++) CityConstructionSystem.Flourish(city);
                 CityPopulationData data = city.GetOrCreate().population;
                 if (data == null) continue;
-                float housing = Mathf.Max(0f, city.getPopulationMaximum() - Mathf.Max(0f, data.brush_capacity));
+                float housing = Mathf.Max(0f, city.GetPopulationMaximum() - Mathf.Max(0f, data.brush_capacity));
                 data.brush_capacity = Mathf.Max(data.brush_capacity, CityPopulationSystem.GetTotal(city) - housing);
                 float households = CityPopulationSystem.GetTotal(city) / Mathf.Max(1, CityPopulationSystem.PeoplePerSlot(city));
                 if (households >= 1f) PopulationEconomySystem.Deposit(city, data, "wheat", households, income: false, made: false);
@@ -3211,7 +3203,6 @@ public static class WorldMapScenario
 #endif
 
     // 神圣罗马：开局即持所在联合天下(罗马)的普世之名，再授神圣(教廷在就由教宗加冕，不在就自行加冕，见 PapacySystem.GrantHoly)
-#if EC_PENDING
     private static void Hallow(Empire empire, EmpireCore lead)
     {
         // 金玺诏书以后开局的先改选帝制(见 HolyRomanSystem.GoldenBullAtStart)
@@ -3220,7 +3211,6 @@ public static class WorldMapScenario
         RealmNamingSystem.GrantUniversalAtStart(empire, lead);
         PapacySystem.GrantHoly(empire, crownFirst: true);
     }
-#endif
 
     #endregion
 
@@ -3285,8 +3275,8 @@ public static class WorldMapScenario
     private static void SetLaw(string id, bool value)
     {
         WorldLaws laws = EmpireWorld.Current.world_laws;
-        if (laws?.dict == null || !laws.dict.TryGetValue(id, out PlayerOptionData option)) return;
-        option.boolVal = value;
+        if (laws?.dict == null || !laws.dict.TryGetValue(id, out GameOption option)) return;
+        option.BoolVal = value;
         laws.updateCaches();
     }
 #endif

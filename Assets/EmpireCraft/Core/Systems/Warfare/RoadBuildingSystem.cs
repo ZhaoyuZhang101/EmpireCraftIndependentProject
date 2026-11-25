@@ -66,7 +66,6 @@ public static class RoadBuildingSystem
     }
 
     // 本国科技能修的最高等级
-#if EC_PENDING
     public static int GradeFor(Realm kingdom)
     {
         string culture = kingdom == null ? null : TechnologySystem.GetCultureOf(kingdom);
@@ -76,7 +75,6 @@ public static class RoadBuildingSystem
         if (TechnologySystem.HasTech(culture, "architecture")) return 3;
         return TechnologySystem.HasTech(culture, "masonry") ? 2 : 1;
     }
-#endif
 
     public static RoadLink Get((long, long) key) => Links.TryGetValue(key, out RoadLink link) ? link : null;
 
@@ -85,16 +83,13 @@ public static class RoadBuildingSystem
         Cost[Mathf.Clamp(grade, 0, MaxGrade)] * UpkeepShare / RoadPaintSystem.TilesPerUnit;
 
     // 统一了的帝国替地方代付养路钱的中央；没有为 null
-#if EC_PENDING
     internal static Realm CentralPayer(Realm payer)
     {
         Realm core = payer?.GetEmpire()?.CoreKingdom;
         return core != null && core != payer && CenterOf(core) != null ? core : null;
     }
-#endif
 
     // 从各城的存档重建索引(城没了的路随之消失)
-#if EC_PENDING
     public static void Refresh()
     {
         if (!ReferenceEquals(_world, EmpireWorld.Current))
@@ -115,7 +110,6 @@ public static class RoadBuildingSystem
             foreach (RoadLink link in list) Links[(city.Key, link.to)] = link;
         }
     }
-#endif
 
     private static RoadLink Create((long, long) key)
     {
@@ -154,7 +148,6 @@ public static class RoadBuildingSystem
     // (用户 2026-10-29 "然后要适配预设地图得历史设定")
     public static void SeedAtScenarioStart() => _seed = true;
 
-#if EC_PENDING
     public static void SeedIfOldWorld()
     {
         _seed ??= Links.Count == 0 && GameClock.YearsSince(0d) > SeedAfterYears;
@@ -221,10 +214,8 @@ public static class RoadBuildingSystem
         changed |= RoadPaintSystem.MonthlyWarDamage(WarDamagePerMonth);
         if (changed) RoadNetwork.MarkDirty();
     }
-#endif
 
     // 各国可能修的路线：一头的城归它的(本国、同帝国、通路之约的都在其中)，统一了的帝国的中央另收境内全部路线；是否真能修仍看 Owns
-#if EC_PENDING
     private static Dictionary<Realm, List<(long, long)>> Candidates()
     {
         var result = new Dictionary<Realm, List<(long, long)>>();
@@ -245,7 +236,6 @@ public static class RoadBuildingSystem
         }
         return result;
     }
-#endif
 
     // 修通的路(任何等级)连成的图
     private static Dictionary<long, List<long>> Graph()
@@ -262,7 +252,6 @@ public static class RoadBuildingSystem
         return next;
     }
 
-#if EC_PENDING
     private static bool Advance(Realm kingdom, (long, long) key, RoadLink link)
     {
         RoadNetwork.RoadPlan plan = RoadNetwork.PlanOf(key);
@@ -291,10 +280,8 @@ public static class RoadBuildingSystem
         link.condition = 1f;
         return true;
     }
-#endif
 
     // 挑一项新工程：先修通都城的、人口多的、好修的；国库至少要够三个月的施工费
-#if EC_PENDING
     private static bool StartProject(Realm kingdom, List<(long, long)> keys, Dictionary<long, List<long>> graph,
         Dictionary<long, HashSet<long>> reachedBy)
     {
@@ -337,11 +324,9 @@ public static class RoadBuildingSystem
         chosen.payer = kingdom.Key;
         return true;
     }
-#endif
 
     // 本国能修这条路：一头是本国的城，另一头是本国或同一帝国的城，或与本国议定了通路之约的邻国的城；
     // 统一了的帝国的核心：境内任意两城之间
-#if EC_PENDING
     private static bool Owns(Realm kingdom, (long, long) key)
     {
         Realm a = EmpireWorld.Current.CityByKey(key.Item1)?.Realm, b = EmpireWorld.Current.CityByKey(key.Item2)?.Realm;
@@ -354,7 +339,6 @@ public static class RoadBuildingSystem
         if (empire != null && other != null && other.GetEmpire() == empire) return true;
         return RoadTreatySystem.Has(kingdom, other);
     }
-#endif
 
     // 通路之约的路：另一头是议定了通路之约、不在同一帝国的邻国
     private static Realm TreatyPartner(Realm kingdom, (long, long) key)
@@ -366,14 +350,12 @@ public static class RoadBuildingSystem
     }
 
     // 统一了的帝国：本国是帝国核心(春秋、战国的周室不算)
-#if EC_PENDING
     private static Empire CenterOf(Realm kingdom)
     {
         Empire empire = kingdom?.GetEmpire();
         if (empire?.data == null || empire.IsGone() || empire.IsArchived() || empire.CoreKingdom != kingdom) return null;
         return ZhouEraSystem.Era(empire) >= ZhouEraSystem.Spring ? null : empire;
     }
-#endif
 
     // 由修通的路(任何等级)连到 from 的城
     private static HashSet<long> Reached(City from, Dictionary<long, List<long>> next)
@@ -499,7 +481,6 @@ public static class RoadBuildingSystem
 #endif
 
     // 神力修这段路的等级：两头国家科技能修的最高一级，修不通往上提，到城市风格上限还修不通为 0
-#if EC_PENDING
     private static int PowerGrade((long, long) key, RoadNetwork.RoadPlan plan)
     {
         int cap = RoadNetwork.GradeCap(key);
@@ -509,7 +490,6 @@ public static class RoadBuildingSystem
         while (grade < cap && !plan.Buildable(grade)) grade++;
         return plan.Buildable(grade) ? grade : 0;
     }
-#endif
 
     // 路况变差；坏到底降一等(土路就荒了)
     private static bool Damage(RoadLink link, float amount)

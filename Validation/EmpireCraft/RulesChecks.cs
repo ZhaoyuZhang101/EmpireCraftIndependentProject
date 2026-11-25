@@ -266,6 +266,10 @@ public static class RulesChecks
         Check(loaded.Cities[other.Capital.Id].Religion == null && loaded.Religions.Count == 1 && loaded.Religions.NewReligion(null).Key == 3, "a struck faith is not saved and its key is not handed out again");
         var old = EmpireSave.Decode(EmpireSave.Encode(w, 4), w.Map);
         Check(old.Religions.Count == 0 && old.Cultures.Count == 0 && !old.Realms[realm.Id].HasReligion() && old.Realms[realm.Id].World == old, "a version-4 section loads without faiths");
+        Cultures.SetFamily(folk, "Huaxia");
+        var families = EmpireSave.Decode(EmpireSave.Encode(w), w.Map);
+        Check(Cultures.FamilyOf(folk) == "Huaxia" && Cultures.FamilyOf(null) == "" && Cultures.FamilyOf(families.Realms[realm.Id].Culture) == "Huaxia" &&
+              Cultures.FamilyOf(EmpireSave.Decode(EmpireSave.Encode(w, 5), w.Map).Realms[realm.Id].Culture) == "" && folk.GetOnomasticData(EntityKind.Realm) == null, "a culture's family of rules is saved from version 6");
         EmpireWorld.Current = null;
         Console.WriteLine("PASS population and beliefs (" + checks + " checks)");
     }
@@ -289,6 +293,22 @@ public static class RulesChecks
         Check(realm.CountCities() == realm.Cities.Count && realm.HasCities() && realm.CountZones() == realm.Cities.Sum(c => c.Tiles.Count) && capital.CountZones() == capital.Tiles.Count && Land.ZoneSize == 1, "a realm counts its cities and cells");
         capital.SetLeader(realm.Ruler); bool led = capital.HasLeader() && realm.Ruler.IsCityLeader(); capital.RemoveLeader();
         Check(led && !capital.HasLeader() && !realm.Ruler.IsCityLeader(), "a city's leader is set and removed");
+        Check(realm.KindOfEntity == EntityKind.Realm && capital.KindOfEntity == EntityKind.City && realm.Ruler.KindOfEntity == EntityKind.Person && realm.RulingClan.KindOfEntity == EntityKind.Clan &&
+              realm.GetSpecies() == "human" && capital.GetSpecies() == "human" && capital.HasRealm() && realm.Ruler.Asset.Id == "human" && !realm.Ruler.Asset.IsBoat && realm.Ruler.Asset.Civ &&
+              !realm.Ruler.HasArmy() && !realm.Ruler.IsArmyCaptain && realm.Ruler.Job == null && realm.GetRulingClan() == realm.RulingClan, "what kind of thing an entity is; one people; no armies of persons");
+        var host = new Army { Id = 1, City = capital, Captain = realm.Ruler, Soldiers = 300 }; realm.Ruler.Army = host;
+        var seatCell = capital.SeatCell();
+        Check(host.Alive && host.GetRealm() == realm && host.People.Count == 1 && realm.Ruler.IsArmyCaptain && host.KindOfEntity == EntityKind.Army, "an army is a number of soldiers and a captain");
+        realm.Ruler.Army = null;
+        TraitKinds.Clear(); TraitKinds.Set("wise", TraitType.Positive); TraitKinds.Set("cruel", TraitType.Negative);
+        Check("wise".TraitKindOf() == TraitType.Positive && "cruel".TraitKindOf() == TraitType.Negative && "tall".TraitKindOf() == TraitType.Other, "a trait counts for, against or neither way");
+        TraitKinds.Clear();
+        Check(w.Books.Count == 0 && w.Plots.Count == 0 && w.Books.GenerateNewBook(realm.Ruler) == null && !w.Plots.NewObject().IsActive() == false && w.Plots.Count == 1 &&
+              seatCell.Building == null && new Building { Id = 7 }.Alive && new Building { Removed = true }.IsGone(), "books and plots are stores that start empty; nothing is built as an object");
+        Check(capital.GetPopulationMaximum() > 150 && capital.GetPopulationMaximum() == (int)SkeletonRules.Capacity(w, capital) && new[] { 3, 5, 7 }.GetRandom() >= 3 && new List<int>().GetRandom() == 0 &&
+              new Building().Books == null && !WarBoxCompatibility.Loaded, "a city's capacity; a pick from a list; no bookshelves; no other mod");
+        Check(capital.Buildings.Count == 0 && !capital.HasBuildingType("type_docks") && capital.GetBuildingWithBookSlot() == null && BuildingKinds.Table.Get("house") == null &&
+              GameOptions.All["language"].StringVal == LM.Language && GameOptions.Get("nonsense") == null, "no building objects, no table of kinds; the language option follows the loaded texts");
         var other = w.LiveRealms[1]; var subject = capital.People.FirstOrDefault(p => p != realm.Ruler);
         if (subject != null)
         {
@@ -406,6 +426,11 @@ public static class RulesChecks
               Land.SquaredDist(w.CellAt(0, 0), w.CellAt(128, 0)) == 128 * 128 && Land.SquaredDist(west, null) == int.MaxValue, "cell distances go the short way round");
         Check(ReferenceEquals(w.CellAt(256, 40), west) && west.Left == east && east.Right == west && west.Neighbours.Count == 4 && west.NeighboursAll.Count == 8 && w.CellAt(10, 0).Neighbours.Count == 3 && w.CellAt(10, 0).OnEdge && !west.OnEdge, "the grid wraps east-west and ends at the polar rows");
         Check(ReferenceEquals(west.Zone, west) && ReferenceEquals(west.Center, west) && west.Tiles.Count == 1 && west.Pos.x == 0 && west.PosV.y == 40f, "a cell is its own zone, centre and tile");
+        Check(w.Zones.All.Count == w.Zones.Count && ReferenceEquals(w.Zones.All[41], w.CellAt(41)) && w.AllCells.Length == w.Zones.Count && w.Zones.Lookup.TryGetValue(41, out Cell found) && found == w.CellAt(41) &&
+              !w.Zones.Lookup.TryGetValue(-1, out found) && found == null, "all cells as a list, an array, and by number");
+        Check(w.Zones.All.All(c => c.GroundCount + c.LiquidCount == Land.TilesPerZone && (c.IsWater ? c.GroundCount == 0 : c.GroundCount > 0)) &&
+              w.Zones.All.Where(c => !c.Type.Liquid).All(c => c.Type.BiomeId.StartsWith("biome_") && c.Type.BiomeAsset != null && c.Type.BiomeAsset.TileHigh != c.Type.Id) &&
+              w.Zones.All.Select(c => c.Type).Distinct().Select(t => t.Index).Distinct().Count() == w.Zones.All.Select(c => c.Type).Distinct().Count(), "ground and water are counted in the mod's small tiles; every kind of land has a biome id and a number of its own");
         int sea = Enumerable.Range(0, map.Count).First(i => map.Water[i] == WaterKind.DeepOcean);
         var city = w.LiveRealms[0].Capital; var seat = city.SeatCell();
         Check(w.CellAt(sea).Type.Liquid && w.CellAt(sea).Type.Ocean && !w.CellAt(sea).IsLand && w.CellAt(sea).City == null && !w.CellAt(sea).IsSameIsland(seat), "the sea is water, belongs to no city and to no landmass");

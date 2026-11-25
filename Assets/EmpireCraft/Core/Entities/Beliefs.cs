@@ -27,6 +27,7 @@ namespace EmpireCraft.Core
     public sealed class Religion : RecordObject<ReligionRecord>
     {
         public EmpireWorld World;
+        public override EntityKind KindOfEntity => EntityKind.Religion;
         public int Age() => data == null || World == null ? 0 : (int)Math.Floor((World.Now() - data.created_time) / 12d);
         // The living cities and realms that hold this faith.
         public List<City> Cities { get { var found = new List<City>(); if (World != null) foreach (var city in World.Cities) if (city.Alive && city.Religion == this) found.Add(city); return found; } }
@@ -37,6 +38,10 @@ namespace EmpireCraft.Core
     public sealed class Culture : RecordObject<CultureRecord>
     {
         public EmpireWorld World;
+        public override EntityKind KindOfEntity => EntityKind.Culture;
+        // The family of culture rules it follows (a key of the culture rules: "Huaxia" ...); none until a system says.
+        public string Family;
+        public NameParts GetOnomasticData(EntityKind kind) => null;
         public int Age() => data == null || World == null ? 0 : (int)Math.Floor((World.Now() - data.created_time) / 12d);
         public List<City> Cities { get { var found = new List<City>(); if (World != null) foreach (var city in World.Cities) if (city.Alive && city.Culture == this) found.Add(city); return found; } }
         public List<Realm> Realms { get { var found = new List<Realm>(); if (World != null) foreach (var realm in World.LiveRealms) if (realm.Culture == this) found.Add(realm); return found; } }

@@ -30,10 +30,8 @@ public static partial class InstitutionSystem
 
     // 这一国推不推制度：总开关开着，或是原始政体的部落——部落不再是帝国(用户 2026-10-26 选"部落不再是帝国")，
     // 原始改革(华夏母系氏族至家天下、日本绳文至大和、游牧与阿拉伯的部落阶段)只能由各部自己推，关了开关就没人推了
-#if EC_PENDING
     public static bool KingdomReformsEnabledFor(Realm kingdom) =>
         KingdomReformsEnabled || TribalFissionService.IsTribal(kingdom);
-#endif
 
     private const long KingdomScanBudgetMs = 3;
     private const int SeededFactionRatio = 60;
@@ -143,10 +141,9 @@ public static partial class InstitutionSystem
 #endif
 
     // 简化朝堂的年度结算：阶层支持演变、派系占比对上本国政体的派系；全零时按阶层势力播种
-#if EC_PENDING
     private static void TickKingdomCourt(InstitutionRealm realm, Dictionary<SocialClass, float> shares)
     {
-        Realm kingdom = realm.Kingdom;
+        Realm kingdom = realm.Realm;
         List<FixedFaction> factions = kingdom.GetRegime()?.GetPlayerFactions()?.Where(faction => faction != null).ToList();
         if (factions == null || factions.Count == 0) return;
         FactionClassSystem.EnsureRealmProfiles(realm, factions, shares);
@@ -154,7 +151,6 @@ public static partial class InstitutionSystem
         kingdom.ReconcileFactionRatios(factions);
         if (kingdom.GetFactionRatioTotal() <= 0) SeedFactionRatios(kingdom, factions);
     }
-#endif
 
     // 王国派系占比第一次全为零：按各派系的阶层势力(ClassPower)分掉六成，余下四成留给以后的消长
     private static void SeedFactionRatios(Realm kingdom, List<FixedFaction> factions)
@@ -182,12 +178,11 @@ public static partial class InstitutionSystem
     #region 规则与门槛
 
     // 王国能不能推这项制度(帝国另有一套)：总开关、是否独立、规则一
-#if EC_PENDING
     private static bool CanKingdomTakeUp(InstitutionRealm realm, InstitutionNodeConfig node, string culture,
         out string reason)
     {
         reason = "";
-        if (!KingdomReformsEnabledFor(realm.Kingdom))
+        if (!KingdomReformsEnabledFor(realm.Realm))
         {
             reason = "institution_kingdom_reforms_off";
             return false;
@@ -204,19 +199,15 @@ public static partial class InstitutionSystem
         }
         return true;
     }
-#endif
 
     // 本文化有没有现存的帝国(按制度文化算，同时代潮流)
-#if EC_PENDING
     public static bool HasCultureEmpire(string culture) =>
         CultureService.IsValidCulture(culture) && ModClass.EMPIRE_MANAGER != null &&
         ModClass.EMPIRE_MANAGER.Any(empire => empire?.data != null && !empire.IsArchived() && !empire.IsGone() &&
                                               empire.CoreKingdom != null && !empire.CoreKingdom.IsGone() &&
                                               string.Equals(GetPrimaryCulture(empire), culture, StringComparison.Ordinal));
-#endif
 
     // 本文化自己推制度的独立王国(有城)；按制度文化算，旧制犹存的算在旧制所属的文化里(见 LegacyInstitutionSystem)
-#if EC_PENDING
     private static List<Realm> CultureKingdomRealms(string culture)
     {
         var result = new List<Realm>();
@@ -230,11 +221,9 @@ public static partial class InstitutionSystem
         }
         return result;
     }
-#endif
 
     // 本文化各独立王国正在推的改革(国家, 节点)。已不独立的(入了帝国、成了附庸)不算：它们的改革要等扫到时才作罢，
     // 王国多、一轮扫描不止一年时，以前这些作废的改革一直占着同推的名额
-#if EC_PENDING
     private static IEnumerable<(Realm kingdom, string nodeId)> CultureKingdomReforms(string culture)
     {
         if (EmpireWorld.Current?.LiveRealms == null) yield break;
@@ -248,40 +237,30 @@ public static partial class InstitutionSystem
             yield return (kingdom, nodeId);
         }
     }
-#endif
 
     // 部落联盟(原始政体的帝国)：推制度按王国的规矩：错开年份、同文化别家在推的不重复推、与王国合占同推的名额。
     // 以前每个独立部落都自立为"某某部落"帝国(TribalFissionService.FormTribes，10-26 去掉，单个部落如今就是王国)，
     // 按帝国算时一个文化十几个部落同一年一齐推同一项(诸部联合)，满屏"开始推动"，推完一家其余跟着算完
-#if EC_PENDING
     private static bool IsTribalEmpire(Empire empire) =>
         empire?.data != null && !empire.IsArchived() && !empire.IsGone() && TribalFissionService.IsTribal(empire.CoreKingdom);
-#endif
 
     // 按王国规矩推制度的政权：独立王国、部落
-#if EC_PENDING
     private static bool FollowsKingdomRules(InstitutionRealm realm) =>
         realm != null && (!realm.IsEmpire || IsTribalEmpire(realm.Empire));
-#endif
 
     // 本文化的部落联盟(原始政体的帝国)数
-#if EC_PENDING
     private static int CultureTribeCount(string culture) =>
         (ModClass.EMPIRE_MANAGER ?? Enumerable.Empty<Empire>()).Count(empire =>
             IsTribalEmpire(empire) && string.Equals(GetPrimaryCulture(empire), culture, StringComparison.Ordinal));
-#endif
 
     // 每文化同时在推的王国、部落家数：独立王国和部落数 ÷ 4，夹在 3~6 之间
-#if EC_PENDING
     private static int ConcurrentReformLimit(string culture) =>
         ConcurrentReformLimit(CultureKingdomRealms(culture).Count + CultureTribeCount(culture));
-#endif
 
     private static int ConcurrentReformLimit(int minorRealms) =>
         Math.Max(MinConcurrentReforms, Math.Min(MaxConcurrentReforms, minorRealms / RealmsPerConcurrentReform));
 
     // 同文化帝国里本文化的成员国(不含核心，有城)
-#if EC_PENDING
     private static int CultureEmpireMembers(string culture)
     {
         int count = 0;
@@ -297,10 +276,8 @@ public static partial class InstitutionSystem
         }
         return count;
     }
-#endif
 
     // 本文化各部落联盟正在推的改革(共主那一国, 节点)
-#if EC_PENDING
     private static IEnumerable<(Realm kingdom, string nodeId)> CultureTribeReforms(string culture)
     {
         foreach (Empire empire in ModClass.EMPIRE_MANAGER ?? Enumerable.Empty<Empire>())
@@ -311,11 +288,9 @@ public static partial class InstitutionSystem
             yield return (empire.CoreKingdom, nodeId);
         }
     }
-#endif
 
     // 王国、部落 AI 这一年动不动手(间隔已由 TryStartAiReform 判过)：第一次按国家编号错开年份，免得同文化的一齐动手；
     // 叛乱未平不推；本文化在推的王国、部落已满名额(ConcurrentReformLimit)就等着
-#if EC_PENDING
     private static bool KingdomAiMayTry(InstitutionRealm realm, InstitutionEmpireState state, string culture, int interval)
     {
         Realm kingdom = realm.Core;
@@ -343,10 +318,8 @@ public static partial class InstitutionSystem
         NoteAiSkip(culture, AiSkip.Busy);
         return false;
     }
-#endif
 
     // 同文化别的政权(帝国、部落、王国)正在推的节点：王国、部落的 AI 不跟着重复推
-#if EC_PENDING
     private static HashSet<string> NodesReformedElsewhere(InstitutionRealm realm, string culture)
     {
         var result = new HashSet<string>(StringComparer.Ordinal);
@@ -358,17 +331,15 @@ public static partial class InstitutionSystem
                 string.Equals(GetPrimaryCulture(empire), culture, StringComparison.Ordinal)) result.Add(nodeId);
         }
         foreach ((Realm kingdom, string nodeId) in CultureKingdomReforms(culture))
-            if (kingdom != realm.Kingdom) result.Add(nodeId);
+            if (kingdom != realm.Realm) result.Add(nodeId);
         return result;
     }
-#endif
 
     #endregion
 
     #region 改革作罢、改政体
 
     // 王国不再能推这项改革(不再独立、本文化出了帝国)：作罢，记一笔
-#if EC_PENDING
     private static void DropKingdomReform(Realm kingdom, InstitutionEmpireState state, string culture, string reasonKey)
     {
         InstitutionNodeConfig node = InstitutionDefinitionRegistry.Get(state.active_reform?.node_id);
@@ -379,14 +350,12 @@ public static partial class InstitutionSystem
         LogService.LogInfo($"[EmpireCraft][制度] {content}");
         EmpireCraft.Core.TranslateHelper.LogEventMessage(content, kingdom);
     }
-#endif
 
     // 阻力满了：王国没有成员国可以起兵，改革当场作罢；反对最力的派系 +6，君主声望 −20
-#if EC_PENDING
     private static void CollapseKingdomReform(InstitutionRealm realm, InstitutionNodeConfig node)
     {
         InstitutionEmpireState state = EnsureRealmState(realm);
-        Realm kingdom = realm.Kingdom;
+        Realm kingdom = realm.Realm;
         if (state == null || kingdom == null) return;
         FixedFaction opposition = (kingdom.GetRegime()?.GetPlayerFactions() ?? Enumerable.Empty<FixedFaction>())
             .Where(faction => faction != null && !faction.Ban && node.politics.oppose_factions.ContainsKey(faction.Type))
@@ -400,13 +369,12 @@ public static partial class InstitutionSystem
         realm.Record(content, actorId: realm.Ruler?.Key ?? -1L, kingdomId: kingdom.Key);
         EmpireCraft.Core.TranslateHelper.LogEventMessage(content, kingdom);
     }
-#endif
 
     // 王国推成了改政体的制度(仿 ApplyRegimeChangeCore)：手选过、被锁定的政体不动；君主国不随文化直接跳到现代(走 RepublicSystem)
 #if EC_PENDING
     private static void ApplyKingdomRegimeChange(InstitutionRealm realm, RegimeType regimeType)
     {
-        Realm kingdom = realm?.Kingdom;
+        Realm kingdom = realm?.Realm;
         if (kingdom?.Record == null || kingdom.IsGone() || RegimeManager.regimes == null ||
             !RegimeManager.regimes.ContainsKey(regimeType)) return;
         RegimeType? current = kingdom.GetRegime()?.type;
@@ -436,7 +404,6 @@ public static partial class InstitutionSystem
     #region 称帝与解散：改革交接
 
     // 称帝(EmpireManager.NewEmpire)：王国进行中的改革带进帝国；落地记录不带(帝国按自己的记录补持久效果)
-#if EC_PENDING
     public static void OnEmpireProclaimed(Empire empire)
     {
         Realm core = empire?.CoreKingdom;
@@ -450,10 +417,8 @@ public static partial class InstitutionSystem
         empireState.active_reform = reform;
         LogService.LogInfo($"[EmpireCraft][制度] {empire.GetEmpireName()} 称帝，{core.GetKingdomName()} 进行中的改革 {reform.node_id} 带进帝国");
     }
-#endif
 
     // 帝国解散(EmpireManager.dissolveEmpire 之前)：进行中的改革交回核心王国；帝国落地过的持久效果也落在核心王国身上，照帝国的记录记底
-#if EC_PENDING
     public static void OnEmpireDissolving(Empire empire)
     {
         InstitutionEmpireState empireState = empire?.data?.institution_state;
@@ -475,7 +440,6 @@ public static partial class InstitutionSystem
         empireState.active_reform = null;
         LogService.LogInfo($"[EmpireCraft][制度] {empire.GetEmpireName()} 解散，进行中的改革 {reform.node_id} 交回 {core.GetKingdomName()}");
     }
-#endif
 
     #endregion
 

@@ -52,20 +52,16 @@ public static partial class PapacySystem
     }
 
     // 奉不奉教廷是宗教亲和，照风俗文化(旧制犹存不改口径，见 InstitutionSystem.GetCustomsCulture)
-#if EC_PENDING
     public static bool IsWestern(Empire empire) =>
         empire?.data != null && InstitutionSystem.GetCultureLine(InstitutionSystem.GetCustomsCulture(empire)) == Line;
-#endif
 
     // 有教廷可言：西方文化、君主制、奉一个有圣地的普世教会(同天下的地方教会没有教廷，见 ReligionSphere；
     // 别的类型的宗教没有教廷，见 ReligionFaith——犹太文化走罗马制度线也没有)。奉教派的也算：教派没有教廷，只能自行加冕
-#if EC_PENDING
     public static bool Applies(Empire empire) =>
         empire?.data != null && !empire.IsGone() && !empire.IsArchived() && empire.CoreKingdom != null &&
         !empire.CoreKingdom.IsGone() && IsWestern(empire) && !RepublicSystem.IsRepublic(empire) &&
         RegimeManager.IsMonarchy(empire.CoreKingdom.GetRegime()?.type) && HolyCity(ReligionOf(empire)) != null &&
         ReligionFaith.IsPapal(ReligionOf(empire)) && !ReligionSphere.IsLocalChurch(ReligionOf(empire));
-#endif
 
     public static City HolyCity(Religion religion)
     {
@@ -77,20 +73,15 @@ public static partial class PapacySystem
     // 一个天下一处圣地、一位教宗，号召力在本宗(见 ReligionSphere"教派与圣地")。
     // 伊斯兰分出的分支(什叶派、伊斯玛仪派)例外：自有伊玛目、哈里发座(史上法蒂玛王朝就是什叶派哈里发)，对立哈里发、
     // 伊玛目断绝与复立都靠它(见 IslamicSchismSystem)；圣地仍随本宗，不另立
-#if EC_PENDING
     public static bool HasSee(Religion religion) =>
         ReligionFaith.HasHierarchy(religion) && !ReligionSphere.IsLocalChurch(religion) &&
         (!ReligionSphere.IsBranch(religion) || ReligionFaith.IsCaliphal(religion));
-#endif
 
     // 能号召圣战：普世教会、伊斯兰，地方教会和教派不号召
-#if EC_PENDING
     public static bool CallsHolyWar(Religion religion) =>
         ReligionFaith.WagesHolyWar(religion) && !ReligionSphere.IsLocalChurch(religion) && !ReligionSphere.IsBranch(religion);
-#endif
 
     // 教廷：控制圣地的国家(须奉本宗教)
-#if EC_PENDING
     public static Realm Papacy(Religion religion)
     {
         if (!HasSee(religion)) return null;
@@ -103,11 +94,9 @@ public static partial class PapacySystem
         Person king = Papacy(religion)?.Ruler;
         return king?.Record != null && !king.IsGone() && king.Alive ? king : null;
     }
-#endif
 
     // 教廷落在世俗强国手里：圣地所在国不是教皇国，而且是帝国的一部分；皇帝兼管的教会(正教会)不算。
     // 帝都就在圣地的是皇帝即教宗(见 PopeIsEmperor)，不算——教宗不能是自己的囚徒；圣地在皇帝自家领内、帝都在别处的照旧算
-#if EC_PENDING
     public static bool IsCaptive(Religion religion)
     {
         Realm holder = Papacy(religion);
@@ -115,13 +104,11 @@ public static partial class PapacySystem
         return holder != null && holder.GetKingdomType() != KingdomType.Feudalism_papal_state && empire != null &&
                !(empire.CoreKingdom == holder && holder.Capital == HolyCity(religion)) && !religion.GetOrCreate().Caesaropapist;
     }
-#endif
 
     // 皇帝就是教宗：圣座帝国，或教宗与皇帝是同一人、帝都就在教宗国(帝国核心国握着圣地，圣地就是它的都城)——教宗国称帝后
     // 核心的类别成了帝国、宗教等级也常被改掉，以前只当"握着教廷的世俗帝国"，国号一直是"教宗国"。这样的帝国由教宗自授天下之名
     // (见 RealmNamingSystem.CoronationVia)，不称神圣(神圣是皇帝对教廷的自我标榜，见 HolyBlocker)。
     // 圣地在皇帝自家领内但帝都在别处的是皇帝挟制教廷，教廷在成员国、附庸手里的是护教，都不算
-#if EC_PENDING
     public static bool PopeIsEmperor(Empire empire)
     {
         Realm core = empire?.CoreKingdom;
@@ -131,7 +118,6 @@ public static partial class PapacySystem
         City holy = HolyCity(religion);
         return holy != null && Papacy(religion) == core && core.Capital == holy;
     }
-#endif
 
     public static float Authority(Religion religion) => religion?.data == null ? 0f : religion.GetOrCreate().PapalAuthority;
 
@@ -146,15 +132,12 @@ public static partial class PapacySystem
     // 本文化施行了宗教改革而所奉已不是有教廷的本土普世教会(剧本里的路德宗、正教会等)。
     // 以前本文化一施行宗教改革就算脱离——君主还奉着罗马也不交什一税、自行加冕；现在君主没改宗前照旧(见 PapacySystem.Reformation)。
     // 选帝制帝国的皇帝不随宗教改革脱离罗马(由诸侯改宗，见 HolyRomanSystem.KeepsOldFaith)
-#if EC_PENDING
     public static bool BrokeWithRome(Empire empire) =>
         InstitutionSystem.IsEnacted(empire, NodeSecularization) ||
         (State(empire)?.national_church_id ?? -1L) >= 0 || IsReformedChurch(ReligionOf(empire)) ||
         InstitutionSystem.IsEnacted(empire, NodeReformation) && !HolyRomanSystem.KeepsOldFaith(empire) && !FollowsRomanSee(empire);
-#endif
 
     // 仍奉有教廷的本土普世教会
-#if EC_PENDING
     private static bool FollowsRomanSee(Empire empire)
     {
         Religion religion = ReligionOf(empire);
@@ -169,7 +152,6 @@ public static partial class PapacySystem
         if (InstitutionSystem.IsEnacted(empire, NodeConcordat)) return InvestitureConcordat;
         return InvestitureChurch;
     }
-#endif
 
     public static bool IsCrowned(Empire empire)
     {
@@ -181,7 +163,6 @@ public static partial class PapacySystem
     public static bool IsExcommunicated(Empire empire) => State(empire)?.excommunicated_at >= 0d;
 
     // 正统里的教廷一项(MonarchyLegitimacy.Breakdown 调用)
-#if EC_PENDING
     public static IEnumerable<(string key, int value)> LegitimacyItems(Empire empire)
     {
         bool caliphal = !Applies(empire) && AppliesCaliphal(empire);
@@ -223,7 +204,6 @@ public static partial class PapacySystem
             GameClock.YearsSince(since) >= UncrownedGraceYears)
             yield return ("mandate_uncrowned", UncrownedLegitimacy);
     }
-#endif
 
     public const int ExcommunicatedLegitimacy = -20;
 
@@ -236,7 +216,6 @@ public static partial class PapacySystem
         { NodeSecular, "western_centralized_monarchy", NodeConcordat, NodeReformation, NodeSecularization };
 
     // AI 选改革的加分：教会类节点 (教权-50)×0.6，世俗类节点反过来
-#if EC_PENDING
     public static float ReformBias(Empire empire, InstitutionNodeConfig node)
     {
         if (node == null || !IsWestern(empire)) return 0f;
@@ -247,10 +226,8 @@ public static partial class PapacySystem
         if (SecularNodes.Contains(node.id)) return -lean;
         return 0f;
     }
-#endif
 
     // 文化演进挑节点的次序：教权 55 以上先教会后世俗，以下反过来；文化没有教廷时按文化名随机定一边
-#if EC_PENDING
     public static int DriftRank(string culture, InstitutionNodeConfig node)
     {
         if (node == null || (!ClericalNodes.Contains(node.id) && !SecularNodes.Contains(node.id))) return 0;
@@ -271,7 +248,6 @@ public static partial class PapacySystem
                 return kingdom.Religion;
         return null;
     }
-#endif
 
     #endregion
 
@@ -404,7 +380,6 @@ public static partial class PapacySystem
 #endif
 
     // antipope：由对立教宗在对立教廷加冕(见 PapacySystem.Antipope)
-#if EC_PENDING
     private static void Crown(Empire empire, PapalRelationState state, Person emperor, bool self, Realm papacy, bool antipope = false)
     {
         state.crowned_emperor_id = emperor.Key;
@@ -428,10 +403,8 @@ public static partial class PapacySystem
         HolyRomanSystem.OnCrowned(empire, emperor, self);
         MonarchyLegitimacy.Invalidate(empire);
     }
-#endif
 
     // 什一税：年度经常收入的 6%，按叙任权档位上缴教廷(教廷就是本帝国的不缴；大分裂中交给自己服从的那边，见 PapacySystem.Antipope)
-#if EC_PENDING
     private static void Tithe(Empire empire, PapalRelationState state, Religion religion)
     {
         double now = GameClock.Now;
@@ -454,7 +427,6 @@ public static partial class PapacySystem
         papacy.AddMoney((int)amount, TreasuryCategory.Tithe);
         state.tithe_paid = amount;
     }
-#endif
 
     #endregion
 }

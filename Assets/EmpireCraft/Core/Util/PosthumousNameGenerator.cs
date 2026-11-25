@@ -81,7 +81,6 @@ namespace EmpireCraft.Core
             public bool HasTemple => !string.IsNullOrEmpty(miao);
         }
 
-#if EC_PENDING
         public static Result Decide(Empire empire, EmpireCraftHistory reign)
         {
             List<EmpireCraftHistory> dynasty = (empire?.data?.history ?? new List<EmpireCraftHistory>())
@@ -179,7 +178,6 @@ namespace EmpireCraft.Core
                 new[] { "成", "穆", "懿", "德", "宁", "顺", "睿", "定", "庆", "嘉", "孝", "明", "徽", "哲" },
                 new[] { "孝", "恭", "惠", "顺", "安", "穆", "简", "懿", "成" }, "posthumous_reason_steady");
         }
-#endif
 
         // 封国国君的单字谥(见 FeudalPosthumousSystem)：没有帝王那样的在位统计，只看享国年数、享年、
         // 是否死于非命和封国大小。usedText 为本封国已用过的谥字
@@ -196,7 +194,6 @@ namespace EmpireCraft.Core
         }
 
         // 二世：前一位是同一朝代的开国之君
-#if EC_PENDING
         private static bool IsSecondOfDynasty(Empire empire, EmpireCraftHistory reign)
         {
             List<EmpireCraftHistory> history = empire?.data?.history;
@@ -206,7 +203,6 @@ namespace EmpireCraft.Core
             return previous != null && !previous.is_republic && !previous.ended_dynasty &&
                    previous.dynasty_name == reign.dynasty_name && empire.IsFoundingEmperorHistory(previous);
         }
-#endif
 
         // 候选字按顺序越靠前越贴切：从前三个未用过的里随机；全用过了就在全部候选里随机
         #region 明式长谥
@@ -289,7 +285,6 @@ namespace EmpireCraft.Core
         // 谥法由皇帝定：增广尊谥(长谥)或谥法从简(简谥)，一个帝国只定一次(EmpireData.posthumous_decided)。
         // 条件：华夏律令制的皇帝亲政、本朝已有三位以上定了谥号的先帝、正统 50 以上；
         // 荒淫、昏聩、暴虐之君好排场，只会增广尊谥；其余两样都可能
-#if EC_PENDING
         private static bool CanDecide(Person actor, out Empire empire)
         {
             Realm kingdom = actor?.Realm;
@@ -305,10 +300,8 @@ namespace EmpireCraft.Core
         public static bool CanSimplify(Person actor) => CanDecide(actor, out _) &&
             RulerQualitySystem.Of(actor) is not (RulerQualitySystem.Grade.Dissolute or
                 RulerQualitySystem.Grade.Fatuous or RulerQualitySystem.Grade.Tyrant);
-#endif
 
         // 谥法从简：此后先帝只用简谥，帝国设置的长谥号随之关上(仍可在设置里打开)
-#if EC_PENDING
         public static bool Simplify(Empire empire, Person emperor)
         {
             if (empire?.data == null || empire.data.posthumous_decided) return false;
@@ -338,7 +331,6 @@ namespace EmpireCraft.Core
             TranslateHelper.LogEventMessage(text, empire.CoreKingdom);
             return true;
         }
-#endif
 
         // 本朝(与最近一位君主同朝号、同姓)的历代君主
         private static List<EmpireCraftHistory> CurrentDynasty(Empire empire)

@@ -22,7 +22,6 @@ namespace EmpireCraft.Core
 public static partial class RealmNamingSystem
 {
     // 这一国可以凭它称帝的帝国法理(华夏；没有返回 null)：握着首府的(用户 2026-11-08 "拿到帝国核心就能称帝")，其次据三分之二的
-#if EC_PENDING
     public static EmpireCore DominionCore(Realm kingdom)
     {
         if (!Enabled || kingdom?.Record == null || kingdom.IsGone() || !IsHuaxia(kingdom)) return null;
@@ -45,17 +44,14 @@ public static partial class RealmNamingSystem
         }
         return best;
     }
-#endif
 
     // 本国(连同附庸)据有这个帝国法理多少城、它一共多少城
-#if EC_PENDING
     public static (int held, int total) Holding(EmpireCore core, Realm kingdom)
     {
         if (core == null || kingdom == null) return (0, 0);
         (Dictionary<Realm, int> held, int total) = EmpireCoreControl.GetHolders(core);
         return (held.TryGetValue(kingdom, out int count) ? count : 0, total);
     }
-#endif
 
     // 主法理(王国法理)所在的正式帝国法理
     public static EmpireCore MainTitleCore(Realm kingdom)
@@ -67,12 +63,9 @@ public static partial class RealmNamingSystem
     }
 
     // 称帝路线「据有法理」
-#if EC_PENDING
     public static bool DominionRoute(Realm kingdom) => DominionCore(kingdom) != null;
-#endif
 
     // 诊断一行(FormationDiagnostics)
-#if EC_PENDING
     public static string DominionNote(Realm kingdom)
     {
         EmpireCore core = DominionCore(kingdom);
@@ -80,10 +73,8 @@ public static partial class RealmNamingSystem
         (int held, int total) = Holding(core, kingdom);
         return $"，据有 {CoreName(core)} {held}/{total} 城{(SeatCore(kingdom) == core ? "(握首府)" : "")}";
     }
-#endif
 
     // 称帝绑哪个帝国法理(BecomeEmpireAndStartEnfeoff 调用)；返回要按僭越与之并立的帝国(没有为 null)
-#if EC_PENDING
     public static Empire PlanDominionBinding(Realm kingdom, Empire seatContested, out EmpireCore bind, out bool forceNewCore)
     {
         bind = null;
@@ -110,7 +101,6 @@ public static partial class RealmNamingSystem
         bind = mainFree ? main : dominion;
         return null;
     }
-#endif
 
     // 定国号(Empire.SelectFoundingEmpireName 调用；返回 null 照旧规则)。西方只管称帝剧情来的(route 不为 None)
 #if EC_PENDING
@@ -126,7 +116,6 @@ public static partial class RealmNamingSystem
 #endif
 
     // 西方(方案第 5 步)：称帝即用本帝国的帝国法理名——要绑的现成帝国法理空闲就用它的名；要新建法理的照旧(主法理名，新法理随之得名)
-#if EC_PENDING
     private static EmpireFoundingNameChoice SelectWesternName(Empire empire, EmpireCore riseCore)
     {
         if (!IsFormalCore(riseCore) || HolderOf(riseCore) != null || EmpireCoreManager.IsClaimedByContest(riseCore)) return null;
@@ -136,10 +125,8 @@ public static partial class RealmNamingSystem
         empire.data.named_core_id = riseCore.id;
         return new EmpireFoundingNameChoice(name, EmpireFoundingNameSource.EmpireCore);
     }
-#endif
 
     // 复国：祖号 + 方位(见文件头)
-#if EC_PENDING
     private static EmpireFoundingNameChoice SelectRestorationName(Empire empire, Realm kingdom, EmpireCore dominion,
         EmpireCore riseCore)
     {
@@ -166,7 +153,6 @@ public static partial class RealmNamingSystem
                            $"新法理 {CoreName(newTitle)}，方位 {prefix}");
         return new EmpireFoundingNameChoice(name, EmpireFoundingNameSource.RestoredAncestral);
     }
-#endif
 
     // 复国之家：国君的宗族，没有帝国记录就沿分家往上找；那一朝须已亡、本世系眼下没在别处称帝
     public static SpecificClan RestorationHouse(Person king, Empire founding = null)
@@ -195,7 +181,6 @@ public static partial class RealmNamingSystem
         empire.data.directPre == empire.data.founding_prefix;
 
     // 新建帝国法理时的名字：国号取自别的帝国法理(据有法理、复国)的，新法理用主法理名，免得两个帝国法理同名
-#if EC_PENDING
     public static string FreshCoreName(Empire empire)
     {
         if (!Enabled || empire?.data == null ||
@@ -209,10 +194,8 @@ public static partial class RealmNamingSystem
         string title = EmpireCoreManager.NormalizeCoreName(main?.data?.name);
         return !string.IsNullOrWhiteSpace(title) && !Taken(title) && !PlaceTitle(main) ? title : null;
     }
-#endif
 
     // 帝国绑完法理(EmpireManager.NewEmpire 末尾)：开国之君的宗族补记祖上帝国法理
-#if EC_PENDING
     public static void OnEmpireBound(Empire empire, Realm founder)
     {
         SpecificClanRemember(founder?.Ruler, empire);
@@ -225,7 +208,6 @@ public static partial class RealmNamingSystem
         if (!string.Equals(clan.empire_name, empire.GetEmpireName(), StringComparison.Ordinal)) return;
         RememberAncestralCore(clan, empire);
     }
-#endif
 
     // 称帝之后(称帝剧情落定)：与现存帝国同号的当即按同名相争改正(见 RealmNamingSystem.Contest)
 #if EC_PENDING
@@ -240,7 +222,6 @@ public static partial class RealmNamingSystem
 
     private static readonly Dictionary<long, string> PendingAncestral = new();
 
-#if EC_PENDING
     private static void RecordRestoration(Empire empire)
     {
         if (!PendingAncestral.TryGetValue(empire.data.id, out string ancestral)) return;
@@ -251,10 +232,8 @@ public static partial class RealmNamingSystem
                 LM.Get(empire.data.founding_prefix), empire.GetEmpireFullName());
         EventRecorder.Record(empire, text);
     }
-#endif
 
     // 与本国同号(国号本名相同)的另一个现存帝国
-#if EC_PENDING
     private static Empire Namesake(Empire empire)
     {
         string name = empire.GetEmpireName();
@@ -263,10 +242,8 @@ public static partial class RealmNamingSystem
                                                                !other.IsArchived() && other.CoreKingdom != null &&
                                                                string.Equals(other.GetEmpireName(), name, StringComparison.Ordinal));
     }
-#endif
 
     // 每年(ConstitutionalEconomySystem 帝国年度结算)：再无同号之国时去掉为区别而加的方位
-#if EC_PENDING
     private static void YearlyHuaxia(Empire empire)
     {
         EmpireData data = empire.data;
@@ -285,7 +262,6 @@ public static partial class RealmNamingSystem
         EventRecorder.Record(empire, string.Format(LM.Get("realm_rival_prefix_lifted_history"), before, empire.GetEmpireFullName()));
         LogService.LogInfo($"[EmpireCraft][法理国号] {before} 已无同号之国，复称 {empire.GetEmpireFullName()}");
     }
-#endif
 
     // 每年(帝国年度结算，见 ConstitutionalEconomySystem)
 #if EC_PENDING

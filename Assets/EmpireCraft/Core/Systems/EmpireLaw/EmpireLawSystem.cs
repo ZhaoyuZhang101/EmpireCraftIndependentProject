@@ -274,18 +274,15 @@ public static partial class EmpireLawSystem
         return regime != null && regime.laws != null && regime.laws.Contains(type);
     }
 
-#if EC_PENDING
     public static bool HasLaw(this Realm kingdom, LawType type)
     {
         return kingdom != null && kingdom.GetRegime().HasLaw(type);
     }
-#endif
 
     // 管辖权(名字沿用旧名，独立王国也走这里)：
     //   · 帝国之内按帝国：成员国的人归本帝国论处；成员资格不等于管辖权——地方不得控告、处置天子，
     //     中央(核心国)照旧可以(含现代宪政的审判)；
     //   · 不在帝国里的国家(2026-11 起)：本国只管本国的人；本国君主不受本国审判，现代政体走宪政程序可以审。
-#if EC_PENDING
     public static bool CanEnforceLawInEmpireScope(Person actor, Realm kingdom)
     {
         if (actor == null || actor.IsGone() || kingdom == null || kingdom.IsGone())
@@ -319,7 +316,6 @@ public static partial class EmpireLawSystem
     }
 
     public static bool CanEnforceLaw(Person actor, Realm kingdom) => CanEnforceLawInEmpireScope(actor, kingdom);
-#endif
 
     // 这桩未发的罪归不归 kingdom 管：帝国之内按帝国(独立时犯下的按国)，不在帝国里的按本国
     private static bool InJurisdiction(CrimeRecord record, Realm kingdom)
@@ -414,7 +410,7 @@ public static partial class EmpireLawSystem
         // 当场拿获的是实事，不论国大国小都上公屏；有名望、爵位的要人也上，不只官员
         context.Broadcast = TranslateHelper.ShouldBroadcastLawActor(actor) || actor.Renown >= 30 ||
                             actor.GetPeeragesLevel() != PeeragesLevel.peerages_6 || actor.HasTitle();
-        ResolvePendingRecords(context.Identity, type, context.Kingdom);
+        ResolvePendingRecords(context.Identity, type, context.Realm);
         return Execute(context, null);
     }
 #endif
@@ -447,8 +443,8 @@ public static partial class EmpireLawSystem
 #if EC_PENDING
     private static LawEnforcementContext Execute(LawEnforcementContext context, Action<LawEnforcementContext> extraPunishment)
     {
-        Person actor = context.Actor;
-        Realm kingdom = context.Kingdom;
+        Person actor = context.Person;
+        Realm kingdom = context.Realm;
         LawType type = context.LawType;
 
         if (context.Identity == null)
@@ -527,7 +523,7 @@ public static partial class EmpireLawSystem
     public static bool CheckAutomaticLawTriggersForCity(City city)
     {
         if (!Enabled) return false;
-        if (city == null || city.IsGone() || !city.hasKingdom()) return false;
+        if (city == null || city.IsGone() || !city.HasRealm()) return false;
 
         Realm kingdom = city.Realm;
         // 2026-11 起不在帝国里的国家也按本国律法查本国的人(以前只查帝国)
@@ -745,7 +741,6 @@ public static partial class EmpireLawSystem
         return false;
     }
 
-#if EC_PENDING
     public static CrimeRecord GetResolvableCrimeRecord(Person actor, Realm kingdom)
     {
         if (actor == null || actor.IsGone() || kingdom == null)
@@ -793,6 +788,7 @@ public static partial class EmpireLawSystem
         return GetLawName((LawType)record.law_type);
     }
 
+#if EC_PENDING
     public static LawEnforcementContext TryEnforceCrimeForClaim(Person actor, Realm kingdom)
     {
         if (actor == null || actor.IsGone() || kingdom == null)
@@ -906,7 +902,6 @@ public static partial class EmpireLawSystem
         });
     }
 
-#if EC_PENDING
     private static bool CanResolveCrimeRecord(Person actor, Realm kingdom, CrimeRecord record)
     {
         if (actor == null || kingdom == null || record == null) return false;
@@ -929,6 +924,7 @@ public static partial class EmpireLawSystem
         return true;
     }
 
+#if EC_PENDING
     private static void ApplyRecordedOptionalPunishments(LawEnforcementContext context)
     {
         if (context == null) return;
@@ -950,7 +946,7 @@ public static partial class EmpireLawSystem
 
     private static void ApplyOptionalPeerageRemoval(LawEnforcementContext context)
     {
-        Person actor = context != null ? context.Actor : null;
+        Person actor = context != null ? context.Person : null;
         if (actor == null) return;
         if (actor.HasTitle() || actor.GetPeeragesLevel() != PeeragesLevel.peerages_6)
         {
@@ -963,16 +959,17 @@ public static partial class EmpireLawSystem
             TryApplyOptionalPunishment(context, PunishmentLevel.剥夺爵位);
         }
     }
+#endif
 
     private static void ConsumeMercenaryOvermightyInfluence(LawEnforcementContext context)
     {
-        if (context == null || context.Kingdom == null || context.Actor == null) return;
+        if (context == null || context.Realm == null || context.Person == null) return;
 
-        Empire empire = context.Kingdom.GetEmpire();
+        Empire empire = context.Realm.GetEmpire();
         Person emperor = empire?.Emperor;
-        if (emperor == null || emperor.Record == null || context.Actor.data == null) return;
+        if (emperor == null || emperor.Record == null || context.Person.Record == null) return;
 
-        int cost = context.Actor.data.renown;
+        int cost = context.Person.Renown;
         if (cost <= 0) return;
         if (emperor.Renown < cost) return;
 
@@ -982,7 +979,6 @@ public static partial class EmpireLawSystem
             emperor.Renown = 0;
         }
     }
-#endif
 
     private static float GetEconomicCrimeModifier(Person actor)
     {
@@ -1037,14 +1033,12 @@ public static partial class EmpireLawSystem
         return chance;
     }
 
-#if EC_PENDING
     private static float GetNobleCrimeModifier(Person actor)
     {
         if (actor == null) return 0f;
         if (actor.HasTitle() || actor.isNoble() || actor.IsRuler()) return 0.015f;
         return 0f;
     }
-#endif
 
     private static float GetDutyEvasionModifier(Person actor)
     {
@@ -1079,7 +1073,7 @@ public static partial class EmpireLawSystem
 #if EC_PENDING
     public static bool ApplyPunishment(LawEnforcementContext context, PunishmentLevel punishment)
     {
-        if (context == null || !CanEnforceLawInEmpireScope(context.Actor, context.Kingdom)) return false;
+        if (context == null || !CanEnforceLawInEmpireScope(context.Person, context.Realm)) return false;
         switch (punishment)
         {
             case PunishmentLevel.无罪:
@@ -1087,18 +1081,18 @@ public static partial class EmpireLawSystem
             case PunishmentLevel.罚金:
                 return ApplyFine(context);
             case PunishmentLevel.笞刑:
-                return ApplyCaning(context.Actor, 60);
+                return ApplyCaning(context.Person, 60);
             case PunishmentLevel.杖刑:
-                return ApplyCaning(context.Actor, 20);
+                return ApplyCaning(context.Person, 20);
             case PunishmentLevel.监禁:
                 return ApplyImprisonment(context);
             case PunishmentLevel.流放:
                 return ApplyExile(context);
             case PunishmentLevel.没收财产:
-                return ApplyConfiscateProperty(context.Actor);
+                return ApplyConfiscateProperty(context.Person);
             case PunishmentLevel.剥夺爵位:
                 // 宗人府议处：皇室削爵改降一等(见 ApplyScale)
-                return context.DemotePeerage ? ApplyDemotePeerage(context.Actor) : ApplyStripPeerage(context.Actor);
+                return context.DemotePeerage ? ApplyDemotePeerage(context.Person) : ApplyStripPeerage(context.Person);
             case PunishmentLevel.剥夺官职:
                 return ApplyStripOffice(context);
             case PunishmentLevel.死刑:
@@ -1115,12 +1109,11 @@ public static partial class EmpireLawSystem
     public const int FineFloor = 30;
     private const float FineShare = 0.2f;
 
-#if EC_PENDING
     private static bool ApplyFine(LawEnforcementContext context)
     {
-        Person actor = context?.Actor;
+        Person actor = context?.Person;
         if (actor == null || actor.IsGone()) return false;
-        int amount = FineAmount(actor, context.Kingdom);
+        int amount = FineAmount(actor, context.Realm);
         if (amount > 0) actor.AddMoney(-amount);
         context.FinePaid += amount;
         return true;
@@ -1135,6 +1128,7 @@ public static partial class EmpireLawSystem
         return Math.Min(amount, money);
     }
 
+#if EC_PENDING
     private static bool ApplyCaning(Person actor, int remainingHealth)
     {
         if (actor == null || actor.IsGone()) return false;
@@ -1152,24 +1146,25 @@ public static partial class EmpireLawSystem
 #if EC_PENDING
     private static bool ApplyImprisonment(LawEnforcementContext context)
     {
-        Person actor = context?.Actor;
+        Person actor = context?.Person;
         if (actor == null || actor.IsGone()) return false;
         ApplyStripOffice(new LawEnforcementContext
         {
             Person = actor,
-            Realm = context.Kingdom,
+            Realm = context.Realm,
             Law = new Law()
         });
         Imprison(context);
         return true;
     }
+#endif
 
     private static bool ApplyExile(LawEnforcementContext context)
     {
-        Person actor = context != null ? context.Actor : null;
+        Person actor = context != null ? context.Person : null;
         if (actor == null || actor.IsGone()) return false;
 
-        Realm kingdom = context != null ? context.Kingdom : actor.Realm;
+        Realm kingdom = context != null ? context.Realm : actor.Realm;
         ApplyStripOffice(new LawEnforcementContext
         {
             Person = actor,
@@ -1187,7 +1182,6 @@ public static partial class EmpireLawSystem
         actor.JoinCity(exileCity);
         return true;
     }
-#endif
 
     private static bool ApplyConfiscateProperty(Person actor)
     {
@@ -1226,11 +1220,10 @@ public static partial class EmpireLawSystem
         return true;
     }
 
-#if EC_PENDING
     private static bool ApplyStripOffice(LawEnforcementContext context)
     {
-        Person actor = context != null ? context.Actor : null;
-        Realm kingdom = context != null ? context.Kingdom : null;
+        Person actor = context != null ? context.Person : null;
+        Realm kingdom = context != null ? context.Realm : null;
         if (actor == null || actor.IsGone()) return false;
 
         bool changed = false;
@@ -1265,7 +1258,6 @@ public static partial class EmpireLawSystem
 
         return changed;
     }
-#endif
 
     // 死刑只杀本人；夷三族连子女、配偶一起(以前死刑也连坐子女和配偶，和夷三族一样)。
     // 以前只挂 death_mark、加死亡率，死亡率没有地方读；现在登记死因后当场处死(写进生平，见 BiographySystem.Kill)。
@@ -1273,9 +1265,9 @@ public static partial class EmpireLawSystem
 #if EC_PENDING
     private static bool ApplyDeathPenalty(LawEnforcementContext context, bool kin)
     {
-        Person actor = context?.Actor;
+        Person actor = context?.Person;
         if (actor == null || actor.IsGone() || !actor.Alive) return false;
-        Realm kingdom = context.Kingdom;
+        Realm kingdom = context.Realm;
         Person judge = RealmRuler(kingdom);
         if (judge == actor) judge = null;
         string lawName = GetLawName(context.LawType);

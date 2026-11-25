@@ -94,10 +94,8 @@ public static partial class HolyRomanSystem
 
     // 选帝制帝国的皇帝不随本文化的宗教改革脱离罗马(见 PapacySystem.BrokeWithRome、TryBreakWithRome)：宗教改革由诸侯开头，
     // 皇帝与奉旧教的诸侯对抗新教同盟。已另立过国教会的(如改回世袭时脱离过)照旧算脱离
-#if EC_PENDING
     public static bool KeepsOldFaith(Empire empire) =>
         IsElective(empire) && (PapacySystem.State(empire)?.national_church_id ?? -1L) < 0;
-#endif
 
     // 诸侯另立新教会：本文化施行了宗教改革、皇帝仍奉旧教、世上还没有从皇帝所奉宗教分出去的新教会(宗教改革分出的)时，每年一成五可能由
     // 与皇帝最不睦的世俗诸侯(不同族)在自己的都城另立新教会，圣地就在那里，之后各诸侯陆续改宗(PrincelyReformation)。
@@ -156,7 +154,6 @@ public static partial class HolyRomanSystem
         }
     }
 
-#if EC_PENDING
     private static void DeclareReligiousWar(Empire empire, HolyRomanState state, Realm head, List<Realm> dissenters)
     {
         Realm core = empire.CoreKingdom;
@@ -211,7 +208,6 @@ public static partial class HolyRomanSystem
         Record(empire, string.Format(LM.Get("hre_peace_history"), state.peace_name, empire.GetEmpireFullName()));
         DissolveLeague(state);
     }
-#endif
 
     private static void DissolveLeague(HolyRomanState state)
     {
@@ -253,7 +249,6 @@ public static partial class HolyRomanSystem
     }
 
     // 封建制帝国的皇帝去教廷受冕：先出征(花军费)，一年后到达
-#if EC_PENDING
     public static bool StartRomzug(Empire empire, Realm papacy)
     {
         if (!HasDiet(empire) || papacy == null || empire.Emperor == null) return false;
@@ -267,7 +262,6 @@ public static partial class HolyRomanSystem
             PapacySystem.HolyCity(PapacySystem.ReligionOf(empire))?.GetCityName() ?? papacy.Capital?.GetCityName() ?? ""));
         return true;
     }
-#endif
 
     #endregion
 }

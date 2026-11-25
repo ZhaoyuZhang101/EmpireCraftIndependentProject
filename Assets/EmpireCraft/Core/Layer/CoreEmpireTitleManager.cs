@@ -11,7 +11,6 @@ public static class EmpireCoreManager
 {
     public static Dictionary<long, EmpireCore> EmpireCores = new Dictionary<long, EmpireCore>();
 
-#if EC_PENDING
     public static void SyncCitiesFromTitles(EmpireCore core, bool preserveOccupiedCore = false)
     {
         if (core == null) return;
@@ -38,7 +37,6 @@ public static class EmpireCoreManager
         }
         RestoreParentCities(core);
     }
-#endif
 
     // 军阀时期另立政府的临时子核心(warlord_parent_core_id)只是技术记录：建立时登记了政府控制的全部法理，
     // 却没从原核心里移走，两边共用同一批法理。城市只能记一个核心，谁最后同步就归谁——
@@ -114,7 +112,6 @@ public static class EmpireCoreManager
 
     // 读档修复(只在冻结法理开着时)：以前新立核心不看冻结，同一法理记进两个正式帝国法理，城被后记的拿走，法理图层上法理首都被踢出原帝国法理。
     // 保留先记的，后记的去掉，城改回去；城被军阀临时法理、伪法理拿走的也还给正式帝国法理(那两种的记录照旧留着，见 EnumerateOwnCities)
-#if EC_PENDING
     public static int RepairFrozenTitleRecords()
     {
         if (!ModClass.KINGDOM_TITLE_FREEZE || EmpireCores == null || EmpireWorld.Current?.Cities == null ||
@@ -159,11 +156,9 @@ public static class EmpireCoreManager
             LogService.LogInfo($"[EmpireCraft][法理] 冻结法理：去掉重复记录的法理 {lost.Count} 条，城改回原帝国法理 {moved} 座");
         return lost.Count;
     }
-#endif
 
     // 军阀临时法理转正(承认分治、原核心没了)之前：冻结法理时去掉已记在正式帝国法理里的法理，城还给那个帝国法理，
     // 免得转正后同一法理记在两个正式帝国法理里
-#if EC_PENDING
     public static void DropRecordsHeldElsewhere(EmpireCore core)
     {
         if (!ModClass.KINGDOM_TITLE_FREEZE || core?.titlesRecord == null) return;
@@ -172,11 +167,10 @@ public static class EmpireCoreManager
             EmpireCore lawful = LawfulCoreOf(title);
             if (lawful == null || lawful == core) continue;
             core.RemoveTitle(title);
-            foreach (City city in title.getCities())
+            foreach (City city in title.GetCities())
                 if (city != null && !city.IsGone() && city.GetEmpireCoreID() == core.id) city.SetEmpireCore(lawful);
         }
     }
-#endif
 
     private static bool IsFormalCore(EmpireCore core) =>
         core?.titlesRecord != null && core.false_core_against_empire_id <= 0 && core.warlord_parent_core_id <= 0;
@@ -189,7 +183,6 @@ public static class EmpireCoreManager
     }
 
     // coreName：新法理另起的名字(国号取自别的帝国法理时，见 RealmNamingSystem.FreshCoreName)；空 = 照国号
-#if EC_PENDING
     public static EmpireCore newEmpireCore(Empire empire, string coreName = null)
     {
         List<KingdomTitle> titles = TitlesForNewCore(empire.CoreKingdom.GetControlledTitles());
@@ -213,7 +206,6 @@ public static class EmpireCoreManager
         SyncCitiesFromTitles(empireCore, preserveOccupiedCore: true);
         return empireCore;
     }
-#endif
 
     // 冻结法理(模组设置)：新立的帝国法理只记无主的法理。已记在别的帝国法理里的不另记一份——城只能记一个核心，
     // 记了两份，城跟谁走看谁最后同步，原帝国法理空着时法理连同法理首都就被新核心拿走了
@@ -233,7 +225,6 @@ public static class EmpireCoreManager
         return empire == null ? null : Get(empire.data?.empire_core_id ?? -1L);
     }
 
-#if EC_PENDING
     public static List<City> GetCities(EmpireCore core)
     {
         // 查重用集合(以前用列表 Contains，城一多就是平方级；天下自动并分、天下窗口每个核心都要取一次)
@@ -243,10 +234,8 @@ public static class EmpireCoreManager
             if (seen.Add(city)) cities.Add(city);
         return cities;
     }
-#endif
 
     // 帝国法理的城：本来的法理的城，连同兼属进来的(见 DeJureShareSystem：兼属本法理各王国法理的城、兼属本法理的王国法理的城)
-#if EC_PENDING
     public static IEnumerable<City> EnumerateCities(EmpireCore core)
     {
         foreach (City city in EnumerateOwnCities(core)) yield return city;
@@ -262,10 +251,8 @@ public static class EmpireCoreManager
             foreach (City city in DeJureShareSystem.AllCities(title))
                 if (city != null && !city.IsGone()) yield return city;
     }
-#endif
 
     // 只是本来的法理的城(不含兼属进来的)
-#if EC_PENDING
     public static IEnumerable<City> EnumerateOwnCities(EmpireCore core)
     {
         if (core?.titlesRecord == null) yield break;
@@ -274,7 +261,7 @@ public static class EmpireCoreManager
         {
             KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER.Get(record.titleId);
             if (title == null || title.IsGone()) continue;
-            foreach (City city in title.getCities())
+            foreach (City city in title.GetCities())
             {
                 if (city == null || city.IsGone()) continue;
                 // Claimant/provisional cores may reference the same kingdom title as the lawful
@@ -289,7 +276,6 @@ public static class EmpireCoreManager
             }
         }
     }
-#endif
 
     // 法理所属的正式核心(不含军阀临时子核心、争正统的伪核心)；同一法理误记在两个正式核心里时取后收进来的那个
     public static EmpireCore LawfulCoreOf(KingdomTitle title)
@@ -441,6 +427,7 @@ public static class EmpireCoreManager
         colorTitle.generateColor();
         return true;
     }
+#endif
 
     public static string GetCultureDisplayName(EmpireCore core)
     {
@@ -477,7 +464,6 @@ public static class EmpireCoreManager
 
         return "";
     }
-#endif
 
     public static string NormalizeCoreName(string name)
     {
@@ -499,7 +485,6 @@ public static class EmpireCoreManager
         return empire != null && !empire.IsGone() && !empire.IsArchived() ? empire : null;
     }
 
-#if EC_PENDING
     public static string GetStatusDisplayName(EmpireCore core)
     {
         string name = GetDisplayName(core);
@@ -525,6 +510,7 @@ public static class EmpireCoreManager
             .ToList();
     }
 
+#if EC_PENDING
     public static string GetFoundingEmpireName(EmpireCore core)
     {
         if (core == null) return "";
@@ -665,17 +651,17 @@ public static class EmpireCoreManager
         return Math.Min(total, 3);
     }
 
-#if EC_PENDING
     public static int GetAssimilationCost(Empire empire, KingdomTitle title)
     {
         if (empire?.CoreKingdom == null || title?.title_capital?.Realm == null) return int.MaxValue;
         Realm source = title.title_capital.Realm;
         // 越亲近越好收：异文化最贵、异种其次、同种同文化最便宜(以前反过来，同文化要一万，几乎收不进来)
         if (source.GetEmpireCraftCulture() != empire.CoreKingdom.GetEmpireCraftCulture()) return 10000;
-        if (source.getSpecies() != empire.CoreKingdom.getSpecies()) return 3000;
+        if (source.GetSpecies() != empire.CoreKingdom.GetSpecies()) return 3000;
         return 1500;
     }
 
+#if EC_PENDING
     public static bool TryAbsorbTitle(Empire empire, KingdomTitle title)
     {
         if (empire?.CoreKingdom == null || title == null || title.IsGone()) return false;
@@ -690,7 +676,7 @@ public static class EmpireCoreManager
         if (yielding != null && (!TribalFissionService.YieldsTitle(yielding, empire) ||
                                  EmpireCores.Values.Any(other => other != null && other.id != core.id && other != yielding &&
                                                                  ContainsTitle(other, title)))) return false;
-        if (!empire.kingdoms_hashset.Any(k => k != null && !k.IsGone() && title.getCities().Any(c => c != null && !c.IsGone() && c.Realm == k))) return false;
+        if (!empire.kingdoms_hashset.Any(k => k != null && !k.IsGone() && title.GetCities().Any(c => c != null && !c.IsGone() && c.Realm == k))) return false;
         // 帝国核心法理可以自由扩张(不受王国法理的城市上限约束)，但只能扩张到同文化的法理，异族文化的法理吸收不进来
         string empireCulture = CultureService.GetEmpireDefaultCulture(empire);
         string titleCulture = CultureService.GetEffectiveTitleCulture(title);
@@ -719,7 +705,7 @@ public static class EmpireCoreManager
     // 这块法理有城在本帝国(连同各成员)水师的辐射里(隔海相望，见 StraitReach)
 #if EC_PENDING
     private static bool AcrossStrait(Empire empire, KingdomTitle title) =>
-        title.getCities().Any(city => city != null && !city.IsGone() && StraitReach.Reaches(empire.CoreKingdom, city));
+        title.GetCities().Any(city => city != null && !city.IsGone() && StraitReach.Reaches(empire.CoreKingdom, city));
 
     public static void RebindEmpire(Empire empire, EmpireCore core)
     {
@@ -741,6 +727,7 @@ public static class EmpireCoreManager
             }
         }
     }
+#endif
 
     public static EmpireCore CreateCoreFromTitle(KingdomTitle title)
     {
@@ -809,11 +796,9 @@ public static class EmpireCoreManager
         SyncCitiesFromTitles(core);
         return changed;
     }
-#endif
 
     // force：玩家神力、旧档部落帝国的静默撤去。其余是政权更替时顺手销毁(军阀、法统之争、现代国家……)：
     // 冻结法理时有法理的正式帝国法理留着，只解除绑定，空着等后来者；伪法理、军阀临时法理、没有法理的照旧销毁
-#if EC_PENDING
     public static bool DestroyEmpireCore(EmpireCore core, bool force = false)
     {
         if (core == null) return false;
@@ -848,6 +833,5 @@ public static class EmpireCoreManager
 
         return EmpireCores.Remove(core.id);
     }
-#endif
 }
 }

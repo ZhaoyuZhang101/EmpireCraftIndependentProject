@@ -96,6 +96,22 @@ IDENTITY = [
     (r"(?<![.\w])WorldLawLibrary\.world_law_(\w+)", lambda found: "WorldLaws." + pascal(found.group(1))),
     (r"(?<![.\w])WorldLawAsset\b", "WorldLaw"),
     (r"(?<![.\w])SmoothLoader\.isLoading\(\)", "GameClock.Loading"),
+    # Entity kinds, the kind of a person, name-making data, and the culture helpers the mod kept in a patch class.
+    (r"(?<![.\w])MetaType\b", "EntityKind"),
+    # Buildings, jobs and game options (Core/Host/Stock.cs).
+    (r"(?<![.\w])AssetManager\.buildings\b", "BuildingKinds.Table"),
+    (r"(?<![.\w])BuildingAsset\b", "BuildingKind"),
+    (r"(?<![.\w])PlotAsset\b", "PlotKind"),
+    (r"(?<![.\w])(?:EmpireCraft\.Core\.)?EmpireCraftMetaTypeLibrary\.selected_empire\b", "GameView.SelectedEmpire"),
+    (r"(?<![.\w])(?:EmpireCraft\.Core\.)?PureMapPatch\.Redraw\b", "GameView.Redraw"),
+    (r"(?<![.\w])CitizenJobAsset\b", "JobKind"),
+    (r"(?<![.\w])PlayerConfig\.dict\b", "GameOptions.All"),
+    (r"(?<![.\w])PlayerOptionData\b", "GameOption"),
+    (r"(?<![.\w])ActorAsset\b", "PersonKind"),
+    (r"(?<![.\w])OnomasticsData\b", "NameParts"),
+    (r"(?<![.\w])CulturePatch\.GetInjectedCultureName\b", "Cultures.FamilyOf"),
+    (r"(?<![.\w])CulturePatch\.GetOnomasticDataSafe\b", "Cultures.NameParts"),
+    (r"(?<![.\w])CulturePatch\.insertCultureTemplate\b", "Cultures.SetFamily"),
     # World news (Core/Host/News.cs): the base game's world-log message and asset, the mod's list of kinds,
     # and what its screen-feed patch kept about the message being posted.
     (r"(?<![.\w])WorldLogMessage\b", "News"),
@@ -185,7 +201,21 @@ def show(mod, commit, path):
 _namespace_cache = {}
 
 
+_type_cache = {}
+
+
+def mod_types(mod, commit):
+    """Names of the types the mod declares, for telling `Layer.Empire` (a namespace in front of a type) from
+    `TemporaryFactions.Count` (a field that happens to be called like a namespace)."""
+    if commit not in _type_cache:
+        out = git(mod, "grep", "-h", "-o", "-E", r"\b(class|struct|enum|interface|record|delegate\s+[A-Za-z_][A-Za-z0-9_<>,\[\]]*)\s+[A-Za-z_][A-Za-z0-9_]*",
+                  commit, "--", "Scripts").stdout.decode("utf-8", "replace")
+        _type_cache[commit] = {line.split()[-1] for line in out.splitlines() if line.strip()}
+    return _type_cache[commit]
+
+
 def mod_namespaces(mod, commit):
+    mod_types(mod, commit)
     if commit not in _namespace_cache:
         out = git(mod, "grep", "-h", "-E", r"^\s*namespace\s+EmpireCraft\.Scripts", commit, "--", "Scripts").stdout.decode("utf-8", "replace")
         names = {"EmpireCraft.Scripts"}
@@ -347,7 +377,10 @@ def transform(text, key, commit, namespaces, identity=False, keep=()):
     qualified = re.compile("|".join(re.escape(n) + r"\." for n in namespaces))
     # `Layer.Empire`, `Regimes.Regime`: a namespace segment used as a relative qualifier.
     segments = sorted({s for n in namespaces for s in n.split(".")[2:] if re.match(r"^[A-Za-z]\w*$", s)} - {"System"})
-    relative = re.compile(r"(?<![.\w])(?:%s)\.(?=[A-Z])" % "|".join(segments or ["__none__"]))
+    relative = re.compile(r"(?<![.\w])(?:%s)\.(?=([A-Z]\w*))" % "|".join(segments or ["__none__"]))
+    # Only in front of a type of the mod or a nested namespace; a member that shares a namespace's name keeps its dot.
+    known = _type_cache.get(commit)
+    known = None if known is None else known | set(segments)
     for line in lines:
         m = re.match(r"^using\s+(static\s+)?([\w.]+)\s*;\s*$", line)
         if m:
@@ -374,7 +407,7 @@ def transform(text, key, commit, namespaces, identity=False, keep=()):
                 line = line.replace(old, new)
                 rewritten.add("%s -> %s" % (old, new))
         if identity and not line.startswith("using "):
-            line = relative.sub("", line)
+            line = relative.sub(lambda found: "" if known is None or found.group(1) in known else found.group(0), line)
             for index, kept in enumerate(keep):
                 line = line.replace(kept, "\x00%d\x00" % index)
             for pattern, replacement in IDENTITY:

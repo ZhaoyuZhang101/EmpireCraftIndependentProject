@@ -25,7 +25,6 @@ public static class ScenarioModernPolitics
         !IdeologyFamilies.IsAncient(ideology) ? ideology : null;
 
     // 建国(称帝)之前：写了共和的，核心国先改现代政体；写了君主国、立宪的记为剧本君主国
-#if EC_PENDING
     public static void BeforeEmpire(Realm kingdom, WorldMapPolity data)
     {
         string regime = Regime(data);
@@ -55,7 +54,6 @@ public static class ScenarioModernPolitics
             }
         }
     }
-#endif
 
     // 称帝(组建政府)之后：共和国定建国理念、开局即已制宪；立宪国立宪；国号锁定
 #if EC_PENDING
@@ -171,7 +169,6 @@ public static class ScenarioModernPolitics
 #endif
 
     // 中央占比：执政党六成，剧本里别的政党分三成，其余派系分剩下的
-#if EC_PENDING
     private static void SetRatios(Realm core, FixedFaction ruling, List<FixedFaction> others)
     {
         List<FixedFaction> factions = core?.GetRegime()?.GetPlayerFactions()?.Where(faction => faction != null).ToList();
@@ -185,7 +182,6 @@ public static class ScenarioModernPolitics
                 : 10 / Math.Max(1, rest.Count);
         core.ClampFactionRatio();
     }
-#endif
 
     // 地方实力派(民国的晋绥、桂系、川系、滇系、西北马家)：现代国家的成员原本是没有兵的省(Modern_province)，
     // 这里保留军队与财政(Modern_state)、首领由军中最能者接替(举能)，国号照剧本(晋绥、桂系)，行政改划不拆它的地盘；

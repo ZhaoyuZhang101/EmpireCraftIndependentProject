@@ -31,12 +31,12 @@ public static class MemberWarAid
     {
         Person king = member?.Ruler;
         if (king == null || king.IsGone() || !king.Alive || king.plot?.isActive() == true ||
-            EmpireWorld.Current?.plots == null || Context(member) == null) return;
+            EmpireWorld.Current?.Plots == null || Context(member) == null) return;
         string id = FindRequestWar(member) != null ? RequestPlot :
             FindNeighbourWar(member, out _, out _) ? NeighbourPlot :
             FindCenterWar(member) != null ? CenterPlot : null;
         if (id == null) return;
-        PlotAsset asset = AssetManager.plots_library.get(id);
+        PlotKind asset = AssetManager.plots_library.get(id);
         asset?.try_to_start_advanced?.Invoke(king, asset, false);
     }
 
@@ -86,26 +86,26 @@ public static class MemberWarAid
         return EmpirePeacePatch.Obeys(empire, member) || member.isOpinionTowardsKingdomGood(ally);
     }
 
-    public static bool StartRequest(Person actor, PlotAsset asset, bool forced)
+    public static bool StartRequest(Person actor, PlotKind asset, bool forced)
     {
         Realm member = actor?.Realm;
         if (member?.Ruler != actor || actor.plot?.isActive() == true) return false;
         War war = FindRequestWar(member);
         if (war == null) return false;
-        Plot plot = EmpireWorld.Current.plots.newPlot(actor, asset, forced);
+        Plot plot = EmpireWorld.Current.Plots.newPlot(actor, asset, forced);
         plot.target_war = war;
-        plot.target_kingdom = war.GetMainAttacker();
+        plot.TargetRealm = war.GetMainAttacker();
         return true;
     }
 
-    public static bool StartNeighbour(Person actor, PlotAsset asset, bool forced)
+    public static bool StartNeighbour(Person actor, PlotKind asset, bool forced)
     {
         Realm member = actor?.Realm;
         if (member?.Ruler != actor || actor.plot?.isActive() == true) return false;
         if (!FindNeighbourWar(member, out War war, out Realm ally)) return false;
-        Plot plot = EmpireWorld.Current.plots.newPlot(actor, asset, forced);
+        Plot plot = EmpireWorld.Current.Plots.newPlot(actor, asset, forced);
         plot.target_war = war;
-        plot.target_kingdom = ally;
+        plot.TargetRealm = ally;
         return true;
     }
 
@@ -181,15 +181,15 @@ public static class MemberWarAid
         return EmpirePeacePatch.Obeys(empire, member) || member.isOpinionTowardsKingdomGood(core);
     }
 
-    public static bool StartCenter(Person actor, PlotAsset asset, bool forced)
+    public static bool StartCenter(Person actor, PlotKind asset, bool forced)
     {
         Realm member = actor?.Realm;
         if (member?.Ruler != actor || actor.plot?.isActive() == true) return false;
         War war = FindCenterWar(member, needy: !forced);
         if (war == null) return false;
-        Plot plot = EmpireWorld.Current.plots.newPlot(actor, asset, forced);
+        Plot plot = EmpireWorld.Current.Plots.newPlot(actor, asset, forced);
         plot.target_war = war;
-        plot.target_kingdom = member.GetEmpire().CoreKingdom;
+        plot.TargetRealm = member.GetEmpire().CoreKingdom;
         return true;
     }
 
@@ -221,7 +221,6 @@ public static class MemberWarAid
 
     // 能发起这几项决议的成员：帝国的非核心成员、没在叛乱；战国周室已不管诸侯的仗；
     // 分裂进程里割据的成员不奉诏，也不向中央求援、不驰援、不勤王(见 SchismSystem，用户 2026-10-21 选"先割据后独立")
-#if EC_PENDING
     private static Empire Context(Realm member)
     {
         if (member?.Record == null || member.IsGone() || member.IsEmpire() ||
@@ -231,10 +230,8 @@ public static class MemberWarAid
             empire.CoreKingdom.IsGone()) return null;
         return ZhouEraSystem.Era(empire) >= ZhouEraSystem.Warring ? null : empire;
     }
-#endif
 
     // 成员守、对方是外敌(本帝国叛乱的成员也算外敌)；劫掠与周室诸侯间的征伐不算
-#if EC_PENDING
     private static bool Aidable(War war, Realm defender, Empire empire)
     {
         if (war?.Record == null || !war.Alive || war.HasEnded() || !war.IsDefender(defender) ||
@@ -244,7 +241,6 @@ public static class MemberWarAid
                                                    kingdom.GetEmpire() == empire &&
                                                    !kingdom.IsFactionRebelling() && !kingdom.IsLocalRebelling());
     }
-#endif
 
     private static bool Join(War war, Realm kingdom)
     {

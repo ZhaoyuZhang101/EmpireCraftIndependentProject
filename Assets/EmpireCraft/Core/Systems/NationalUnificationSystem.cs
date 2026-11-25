@@ -23,7 +23,6 @@ public static class NationalUnificationSystem
     public static void ResetWorldState() => Pending.Clear();
 
     // 每个帝国的年度结算里调用：只登记，真正合并在 Tick 里做(不在遍历帝国列表时解散帝国)
-#if EC_PENDING
     public static void Consider(Empire small)
     {
         if (!IsModern(small) || small.CoreKingdom.HasEnemies()) return;
@@ -69,6 +68,7 @@ public static class NationalUnificationSystem
         if (EcRandom.value < chance) Pending.Add((small.Key, large.Key));
     }
 
+#if EC_PENDING
     public static void Tick()
     {
         if (Pending.Count == 0 || ModClass.EMPIRE_MANAGER == null) return;
@@ -121,11 +121,9 @@ public static class NationalUnificationSystem
         return core.warlord_parent_core_id > 0 ? EmpireCoreManager.Get(core.warlord_parent_core_id) ?? core : core;
     }
 
-#if EC_PENDING
     private static bool IsModern(Empire empire) =>
         empire?.data != null && !empire.IsGone() && !empire.IsArchived() && empire.CoreKingdom != null &&
         !empire.CoreKingdom.IsGone() && empire.CoreKingdom.GetRegime()?.type == RegimeType.Modern;
-#endif
 
     private static int Cities(Empire empire) =>
         empire.kingdoms_list?.Where(kingdom => kingdom?.Cities != null && !kingdom.IsGone()).Sum(kingdom => kingdom.Cities.Count) ?? 0;

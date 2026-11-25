@@ -113,7 +113,6 @@ public static partial class NomadRaidSystem
     private static Realm ModRealm(Realm kingdom) => FrontSystem.ModRealm(kingdom);
 
     // 游牧：本国文化逐水草而居；帝国看主体文化与统治族群(复合帝国)
-#if EC_PENDING
     public static bool IsNomad(Realm kingdom)
     {
         if (!Alive(kingdom)) return false;
@@ -121,10 +120,8 @@ public static partial class NomadRaidSystem
         Empire empire = kingdom.GetEmpire();
         return empire?.CoreKingdom == kingdom && ClaimRules.HasTrait(empire, OnomasticsRule.NomadTrait);
     }
-#endif
 
     // 有劫掠传统(草原、维京)
-#if EC_PENDING
     public static bool IsRaider(Realm kingdom)
     {
         if (!Alive(kingdom)) return false;
@@ -132,7 +129,6 @@ public static partial class NomadRaidSystem
         Empire empire = kingdom.GetEmpire();
         return empire?.CoreKingdom == kingdom && ClaimRules.HasTrait(empire, OnomasticsRule.RaiderTrait);
     }
-#endif
 
     private static Realm LiveKingdom(long id)
     {
@@ -204,7 +200,6 @@ public static partial class NomadRaidSystem
 #endif
 
     // 岁币：上回看到的出钱帝国这回没了(二十年到期、付不起)，记下停付
-#if EC_PENDING
     private static void TrackTribute(Realm kingdom, SteppeState state, double now)
     {
         long payer = kingdom.GetGivenAllianceEmpire()?.CoreKingdom?.Key ?? -1L;
@@ -218,7 +213,6 @@ public static partial class NomadRaidSystem
         }
         state.tribute_payer_id = payer;
     }
-#endif
 
     // 十年内停了岁币的那国(还在)；没有返回 null
     private static Realm TributeCut(SteppeState state) =>
@@ -232,7 +226,6 @@ public static partial class NomadRaidSystem
         state.market_treaty_with >= 0 && state.market_treaty_at >= 0d && YearsSince(state.market_treaty_at) < MarketTreatyYears;
 
     // 互市得利(FrontierRelations.Market 调用)：游牧一方记下时间与对方
-#if EC_PENDING
     public static void NoteMarket(Realm a, Realm b)
     {
         if (EmpireWorld.Current == null) return;
@@ -244,7 +237,6 @@ public static partial class NomadRaidSystem
             state.market_partner_id = other?.Key ?? -1L;
         }
     }
-#endif
 
     // 买和开的互市(期内照常通市，见 FrontierRelations.Market)
     public static bool MarketTreaty(Realm a, Realm b)
@@ -386,13 +378,11 @@ public static partial class NomadRaidSystem
 #endif
 
     // 同奉一主：同一个宗主的朝贡国，或共事同一个部落联盟
-#if EC_PENDING
     private static bool SameOverlord(Realm a, Realm b)
     {
         Empire lordA = a.GetTakenAllianceEmpire() ?? TribalFissionService.OverlordOf(a);
         return lordA != null && lordA == (b.GetTakenAllianceEmpire() ?? TribalFissionService.OverlordOf(b));
     }
-#endif
 
     // 盟里各部接壤的定居之国里挑一家
 #if EC_PENDING
@@ -528,7 +518,6 @@ public static partial class NomadRaidSystem
 #endif
 
     // 记一笔：世界日志一条，涉及各国所在的帝国史书各一条
-#if EC_PENDING
     private static void Chronicle(string text, IEnumerable<Realm> involved)
     {
         if (string.IsNullOrWhiteSpace(text)) return;
@@ -544,7 +533,6 @@ public static partial class NomadRaidSystem
         }
         TranslateHelper.LogEventOnly(text, first);
     }
-#endif
 
     #endregion
 }

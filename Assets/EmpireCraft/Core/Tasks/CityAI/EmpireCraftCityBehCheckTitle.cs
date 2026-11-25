@@ -8,8 +8,7 @@ namespace EmpireCraft.Core
 public class EmpireCraftCityBehCheckTitle: GameAICityBase
 {
     public override Type OriginalBeh => GetType();
-#if EC_PENDING
-    public override BehResult execute(City pCity)
+    public override BehResult Execute(City pCity)
     {
         if (pCity.GetTitle() == null)
         {
@@ -22,6 +21,5 @@ public class EmpireCraftCityBehCheckTitle: GameAICityBase
         }
         return BehResult.Continue;
     }
-#endif
 }
 }

@@ -58,9 +58,7 @@ public static class PureMapMode
     private static float _purgeAt;
     private static int _purgedTotal;
     private static bool _spritesOff;
-#if EC_PENDING
     private static Building[] _sweep;
-#endif
     private static int _cursor;
     private static float _lawCheckAt;
 
@@ -99,17 +97,15 @@ public static class PureMapMode
             LogService.LogInfo($"[EmpireCraft][纯净地图] 一次并入普通人 {_purgedTotal} 人，剩实体 {EmpireWorld.Current.Living.Count}");
         _purgedTotal = 0;
     }
-
-    public static bool IsDecor(BuildingAsset asset) =>
-        asset != null && (DecorTypes.Contains(asset.type ?? "") || DecorIds.Contains(asset.id ?? ""));
 #endif
+
+    public static bool IsDecor(BuildingKind asset) =>
+        asset != null && (DecorTypes.Contains(asset.Type ?? "") || DecorIds.Contains(asset.Id ?? ""));
 
     // 植物、庄稼、装饰，连同改为村镇生计的矿场、伐木场、牧场、屠宰场(见 LivelihoodSystem.Replaces)
-#if EC_PENDING
     private static bool ShouldClear(Building building) =>
-        building?.asset != null && (building.asset.flora || building.asset.wheat || IsDecor(building.asset) ||
-                                    LivelihoodSystem.Replaces(building.asset));
-#endif
+        building?.Asset != null && (building.Asset.Flora || building.Asset.Wheat || IsDecor(building.Asset) ||
+                                    LivelihoodSystem.Replaces(building.Asset));
 
     // 原版的绘制委托类型是 QuantumSpriteUpdater(不是 Action)，否则赋不上 draw_call
 #if EC_PENDING
@@ -147,9 +143,9 @@ public static class PureMapMode
         }
         if (restored > 0) LogService.LogInfo($"[EmpireCraft][纯净地图] 绘制表被重建，重新关掉 {restored} 项人物与建筑的绘制");
     }
-
-    public static bool Visible(Person actor) => actor?.asset != null && actor.asset.is_boat;
 #endif
+
+    public static bool Visible(Person actor) => actor?.Asset != null && actor.Asset.IsBoat;
 
     // 停掉植物蔓延类法则，打开无小人模式与占领模式，关掉军团统领实体与小人社交
 #if EC_PENDING
@@ -160,28 +156,28 @@ public static class PureMapMode
         bool changed = false;
         foreach (string id in FloraLaws)
         {
-            if (!laws.dict.TryGetValue(id, out PlayerOptionData option) || !option.boolVal) continue;
-            option.boolVal = false;
+            if (!laws.dict.TryGetValue(id, out GameOption option) || !option.BoolVal) continue;
+            option.BoolVal = false;
             changed = true;
         }
         foreach (string id in ForcedOnLaws)
         {
-            if (!laws.dict.TryGetValue(id, out PlayerOptionData option) || option.boolVal) continue;
-            option.boolVal = true;
+            if (!laws.dict.TryGetValue(id, out GameOption option) || option.BoolVal) continue;
+            option.BoolVal = true;
             changed = true;
             LogService.LogInfo($"[EmpireCraft][纯净地图] 已自动打开 {id}");
         }
-        var switched = new List<(WorldLaw law, PlayerOptionData option)>();
+        var switched = new List<(WorldLaw law, GameOption option)>();
         foreach (string id in ForcedOffLaws)
         {
-            if (!laws.dict.TryGetValue(id, out PlayerOptionData option) || !option.boolVal) continue;
-            option.boolVal = false;
+            if (!laws.dict.TryGetValue(id, out GameOption option) || !option.BoolVal) continue;
+            option.BoolVal = false;
             changed = true;
             switched.Add((AssetManager.world_laws_library.get(id), option));
         }
         if (changed) laws.updateCaches();
         // 小人社交关掉时要把各人的社交行为撤掉(法则自带的切换处理)；统领实体的切换处理只是弹提示，不调
-        foreach ((WorldLaw law, PlayerOptionData option) in switched)
+        foreach ((WorldLaw law, GameOption option) in switched)
             if (law?.Id == "empirecraft_law_allow_social") law.on_state_change?.Invoke(option);
     }
 #endif
@@ -200,10 +196,11 @@ public static class PureMapMode
         for (; _cursor < end; _cursor++)
         {
             Building building = _sweep[_cursor];
-            if (!ShouldClear(building) || building.IsGone() || building.isOnRemove()) continue;
+            if (!ShouldClear(building) || building.IsGone() || building.IsOnRemove()) continue;
             building.startRemove();
         }
     }
+#endif
 
     public static void ResetWorldState()
     {
@@ -213,6 +210,5 @@ public static class PureMapMode
         _purgeAt = 0f;
         _purgedTotal = 0;
     }
-#endif
 }
 }

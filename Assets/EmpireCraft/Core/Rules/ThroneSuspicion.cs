@@ -95,13 +95,11 @@ public static class ThroneSuspicion
 #endif
 
     // 卸去官职与兵权
-#if EC_PENDING
     private static void Step(Person actor)
     {
         CorpsSystem.LoseGeneral(actor);
         actor.GetOffice()?.RemoveActor();
     }
-#endif
 
     // 拥兵自立：以所统之军的驻地据城称王，带走这支军，与旧主开战；驻地是都城、不在本国、没有兵权的做不到
 #if EC_PENDING
@@ -125,12 +123,12 @@ public static class ThroneSuspicion
         BiographySystem.Note(actor, string.Format(LM.Get("bio_overshadow_rebel"), ruler.FullName(), seat.GetCityName()), ruler);
         return true;
     }
+#endif
 
     private static void Report(Realm kingdom, Empire empire, string text, Person actor)
     {
         if (empire != null && !empire.IsGone()) EventRecorder.Record(empire, text, actor, kingdom);
         else EventRecorder.Record(kingdom, text, actor);
     }
-#endif
 }
 }

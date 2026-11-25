@@ -237,7 +237,6 @@ namespace EmpireCraft.Core
             return string.Equals(value, typeName, StringComparison.Ordinal) ? "" : value;
         }
 
-#if EC_PENDING
         public static string ResolveEmpireTypeKey(Regime regime, Realm coreKingdom)
         {
             string key = null;
@@ -281,7 +280,6 @@ namespace EmpireCraft.Core
                 return "EmpireText";
             return key;
         }
-#endif
 
         private static readonly Dictionary<string, string> DirectPrefixKeyMap = new()
         {
@@ -500,6 +498,7 @@ namespace EmpireCraft.Core
                 }
             return additions;
         }
+#endif
         public static bool IsSameFactionWithEmpire(this Person pActor, Empire empire)
         {
             var dominate = empire.CoreKingdom.GetRegime().GetDominateFaction();
@@ -512,6 +511,7 @@ namespace EmpireCraft.Core
             }
             return false;
         }
+#if EC_PENDING
         public static void SetFamilyCityPre(this Family family, bool has_pre = true)
         {
             if (family.data.custom_data_bool == null)
@@ -528,6 +528,7 @@ namespace EmpireCraft.Core
             }
             return family.data.custom_data_bool.dict.ContainsKey("has_city_pre");
         }
+#endif
         public static  List<Person> SearchUnitHelper(string content, List<Person> actors)
         {
             List<Person> actorsPool = new List<Person>();
@@ -539,7 +540,7 @@ namespace EmpireCraft.Core
             {
                 if (actor.IsFitToRule())
                 {
-                    string culture = ConfigData.speciesCulturePair.TryGetValue(actor.asset.id, out string culturePair)? culturePair:"Western";
+                    string culture = ConfigData.speciesCulturePair.TryGetValue(actor.Asset.Id, out string culturePair)? culturePair:"Western";
                     string merit = "";
                     string honoraryOfficial = "";
                     string PeeragesLevel = "";
@@ -576,7 +577,6 @@ namespace EmpireCraft.Core
             }
             return actorsPool;
         }
-#endif
 
         public static bool HasChangeToGiveBirth(Person pMotherTarget, Person pFatherTarget)
         {
@@ -593,7 +593,6 @@ namespace EmpireCraft.Core
             }
             return false;
         }
-#if EC_PENDING
     public static List<(ClanRelation, PersonalClanIdentity)> SearchPersonalClanIdentityHelper(string content, List<(ClanRelation, PersonalClanIdentity)> cIdentities)
         {
             List<(ClanRelation, PersonalClanIdentity)> identityPool = new List<(ClanRelation, PersonalClanIdentity)>();
@@ -657,7 +656,6 @@ namespace EmpireCraft.Core
             }
             return identityPool;
         }
-#endif
     }
     
 }

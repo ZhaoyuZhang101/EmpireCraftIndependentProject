@@ -82,7 +82,7 @@ public static class MapWallSystem
     public static void Tick()
     {
         EmpireWorld world = EmpireWorld.Current;
-        if (world?.Zones == null || !GameClock.Running || GameClock.Loading) return;
+        if (world?.AllCells == null || !GameClock.Running || GameClock.Loading) return;
         if (!ReferenceEquals(_world, world))
         {
             _world = world;
@@ -227,7 +227,7 @@ public static class MapWallSystem
 #if EC_PENDING
     private static void SyncVanillaGates()
     {
-        Cell[] tiles = EmpireWorld.Current?.Zones;
+        Cell[] tiles = EmpireWorld.Current?.AllCells;
         if (tiles == null) return;
         _converting = true;
         try
@@ -252,7 +252,7 @@ public static class MapWallSystem
 #if EC_PENDING
     private static int RestoreExceptGates()
     {
-        Cell[] tiles = EmpireWorld.Current.Zones;
+        Cell[] tiles = EmpireWorld.Current.AllCells;
         int restored = 0, removed = 0;
         _converting = true;
         try

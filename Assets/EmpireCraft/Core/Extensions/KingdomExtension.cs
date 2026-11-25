@@ -30,9 +30,7 @@ public class TemporaryPushProgress
     public long pusher = -1L;
     public List<(double date, long actor, int duration)> Supporters = new  List<(double, long, int)>();
     public double StartTimestamp = -1L;
-#if EC_PENDING
     public TemporaryFaction PendingClaim;
-#endif
     public static int CalcPolicyProgressAdd(double p, int currentProgress)
     {
         int add;
@@ -74,7 +72,6 @@ public class TemporaryPushProgress
     {
         return supporter != null && Supporters.Any(s => s.actor == supporter.Key);
     }
-#if EC_PENDING
     public void Stop()
     {
         StartedToPushTf = false;
@@ -84,7 +81,6 @@ public class TemporaryPushProgress
         Supporters?.Clear();
         PendingClaim = null;
     }
-#endif
     /// <summary>
     /// 开始推动
     /// </summary>
@@ -100,7 +96,7 @@ public class TemporaryPushProgress
         var request = template.Clone(faction);
         request.SetEmpire(pActor.Realm.GetEmpire());
         request.SetKingdom(pActor.Realm);
-        request.pusherType = MetaType.Kingdom;
+        request.pusherType = EntityKind.Realm;
         if (!request.CheckLocalCondition(pActor.Realm) || !request.CheckTarget()) return;
         PendingClaim = request;
         Supporters = new List<(double date, long actor, int duration)>();
@@ -120,6 +116,7 @@ public class TemporaryPushProgress
     {
         if (pActor?.Key == pusher) PushOneMonths();
     }
+#endif
     public int ConsumeInfluenceAndCalcAdd(Person actor)
     {
         if (actor == null || actor.IsGone()) return 0;
@@ -128,6 +125,7 @@ public class TemporaryPushProgress
         return CalcPolicyProgressAdd(actor.GetIdentity()?.TotalPerformance ?? 0, Progress);
     }
 
+#if EC_PENDING
     public int PushOneMonths()
     {
         if (!StartedToPushTf) return 0;
@@ -185,7 +183,7 @@ public class TemporaryPushProgress
         if (claim.ShowAsPlot && empire.Emperor?.plot?.isActive() == true) return;
         claim.SetEmpire(empire);
         claim.SetKingdom(kingdom);
-        claim.pusherType = MetaType.Kingdom;
+        claim.pusherType = EntityKind.Realm;
         claim.TargetID = PendingClaim.TargetID;
         claim.TargetType = PendingClaim.TargetType;
         claim.Start();
@@ -195,7 +193,6 @@ public class TemporaryPushProgress
 
     // 诉求天平页(用户 2026-11-10 "推动诉求也要加天平页面")：推动者这个月能加几点(按政绩分档，近满减速)、
     // 名望够不够付这个月、照眼下的名望还要几个月推满(不计以后的年入；推不满时 months = -1)
-#if EC_PENDING
     public (int add, int performance, bool affordable, int months) Outlook()
     {
         Person actor = GetPusher();
@@ -212,7 +209,6 @@ public class TemporaryPushProgress
         }
         return (add, (int)performance, actor.Renown >= InfluenceCostPerMonth, months);
     }
-#endif
 
     public static bool IsLocalPusher(Person actor)
     {
@@ -817,7 +813,6 @@ public static class KingdomExtension
     /// <summary>
     /// 结算直隶派系的年度自然竞争。小数增长会跨年累积，满额后沿用统一占比接口挤压其他派系。
     /// </summary>
-#if EC_PENDING
     public static bool ApplyAnnualFactionLeaderGrowth(this Realm kingdom, IEnumerable<FixedFaction> factions)
     {
         if (kingdom == null || kingdom.IsGone() || factions == null) return false;
@@ -869,7 +864,6 @@ public static class KingdomExtension
         }
         return changed;
     }
-#endif
     /// <summary>
     /// 增加派系占比
     /// </summary>
@@ -1200,7 +1194,6 @@ public static class KingdomExtension
     {
         return kingdom.GetOrCreate().isNeedToMaintainGoodOpinion;
     }
-#if EC_PENDING
     public static Law GetLawFromMainCrime(this Realm kingdom)
     {
         if (!kingdom.IsInEmpire()) return null;
@@ -1211,7 +1204,6 @@ public static class KingdomExtension
         if (!EmpireLawSystem.Laws.TryGetValue(type, out var law)) return null;
         return law;
     }
-#endif
     public static bool HasMainCrime(this Realm kingdom)
     {
         var data = kingdom.GetOrCreate();
@@ -1225,13 +1217,13 @@ public static class KingdomExtension
         kingdom.GetOrCreate().main_crime_recorded = false;
         kingdom.GetOrCreate().main_crime_actor_id = -1L;
     }
-#if EC_PENDING
     public static void EndProgress(this Realm k)
     {
         if (k?.Ruler == null) return;
         var progressObject = k.GetOrCreate().PushProgress;
         progressObject.Stop();
     }
+#if EC_PENDING
     public static void PushProgress(this Realm k, TemporaryFactionType? type = null)
     {
         if (k?.Ruler == null) return;
@@ -1331,7 +1323,6 @@ public static class KingdomExtension
         }
     }
 
-#if EC_PENDING
     public static string GetEmpireCraftCulture(this Realm kingdom, bool allowTranslate = false)
     {
         string culture = CultureService.GetRealmCulture(kingdom);
@@ -1344,7 +1335,6 @@ public static class KingdomExtension
         if (kingdom?.GetEmpireCraftCulture()==null||target?.GetEmpireCraftCulture()==null) return false;
         return kingdom.GetEmpireCraftCulture() == target.GetEmpireCraftCulture();
     }
-#endif
     public static bool IsCountingSelfPlot(this Realm kingdom)
     {
         return kingdom.GetOrCreate().selfChangeRegimePlotsCountDown > 0;
@@ -1371,7 +1361,6 @@ public static class KingdomExtension
         }
         return GameClock.YearsSince(kingdom.GetOrCreate().corruption_timestamp);
     }
-#if EC_PENDING
     public static void AddCorruptionRate(this Realm kingdom, double addition)
     {
         if (kingdom == null || addition == 0) return;
@@ -1384,7 +1373,6 @@ public static class KingdomExtension
 
         kingdom.SetCorruptionRate(current + addition);
     }
-#endif
 
     public static double GetCorruptionRate(this Realm kingdom)
     {
@@ -1510,7 +1498,7 @@ public static class KingdomExtension
         TributaryRelations.AfterTribute(k, empire, value);
         if (k.GetMoney()<=0)
         {
-            if (population / 3 > (abstracted ? CityPopulationSystem.Households(empire) : empire.getUnits().Count()))
+            if (population / 3 > (abstracted ? CityPopulationSystem.Households(empire) : empire.GetUnits().Count()))
             {
                 k.GetOrCreate().leave_taken_alliance_preference += 0.05f;
             }
@@ -1757,6 +1745,7 @@ public static class KingdomExtension
             ["empire"] = empire.GetEmpireFullName()
         }, kingdomId: k.Key);
     }
+#endif
 
     public static bool CanVoluntarilyBecomeTributaryOf(this Realm kingdom, Empire empire)
     {
@@ -1775,6 +1764,7 @@ public static class KingdomExtension
         return EmpireSubmissionRules.CanVoluntarilyBecomeTributary(true, belongsToOverlordCore);
     }
 
+#if EC_PENDING
     public static void RemoveTakenAlliance(this Realm k, bool recordHistory = true)
     {
         Empire empire = k.GetTakenAllianceEmpire();
@@ -1832,17 +1822,14 @@ public static class KingdomExtension
         return ModClass.EMPIRE_MANAGER.Get(k.GetOrCreate().taken_empire);
     }
 
-#if EC_PENDING
     public static void SetCenterArmy(this Realm k, Army army)
     {
-        army.name = $"{k?.GetEmpire()?.GetEmpireName()}-{k?.GetKingdomName()}驻军";
+        army.Name = $"{k?.GetEmpire()?.GetEmpireName()}-{k?.GetKingdomName()}驻军";
         k.GetOrCreate().CenterArmID = army.Key;
     }
-#endif
 
     // 派系起兵：以统兵者官爵相称(见 FactionRebelNaming；以前改成派系名，几个响应的行省同叫"世族"分不清)，
     // 战争按首领与家数起名(见 CourtSystem)；原名记在 faction_rebel_original_name，停战改回。称呼按起兵前的名号算(先取、再记叛乱)
-#if EC_PENDING
     public static void StartFactionRebelling(this Realm k, FixedFaction faction)
     {
         if (k?.Record == null) return;
@@ -1855,10 +1842,8 @@ public static class KingdomExtension
         k.Name = extra.faction_rebel_display = EmpireCraft.Core.FactionRebelNaming.RebelName(k);
         extra.isFactionRebelling = true;
     }
-#endif
 
     // 读档：以前叛乱期间改成派系名的(还在叛乱)改称统兵者官爵；不在叛乱却还记着原名的改回原名
-#if EC_PENDING
     public static void NormalizeFactionRebelName(this Realm k)
     {
         if (k?.Record == null) return;
@@ -1876,7 +1861,6 @@ public static class KingdomExtension
         extra.faction_rebel_original_name = "";
         extra.faction_rebel_display = "";
     }
-#endif
 
     public static void EndFactionRebelling(this Realm k)
     {
@@ -1889,13 +1873,11 @@ public static class KingdomExtension
         k.GetOrCreate().faction_rebel_display = "";
     }
 
-#if EC_PENDING
     public static void ClearRebellionStatus(this Realm k)
     {
         k.EndFactionRebelling();
         k.EndLocalRebelling();
     }
-#endif
 
     public static bool IsFactionRebelling(this Realm k)
     {
@@ -1988,6 +1970,7 @@ public static class KingdomExtension
         }
         return true;
     }
+#endif
 
     public static void EndLocalRebelling(this Realm k)
     {
@@ -2005,7 +1988,6 @@ public static class KingdomExtension
         extraData.rebellion_origin_city_isolated = false;
         extraData.last_rebellion_exclave_disengagement_roll = -1L;
     }
-#endif
 
     public static bool IsLocalRebelling(this Realm k)
     {
@@ -2058,7 +2040,6 @@ public static class KingdomExtension
             kingdom.GetOrCreate().rebellion_origin_empire_ids, empire.Key);
     }
 
-#if EC_PENDING
     public static void SetKingdomName(this Realm k, string kindomName, bool afterIndependence = false)
     {
         // 战争中不改名只针对独立国家(防止叛军/交战方名号乱跳)；帝国内的行政区常被动卷入帝国战争，
@@ -2072,7 +2053,6 @@ public static class KingdomExtension
             if (!string.IsNullOrWhiteSpace(coreName)) k.SetKingdomCoreName(coreName, k.Name);
         }
     }
-#endif
 
     public static void SetKingdomCoreName(this Realm kingdom, string coreName, string storedFullName = null)
     {
@@ -2083,7 +2063,6 @@ public static class KingdomExtension
         data.core_name_source = kingdom.Name ?? "";
     }
 
-#if EC_PENDING
     public static void RememberInitialRandomKingdomName(this Realm kingdom, string name = null,
         bool overwrite = false)
     {
@@ -2130,7 +2109,7 @@ public static class KingdomExtension
         {
             try
             {
-                candidate = kingdom.Culture?.getOnomasticData(MetaType.Kingdom)?.generateName();
+                candidate = kingdom.Culture?.GetOnomasticData(EntityKind.Realm)?.GenerateName();
             }
             catch
             {
@@ -2142,7 +2121,6 @@ public static class KingdomExtension
         data.initial_random_name = candidate ?? "";
         return data.initial_random_name;
     }
-#endif
 
     public static string GetCapitalDeJureTitleName(this Realm kingdom)
     {
@@ -2161,16 +2139,13 @@ public static class KingdomExtension
     }
 
     // 没有法理的现代势力的称号前缀：自定义国名 → 都城名 → 文化国名
-#if EC_PENDING
     public static string GetModernUntitledFront(this Realm kingdom)
     {
         string custom = kingdom.GetCustomCountryName();
         return !string.IsNullOrWhiteSpace(custom) ? custom : kingdom.GetCapitalPlaceName();
     }
-#endif
 
     // 无主法理的普通政权：都城位于法理内用都城名；都城没有法理则沿用随机国名。
-#if EC_PENDING
     public static string GetUntitledKingdomName(this Realm kingdom)
     {
         KingdomTitle capitalTitle = kingdom.GetCapitalDeJureTitle();
@@ -2181,10 +2156,8 @@ public static class KingdomExtension
         }
         return kingdom.GetInitialRandomKingdomName();
     }
-#endif
 
     // 以都城为名(叛军、现代无名号势力、军阀)：都城名，没有都城才用文化国名
-#if EC_PENDING
     public static string GetCapitalPlaceName(this Realm kingdom)
     {
         string capitalName = kingdom?.Capital != null && !kingdom.Capital.IsGone() ? kingdom.Capital.GetCityName() : "";
@@ -2208,6 +2181,7 @@ public static class KingdomExtension
         return parts.Length == 0 ? "" : parts[0].Trim();
     }
 
+#if EC_PENDING
     public static Army GetCenterArmy(this Realm k)
     {
         var res = EmpireWorld.Current.armies.get(k.GetOrCreate().CenterArmID);
@@ -2278,7 +2252,6 @@ public static class KingdomExtension
     // 收税打折、税级只到"低"(Regime.MaxTaxLevel)、行政低控制(AdministrativeControlSystem)、统一要雄主(UnificationSystem)、
     // 换汗分兀鲁思(EnfeoffmentHelper)都按它判。
     // type 给的是要判的政体：换政体时新政体还没装到国家上(见 LoadRegime 里先 ClampTaxLevel 再 SetRegime)，不能读 GetRegime
-#if EC_PENDING
     public static bool IsTrueNomad(Realm k, RegimeType type) =>
         IsNomadTaxRegime(type) && k != null &&
         (CultureService.GetRealmCulture(k).IsNomadCulture() || k.GetOrCreate().shuitu_regime == (int)RegimeType.YouMu);
@@ -2328,7 +2301,6 @@ public static class KingdomExtension
         }
         return baseTax;
     }
-#endif
     
     /// <summary>
     /// 政区类型后缀文本——现在"都护府"（KingdomType.LvLing_duhufu）是政体引擎按
@@ -2339,7 +2311,6 @@ public static class KingdomExtension
     /// 名称生成（GetKingdomFullName）和反向解析（ExtractKingdomFront/EnsureKingdomCoreName）
     /// 都要用这同一个方法，否则会互相认不出对方生成的后缀。
     /// </summary>
-#if EC_PENDING
     public static string GetKingdomTypeSuffixText(this Realm kingdom)
     {
         // 汉化的行政区另定的类型后缀(长史府，见 AdministrativeFront)
@@ -2349,11 +2320,9 @@ public static class KingdomExtension
             return LM.Get("kingdom_type_xingzai");
         return LM.Get(EmpireCraft.Core.DynastyNaming.KingdomTypeKey(kingdom, kingdom.GetKingdomType()));
     }
-#endif
 
     // 界面上显示的国家类别(文本键)。现代政体的默认类别是"直辖市(首都)"，那是政府核心国的类别；
     // 尚未组建政府的现代势力(某系军阀、工农革命军……)显示为"地方武装"。只影响显示，不改动实际类别与国名后缀
-#if EC_PENDING
     public static string GetKingdomTypeDisplayKey(this Realm kingdom)
     {
         // 傀儡(伪满这样的帝国也是)显示"傀儡政权"，不显示"帝国"(见 PuppetStateSystem)
@@ -2364,14 +2333,12 @@ public static class KingdomExtension
             return "kingdom_type_armed_force";
         return EmpireCraft.Core.DynastyNaming.KingdomTypeKey(kingdom, kingdom.GetKingdomType());
     }
-#endif
 
     public static void SetKingdomType(this Realm k, KingdomType type)
     {
         k.GetOrCreate().kingdomType = type;
     }
 
-#if EC_PENDING
     public static KingdomType GetKingdomType(this Realm k)
     {
         var data = k.GetOrCreate();
@@ -2382,7 +2349,6 @@ public static class KingdomExtension
             return EmpireCraftKingdomBehCheckKingdomType.CalcKingdomType(k);
         return data.kingdomType;
     }
-#endif
     public static void SetOffice(this Realm k, OfficeObject office)
     {
         var res = OfficeManager.Remove(k.GetOfficeID());
@@ -2447,7 +2413,6 @@ public static class KingdomExtension
         data.kingdomSpecificClan = sc;
         data.kingdom_specific_clan_id = sc?.id ?? -1L;
     }
-#if EC_PENDING
     public static Regime GetRegime(this Realm k)
     {
         if (k?.Record == null || k.IsGone()) return null;
@@ -2461,7 +2426,6 @@ public static class KingdomExtension
         }
         return reg;
     }
-#endif
     public static void SetRegimeType(this Realm k, RegimeType type)
     {
         if (k?.Record == null || k.IsGone()) return;
@@ -2474,7 +2438,6 @@ public static class KingdomExtension
         k.GetOrCreate().regime = regime;
     }
 
-#if EC_PENDING
     public static void LoadRegime(this Realm k)
     {
         if (k?.Record == null || k.IsGone()) return;
@@ -2547,12 +2510,10 @@ public static class KingdomExtension
             if (k.IsEmpire()) k.ReconcileFactionRatios(factions);
         }
     }
-#endif
 
     // 换政体、重载政体模板时保住帝国成员原来的地位(外交权、选任方式)：律令制模板默认有外交权、科举选任，
     // 不保留的话州郡一重载就被判成军府(有外交权、不世袭)，封国改成科举也成了军府。
     // 只管换成华夏君主制(律令制、周制)的情形；封建化等别的改制照模板来。返回是否保留了原地位
-#if EC_PENDING
     public static bool LoadRegimeKeepingRole(this Realm k)
     {
         if (k?.Record == null || k.IsGone()) return false;
@@ -2571,7 +2532,6 @@ public static class KingdomExtension
         if (method != LeaderSelectMethod.Default) loaded.SetLeaderSelectMethod(method);
         return true;
     }
-#endif
 
     // 帝国核心的君主世袭：律令制模板的"科举选任"是给州郡长官的，周制改律令制等重载政体模板时核心也被套上，
     // 皇帝驾崩后就跳过宗室继承、像选官一样从官员里挑人(常常挑到外姓、孩子)，一代换一个姓。君主制政体本身
@@ -2580,7 +2540,6 @@ public static class KingdomExtension
     // 模板默认选项不是世袭的政体(原始封建制模板是"选举"，又不算君主制)，改制后到国家类别重新同步之间君主一死，
     // 储君就被跳过、从官员里另选(群友 2026-11-08"太子不即位的bug又出现了")。选帝制、禅让推举照旧不动
     private static readonly HashSet<long> RepairedThrones = new();
-#if EC_PENDING
     public static void EnsureHereditaryThrone(this Realm k)
     {
         Regime regime = k?.GetRegime();
@@ -2596,19 +2555,15 @@ public static class KingdomExtension
             LogService.LogInfo(
                 $"[EmpireCraft][继承] {k.Name} 的君主选任方式被误设为{current switch { LeaderSelectMethod.Exam => "科举", LeaderSelectMethod.Vote => "选举", LeaderSelectMethod.Army => "举能", _ => current.ToString() }}，已改回世袭");
     }
-#endif
 
     // 本国当前的国家类别在政体配置里写明世袭(没写的按枚举默认值也是世袭；写 Default 的不算)
-#if EC_PENDING
     private static bool CategoryDeclaresSuccession(Realm k, Regime regime) =>
         regime.bureau_config?.kingdoms != null &&
         regime.bureau_config.kingdoms.TryGetValue(k.GetKingdomType(), out BureauSetting setting) &&
         setting?.leader_select_method == LeaderSelectMethod.Succession;
-#endif
 
     // 旧存档(没存过政体选项)：读档时政体已按模板重建，州郡、封国被判成了军府。按封号还原：
     // 有自己封号的成员是世袭封国，只有行政区封号的是朝廷任命的州郡；羁縻地另有规则不动
-#if EC_PENDING
     public static void RepairLegacyRegimeRole(this Realm k)
     {
         if (k?.Record == null || k.IsGone()) return;
@@ -2628,6 +2583,7 @@ public static class KingdomExtension
         }
     }
 
+#if EC_PENDING
     public static void InitialRegime(this Realm k)
     {
         if (k?.Record == null || k.IsGone()) return;
@@ -3011,6 +2967,7 @@ public static class KingdomExtension
         if (previous != title) previous.RefreshAdministrativeDivisionNames();
         title.RefreshAdministrativeDivisionNames();
     }
+#endif
 
     public static KingdomTitle GetAdministrativeTitle(this Realm kingdom)
     {
@@ -3044,10 +3001,8 @@ public static class KingdomExtension
         title.RecordJurisdiction(kingdom, KingdomTitle.JurisdictionAdministration);
         return title;
     }
-#endif
 
     // 律令制的道/节度使(军)/都护府，以及郡国并行下分封制的郡、西式的总督区/教区，都是受托管理法理的行政区
-#if EC_PENDING
     public static bool IsAdministrativeKingdomType(this Realm kingdom)
     {
         if (kingdom == null || kingdom.IsGone()) return false;
@@ -3081,10 +3036,8 @@ public static class KingdomExtension
         if (!kingdom.CanUseAdministrativeProvinceName(title)) return null;
         return GetProvinceName(title);
     }
-#endif
 
     // 法理对应的省份名(法理上记录的省份名，没有则用法理首府城名)
-#if EC_PENDING
     public static string GetTitleProvinceName(this KingdomTitle title) => GetProvinceName(title);
 
     private static string GetProvinceName(KingdomTitle title)
@@ -3108,6 +3061,7 @@ public static class KingdomExtension
         return holderId == kingdom.Key;
     }
 
+#if EC_PENDING
     public static void RefreshAdministrativeDivisionNames(this KingdomTitle title)
     {
         if (title == null || title.IsGone()) return;
@@ -3177,7 +3131,6 @@ public static class KingdomExtension
         return k.GetMainTitle() != null;
     }
 
-#if EC_PENDING
     public static bool IsDeJureTitleAcquisitionBlocked(this Realm kingdom, Empire titleEmpire = null)
     {
         if (kingdom == null || kingdom.IsGone()) return true;
@@ -3219,6 +3172,7 @@ public static class KingdomExtension
         return isProvinceOrMilitary && empire.Mandate <= DeJureTitleBindingRules.WeakMandateThreshold;
     }
 
+#if EC_PENDING
     public static bool ReconcileMainTitle(this Realm kingdom,
         IEnumerable<KingdomTitle> newlyAcquiredTitles = null)
     {
@@ -3388,7 +3342,6 @@ public static class KingdomExtension
             !kingdom.IsGone() && kingdom.GetOrCreate().MainTitle == title.Key);
     }
 
-#if EC_PENDING
     public static bool CanAcquireDeJureTitleWithoutWar(this Realm kingdom,
         KingdomTitle title)
     {
@@ -3406,7 +3359,6 @@ public static class KingdomExtension
         return DeJureTitleClaimRules.CanAcquireWithoutWar(controlsTitleCapital,
             controlled, total);
     }
-#endif
 
     public static bool IsDeJureTitleHeldBySovereign(this Realm kingdom, KingdomTitle title)
     {
@@ -3416,7 +3368,6 @@ public static class KingdomExtension
                title?.owner == empire.Emperor;
     }
 
-#if EC_PENDING
     public static (int controlled, int total) CountOwnedDeJureTitleZones(this Realm kingdom,
         KingdomTitle title)
     {
@@ -3424,7 +3375,7 @@ public static class KingdomExtension
         int controlled = 0;
         int total = 0;
         HashSet<int> seenZones = new HashSet<int>();
-        foreach (City city in title.getCities())
+        foreach (City city in title.GetCities())
         {
             if (city == null || city.IsGone() || city.Zones == null) continue;
             foreach (Cell zone in city.Zones)
@@ -3437,6 +3388,7 @@ public static class KingdomExtension
         return (controlled, total);
     }
 
+#if EC_PENDING
     public static List<KingdomTitle> InheritRealmTitles(this Realm successor,
         Realm defeated, IEnumerable<long> titleIds)
     {
@@ -3597,7 +3549,6 @@ public static class KingdomExtension
         GetOrCreate(k).TimestampBeFeifed = v;
     }
 
-#if EC_PENDING
     public static string EnsureKingdomCoreName(this Realm kingdom)
     {
         if (kingdom?.Record == null) return "";
@@ -3649,7 +3600,6 @@ public static class KingdomExtension
         }
         return coreName;
     }
-#endif
 
     public static bool HasCustomCountryNaming(this Realm kingdom)
     {
@@ -3711,7 +3661,6 @@ public static class KingdomExtension
         kingdom.GetOrCreate().custom_country_suffix = value ?? "";
     }
 
-#if EC_PENDING
     public static string GetAutomaticKingdomName(this Realm kingdom)
     {
         if (kingdom?.Record == null) return "";
@@ -3825,7 +3774,6 @@ public static class KingdomExtension
 
         return kingdom.GetUntitledKingdomName();
     }
-#endif
 
     // 汉化的行政区名(见 KingdomExtraData.admin_name)：还是 admin_empire 这个帝国的律令制行政区(都护府、羁縻州、军府、道)时，
     // 名是 admin_name、类型后缀是 admin_back(为空照政区类型)；离了这个帝国、自己又没有王国法理时，名照都城所在的王国法理

@@ -46,7 +46,6 @@ public static class RepublicSystem
     //   · 议会制：元首是议会选出的虚位元首(执政联盟中总理以外威望最高的人)，每届大选后改选；
     //     总理对议会负责，可被倒阁；任期限制管元首，不管总理；
     //   · 代表大会制(民主集中制)：元首为执政党领袖(见一党制逻辑)
-#if EC_PENDING
     public static bool IsParliamentaryRepublic(Empire empire) =>
         IsRepublic(empire) && !IsOneParty(empire) && !PartyBanSystem.UsesDemocraticCentralism(empire) &&
         ConstitutionSystem.GetClauses(empire)?.power_center == ConstitutionPowerCenter.Parliamentary;
@@ -55,14 +54,12 @@ public static class RepublicSystem
         IsRepublic(empire) && !IsOneParty(empire) && !PartyBanSystem.UsesDemocraticCentralism(empire) &&
         (ConstitutionSystem.GetClauses(empire)?.power_center ?? ConstitutionPowerCenter.Presidential) ==
         ConstitutionPowerCenter.Presidential;
-#endif
 
     // 独裁度达到这个值，元首不再经过任何选举，由前任指定或直接接任(如朝鲜)
     public const float DesignatedSuccessionAutocracy = 80f;
 
     // 元首更替的史书措辞按产生方式：前任指定/接任(独裁度高) / 人民代表大会(民主集中制) / 全民普选 /
     // 议会选举 / 执政党推举(没有议会)。{0} 新任 {1} 前任 {2} 称号 {3} 执政党
-#if EC_PENDING
     private static string HeadOfStateHistory(Empire empire, Person head, string previous)
     {
         string key = ConstitutionSystem.TryGetLockedHeadSelection(empire, out ConstitutionHeadSelection selection)
@@ -86,11 +83,9 @@ public static class RepublicSystem
         return string.Format(LM.Get(key), head?.FullName() ?? LM.Get("label_none"), previous,
             GetHeadOfStateTitle(empire), party ?? "");
     }
-#endif
 
     // 共和国元首的称号按执政理念(执政党理念，没有则按建国理念)：主席、总统、执政、元首……
     // 语言文件里可按文化覆盖：head_of_state_<文化>_<理念> → head_of_state_<理念> → head_of_state
-#if EC_PENDING
     public static string GetHeadOfStateTitle(Empire empire)
     {
         // 复辟帝制期间元首改称皇帝(见 RestorationSystem)
@@ -107,7 +102,6 @@ public static class RepublicSystem
         }
         return "";
     }
-#endif
 
     // 剧本定下的元首职位(委员长、总书记、元首、国王……用户 2026-11-10"不能按照历史职位来?")：
     // 政体没改(共和或君主与定下时一样)、没复辟才用，否则 null，照理念与文化的通称
@@ -127,14 +121,12 @@ public static class RepublicSystem
         State(empire)?.republic_transition_stage > 0;
 
     // 万世一系的日本皇室不废(用户 10-29 "天皇不应该是万世一系的吗"；以前废君压力照样把日本改成共和，见 ConstitutionalSuccessionSystem.Unbroken)
-#if EC_PENDING
     public static bool CanAbolish(Empire empire) =>
         !TechnologySystem.NoNewModern &&
         empire?.CoreKingdom != null && !IsRepublic(empire) &&
         RegimeManager.IsMonarchy(empire.CoreKingdom.GetRegime()?.type) &&
         InstitutionSystem.GetFeature(empire, FeatureAbolishMonarchy) > 0f &&
         !ConstitutionalSuccessionSystem.Unbroken(empire);
-#endif
 
     #region 废君压力
 
@@ -208,7 +200,6 @@ public static class RepublicSystem
 #endif
 
     // 议会(没有议会看中央占比)里的非保守派政党合计占比，以及其中最大的党
-#if EC_PENDING
     private static FixedFaction LeadingReformParty(Empire empire, out float share)
     {
         share = 0f;
@@ -223,7 +214,6 @@ public static class RepublicSystem
         share = reformers.Sum(weight);
         return reformers.OrderByDescending(weight).First();
     }
-#endif
 
     public static float GetAbolitionPressure(Empire empire) => State(empire)?.abolition_pressure ?? 0f;
 
@@ -231,7 +221,6 @@ public static class RepublicSystem
 
     #region 建立共和
 
-#if EC_PENDING
     public static bool CanAbdicate(Empire empire, FixedFaction party)
     {
         if (!CanAbolish(empire) || party == null || !party.IsParty || party.Ban ||
@@ -249,11 +238,9 @@ public static class RepublicSystem
         return empire.CoreKingdom.GetRegime()?.GetDominateFaction() == party &&
                party.CentralRatio >= Mathf.CeilToInt(100f * SupermajorityShare);
     }
-#endif
 
     // A party cannot substitute a coalition's seats for its own completed program
     // or for actual support among the empire's soldiers.
-#if EC_PENDING
     public static bool CanCoup(Empire empire, FixedFaction party)
     {
         if (empire?.CoreKingdom == null || party?.IsParty != true || party.Ban) return false;
@@ -263,6 +250,7 @@ public static class RepublicSystem
         return IdeologyPopulationSystem.GetMilitaryShare(empire, party.Ideology) > 0.5f;
     }
 
+#if EC_PENDING
     public static bool CanRevolt(Empire empire, FixedFaction party)
     {
         if (!CanAbolish(empire) || party == null || !party.IsParty || party.Ban ||
@@ -277,7 +265,6 @@ public static class RepublicSystem
 
     // Once workers and peasants are a durable majority, universal suffrage gives a
     // non-conservative governing party a constitutional route that does not require an army coup.
-#if EC_PENDING
     public static bool CanMassPoliticsTransition(Empire empire, FixedFaction party)
     {
         if (!CanAbolish(empire) || party == null || !party.IsParty || party.Ban ||
@@ -292,12 +279,10 @@ public static class RepublicSystem
                                  empire.CoreKingdom.GetRegime()?.GetDominateFaction();
         return governing == party && party.CentralRatio >= 50;
     }
-#endif
 
     // 本文化废除君主制之后才成立的君主国不被承认：强制改建现代国家(走与退位相同的建立共和流程)。
     // 废君之前就存在的君主国不在此列，仍按废君压力、退位、革命改制
     // 修宪改变国体(立国理念)：国号后缀、临时政府称呼、中央机构随之按新理念重取
-#if EC_PENDING
     public static void SetFoundingIdeology(Empire empire, PartyIdeology ideology)
     {
         ConstitutionalEconomyState state = State(empire);
@@ -307,6 +292,7 @@ public static class RepublicSystem
         EnsureIdeologyBureau(empire);
     }
 
+#if EC_PENDING
     public static bool TryModernizeLateMonarchy(Empire empire)
     {
         if (empire?.data == null || IsRepublic(empire) || !CanAbolish(empire)) return false;
@@ -322,6 +308,7 @@ public static class RepublicSystem
         Establish(empire, party, ideology, party?.GetLeader(), false, "republic_late_monarchy_history");
         return true;
     }
+#endif
 
     public static bool TryMassPoliticsTransition(Empire empire)
     {
@@ -332,7 +319,6 @@ public static class RepublicSystem
         // 不再当年就换：先谈判一年，君主可能拒绝(见 RevolutionSystem.BeginTalks)
         return RevolutionSystem.BeginTalks(empire, party, "mass");
     }
-#endif
 
     // 逊位谈判谈成(RevolutionSystem.ResolveTalks)：coup = 握有军队的议会多数逼宫，否则是凭选票的群众政治转型
 #if EC_PENDING
@@ -437,22 +423,19 @@ public static class RepublicSystem
         Record(empire, text, party?.GetLeader() ?? leaderRealm.Ruler);
         return true;
     }
-
-    public static PartyIdeology ReformIdeology(Empire empire) => StrongestReformIdeology(empire);
 #endif
 
+    public static PartyIdeology ReformIdeology(Empire empire) => StrongestReformIdeology(empire);
+
     // 没有政党时的纲领：帝国里人口占比最大的非保守理念
-#if EC_PENDING
     private static PartyIdeology StrongestReformIdeology(Empire empire) =>
         Enum.GetValues(typeof(PartyIdeology)).Cast<PartyIdeology>()
             .Where(ideology => ideology != PartyIdeology.Conservatism)
             .OrderByDescending(ideology => IdeologyPopulationSystem.GetEmpireShare(empire, ideology))
             .ThenBy(ideology => ideology == PartyIdeology.SocialLiberalism ? 0 : 1)
             .First();
-#endif
 
     // 该党所依靠的阶层(理念对其吸引力高的)平均怨气
-#if EC_PENDING
     private static float GetCoreGrievance(Empire empire, FixedFaction party)
     {
         IReadOnlyDictionary<SocialClass, float> grievances = InstitutionSystem.GetClassGrievances(empire);
@@ -461,7 +444,6 @@ public static class RepublicSystem
             .Select(socialClass => grievances.TryGetValue(socialClass, out float value) ? value : 0f).ToList();
         return values.Count == 0 ? 0f : values.Average();
     }
-#endif
 
     // "建立共和"诉求执行：能和平退位就退位，否则走革命
     // 返回是否真的推动了改制(和平改制、退位或革命战争)；beforeAct 在真正动手前调用，用于先记下起因
@@ -693,12 +675,12 @@ public static class RepublicSystem
         capital.checkArmyExistence();
         if (!capital.hasArmy()) EmpireCraftCityBehCheckArmy.CreateNewArmy(capital);
         Army army = capital.army;
-        if (army != null && army._captain?.kingdom == rebel)
+        if (army != null && army.Captain?.Realm == rebel)
         {
             foreach (Person warrior in capital.People.ToList().Where(actor => actor != null && actor.Alive &&
-                         actor.IsWarrior() && actor.Realm == rebel && !actor.hasArmy()))
+                         actor.IsWarrior() && actor.Realm == rebel && !actor.HasArmy()))
             {
-                if (army.units.Count >= army._captain.warfare) break;
+                if (army.People.Count >= army.Captain.Warfare) break;
                 warrior.setArmy(army);
             }
         }
@@ -1022,6 +1004,7 @@ public static class RepublicSystem
         RecordRevolutionaryFate(republic, execution, formerMonarch);
         ExecuteRevolutionaryVictim(formerMonarch, execution, revolutionaryLeader);
     }
+#endif
 
     private static void RecordRevolutionaryFate(Empire republic, string history, Person subject)
     {
@@ -1030,6 +1013,7 @@ public static class RepublicSystem
         TranslateHelper.LogEventMessage(history, republic.CoreKingdom);
     }
 
+#if EC_PENDING
     private static void ExecuteRevolutionaryVictim(Person victim, string history, Person revolutionaryLeader)
     {
         if (victim == null || victim.IsGone() || !victim.Alive) return;
@@ -1117,7 +1101,6 @@ public static class RepublicSystem
         ParliamentSystem.Dissolve(state);
     }
 
-#if EC_PENDING
     public static void UpdateTransition(Empire empire)
     {
         if (!IsTransitioning(empire)) return;
@@ -1145,13 +1128,11 @@ public static class RepublicSystem
         state.republic_first_election_pending = false;
         Record(empire, LM.Get("republic_first_election_history"), ParliamentSystem.GetPrimeMinister(empire));
     }
-#endif
 
     #endregion
 
     #region 复辟帝制
 
-#if EC_PENDING
     public static bool CanRestore(Empire empire, FixedFaction party)
     {
         if (!IsRepublic(empire) || party == null || !party.IsParty || party.Ban ||
@@ -1165,11 +1146,9 @@ public static class RepublicSystem
                ParliamentSystem.IsGoverningFaction(empire, party.GetID()) &&
                state.parliament_seats.Count(seat => seat.faction_id == party.GetID()) * 2 > total;
     }
-#endif
 
     // 复辟回到哪种君主政体：记下的前一个君主政体；没记(联军建立的共和等)就取本文化制度树上已施行的最晚的君主政体，
     // 再不行取文化配置的默认政体，最后才是封建(以前一律落到封建，华夏复辟成了封建)
-#if EC_PENDING
     private static RegimeType PreviousMonarchy(Empire empire, ConstitutionalEconomyState state)
     {
         if (state.previous_regime >= 0) return (RegimeType)state.previous_regime;
@@ -1178,6 +1157,7 @@ public static class RepublicSystem
             : RegimeType.Feudalism;
     }
 
+#if EC_PENDING
     public static void Restore(Empire empire, FixedFaction party)
     {
         if (!CanRestore(empire, party)) return;
@@ -1354,7 +1334,6 @@ public static class RepublicSystem
     }
 
     // 共和国核心国的中央机构按执政理念成套；其他情况返回 null(用政体默认机构)
-#if EC_PENDING
     public static BureauConfig GetBureauOverride(Realm kingdom, BureauConfig fallback)
     {
         Empire empire = kingdom?.GetEmpire();
@@ -1371,11 +1350,9 @@ public static class RepublicSystem
             armies = fallback?.armies
         };
     }
-#endif
 
     // 中央机构跟执政党的理念走(用户 2026-11-10 "政党机制也完善下"，问答选"一并修")：以前一直按建国时的理念，换了执政党也不改组。
     // 有议会的，新政府上台满一年才改组(频繁倒阁时不反复改)；没有执政党就按建国理念
-#if EC_PENDING
     public static PartyIdeology BureauIdeology(Empire empire)
     {
         ConstitutionalEconomyState state = State(empire);
@@ -1386,10 +1363,8 @@ public static class RepublicSystem
         if (settled) return governing.Ideology;
         return Enum.TryParse(state.bureau_ideology, out PartyIdeology current) ? current : state.republic_ideology;
     }
-#endif
 
     // 执政理念变了(改制共和、换了执政党、复辟……)就把中央机构重建一次
-#if EC_PENDING
     public static void EnsureIdeologyBureau(Empire empire)
     {
         ConstitutionalEconomyState state = State(empire);
@@ -1400,7 +1375,6 @@ public static class RepublicSystem
         empire.data.centerOffice ??= new CenterOffice();
         empire.data.centerOffice.Init(empire.CoreKingdom);
     }
-#endif
 
     #endregion
 
@@ -1476,6 +1450,7 @@ public static class RepublicSystem
         RecordCalendarChoice(empire);
         TributaryAbolitionService.OnMonarchyAbolished(empire);
     }
+#endif
 
     public static void ApplyFoundingPartyRule(Empire empire)
     {
@@ -1491,7 +1466,6 @@ public static class RepublicSystem
             : new List<FixedFaction>();
         PartyBanSystem.Close(empire, ruling, allies, "party_ban_founding_history");
     }
-#endif
 
     // 换政体会从模板重建政体(派系表被重置)：有政党时把政党和中央占比原样搬到新政体上
 #if EC_PENDING
@@ -1542,6 +1516,7 @@ public static class RepublicSystem
         }
         UpdateHeadOfState(empire);
     }
+#endif
 
     public static Person GetOppositionLeader(Empire empire)
     {
@@ -1554,7 +1529,6 @@ public static class RepublicSystem
             .FirstOrDefault(party => party != null);
         return opposition?.GetLeader();
     }
-#endif
 
     public static int GetRepublicYears(Empire empire)
     {
@@ -1579,7 +1553,6 @@ public static class RepublicSystem
             ? "republic_common_era_format" : "republic_calendar_format"), year);
     }
 
-#if EC_PENDING
     public static void SetCalendarMode(Empire empire, int mode)
     {
         if (!IsRepublic(empire) || (mode != CommonEraCalendar && mode != RepublicEraCalendar)) return;
@@ -1588,7 +1561,6 @@ public static class RepublicSystem
         state.republic_calendar_mode = mode;
         RecordCalendarChoice(empire);
     }
-#endif
 
     private static void ChooseCalendar(ConstitutionalEconomyState state)
     {
@@ -1596,7 +1568,6 @@ public static class RepublicSystem
             ? CommonEraCalendar : RepublicEraCalendar;
     }
 
-#if EC_PENDING
     private static void RecordCalendarChoice(Empire empire)
     {
         string content = string.Format(LM.Get("republic_calendar_chosen_history"),
@@ -1604,7 +1575,6 @@ public static class RepublicSystem
                 ? LM.Get("republic_common_era_label") : LM.Get("republic_era_label"));
         Record(empire, content, null);
     }
-#endif
 
     #endregion
 
@@ -1617,6 +1587,7 @@ public static class RepublicSystem
             () => InstitutionSystem.ChangeRegimeForTransition(empire, regimeType));
         empire.data.empire_type_key = "";
     }
+#endif
 
     private static void Record(Empire empire, string content, Person actor)
     {
@@ -1624,7 +1595,6 @@ public static class RepublicSystem
         actor?.RecordPersonalHistory(content, "republic");
         TranslateHelper.LogEventMessage(content, empire.CoreKingdom);
     }
-#endif
 
     #endregion
 }

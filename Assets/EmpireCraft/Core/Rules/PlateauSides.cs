@@ -10,7 +10,6 @@ namespace EmpireCraft.Core
 // 无人区跟着这一侧的城；城市扩张不翻外缘(CityExpansionPatch.CanAddZone，神力手动划地不管)。王国、帝国法理照史实，不按外缘切。
 public static class PlateauSides
 {
-#if EC_PENDING
     public static bool Differ(Cell a, Cell b)
     {
         if (a == null || b == null || a == b || PlateauTerrain.Alpine == null) return false;
@@ -21,6 +20,5 @@ public static class PlateauSides
     public static bool Differ(City city, Cell zone) => Differ(city?.SeatCell()?.Zone, zone);
 
     public static bool Differ(City a, City b) => Differ(a?.SeatCell()?.Zone, b?.SeatCell()?.Zone);
-#endif
 }
 }

@@ -29,7 +29,6 @@ public static class PopulationJurenRanking
         WorkerResults = FallbackResults = 0;
     }
 
-#if EC_PENDING
     private static PopulationRankValue[] Capture(City city)
     {
         var values = new List<PopulationRankValue>();
@@ -81,7 +80,6 @@ public static class PopulationJurenRanking
         _activeCity = city;
         _kept = new HashSet<long>(result.RankedIds);
     }
-#endif
 
     public static bool TryIsKept(Person actor, out bool kept)
     {

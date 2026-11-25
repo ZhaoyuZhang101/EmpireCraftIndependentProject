@@ -102,13 +102,11 @@ public static partial class PapacySystem
     public static bool FollowsAntipope(Empire empire) => empire?.CoreKingdom != null && FollowsAntipope(empire.CoreKingdom);
 
     // 本帝国服从的教廷与教宗(对立一边是扶立者与对立教宗)
-#if EC_PENDING
     public static Realm ObeyedSee(Empire empire, Religion religion) =>
         FollowsAntipope(empire) ? AntipopeSee(religion) : Papacy(religion);
 
     public static Person ObeyedPope(Empire empire, Religion religion) =>
         FollowsAntipope(empire) ? Antipope(religion) : Pope(religion);
-#endif
 
     // 本帝国服从的教廷所在城(加冕、悔罪的地方)
     public static City ObeyedSeeCity(Empire empire, Religion religion) =>
@@ -393,7 +391,6 @@ public static partial class PapacySystem
 #endif
 
     // 对立教廷还在不在：所在城仍归扶立者(或对立一边的国)；失陷了迁到对立一边最强一国的都城，没有就返回 null(断绝)
-#if EC_PENDING
     private static Realm KeepAntipopeSee(Religion religion, PapalSchismData schism)
     {
         Realm rome = ModRealm(Papacy(religion));
@@ -422,7 +419,6 @@ public static partial class PapacySystem
         ReligionChronicle.Record(religion, ReligionChronicle.KindPapacy, text);
         return next;
     }
-#endif
 
     // 对立教宗出缺：对立一边的枢机另推一位
 #if EC_PENDING
@@ -518,7 +514,6 @@ public static partial class PapacySystem
 #endif
 
     // 换了服从：另一位教宗下的绝罚作废
-#if EC_PENDING
     private static void AnnulForeignBan(Realm kingdom, bool rival)
     {
         Empire empire = kingdom.GetEmpire();
@@ -539,14 +534,12 @@ public static partial class PapacySystem
         ReligionChronicle.Record(religion, ReligionChronicle.KindPapacy, text);
         RecordRealm(kingdom, text, kingdom.Ruler);
     }
-#endif
 
     #endregion
 
     #region 收场
 
     // 公会议：在最强一国(扶立者、教廷所在之外)的都城召开，对立教宗退位，复归一统
-#if EC_PENDING
     private static void Council(Religion religion, PapalSchismData schism, int outcome)
     {
         Realm rome = ModRealm(Papacy(religion));
@@ -563,10 +556,8 @@ public static partial class PapacySystem
         antipope?.RecordPersonalHistory(text);
         Finish(religion, schism, outcome, venue, ReligionChronicle.KindPapacy, text);
     }
-#endif
 
     // 分立：对立教廷自成一教(记母宗教，圣地在对立教廷，由扶立者兼管)，对立一边各国连城改奉
-#if EC_PENDING
     private static bool Separate(Religion religion, PapalSchismData schism)
     {
         Realm patron = EmpireWorld.Current.RealmByKey(schism.patron_id);
@@ -636,14 +627,12 @@ public static partial class PapacySystem
         ReligionChronicle.Record(religion, kind, text);
         LogService.LogInfo($"[EmpireCraft][教廷] {religion.Name} 大分裂收场(结局 {outcome})：{text}");
     }
-#endif
 
     #endregion
 
     #region 对立教宗加冕
 
     // 对立一边的皇帝在对立教廷受冕：扶立者自家或在本帝国的直接加冕，否则每年 CoronationChance 遣使(献礼同原教宗)，不必远征
-#if EC_PENDING
     private static void AntipopeCoronation(Empire empire, PapalRelationState state, Religion religion, Person emperor)
     {
         Realm see = AntipopeSee(religion), core = empire.CoreKingdom;
@@ -660,18 +649,15 @@ public static partial class PapacySystem
         }
         Crown(empire, state, emperor, self: false, see, antipope: true);
     }
-#endif
 
     #endregion
 
     // 帝国史书记一笔(不在帝国里的国只记世界日志)
-#if EC_PENDING
     private static void RecordRealm(Realm kingdom, string text, Person actor)
     {
         Empire empire = kingdom?.GetEmpire();
         if (empire?.data == null || empire.IsGone()) return;
         empire.RecordHistory(directContent: text, actorId: actor?.Key ?? -1L, kingdomId: kingdom.Key);
     }
-#endif
 }
 }

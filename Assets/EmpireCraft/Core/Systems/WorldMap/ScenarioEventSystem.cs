@@ -292,7 +292,6 @@ public static class ScenarioEventSystem
 
     #region 条件
 
-#if EC_PENDING
     private static bool Holds(WorldMapEventStep step)
     {
         if (step == null) return true;
@@ -304,7 +303,7 @@ public static class ScenarioEventSystem
             case "holds_region":
                 KingdomTitle title = Title(step.region);
                 if (a == null || title == null) return false;
-                List<City> members = title.getCities().Where(city => city?.Record != null && !city.IsGone()).ToList();
+                List<City> members = title.GetCities().Where(city => city?.Record != null && !city.IsGone()).ToList();
                 return members.Count > 0 && members.Count(city => Holds(a, city)) * 2 > members.Count;
             case "gone":
                 return !string.IsNullOrEmpty(step.a) && a == null;
@@ -326,7 +325,6 @@ public static class ScenarioEventSystem
         }
         return false;
     }
-#endif
 
     #endregion
 
@@ -380,7 +378,6 @@ public static class ScenarioEventSystem
     //     以前只挪了都城没改记录，下个月"还于旧都"(CoreCapitalRestorationSystem)又把清迁回盛京，坐盛京就一直算没入关，
     //     剃发易服、圈地这些入关之政一样没有；
     //   · 京师已失(甲申之变先迁南京、再献北京；南京、福州、广州相继失守)—— 行在：京师照旧，收复了还于旧都，南明照旧看京师
-#if EC_PENDING
     private static void SettleCapitals()
     {
         foreach ((long empireId, long fromId, long toId) in Moved)
@@ -401,7 +398,6 @@ public static class ScenarioEventSystem
         }
         Moved.Clear();
     }
-#endif
 
     // 做一条结果；做不了返回原因
 #if EC_PENDING
@@ -717,7 +713,6 @@ public static class ScenarioEventSystem
         _state?.rally != null && court?.Record != null && _state.rally.court == court.Key;
 
     // 压力：同族的城里入侵者(帝国连同成员)占了几成
-#if EC_PENDING
     internal static float ConquestPressure(Realm conqueror, string culture)
     {
         int total = 0, held = 0;
@@ -729,7 +724,6 @@ public static class ScenarioEventSystem
         }
         return total == 0 ? 0f : (float)held / total;
     }
-#endif
 
     // 独立势力：同族、自己做主(不是帝国的成员、附庸、殖民地)、够得着朝廷、国力比朝廷小；称了帝的也算(大顺、大西去帝号来投)；
     // 起兵的领头人还在世的不来(见 LedByRebelFounder)；要是从本朝出去的(反过本朝、或从本朝分出去)，又走投无路(见 Desperate)。
@@ -866,10 +860,8 @@ public static class ScenarioEventSystem
 #endif
 
     // 点名的人没了，由城主代领：华夏不立女主
-#if EC_PENDING
     private static bool MayLead(Person actor, City seat) =>
         !actor.IsFemale() || InstitutionSystem.GetCultureLine(CultureService.GetMainCulture(seat, initialize: false)) != "Huaxia";
-#endif
 
     // 结果点名的城里还在 a 手里的
     private static List<City> StepCities(WorldMapEventStep step, Realm a) =>
@@ -877,13 +869,11 @@ public static class ScenarioEventSystem
             .Where(city => city != null && Holds(a, city)).Distinct().ToList();
 
     // 地区(王国法理)里的城；没写或对不上的为空
-#if EC_PENDING
     private static IEnumerable<City> RegionCities(string region)
     {
         KingdomTitle title = Title(region);
-        return title == null ? Enumerable.Empty<City>() : title.getCities().Where(city => city?.Record != null && !city.IsGone()).ToList();
+        return title == null ? Enumerable.Empty<City>() : title.GetCities().Where(city => city?.Record != null && !city.IsGone()).ToList();
     }
-#endif
 
     // 扶植傀儡政权(伪满、蒙疆、华北临时政府、汪伪)：a(占领者一方)手里的这些城(city、cities，或 region 地区里的)交给新立的 b，
     // 立为 a 的傀儡(见 PuppetStateSystem)。person 里头一位还活着的成年人领头，可以是别国的人(投敌的汪精卫，连同部将改投)，
@@ -996,7 +986,6 @@ public static class ScenarioEventSystem
 #endif
 
     // 卸去本国官职、城主之位(改投新国前)
-#if EC_PENDING
     private static void Leave(Person actor)
     {
         if (actor.IsOnOffice())
@@ -1006,7 +995,6 @@ public static class ScenarioEventSystem
         }
         if (actor.IsCityLeader() && actor.City != null) actor.City.RemoveLeader();
     }
-#endif
 
     private static string Surname(Person actor)
     {
@@ -1047,7 +1035,6 @@ public static class ScenarioEventSystem
     }
 
     // 旧档：已经称帝的顺、西还挂着起兵时的自定名，读档后第一次结算时撤掉
-#if EC_PENDING
     private static void RepairProclaimedNames()
     {
         // 只看剧本起兵立的国(rebel 步骤的 b)
@@ -1065,7 +1052,6 @@ public static class ScenarioEventSystem
             LogService.LogInfo($"[EmpireCraft][剧情事件] {empire.GetEmpireFullName()} 撤去起兵时的自定国号 {custom}");
         }
     }
-#endif
 
     // 改国号：帝国改帝号，王国改主法理名(国名照主法理定)
 #if EC_PENDING

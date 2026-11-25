@@ -521,7 +521,6 @@ public static class CityExtension
 #endif
     // 占领扩散用的天命：帝国用帝国天命；阶层起义的叛军以所代表阶层的怨气(民心)作为天命，
     // 其余不属于帝国的国家为 0。
-#if EC_PENDING
     private static int GetOccupationSpreadMandate(Realm kingdom, Empire empire)
     {
         if (empire != null) return empire.Mandate;
@@ -572,7 +571,6 @@ public static class CityExtension
 
         return diff;
     }
-#endif
     private static bool IsOccupationKingDeathAdvantage(this City city, Realm defender)
     {
         if (city == null || defender == null)
@@ -1150,7 +1148,6 @@ public static class CityExtension
 
         return (float)occupiedCount / city.Zones.Count;
     }
-#if EC_PENDING
     public static Realm GetFinishedCaptureWinner(this City city)
     {
         if (city == null)
@@ -1296,7 +1293,6 @@ public static class CityExtension
 
         return winner == occupier;
     }
-#endif
 
     public static int GetValidCityZoneCount(this City city)
     {
@@ -1342,7 +1338,6 @@ public static class CityExtension
         return true;
     }
 
-#if EC_PENDING
     public static float GetRequiredFinishedCaptureRate(this City city, Realm occupier)
     {
         if (city == null || occupier == null)
@@ -1403,6 +1398,7 @@ public static class CityExtension
         return requiredRate;
     }
     
+#if EC_PENDING
     public static bool CheckFinishedCapture(this City city)
     {
         if (city == null)
@@ -1474,7 +1470,6 @@ public static class CityExtension
         return null;
     }
 
-#if EC_PENDING
     private static void ApplyOccupationCaptureRewards(this City city, Person capturer, Person victim)
     {
         if (capturer == null || capturer.IsGone() || victim == null || victim.IsGone())
@@ -1499,6 +1494,7 @@ public static class CityExtension
         }
     }
 
+#if EC_PENDING
     private static void ForceOccupyAllRemainingZones(this City city, Realm occupier)
     {
         if (city == null || occupier == null || city.Zones == null)
@@ -1712,7 +1708,6 @@ public static class CityExtension
     // GetRequiredFinishedCaptureRate() 的动态门槛——调用方（统治者死亡兼并逻辑）需要
     // 用一个独立于那套动态门槛的固定阈值。如果以后修改了 GetFinishedCaptureWinner 的
     // 选取算法，这里也要同步更新。
-#if EC_PENDING
     private static bool TryFindDominantHostileOccupier(this City city, out Realm occupier, out float combinedOccupiedRate)
     {
         occupier = null;
@@ -1840,7 +1835,6 @@ public static class CityExtension
         combinedOccupiedRate = (float)allEnemyOccupiedCount / validZoneCount;
         return true;
     }
-#endif
 
     // Phase 17："都占领地块百分之七十了如果当地(城市)统治者死了就直接全占领"——
     // 普通城市（非首都，或者无王王国的首都，因为那种情况下城主本身就是最高统治者，
@@ -2142,7 +2136,6 @@ public static class CityExtension
         EmpireCoreManager.EmpireCores.TryGetValue(c.GetEmpireCoreID(), out EmpireCore core);
         return core;
     }
-#if EC_PENDING
     public static void AddCorruptionRate(this City city, double addition)
     {
         if (city == null || addition == 0) return;
@@ -2158,11 +2151,12 @@ public static class CityExtension
 
     public static bool HasBeenCombined(this City city)
     {
-        return city.buildings.Any(b => b.asset.id.Contains("city_"));
+        return city.Buildings.Any(b => b.Asset.Id.Contains("city_"));
     }
+#if EC_PENDING
     public static void InitialRegime(this City city)
     {
-        if (!city.hasKingdom()) return;
+        if (!city.HasRealm()) return;
         if (city.Realm.GetRegime()==null) return;
         CityType cityType = EmpireCraftKingdomBehCheckKingdomType.CalcCityType(city.Realm);
         city.SetCityType(cityType);
@@ -2211,14 +2205,12 @@ public static class CityExtension
         if (city == null) return;
         city.GetOrCreate().corruption_rate = Math.Max(0.0, Math.Min(1.0, value));
     }
-#if EC_PENDING
     public static void SetCityType(this City c, CityType type)
     {
         // Preserve the core name while the previous type still identifies its suffix.
         if (c?.Record != null) c.EnsureCityCoreName();
         c.GetOrCreate().cityType = type;
     }
-#endif
     public static double GetLastTaxTime(this City k)
     {
         return k.GetOrCreate().last_tax_timestamp;
@@ -2242,13 +2234,11 @@ public static class CityExtension
         city.GetOrCreate().last_law_scan_ts = GameClock.Now;
     }
 
-#if EC_PENDING
     public static bool IsNeedToSubmitTax(this City k)
     {
-        if (!k.hasKingdom()) return false;
+        if (!k.HasRealm()) return false;
         return GameClock.YearsSince(k.GetLastTaxTime()) >= 1;
     }
-#endif
     
     public static int GetMoney(this City c)
     {
@@ -2408,7 +2398,6 @@ public static class CityExtension
         return ed;
     }
 
-#if EC_PENDING
     public static int CountLivingPopulation(this City city)
     {
         if (city == null) return 0;
@@ -2431,7 +2420,6 @@ public static class CityExtension
         // 无小人模式：没有实体单位的背景人口也是城里的居民
         return count + CityPopulationSystem.BackgroundCount(city);
     }
-#endif
 
     public static int CountLivingWarriors(this City city)
     {
@@ -2458,7 +2446,6 @@ public static class CityExtension
         return city != null && city.NeighbourRealms != null && city.NeighbourRealms.Count > 0;
     }
 
-#if EC_PENDING
     public static City FindExileCity(this Realm kingdom)
     {
         if (kingdom == null || kingdom.IsGone() || kingdom.Cities == null || kingdom.Cities.Count <= 0)
@@ -2501,7 +2488,6 @@ public static class CityExtension
 
         return kingdom.Capital;
     }
-#endif
 
     public static void StartChoosingHeir(this City c)
     {
@@ -2538,6 +2524,7 @@ public static class CityExtension
         var ed = c.GetOrCreate();
         return ed.limitationNumber;
     }
+#endif
 
     public static bool HasReachedPlayerPopLimit(this City c)
     {
@@ -2554,6 +2541,7 @@ public static class CityExtension
         return false;
     }
 
+#if EC_PENDING
     public static void SetLimitToggle(this City c, SimpleButton limitToggle)
     {
         var ed = c.GetOrCreate();
@@ -2654,7 +2642,6 @@ public static class CityExtension
         GetOrCreate(c).title_id = -1L;
     }
 
-#if EC_PENDING
     public static string EnsureCityCoreName(this City city)
     {
         if (city?.Record == null) return null;
@@ -2690,7 +2677,7 @@ public static class CityExtension
 
         try
         {
-            if (result == null && ConfigData.speciesCulturePair.TryGetValue(city.getSpecies(), out var culture))
+            if (result == null && ConfigData.speciesCulturePair.TryGetValue(city.GetSpecies(), out var culture))
             {
                 if (OnomasticsRule.ALL_CULTURE_RULE.TryGetValue(culture, out Setting setting))
                 {
@@ -2713,7 +2700,7 @@ public static class CityExtension
 
         try
         {
-            if (city.hasKingdom())
+            if (city.HasRealm())
             {
                 string currentSuffix = LM.Get(city.GetCitySuffixKey());
                 string suffixToRemove = !string.IsNullOrWhiteSpace(citySuffix) &&
@@ -2785,10 +2772,8 @@ public static class CityExtension
         }
         return CultureCityKey(kingdom, city.GetCityType().ToString());
     }
-#endif
 
     // 文化专属称谓(阿兹特克的城不称帐……见 DynastyNaming.CultureVariant)
-#if EC_PENDING
     private static string CultureCityKey(Realm kingdom, string key) =>
         EmpireCraft.Core.DynastyNaming.CultureVariant(kingdom, key) ?? key;
 
@@ -2801,7 +2786,6 @@ public static class CityExtension
         // Generated display names must not be mistaken for a new player-supplied core name.
         city.GetOrCreate().core_name_source = city.Name;
     }
-#endif
 
     public static string GetKingdomNames(this City city)
     {
@@ -2827,7 +2811,6 @@ public static class CityExtension
             GetOrCreate(city).kingdom_names = String.Join("\u200A", GetOrCreate(city).kingdom_names,kingdomName);
         }
     }
-#if EC_PENDING
     public static string SelectKingdomName(this City city)
     {
         if (city == null) return "";
@@ -2843,7 +2826,6 @@ public static class CityExtension
         if (city == null) return false;
         return !string.IsNullOrWhiteSpace(SelectKingdomName(city));
     }
-#endif
 
 }
 }

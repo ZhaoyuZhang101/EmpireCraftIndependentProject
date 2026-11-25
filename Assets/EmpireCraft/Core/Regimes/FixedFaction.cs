@@ -178,7 +178,6 @@ public static class FactionManager
             if (!claims.Contains(TemporaryFactionType.开放党禁)) claims.Add(TemporaryFactionType.开放党禁);
     }
 
-#if EC_PENDING
     public static void init()
     {
         Load();
@@ -218,7 +217,6 @@ public static class FactionManager
             }
         }
     }
-#endif
 
     public static bool Save()
     {
@@ -244,7 +242,6 @@ public static class FactionManager
         }
     }
 
-#if EC_PENDING
     public static void Load()
     {
         try
@@ -288,14 +285,11 @@ public static class FactionManager
             LogService.LogInfo("加载用户派系配置出错");
         }
     }
-#endif
 }
 
 public class PlayerFactionConfig
 {
-#if EC_PENDING
     public Dictionary<TemporaryFactionType, TemporaryFaction> StoredTemporaryFaction = new ();
-#endif
     public List<FixedFaction> PlayerFactions = new List<FixedFaction>();
     public Dictionary<RegimeType, List<FixedFaction>> PlayerRegimeFactions = new Dictionary<RegimeType, List<FixedFaction>>();
 }
@@ -405,31 +399,25 @@ public class FixedFaction
     [JsonIgnore]
     public List<TemporaryFactionType> TemporaryFactionTypes => FactionManager.FactionConfig.TryGetValue(Type, out var tfList)? tfList : null;
     public List<TemporaryFactionType> TemporaryFactionTypesRecord;
-#if EC_PENDING
     public List<TemporaryFaction> TemporaryFactions;
-#endif
     public int ClaimCatalogVersion;
     public long Leader = -1L;
     [JsonIgnore]
     public float LastJoinProb { get; private set; } // 记录最近一次计算结果(0~1)
 
-#if EC_PENDING
     public bool IsAnyTFactionRuns()
     {
-        return Any(tf => tf?.IsStarted() ?? false);
+        return TemporaryFactions.Any(tf => tf?.IsStarted() ?? false);
     }
-#endif
 
     public void RecoverTrait()
     {
         RequiredTraits = _requiredTraits.ToList();
     }
-#if EC_PENDING
     public TemporaryFaction GetAnyTFactionRuns()
     {
-        return Find(tf => tf?.IsStarted() ?? false);
+        return TemporaryFactions.Find(tf => tf?.IsStarted() ?? false);
     }
-#endif
     // 诉求清单：政党用本理念的诉求(已存在 Record 里)；派系按类型取配置，类型没配诉求(如共产)时给空表而不是 null
     private List<TemporaryFactionType> GetClaimCatalog() =>
         IsParty && TemporaryFactionTypesRecord != null
@@ -448,6 +436,7 @@ public class FixedFaction
         copy.CardUI = null;
         return copy;
     }
+#endif
 
     public FixedFaction Clone()
     {
@@ -565,7 +554,7 @@ public class FixedFaction
                 catalogChanged |= MigrateFeudalClaimCatalog();
             ClaimCatalogVersion = CurrentClaimCatalogVersion;
         }
-        if (catalogChanged || TemporaryFactions == null || Count == 0 || Any(tf => tf == null))
+        if (catalogChanged || TemporaryFactions == null || TemporaryFactions.Count == 0 || TemporaryFactions.Any(tf => tf == null))
         {
             TemporaryFactions = ConvertToObjectFromFactionType();
             foreach (var tf in TemporaryFactions)
@@ -582,10 +571,8 @@ public class FixedFaction
             }
         }
     }
-#endif
 
     // 版本 2：诉求重新分配后，旧存档里的派系照新清单增删(只动这次调整过的诉求，制度解锁等别处加的不动)
-#if EC_PENDING
     private bool MigrateClaimCatalogV2()
     {
         TemporaryFactionTypesRecord ??= new List<TemporaryFactionType>();
@@ -617,7 +604,6 @@ public class FixedFaction
         }
         return changed;
     }
-#endif
 
     // 版本 3：世家(见 GentrySystem)——尊王加修氏族志、抑豪强，绥靖加修氏族志，中央加抑豪强
     private bool MigrateClaimCatalogV3()
@@ -715,7 +701,6 @@ public class FixedFaction
     /// 将诉求类别转化为实例
     /// </summary>
     /// <returns></returns>
-#if EC_PENDING
     public List<TemporaryFaction> ConvertToObjectFromFactionType()
     {
         var result = new List<TemporaryFaction>();
@@ -738,7 +723,6 @@ public class FixedFaction
         }
         return result;
     }
-#endif
     public float CalcPossibility(Person pActor, float minProb = 0.5f, float maxProb = 0.95f)
     {
         int required = RequiredTraits?.Count ?? 0;
@@ -764,7 +748,6 @@ public class FixedFaction
         }
         return prob;
     }
-#if EC_PENDING
     public void AddMember(Person pActor)
     {
         if (pActor == null || pActor.IsGone() || pActor.IsWarMachine()) return;
@@ -811,11 +794,11 @@ public class FixedFaction
             .ThenByDescending(actor => actor.Renown)
             .ThenByDescending(actor => actor.GetIdentity()?.TotalPerformance ?? 0d)
             .FirstOrDefault();
-        candidate ??= Empire.getUnits().Where(actor => IsEligibleLeader(actor) && !actor.HasFaction() &&
+        candidate ??= Empire.GetUnits().Where(actor => IsEligibleLeader(actor) && !actor.HasFaction() &&
                 actor.IsOnOffice() && actor.HasOfficeIdentity())
             .OrderByDescending(actor => OfficeSelector.IsPreferredOfficeCandidate(actor, Empire.CoreKingdom))
             .ThenByDescending(actor => actor.Renown).FirstOrDefault();
-        candidate ??= Empire.getUnits().Where(actor => IsEligibleLeader(actor) && !actor.HasFaction())
+        candidate ??= Empire.GetUnits().Where(actor => IsEligibleLeader(actor) && !actor.HasFaction())
             .OrderByDescending(actor => OfficeSelector.IsPreferredOfficeCandidate(actor, Empire.CoreKingdom))
             .ThenByDescending(actor => actor.Renown).FirstOrDefault();
         if (candidate == null) return;
@@ -839,7 +822,6 @@ public class FixedFaction
         }
         return leader;
     }
-#endif
 
     public void BanFaction()
     {
@@ -866,7 +848,6 @@ public class FixedFaction
         }
     }
 
-#if EC_PENDING
     public void SetLeader(Person pActor=null, long id=-1L)
     {
         long newLeaderId = pActor?.Key ?? id;
@@ -893,7 +874,6 @@ public class FixedFaction
             leader.RecordPersonalHistory(string.Format(LM.Get("personal_history_became_faction_leader"), Name));
         }
     }
-#endif
 
     public void RemoveLeader()
     {

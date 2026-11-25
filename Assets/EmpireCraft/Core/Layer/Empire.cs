@@ -30,23 +30,17 @@ public class Empire : RecordObject<EmpireData>
     private readonly List<Cell> _zoneScratch = new();
     private readonly int _avgCitiesPerKingdom = 3;
     public Clan EmpireClan;
-#if EC_PENDING
     public int Mandate => MonarchyLegitimacy.Applies(this) ? MonarchyLegitimacy.Get(this) : data.Mandate;
-#endif
     // 前现代正统按治理来源计算；现代国家与议会君主国按宪政合法性计算。
     // 叛乱、革命、附庸态度、城市忠诚都看它
-#if EC_PENDING
     public int Legitimacy => EmpireCraft.Core.ModernLegitimacy.Applies(this)
         ? EmpireCraft.Core.ModernLegitimacy.Get(this)
         : Mandate;
-#endif
     // 界面上统治合法性的名称：现代国家为"宪政合法性"，其余为"正统"
-#if EC_PENDING
     public string LegitimacyLabelKey => EmpireCraft.Core.ModernLegitimacy.Applies(this)
         ? "label_constitutional_legitimacy"
         : "label_mandate";
     public Regime regime => CoreKingdom.GetRegime();
-#endif
     public List<Realm> kingdoms_list = new List<Realm>();
     public HashSet<Realm> kingdoms_hashset = new HashSet<Realm>();
     public List<City> cities_list = new List<City>();
@@ -57,9 +51,7 @@ public class Empire : RecordObject<EmpireData>
     public List<Realm> taken_Kingdoms = new List<Realm>();
     
     public Religion Religion = null;
-#if EC_PENDING
     private TemporaryFaction _runningTemporaryFaction;
-#endif
 
     // 当前正在推进的派系诉求。
     //
@@ -68,7 +60,6 @@ public class Empire : RecordObject<EmpireData>
     // 如果这里还指着它，诉求进度会永远冻结在当时的数值，而且因为它看起来一直在推进，别的诉求也
     // 都无法发起。所以每次读取都校验一次：引用已经不在任何派系的诉求列表里时，换成列表中同派系、
     // 同类型、仍在推进的新对象；找不到就换成列表里任意一个正在推进的诉求，都没有则清空。
-#if EC_PENDING
     public TemporaryFaction RunningTemporaryFaction
     {
         get => _runningTemporaryFaction = ResolveRunningTemporaryFaction(_runningTemporaryFaction);
@@ -97,7 +88,6 @@ public class Empire : RecordObject<EmpireData>
         }
         return replacement ?? anyStarted;
     }
-#endif
 
     public Realm CoreKingdom;
     public Person Emperor => CoreKingdom?.Ruler;
@@ -108,9 +98,7 @@ public class Empire : RecordObject<EmpireData>
     public City OriginalCapital;
     public　SpecificClan EmpireSpecificClan => SpecificClanManager.Get(data.empire_specific_clan);
     
-#if EC_PENDING
-    public override MetaType meta_type => MetaTypeExtension.Empire;
-#endif
+    public override EntityKind KindOfEntity => MetaTypeExtension.Empire;
 
     public bool HasEmperor()
     {
@@ -126,21 +114,18 @@ public class Empire : RecordObject<EmpireData>
     public const int FoundingGraceYears = 10;
 
     // 统一战争期间、统一天下后三十年同样是开国气象(历史周期律，见 UnificationSystem)
-#if EC_PENDING
     public bool InFoundingGrace => data != null &&
                                    // 剧本开局的老王朝(国祚按史实接着算，见 ConstitutionalEconomyState.dynastic_age_offset)不算新开国
                                    (data.created_time > 0d && GameClock.YearsSince(data.created_time) +
                                     (data.constitutional_economy?.dynastic_age_offset ?? 0) < FoundingGraceYears ||
                                     FounderGrace() ||
                                     EmpireCraft.Core.UnificationSystem.InGrace(CoreKingdom));
-#endif
 
     // 开国雄主(或中兴雄主)在位的开国气象：只到登基后 FounderGraceYears 年；朝廷里篡位上来的(本帝国不是他开的)、
     // 绝嗣裂土时据地称帝承接旧朝廷的(inherited_decline)没有——积弊原样留着
     // (用户 2026-10-21 选"收窄开国气象"：以前雄主在位一直算，每个新开国之君都完整重置，积弊不长、乱世一转眼就过去)
     public const int FounderGraceYears = 25;
 
-#if EC_PENDING
     private bool FounderGrace()
     {
         if (!RulerTraitSystem.FounderReigns(CoreKingdom)) return false;
@@ -161,7 +146,6 @@ public class Empire : RecordObject<EmpireData>
         MonarchyLegitimacy.Invalidate(this);
         ModernLegitimacy.Invalidate(this);
     }
-#endif
 
     public bool IsNeedToIncreaseMandate()
     {
@@ -176,7 +160,6 @@ public class Empire : RecordObject<EmpireData>
         if (this.data != null) this.data.archived = true;
     }
 
-#if EC_PENDING
     public void AddTaxRate(float addition = 0.1f)
     {
         if (!ConstitutionalEconomySystem.CanChangeTax(this)) return;
@@ -192,13 +175,11 @@ public class Empire : RecordObject<EmpireData>
         //增加税收减少正统性
         AddMandate(-(int)Math.Round((data.TaxRate - before) * 100f));
     }
-#endif
 
     // 帝国基础税率的下限：地方实际税率 = 基础税率 + 政体税级加成，税级为"低"时没有加成，
     // 基础税率减到 0 就整个帝国一分税都收不上
     public const float MinimumTaxRate = 0.05f;
 
-#if EC_PENDING
     public void SubTaxRate(float substraction = 0.1f)
     {
         if (!ConstitutionalEconomySystem.CanChangeTax(this)) return;
@@ -210,7 +191,6 @@ public class Empire : RecordObject<EmpireData>
         //减少税收增加正统性
         AddMandate((int)Math.Round((before - data.TaxRate) * 100f));
     }
-#endif
 
     public List<Realm> GetKingdomNeighbours()
     {
@@ -230,7 +210,6 @@ public class Empire : RecordObject<EmpireData>
         return neighbours;
     }
     
-#if EC_PENDING
     public List<Person> GetMembersWithTrait(string trait)
     {
         List<Person>  list = new List<Person>();
@@ -244,11 +223,10 @@ public class Empire : RecordObject<EmpireData>
         return list;
     }
 
-    public override IEnumerable<City> getCities()
+    public override IEnumerable<City> GetCities()
     {
         return EmpireMembershipService.EnumerateCities(this);
     }
-#endif
 
     public bool IsNeedToExam()
     {
@@ -307,7 +285,6 @@ public class Empire : RecordObject<EmpireData>
         return GameClock.YearsSince(this.data.last_exam_timestamp);
     }
 
-#if EC_PENDING
     public string GetCulture()
     {
         return CultureService.GetEmpireDefaultCulture(this);
@@ -320,7 +297,6 @@ public class Empire : RecordObject<EmpireData>
             ? cultureName
             : CultureService.GetRealmCulture(CoreKingdom);
     }
-#endif
     public bool IsAllowToMakeWar()
     {
         if (CurrentMoney<0)
@@ -330,7 +306,6 @@ public class Empire : RecordObject<EmpireData>
         return false;
     }
 
-#if EC_PENDING
     public string EnsureEmpireCoreName()
     {
         if (data == null) return "";
@@ -413,10 +388,8 @@ public class Empire : RecordObject<EmpireData>
         if (string.IsNullOrWhiteSpace(data.name)) return CoreKingdom?.GetKingdomName() ?? "";
         return EnsureEmpireCoreName();
     }
-#endif
 
     // 军阀时期(见 WarlordEraSystem)：帝国核心范围内的国家按中央/临时政府/军阀改称
-#if EC_PENDING
     public string GetEmpireFullName()
     {
         // 复辟帝制期间(见 RestorationSystem)：国号改为"某某帝国"
@@ -424,12 +397,10 @@ public class Empire : RecordObject<EmpireData>
         string baseName = GetBaseEmpireFullName();
         return WarlordEraSystem.DecorateName(this, baseName);
     }
-#endif
 
     // 国号后缀词库的版本：词库内容有调整时加一，旧国号会按新词库核对一次
     private const int SuffixPoolVersion = 1;
 
-#if EC_PENDING
     public string GetBaseEmpireFullName()
     {
         if (data == null) return "";
@@ -490,7 +461,6 @@ public class Empire : RecordObject<EmpireData>
             return data.name ?? "";
         }
     }
-#endif
 
     // 剧本的国号(见 WorldMapScenario.BuildEmpires)，下一个立的帝国从头就用它、用完清空。以前先按法理定国号再改回剧本的，
     // 第一位皇帝的在位记录、即位记载都写成法理名，世系里李隆基是"雍"、李亨才是"唐"，同一家族像是改了国号
@@ -545,6 +515,7 @@ public class Empire : RecordObject<EmpireData>
         }
         return choice;
     }
+#endif
 
     private void RecordFoundingNameHistory(EmpireFoundingNameChoice choice, Person founder)
     {
@@ -556,6 +527,7 @@ public class Empire : RecordObject<EmpireData>
             kingdomId: CoreKingdom?.Key ?? -1L, prepend: true);
     }
 
+#if EC_PENDING
     private void MoveToEmpireCapital(Person actor)
     {
         if (CoreKingdom?.Capital?._city_tile==null) return;
@@ -863,7 +835,7 @@ public class Empire : RecordObject<EmpireData>
                 else if (CoreKingdom.GetRegime().type == RegimeType.LvLing)
                 {
                     data.directPre = "";
-                    nameEmpire = actor.Culture.getOnomasticData(MetaType.Kingdom).generateName();
+                    nameEmpire = actor.Culture.GetOnomasticData(EntityKind.Realm).GenerateName();
                     SetEmpireName(nameEmpire);
                     currentSpecificClan.RecordHistoryEmpire(this, CoreKingdom.Capital);
                 }
@@ -1079,7 +1051,6 @@ public class Empire : RecordObject<EmpireData>
         data.currentHistory = null;
     }
 
-#if EC_PENDING
     public void EmperorLeft()
     {
         Person emperor = Emperor;
@@ -1125,17 +1096,13 @@ public class Empire : RecordObject<EmpireData>
         // 空位：不再有登记在位的君主(0；-1 留给旧档)，同一人复位也照常即位(见 CompleteSuccession)
         data.reign_emperor_id = 0L;
     }
-#endif
     // 追封先帝(谥号、庙号)是君主制的礼制：共和国与现代政体不追封，历史记录里的前朝皇帝也不例外
-#if EC_PENDING
     public bool AllowsPosthumousNames() =>
         !RepublicSystem.IsRepublic(this) && CoreKingdom?.GetRegime()?.type != RegimeType.Modern &&
         EmpireCraft.Core.RealmNamingSystem.UsesCourtNames(this);
-#endif
 
     // 不用年号、庙号、谥号的帝国(华夏、日本以外的文化线，见 RealmNamingSystem.UsesCourtNames)：关掉年号，
     // 撤掉以前按政体给先帝定的庙号谥号、记的年号(世界地图剧本写的史实称号 ScriptedTitle 留着)；每年定谥时顺带查一次
-#if EC_PENDING
     public void DropCourtNames()
     {
         if (data == null || EmpireCraft.Core.RealmNamingSystem.UsesCourtNames(this)) return;
@@ -1152,7 +1119,6 @@ public class Empire : RecordObject<EmpireData>
             history.miaohao_suffix = "";
         }
     }
-#endif
 
     // 为本朝还没定谥的先帝定谥号、庙号(谥法见 PosthumousNameGenerator)，conferrer 为定谥的今上；返回定了几位。
     // 用户 2026-10-17 "藩王都是有谥号的""皇帝也要显示一样的"：以前只有今上发起"追封"决议才定，无小人时这条决议
@@ -1200,6 +1166,7 @@ public class Empire : RecordObject<EmpireData>
         }
         return pending.Count;
     }
+#endif
 
     public bool IsNeedToSetPosthumous()
     {
@@ -1235,7 +1202,6 @@ public class Empire : RecordObject<EmpireData>
         }
         return false;
     }
-#endif
 
     public int GetEmperorYear()
     {
@@ -1338,7 +1304,7 @@ public class Empire : RecordObject<EmpireData>
         data.centerOffice = new CenterOffice();
         data.centerOffice.Init(CoreKingdom);
         kingdom.SetLevel(0);
-        if (CoreKingdom.getKingClan() != null) this.EmpireClan = this.CoreKingdom.getKingClan();
+        if (CoreKingdom.GetRulingClan() != null) this.EmpireClan = this.CoreKingdom.GetRulingClan();
         else 
         {
             EmpireClan = null;
@@ -1420,14 +1386,12 @@ public class Empire : RecordObject<EmpireData>
         return !NoDynasty && !string.IsNullOrEmpty(this.data.year_name);
     }
 
-#if EC_PENDING
     public void create_year_name()
     {
         this.data.year_name = YearNameHelper.generateName();
         this.data.newEmperor_timestamp = GameClock.Now;
         this.data.year_name_timestamp = -1d;
     }
-#endif
 
     // ───── 在位中途改元(用户 2026-11-12："改年号的决议为啥一直是灰色的"——那条决议原先要帝国没有年号才能发起，
     // 而新君一即位就定了年号，所以永远用不了；用户定："加个5年年限") ─────
@@ -1453,7 +1417,6 @@ public class Empire : RecordObject<EmpireData>
     public bool CanChangeYearName() => IsAllowToMakeYearName() && YearsUntilYearName() == 0;
 
     // 改元：只换年号、年号纪年从头数。即位时间不动——在位几年、各处按"新君即位多久"算的事都不受影响
-#if EC_PENDING
     public void ChangeYearName()
     {
         string before = data.year_name;
@@ -1533,7 +1496,6 @@ public class Empire : RecordObject<EmpireData>
         data.CabinetMembers.Remove(actor.Key);
         return true;
     }
-#endif
 
     // 本朝都城相对 v(祖上帝国所在地)的方位，冠在国号前。
     // 以前 |dx| == |dy| 一律冠"后"，而两者都是 0 也算相等——祖上帝国的记录没记位置、或帝国刚 new 出来
@@ -1553,7 +1515,6 @@ public class Empire : RecordObject<EmpireData>
         return data.original_royal_been_changed;
     }
 
-#if EC_PENDING
     public void SetEmpireName(string name, bool preserveEmpireType = false)
     {
         var core = CoreKingdom;
@@ -1595,26 +1556,21 @@ public class Empire : RecordObject<EmpireData>
         if (data.currentHistory != null && data.currentHistory.id == Emperor?.Key)
             data.currentHistory.empire_full_name = GetEmpireFullName();
     }
-#endif
 
     // 帝国换了核心王国(选帝换家族、储君带着封国入继、中央丢光城池就地改立)：国号照旧。
     // 国号存在核心王国的核心名上，每月 SyncKingdomStatus 按核心王国的名字重设国号；不先把帝国的名字写到新核心上，
     // 下个月国号就成了新核心自己的法理名(西方选帝制每换一家就改一次国号)
-#if EC_PENDING
     public void KeepNameOnNewCore()
     {
         if (CoreKingdom?.Record == null || CoreKingdom.IsGone() || string.IsNullOrWhiteSpace(data?.core_name)) return;
         CoreKingdom.GetOrCreate().isEmpire = true;
         SetEmpireName(data.core_name, preserveEmpireType: true);
     }
-#endif
 
     // 西方封建帝国称"第几帝国"；以天下之名(普世之名)为号时不排代数(见 RealmNamingSystem)
-#if EC_PENDING
     public bool ShowsWesternOrdinal() =>
         data != null && data.western_ordinal >= 2 && data.name_source != RealmNamingSystem.SourceTianxia &&
         CoreKingdom?.GetRegime()?.type == RegimeType.Feudalism;
-#endif
 
     private static string GetOrdinalText(int ordinal)
     {
@@ -1627,7 +1583,6 @@ public class Empire : RecordObject<EmpireData>
 
     // 建立西方封建帝国时定代数：之前已经灭亡的同名封建帝国有几个，这就是第几+1代。
     // 只算已经灭亡的，所以"核心王国灭亡后由皇族王国接续"这种延续不会被当成新的一代。
-#if EC_PENDING
     private void AssignWesternOrdinal(string coreName)
     {
         if (CoreKingdom?.GetRegime()?.type != RegimeType.Feudalism || string.IsNullOrWhiteSpace(coreName)) return;
@@ -1642,6 +1597,7 @@ public class Empire : RecordObject<EmpireData>
         if (data.western_ordinal >= 2) data.directPre = "";
     }
 
+#if EC_PENDING
     public void CheckDissolve(Realm mainKingdom)
     {
         // 核心王国没了(比如最后一座城被叛军攻下)：先把它移出成员，再从剩下的成员里找皇族当国王的
@@ -1831,13 +1787,13 @@ public class Empire : RecordObject<EmpireData>
         if (newKingdom.Ruler.HasSpecificClan())
         {
             newKingdom.Ruler.GetSpecificClan().RecordHistoryEmpire(this, newEmpire.CoreKingdom.Capital);
-            newEmpire.EmpireClan = newKingdom.getKingClan();
+            newEmpire.EmpireClan = newKingdom.GetRulingClan();
             newEmpire.data.empire_specific_clan = newKingdom.Ruler.GetSpecificClan().id;
         }
         else
         {
             newKingdom.Ruler.CheckSpecificClan();
-            newEmpire.EmpireClan = newKingdom.getKingClan();
+            newEmpire.EmpireClan = newKingdom.GetRulingClan();
             newKingdom.Ruler.GetSpecificClan().RecordHistoryEmpire(this, newEmpire.CoreKingdom.Capital);
             newEmpire.data.empire_specific_clan = newKingdom.Ruler.GetSpecificClan().id;
         }
@@ -2009,6 +1965,7 @@ public class Empire : RecordObject<EmpireData>
         join(pKingdom, true, true);
         RulerTraitSystem.OnCrowned(this, king);
     }
+#endif
 
     public bool IsFoundingEmperorHistory(EmpireCraftHistory history)
     {
@@ -2070,6 +2027,7 @@ public class Empire : RecordObject<EmpireData>
         return data.dynasty_founder_actor_id;
     }
 
+#if EC_PENDING
     public void update()
     {
         if (AncientWarfareCompatibility.Owns(CoreKingdom)) return;
@@ -2486,7 +2444,7 @@ public class Empire : RecordObject<EmpireData>
 
         if (EmpireClan == null || EmpireClan.IsGone())
         {
-            EmpireClan = CoreKingdom.getKingClan();
+            EmpireClan = CoreKingdom.GetRulingClan();
             data.empire_clan = EmpireClan?.Key ?? -1L;
             repaired = true;
         }
@@ -2727,7 +2685,7 @@ public class Empire : RecordObject<EmpireData>
         return kingdom != null && NationalPowerRules.IsWithinShare(kingdom.GetNationalPower(),
             GetNationalPower(), NationalPowerRules.SubmissionMaximumShare);
     }
-    public override void save()
+    public override void Save()
     {
         if (this.data == null)
         {
@@ -3007,12 +2965,10 @@ public class Empire : RecordObject<EmpireData>
         return _zoneScratch;
     }
 
-#if EC_PENDING
-    public override int countUnits()
+    public override int CountUnits()
     {
         return this.CountPopulation();
     }
-#endif
 
 
     public int CountPopulation()
@@ -3276,9 +3232,10 @@ public class Empire : RecordObject<EmpireData>
         this._units_dirty = false;
         return this._lastEmpireCenter;
     }
+#endif
     
     
-    public override IEnumerable<Person> getUnits()
+    public override IEnumerable<Person> GetUnits()
     {
         return EmpirePopulation.Enumerate(kingdoms_list);
     }
@@ -3307,6 +3264,7 @@ public class Empire : RecordObject<EmpireData>
                Emperor != null && !Emperor.IsGone() && Emperor.Alive;
     }
 
+#if EC_PENDING
     public int ReclaimTitles(Realm sourceKingdom, IEnumerable<KingdomTitle> titles)
     {
         if (sourceKingdom == null || sourceKingdom.IsGone() || sourceKingdom.GetEmpire() != this ||
@@ -3435,6 +3393,7 @@ public class Empire : RecordObject<EmpireData>
         TranslateHelper.LogTributaryTitleGranted(kingdom, this, requestedTitle);
         return true;
     }
+#endif
 
     public Realm GetLandedLegalTitleKingdom(KingdomTitle title)
     {
@@ -3474,6 +3433,7 @@ public class Empire : RecordObject<EmpireData>
         return landedKingdom;
     }
 
+#if EC_PENDING
     private Person GetLivingVirtualLegalPeerageHolder(long titleId)
     {
         Person holder = getUnits().FirstOrDefault(actor => actor != null && !actor.IsGone() &&
@@ -3665,13 +3625,13 @@ public class Empire : RecordObject<EmpireData>
         return office != null && !office.is_local && office.actor_id == actor.Key && office.meta_object == CoreKingdom;
     }
 
-#if EC_PENDING
     private bool HasCentralMinisterSupport(Person actor, Regime currentRegime)
     {
         FixedFaction dominant = currentRegime?.GetDominateFaction();
         return dominant != null && dominant.TotalPower > 0 && actor?.GetFaction() == dominant;
     }
 
+#if EC_PENDING
     private Person GetEmperorMother()
     {
         Person emperor = Emperor;
@@ -3757,6 +3717,7 @@ public class Empire : RecordObject<EmpireData>
         return data.powerful_minister_is_regent && RealisticAgeSystem.IsMinor(Emperor) &&
                IsCurrentPowerfulMinister(actor) && IsValidRegencyCandidate(actor);
     }
+#endif
 
     private bool HasStrongEmperor()
     {
@@ -3764,7 +3725,6 @@ public class Empire : RecordObject<EmpireData>
         return emperor != null && !emperor.IsGone() && !RealisticAgeSystem.IsMinor(emperor) && Mandate >= 80 &&
             emperor.Stewardship >= 10 && !HasVulnerableNewEmperor();
     }
-#endif
 
     private bool HasVulnerableNewEmperor()
     {
@@ -3780,7 +3740,6 @@ public class Empire : RecordObject<EmpireData>
             GameClock.MonthsSince(data.powerful_minister_regency_end_timestamp) < PowerfulMinisterRules.RegencyRecoveryMonths;
     }
 
-#if EC_PENDING
     private bool IsEligiblePowerBase(Person actor, Regime currentRegime, bool requireInitialInfluence,
         out bool isRegent)
     {
@@ -3796,6 +3755,7 @@ public class Empire : RecordObject<EmpireData>
         return !requireInitialInfluence || actor.Renown >= PowerfulMinisterRules.EntryInfluence;
     }
 
+#if EC_PENDING
     private Person FindPowerfulMinisterCandidate(Regime currentRegime, out bool isRegent,
         out bool isEmpressDowager, out bool isFormerEmpress)
     {
@@ -3845,12 +3805,12 @@ public class Empire : RecordObject<EmpireData>
             normalCandidate ??= getUnits().Where(actor => IsValidRegencyCandidate(actor) &&
                     actor.Key != dowager?.Key && actor.Realm == CoreKingdom &&
                     !SpecificClanManager.SameLineage(actor.GetSpecificClan(), EmpireSpecificClan))
-                .OrderByDescending(actor => actor.Key == current?.Key)
-                .ThenByDescending(actor => actor.Renown).ThenBy(actor => actor.Key).FirstOrDefault();
+                .OrderByDescending(actor => actor.id == current?.Key)
+                .ThenByDescending(actor => actor.renown).ThenBy(actor => actor.id).FirstOrDefault();
             normalCandidate ??= getUnits().Where(actor => IsValidRegencyCandidate(actor) &&
                     actor.Key != dowager?.Key && actor.Realm == CoreKingdom)
-                .OrderByDescending(actor => actor.Key == current?.Key)
-                .ThenByDescending(actor => actor.Renown).ThenBy(actor => actor.Key).FirstOrDefault();
+                .OrderByDescending(actor => actor.id == current?.Key)
+                .ThenByDescending(actor => actor.renown).ThenBy(actor => actor.id).FirstOrDefault();
             // 外戚：外戚首领以大将军辅政，优先于朝臣与太后本人(见 ConsortKinSystem)
             Person consortRegent = ConsortKinSystem.RegentFor(this, normalCandidate);
             if (consortRegent != null)
@@ -4022,6 +3982,7 @@ public class Empire : RecordObject<EmpireData>
         emperor?.RecordPersonalHistory(string.Format(LM.Get("personal_history_became_puppet"),
             candidate.FullName()), relatedActorId: candidate.Key);
     }
+#endif
 
     private void RecordMinisterTransition(Person minister, string key)
     {
@@ -4030,7 +3991,6 @@ public class Empire : RecordObject<EmpireData>
         minister.RecordPersonalHistory(content, relatedActorId: Emperor?.Key ?? -1L);
         Emperor?.RecordPersonalHistory(content, relatedActorId: minister.Key);
     }
-#endif
 
     // 外戚(见 ConsortKinSystem)用到的太后与重置权臣
 #if EC_PENDING
@@ -4121,7 +4081,6 @@ public class Empire : RecordObject<EmpireData>
     // 废掉当今皇帝，另立皇族的人(先立亲子，没有就挑宗室里的成年男子)
     public bool IsHaremPower(Person actor) => actor?.Record != null && actor.IsFemale();
 
-#if EC_PENDING
     private bool HaremBarred(Person actor)
     {
         if (!IsHaremPower(actor) || CoreKingdom == null) return false;
@@ -4134,7 +4093,6 @@ public class Empire : RecordObject<EmpireData>
             return false;
         }
     }
-#endif
 
     // 废立另立的人：先亲子，没有就挑宗室里年长的成年男子(不是当今皇帝)
 #if EC_PENDING
@@ -4145,7 +4103,7 @@ public class Empire : RecordObject<EmpireData>
         bool Fit(Person unit) => unit != null && !unit.IsGone() && unit.Alive && unit.IsMale() && unit.IsAdult() &&
                                 unit.Key != (Emperor?.Key ?? -1L) && unit.Realm?.GetEmpire() == this &&
                                 SpecificClanManager.SameLineage(unit.GetSpecificClan(), EmpireSpecificClan);
-        return getUnits().Where(Fit).OrderByDescending(unit => unit.Age()).ThenBy(unit => unit.Key).FirstOrDefault() ??
+        return getUnits().Where(Fit).OrderByDescending(unit => unit.Age()).ThenBy(unit => unit.id).FirstOrDefault() ??
                KinRoster.RealizeFirst(VirtualDynastMen(Emperor?.Key ?? -1L), Fit, 2);
     }
 #endif
@@ -4220,7 +4178,7 @@ public class Empire : RecordObject<EmpireData>
                                               unit.IsAdult() && unit.Key != deposed.Key && unit.Realm?.GetEmpire() == this &&
                                               SpecificClanManager.SameLineage(unit.GetSpecificClan(), EmpireSpecificClan))
             .OrderByDescending(unit => unit.GetFaction() == faction)
-            .ThenByDescending(unit => unit.Age()).ThenBy(unit => unit.Key).FirstOrDefault();
+            .ThenByDescending(unit => unit.getAge()).ThenBy(unit => unit.id).FirstOrDefault();
         // 无小人模式下宗室可能都在虚拟族谱中；只把实际要迎立的人落成，不能把“没有实体”当作皇族绝嗣。
         if (heir == null && EmpireSpecificClan != null)
             foreach (PersonalClanIdentity person in SpecificClanManager.LineageClans(EmpireSpecificClan)
@@ -4394,6 +4352,7 @@ public class Empire : RecordObject<EmpireData>
                 ? GetPowerfulMinister() : null;
         return minister == null || minister.IsGone() ? 0 : PowerfulMinisterRules.OppositionPenalty(minister.Renown);
     }
+#endif
 
     private City GetMinisterOpponentPowerBase(Person actor)
     {
@@ -4412,9 +4371,10 @@ public class Empire : RecordObject<EmpireData>
         // An honorary/virtual title alone does not command any land or army.
         return actor.GetOwnedTitle().Select(id => ModClass.KINGDOM_TITLE_MANAGER.Get(id))
             .Where(title => title != null && !title.IsGone() && title.owner == actor)
-            .SelectMany(title => title.getCities()).Where(IsLocal).OrderBy(city => city.Key).FirstOrDefault();
+            .SelectMany(title => title.GetCities()).Where(IsLocal).OrderBy(city => city.Key).FirstOrDefault();
     }
 
+#if EC_PENDING
     private void ResolveMinisterOpposition(Person minister, int? influence = null)
     {
         if (EmpireCraft.Core.UnificationSystem.InGrace(CoreKingdom)) return;
@@ -4758,7 +4718,7 @@ public class Empire : RecordObject<EmpireData>
             .Where(title => title != null && !title.IsGone())
             .Where(title =>
             {
-                List<City> cities = title.getCities()
+                List<City> cities = title.GetCities()
                     .Where(city => city != null && !city.IsGone()).Distinct().ToList();
                 return cities.Count > 0 && cities.All(city => city.Realm?.GetEmpire() == this);
             }).ToList();
@@ -4798,7 +4758,6 @@ public class Empire : RecordObject<EmpireData>
 
     public bool HasTerritorialWar() => kingdoms_list.Any(kingdom => kingdom != null && !kingdom.IsGone() && kingdom.HasEnemies());
 
-#if EC_PENDING
     private bool HoldsExtraDirectTitles()
     {
         HashSet<long> protectedCities = GetProtectedDirectCityIds();
@@ -4806,6 +4765,7 @@ public class Empire : RecordObject<EmpireData>
                                               city.hasTitle() && city.GetTitle() is { } title && !title.IsGone());
     }
 
+#if EC_PENDING
     private void AutoEstablishLvLingAdministrativeDivisions(bool atWar)
     {
         AutoEstablishTerritorialDivisions(CoreKingdom?.GetRegime(), createAdministration: true, atWar);
@@ -4876,6 +4836,7 @@ public class Empire : RecordObject<EmpireData>
 
         AutoEstablishUntitledExclaveDivisions(regime, createAdministration, protectedCities, atWar);
     }
+#endif
 
     public HashSet<long> GetProtectedDirectCityIds()
     {
@@ -4897,7 +4858,6 @@ public class Empire : RecordObject<EmpireData>
                 if (CompositeEmpireService.IsHomeland(city, homeland)) protectedCities.Add(city.Key);
         return protectedCities;
     }
-#endif
 
     private bool IsDirectPartitionCandidate(City city, HashSet<long> protectedCities)
     {
@@ -4906,11 +4866,10 @@ public class Empire : RecordObject<EmpireData>
                (protectedCities == null || !protectedCities.Contains(city.Key));
     }
 
-#if EC_PENDING
     private static List<City> GetPartitionTitleCities(KingdomTitle title)
     {
         if (title == null || title.IsGone()) return new List<City>();
-        return (title.getCities() ?? Enumerable.Empty<City>())
+        return (title.GetCities() ?? Enumerable.Empty<City>())
             .Where(city => city != null && !city.IsGone()).Distinct().ToList();
     }
 
@@ -4922,7 +4881,6 @@ public class Empire : RecordObject<EmpireData>
         if (IsValidTerritorialPartition(landed) && !result.Contains(landed)) result.Add(landed);
         return result.OrderBy(kingdom => kingdom.Key).ToList();
     }
-#endif
 
     private bool IsValidTerritorialPartition(Realm kingdom)
     {
@@ -5060,7 +5018,7 @@ public class Empire : RecordObject<EmpireData>
             if (local != null) return local;
         }
 
-        Person royal = CoreKingdom?.getKingClan()?.getUnits()?.FirstOrDefault(IsEligible);
+        Person royal = CoreKingdom?.GetRulingClan()?.getUnits()?.FirstOrDefault(IsEligible);
         if (royal != null) return royal;
         // 纯净地图下宗室多是虚拟族人(原版氏族的单位里没有)：只封宗室的政体以前常年封不出去。
         // 皇族世系里在本帝国的成年族人按亲疏(兄弟、皇子在前)、长幼挑一位落成
@@ -5175,15 +5133,12 @@ public class Empire : RecordObject<EmpireData>
 
     // 西方封建制具备制度特性 direct_administration(中央集权君主制、神权国家等)后设辖区/教区
     // 游牧施行了"行省制度"(用户 2026-10-19 选"补……游牧行省"；以前这一步只解锁设置行政区，打下的地照旧分给宗王)
-#if EC_PENDING
     public bool IsNomadProvincial() =>
         CoreKingdom?.GetRegime()?.type == RegimeType.YouMu &&
         InstitutionSystem.HasFeature(this, InstitutionFeatures.ProvincialAdministration);
-#endif
 
     // 古典共和施行了"元首制"(用户 2026-10-19 选"补罗马元首制"；以前城邦共和直接封建化，没有元首、没有行省)：
     // 元首在家族里相传(见 OfficeSelector)，核心打下的城不再分成自治城邦，设行省派总督(见 CityStateService)
-#if EC_PENDING
     public bool IsPrincipate() =>
         CoreKingdom?.GetRegime()?.type == RegimeType.ClassicalRepublic &&
         InstitutionSystem.HasFeature(this, InstitutionFeatures.Principate);
@@ -5191,7 +5146,6 @@ public class Empire : RecordObject<EmpireData>
     public bool IsWesternCentralized() =>
         CoreKingdom?.GetRegime()?.type == RegimeType.Feudalism &&
         InstitutionSystem.HasFeature(this, InstitutionFeatures.DirectAdministration);
-#endif
 
     private static bool RegimeSupportsProvince(Regime regime)
     {
@@ -5224,7 +5178,7 @@ public class Empire : RecordObject<EmpireData>
 
     public void SelectAndInspect()
     {
-        EmpireCraftMetaTypeLibrary.selected_empire = this;
+        GameView.SelectedEmpire = this;
         SelectedMetas.selected_kingdom = CoreKingdom;
         ScrollWindow.showWindow(nameof(EmpireWindow));
     }

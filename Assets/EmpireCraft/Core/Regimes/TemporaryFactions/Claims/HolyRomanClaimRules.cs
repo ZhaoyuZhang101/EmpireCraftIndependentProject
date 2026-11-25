@@ -8,7 +8,6 @@ namespace EmpireCraft.Core
 
 internal static class HolyRomanClaimRules
 {
-#if EC_PENDING
     public static bool IsEligible(Empire empire)
     {
         return empire != null && !empire.IsGone() && empire.CoreKingdom != null &&
@@ -22,10 +21,8 @@ internal static class HolyRomanClaimRules
         return empire.kingdoms_list.Where(kingdom => kingdom != null && !kingdom.IsGone() &&
                                                      kingdom != empire.CoreKingdom && kingdom.HasRuler());
     }
-#endif
 
     // 世俗诸侯：自由城市、主教领本就不开战、不给中央出兵，治安令与诸侯特权都不涉及它们
-#if EC_PENDING
     public static IEnumerable<Realm> GetSecularPrinces(Empire empire) =>
         GetPrinces(empire).Where(HolyRomanSystem.SecularPrince);
 
@@ -35,6 +32,5 @@ internal static class HolyRomanClaimRules
         int validElectors = empire.GetCabinetMembers().Count(actor => actor != null && !actor.IsGone());
         return validElectors >= 2 && GetPrinces(empire).Count() >= 2;
     }
-#endif
 }
 }

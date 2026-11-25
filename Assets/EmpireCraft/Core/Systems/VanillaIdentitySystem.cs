@@ -14,22 +14,22 @@ public static class VanillaIdentitySystem
 #if EC_PENDING
     public static bool TryReuseLanguage(Person actor)
     {
-        if (actor?.asset?.civ != true || actor.hasLanguage() ||
+        if (actor?.Asset?.Civ != true || actor.hasLanguage() ||
             actor.subspecies?.has_advanced_communication != true || EmpireWorld.Current?.languages == null) return false;
         foreach (Language language in EmpireWorld.Current.languages)
         {
             if (language?.data == null || language.IsGone() ||
-                !string.Equals(language.species_id, actor.asset.id, StringComparison.Ordinal)) continue;
+                !string.Equals(language.species_id, actor.Asset.Id, StringComparison.Ordinal)) continue;
             actor.joinLanguage(language);
             return true;
         }
         return false;
     }
 
-    public static void ApplyPlotPolicy(PlotAsset plot)
+    public static void ApplyPlotPolicy(PlotKind plot)
     {
         if (plot == null) return;
-        if (BlocksPlot(plot.id))
+        if (BlocksPlot(plot.Id))
         {
             plot.check_is_possible = _ => false;
             plot.check_should_continue = _ => false;
@@ -38,7 +38,7 @@ public static class VanillaIdentitySystem
             plot.action = _ => false;
             plot.post_action = null;
         }
-        else if (plot.id == "new_language")
+        else if (plot.Id == "new_language")
         {
             // 多支决议同时起步时，后完成的也复用先完成的语言，不再额外创建。
             var action = plot.action;

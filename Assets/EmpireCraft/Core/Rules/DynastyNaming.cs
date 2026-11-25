@@ -22,7 +22,6 @@ public static class DynastyNaming
     // 名称每帧都可能要用，阶段按帝国缓存两秒
     private static readonly Dictionary<long, (float until, HuaxiaCourtStage stage)> Cache = new();
 
-#if EC_PENDING
     public static HuaxiaCourtStage StageOf(Empire empire)
     {
         if (empire == null || empire.IsGone()) return HuaxiaCourtStage.None;
@@ -35,22 +34,17 @@ public static class DynastyNaming
 
     public static HuaxiaCourtStage StageOf(Realm kingdom) =>
         kingdom?.Record == null || !kingdom.IsInEmpire() ? HuaxiaCourtStage.None : StageOf(kingdom.GetEmpire());
-#endif
 
     // 国家类别后缀的文本键：律令制的直隶(京畿)与行政区按阶段改称
     // 华夏原始阶段(母系氏族至家天下，用原始政体)：称谓换成本土的部落联盟、邦、方国、共主、方伯、巫祝、族长，城称邑
-#if EC_PENDING
     public static bool HuaxiaOrigin(Realm kingdom) =>
         kingdom?.Record != null && !kingdom.IsGone() && (kingdom.GetRegime()?.type == RegimeType.HuaxiaOrigin ||
         kingdom.GetRegime()?.type == RegimeType.Origin && InstitutionSystem.GetCultureLine(CultureService.GetRealmCulture(kingdom)) == "Huaxia");
-#endif
 
     // 华夏原始政体的部落联盟(见 RegimeType.HuaxiaOrigin)：称呼换成共主——皇帝→共主、皇室→共主氏族、帝国首府→共主都邑、
     // 索取皇位→争为共主(用户 2026-10-16 选"称呼改成共主")；有 "_huaxia_origin" 译文的键才换
-#if EC_PENDING
     public static bool HuaxiaOriginEmpire(Empire empire) =>
         empire?.CoreKingdom?.GetRegime()?.type == RegimeType.HuaxiaOrigin;
-#endif
 
     // 穿越政权(元老院选主席)：在位主席、历任主席(见 TransmigrantSystem.Governs)
 #if EC_PENDING
@@ -69,7 +63,6 @@ public static class DynastyNaming
 #endif
 
     // 制度线专属称谓：日本线的国家类别、官名在文本键后加 "_japan"(天皇、国司、大名、国……见各政体 OfficialType.csv)
-#if EC_PENDING
     public static string LineSuffix(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone()) return null;
@@ -82,7 +75,6 @@ public static class DynastyNaming
             _ => null
         };
     }
-#endif
 
     // 文化专属称谓(用户 2026-10-19 选"加文化特性与节点过滤")：同一条制度线里个别文化另有叫法——印度走原始封建一线(以前走阿拉伯线)，
     // 不称至高王国、至高王，称帝国、大君(OriginFeudalism/OfficialType.csv 的 _india)；阿兹特克、林地部族不称大可汗、斡里朵。
@@ -105,7 +97,6 @@ public static class DynastyNaming
         return LM.Has(variant) ? variant : null;
     }
 
-#if EC_PENDING
     public static string CultureVariant(Realm kingdom, string key)
     {
         if (kingdom?.Record == null || kingdom.IsGone()) return null;
@@ -113,22 +104,18 @@ public static class DynastyNaming
         if (CaliphateFaith.PreIslamic(kingdom) && LM.Has(key + CaliphateFaith.PreIslamicSuffix)) return key + CaliphateFaith.PreIslamicSuffix;
         return CultureVariant(key, CultureService.GetRealmCulture(kingdom));
     }
-#endif
 
     // 帝国名按部落、部落联盟称的原始政体：华夏，连同从部落起步的游牧、阿拉伯
-#if EC_PENDING
     public static bool TribalNaming(Realm kingdom)
     {
         if (HuaxiaOrigin(kingdom)) return true;
         if (kingdom?.Record == null || kingdom.IsGone() || kingdom.GetRegime()?.type != RegimeType.Origin) return false;
         return InstitutionSystem.GetCultureLine(CultureService.GetRealmCulture(kingdom)) is "Youmu" or "Arabic";
     }
-#endif
 
     // 帝国名的类别：有共事的部落称部落联盟(见 TribalFissionService.Incorporate)，共事的部落都散了只称部落；进入家天下后称"朝"(夏、商)。
     // 10-26 起单个部落不再是帝国(只是国，国名后缀"部落"见 Origin/OfficialType.csv)，帝国只剩部落联盟；
     // 共事的部落取按月缓存的反查表(见 TribalFissionService.VassalsOf)，帝号每年重取一回也不再扫全部王国
-#if EC_PENDING
     public static string HuaxiaOriginEmpireKey(Realm core) =>
         TribalFissionService.VassalsOf(core?.GetEmpire()).Count == 0 ? "Origin_empire_huaxia_tribe"
         : InstitutionSystem.IsEnacted(CultureService.GetRealmCulture(core), "huaxia_hereditary_kingship")
@@ -161,7 +148,6 @@ public static class DynastyNaming
         string stage = StageSuffix(StageOf(kingdom));
         return stage != null && LM.Has($"{key}_{stage}") ? $"{key}_{stage}" : type.ToString();
     }
-#endif
 
     private static string StageSuffix(HuaxiaCourtStage stage) => stage switch
     {
@@ -173,11 +159,10 @@ public static class DynastyNaming
     };
 
     // 官名(品级)的文本键：地方官、军府、禁军镇戍按阶段改称；没有对应的历代称谓时用政体原名
-#if EC_PENDING
     public static string RankKey(RegimeType regime, int officeType, Entity meta)
     {
         string key = $"{regime}_officiallevel_{officeType}";
-        Realm owner = meta switch { Realm k => k, City town => town.Realm, Army army => army.getKingdom(), _ => null };
+        Realm owner = meta switch { Realm k => k, City town => town.Realm, Army army => army.GetRealm(), _ => null };
         // 八旗多元制的官名(议政王大臣、总督、都统……)，没配的照律令(见 BannerSystem)
         if (regime == RegimeType.LvLing && LM.Has($"Banner_officiallevel_{officeType}") && BannerSystem.Practices(owner))
             return $"Banner_officiallevel_{officeType}";
@@ -208,7 +193,7 @@ public static class DynastyNaming
         {
             Realm realm => realm,
             City town => town.Realm,
-            Army army => army.getKingdom(),
+            Army army => army.GetRealm(),
             _ => null
         };
         string stage = StageSuffix(StageOf(kingdom));
@@ -225,10 +210,8 @@ public static class DynastyNaming
         };
         return variant != null && LM.Has(variant) ? variant : key;
     }
-#endif
 
     // 城名后缀的文本键；不按朝代改称时返回 null
-#if EC_PENDING
     public static string CitySuffixKey(City city)
     {
         Realm kingdom = city?.Realm;
@@ -241,11 +224,9 @@ public static class DynastyNaming
             StageOf(kingdom) == HuaxiaCourtStage.Han) return "city_suffix_commandery";
         return null;
     }
-#endif
 
     // 帝国展开时京畿那一块的地图标签：郡县以后写司州/京畿道/直隶省；周制返回空串(写本国国名)；
     // 没有朝代演进的返回 null(照旧写首都城名)
-#if EC_PENDING
     public static string CapitalRegionLabel(Realm core)
     {
         HuaxiaCourtStage stage = StageOf(core);
@@ -253,6 +234,5 @@ public static class DynastyNaming
         string key = StageSuffix(stage) is string suffix ? "dynasty_capital_" + suffix : null;
         return key != null && LM.Has(key) ? LM.Get(key) : null;
     }
-#endif
 }
 }

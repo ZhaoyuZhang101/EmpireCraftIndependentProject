@@ -17,23 +17,18 @@ namespace EmpireCraft.Core
 //     (见 Empire.IsPrincipate)，原有的自治城邦照旧。
 public static class CityStateService
 {
-#if EC_PENDING
     public static bool IsCityState(Realm kingdom) =>
         kingdom != null && !kingdom.IsGone() && kingdom.GetRegime()?.type == RegimeType.ClassicalRepublic;
-#endif
 
     // 元首制的核心与行省(没有外交权的成员)：不再一城一国
-#if EC_PENDING
     public static bool IsPrincipateRealm(Realm kingdom)
     {
         Empire empire = kingdom?.GetEmpire();
         if (empire == null || !IsCityState(kingdom) || !empire.IsPrincipate()) return false;
         return kingdom == empire.CoreKingdom || kingdom.GetRegime()?.IsAllowDiplomacy() == false;
     }
-#endif
 
     // 元老院推举由制度特性 senate_election 提供
-#if EC_PENDING
     public static bool HasSenate(Empire empire) =>
         empire != null && InstitutionSystem.HasFeature(empire, InstitutionFeatures.SenateElection);
 
@@ -46,13 +41,11 @@ public static class CityStateService
         kingdom.RememberInitialRandomKingdomName(name, overwrite: true);
         kingdom.SetKingdomCoreName(name, name);
     }
-#endif
 
     // 城邦加入古典共和帝国(诸侯加入封建制帝国)后完全自治：保留外交权和军队，不向中央输兵。
     // "不交税"是不向中央上缴(古典共和的自治城邦不交，封建诸侯照封建成员的分成交，见 TreasurySystem.TaxShares)，
     // 不是本国不收税：以前把税级设成"无"，成员一分税收不上；现在税级为"无"的改回"低"，原有的税级不动。
     // 帝国自由城市、主教领(见 HolyRomanSystem.Members)本就没有外交开战权，不给
-#if EC_PENDING
     public static void GrantAutonomy(Realm kingdom)
     {
         Regime regime = kingdom?.GetRegime();
@@ -65,11 +58,9 @@ public static class CityStateService
         }
         TreasurySystem.EnsureCollectsTax(regime);
     }
-#endif
 
     // 旧档修补(每年随帝国年度结算，见 ConstitutionalEconomySystem)：帝国自由城市、主教领入帝国时被 GrantAutonomy
     // 误给了外交开战权，收回；诸侯订立和约、各家取得完全主权之后不收
-#if EC_PENDING
     public static void RepairEstateAutonomy(Empire empire)
     {
         if (empire?.data == null || empire.kingdoms_list == null || empire.data.holy_roman?.sovereign_princes == true) return;
@@ -83,7 +74,6 @@ public static class CityStateService
             regime.SetAllowSupportCenterArmy(false);
         }
     }
-#endif
 
     // CityManager.buildNewCity 之后调用：开国的第一座城用来定国名，之后新建的城独立为殖民城邦
 #if EC_PENDING
@@ -178,6 +168,7 @@ public static class CityStateService
             captorName, newState.GetKingdomName(), leader.FullName());
         return true;
     }
+#endif
 
     private static Realm SpinOff(City city, Person leader, Realm parent)
     {
@@ -197,7 +188,6 @@ public static class CityStateService
         ApplyCityName(state);
         return state;
     }
-#endif
 
     // 本地领袖：优先贵族阶层，其次城中其他成年人，按威望取最高者
     internal static Person FindLocalLeader(City city, Person exclude)
@@ -269,6 +259,7 @@ public static class CityStateService
         PersonalUnionService.CrownInUnion(member, sovereign);
         PersonalUnionService.NameAllianceAfterLeader(leader);
     }
+#endif
 
     private static void Record(Realm kingdom, string key, params object[] args)
     {
@@ -277,6 +268,5 @@ public static class CityStateService
         Empire empire = kingdom?.GetEmpire();
         if (empire != null && !empire.IsGone()) empire.RecordHistory(directContent: content, kingdomId: kingdom.Key);
     }
-#endif
 }
 }

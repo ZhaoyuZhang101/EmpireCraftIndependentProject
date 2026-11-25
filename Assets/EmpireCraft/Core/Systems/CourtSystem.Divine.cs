@@ -23,7 +23,6 @@ public static partial class CourtSystem
     #region 神力上奏
 
     // 为什么递不上去(null 为递得上)
-#if EC_PENDING
     public static string CannotGodPropose(Empire empire, FixedFaction faction, TemporaryFaction claim)
     {
         if (empire?.data == null || faction == null || claim == null) return "court_god_propose_invalid";
@@ -40,6 +39,7 @@ public static partial class CourtSystem
         return null;
     }
 
+#if EC_PENDING
     public static bool GodPropose(Empire empire, FixedFaction faction, TemporaryFaction claim)
     {
         if (CannotGodPropose(empire, faction, claim) != null) return false;
@@ -94,16 +94,13 @@ public static partial class CourtSystem
     #region 改表态、神意砝码、施行快慢
 
     // 当前奏议还能改表态与批红砝码(没批红准奏)
-#if EC_PENDING
     public static bool CanEditDebate(Empire empire, out CourtMemorial memorial)
     {
         memorial = State(empire)?.memorial;
         return memorial != null && memorial.stage <= 3 && memorial.decision != "approve";
     }
-#endif
 
     // 改某派的表态：原样 → 赞成 → 观望 → 反对 → 原样
-#if EC_PENDING
     public static void CycleStance(Empire empire, string factionId)
     {
         if (!CanEditDebate(empire, out CourtMemorial memorial) || factionId == memorial.proposer) return;
@@ -116,7 +113,6 @@ public static partial class CourtSystem
         FixedFaction proposer = FindFaction(empire, memorial.proposer);
         if (claim != null && proposer != null) Retally(empire, memorial, claim, proposer);
     }
-#endif
 
     public static bool StanceOverridden(CourtMemorial memorial, string factionId) =>
         memorial?.stance_overrides != null && memorial.stance_overrides.ContainsKey(factionId);
@@ -125,7 +121,6 @@ public static partial class CourtSystem
         Mathf.RoundToInt((memorial?.god_factors?.FirstOrDefault(factor => factor.key == "court_scale_divine_" + key)?.value ?? 0f) * 100f);
 
     // 神意砝码：没有 → 一档 → 二档 → 三档 → 去掉
-#if EC_PENDING
     public static void CycleDivineApproval(Empire empire, string key)
     {
         if (!CanEditDebate(empire, out CourtMemorial memorial)) return;
@@ -146,14 +141,12 @@ public static partial class CourtSystem
         int index = global::System.Array.FindIndex(DivineRates, rate => Mathf.Abs(rate - memorial.rate_factor) < 0.001f);
         memorial.rate_factor = DivineRates[(index + 1) % DivineRates.Length];
     }
-#endif
 
     #endregion
 
     #region 改派系处境
 
     // field：capital 政治资本 / favor 圣眷 / grievance 怨望
-#if EC_PENDING
     public static void AdjustFaction(Empire empire, FixedFaction faction, string field, float delta)
     {
         if (empire == null || faction == null) return;
@@ -165,7 +158,6 @@ public static partial class CourtSystem
             case "grievance": data.grievance = Mathf.Clamp(data.grievance + delta, 0f, 100f); break;
         }
     }
-#endif
 
     #endregion
 
@@ -206,7 +198,6 @@ public static partial class CourtSystem
     public const float HastenShare = 0.3f;
 
     // 施行中的诉求(朝堂、议会、政党、地方推的都算)：加 share 成进度，推满当场施行
-#if EC_PENDING
     public static bool GodHasten(TemporaryFaction claim, float share)
     {
         if (claim == null || !claim.IsStarted()) return false;
@@ -215,7 +206,6 @@ public static partial class CourtSystem
         if (claim.progress >= claim.progressMax) DiplomacyLaws.ByPlayer(() => claim.RunExecute());
         return true;
     }
-#endif
 
     #endregion
 }

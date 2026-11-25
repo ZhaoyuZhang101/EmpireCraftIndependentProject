@@ -252,7 +252,7 @@ public static class CityPlanWorks
         }
         if (town.Count == 0) return;
         bool In(Cell tile) => tile?.data != null && town.Contains(tile.Index);
-        Cell[] tiles = EmpireWorld.Current.Zones;
+        Cell[] tiles = EmpireWorld.Current.AllCells;
         var edge = new List<Cell>();
         int minX = int.MaxValue, minY = int.MaxValue, maxX = int.MinValue, maxY = int.MinValue;
         foreach (int id in town)
@@ -357,13 +357,11 @@ public static class CityPlanWorks
         return list;
     }
 
-#if EC_PENDING
     private static Cell TileAt(int id)
     {
-        Cell[] tiles = EmpireWorld.Current?.Zones;
+        Cell[] tiles = EmpireWorld.Current?.AllCells;
         return tiles != null && id >= 0 && id < tiles.Length ? tiles[id] : null;
     }
-#endif
 
     #endregion
 
@@ -405,7 +403,6 @@ public static class CityPlanWorks
 #endif
 
     // 知会城池全图；画路一笔刷过许多格，路不在平面图里，只让预览重画(CityPlanEditing.Bump，不重算平面图)，每帧至多一次
-#if EC_PENDING
     private static void Touched(City city, bool oncePerFrame = false)
     {
         if (oncePerFrame && ReferenceEquals(_touched, city) && _touchedFrame == Time.frameCount) return;
@@ -414,7 +411,6 @@ public static class CityPlanWorks
         if (oncePerFrame) CityPlanEditing.Bump();
         else CityPlanEditing.Touch(city);
     }
-#endif
 
     #endregion
 
@@ -762,7 +758,7 @@ public static class CityPlanWorks
 #if EC_PENDING
     public static void DrawOverPreview(Color32[] pixels, int x0, int y0, int w, int h, int scale)
     {
-        Cell[] tiles = EmpireWorld.Current?.Zones;
+        Cell[] tiles = EmpireWorld.Current?.AllCells;
         if (pixels == null || tiles == null || w <= 0 || h <= 0 || scale <= 0 || pixels.Length < w * h * scale * scale) return;
         int pw = w * scale;
         bool InRange(Cell tile) => tile != null && tile.X >= x0 && tile.Y >= y0 && tile.X < x0 + w && tile.Y < y0 + h;

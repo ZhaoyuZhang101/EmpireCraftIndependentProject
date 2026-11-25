@@ -35,14 +35,11 @@ public static class FactionClassSystem
         }
     }
 
-#if EC_PENDING
     public static void UpdateEmpire(Empire empire, IEnumerable<FixedFaction> configuredFactions) =>
         UpdateRealm(InstitutionRealm.Of(empire), configuredFactions);
-#endif
 
     // 政权(帝国或独立王国)的阶层支持年度演变；阶层人口按政权范围统计(帝国全体成员 / 王国本国)。
     // populationShares 可传入已算好的阶层构成，免得同一年里重复扫人口
-#if EC_PENDING
     public static void UpdateRealm(InstitutionRealm realm, IEnumerable<FixedFaction> configuredFactions,
         Dictionary<SocialClass, float> populationShares = null)
     {
@@ -109,7 +106,6 @@ public static class FactionClassSystem
         }
         RecalculateClassPower(factions, populationShares ?? InstitutionSystem.BuildClassShares(realm));
     }
-#endif
 
     private static void RecalculateClassPower(IEnumerable<FixedFaction> factions,
         Dictionary<SocialClass, float> populationShares)
@@ -121,7 +117,6 @@ public static class FactionClassSystem
         }
     }
 
-#if EC_PENDING
     public static float GetClassPowerContribution(Empire empire, FixedFaction faction, SocialClass socialClass)
     {
         if (empire == null || faction == null) return 0f;
@@ -130,7 +125,6 @@ public static class FactionClassSystem
         float population = shares.TryGetValue(socialClass, out float share) ? share : 0f;
         return population * faction.ClassSupport[socialClass];
     }
-#endif
 
     public static void ModifyFavor(FixedFaction faction, SocialClass socialClass, float amount, string source)
     {
@@ -140,13 +134,10 @@ public static class FactionClassSystem
         faction.ClassFavorSources[socialClass] = source ?? "";
     }
 
-#if EC_PENDING
     public static void ApplyInstitutionOutcome(Empire empire, InstitutionNodeConfig node, FixedFaction sponsor) =>
         ApplyInstitutionOutcome(InstitutionRealm.Of(empire), node, sponsor);
-#endif
 
     // 改革推成后各派系在阶层里的好感变化：帝国看核心王国的派系，王国看本国的
-#if EC_PENDING
     public static void ApplyInstitutionOutcome(InstitutionRealm realm, InstitutionNodeConfig node, FixedFaction sponsor)
     {
         if (realm == null || node?.politics == null) return;
@@ -179,7 +170,6 @@ public static class FactionClassSystem
         foreach (KeyValuePair<SocialClass, float> pair in GetClaimClassEffects(claim))
             ModifyFavor(faction, pair.Key, pair.Value, source);
     }
-#endif
 
     public static float GetClaimClassEffect(TemporaryFactionType claim, SocialClass socialClass)
     {

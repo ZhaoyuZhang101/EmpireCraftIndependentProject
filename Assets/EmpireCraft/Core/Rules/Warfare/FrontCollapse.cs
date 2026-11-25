@@ -168,7 +168,6 @@ public static class FrontCollapse
     }
 
     // 久战疲敝：这座城所属的一方正被统一、被雄主讨伐，按打得最久的那场仗算
-#if EC_PENDING
     public static float WarWeariness(City city)
     {
         Realm realm = ModRealm(city?.Realm);
@@ -194,12 +193,10 @@ public static class FrontCollapse
         Weariness[realm.Key] = (loss, now);
         return loss;
     }
-#endif
 
     public static string DescribeWeariness(float loss) => string.Format(LM.Get("stability_war_weariness_detail"), loss);
 
     // 国内稳定度：各城稳定度的平均(帝国连同各成员国)；不开财政(没有稳定度)的城按久战疲敝折算
-#if EC_PENDING
     private static float AverageStability(Realm realm)
     {
         float sum = 0f;
@@ -226,6 +223,5 @@ public static class FrontCollapse
         if (empire != null && !empire.IsGone()) EventRecorder.Record(empire, text, null, victor);
         else EventRecorder.Record(victor, text);
     }
-#endif
 }
 }

@@ -147,7 +147,6 @@ public static class CityPlacementSystem
     }
 
     // 营宫殿：返回提示文字
-#if EC_PENDING
     public static string BuildPalace(Cell tile)
     {
         City city = tile?.Zone?.City;
@@ -172,17 +171,15 @@ public static class CityPlacementSystem
         else if (empireCore.former_capital == city.Key) empireCore.former_capital = -1L;
         empireCore.SetCoreCapital(city);
         core.SetCapital(city);
-        PureMapPatch.Redraw(city);
-        if (current != null) PureMapPatch.Redraw(current);
+        GameView.Redraw(city);
+        if (current != null) GameView.Redraw(current);
         string content = string.Format(LM.Get("palace_built"), empire.GetEmpireFullName(), city.GetCityName());
         EventRecorder.Record(empire, content, empire.Emperor);
         return content;
     }
-#endif
 
     // 不是帝国核心之国的城营宫殿(王国、帝国成员、城邦)：头一回只提示，五秒内再点同一座城才营建——成为本国都城(迁都)，
     // 宫城一直留着(不论城大小，见 PureMapPatch.HasPalace)；本来就是都城的只营宫城。没有国家的(无主废城)只营宫城
-#if EC_PENDING
     private static string BuildRoyalPalace(City city)
     {
         Realm kingdom = city.Realm;
@@ -204,12 +201,11 @@ public static class CityPlacementSystem
         data.palace_kept = true;
         data.palace_owner = usable ? kingdom.Key : -1L;
         if (usable && previous != city) kingdom.SetCapital(city);
-        PureMapPatch.Redraw(city);
-        if (previous != null && previous != city) PureMapPatch.Redraw(previous);
+        GameView.Redraw(city);
+        if (previous != null && previous != city) GameView.Redraw(previous);
         string content = string.Format(LM.Get("palace_royal_built"), usable ? kingdom.GetKingdomName() : "", city.GetCityName());
         if (usable) TranslateHelper.LogEventOnly(content, kingdom);
         return content;
     }
-#endif
 }
 }

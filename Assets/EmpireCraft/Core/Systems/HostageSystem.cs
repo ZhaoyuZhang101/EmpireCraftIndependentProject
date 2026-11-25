@@ -82,7 +82,6 @@ public static class HostageSystem
     }
 
     // 每年(见 RoyalHouseSystem.Tick)：质子即位、身故、宗属关系没了
-#if EC_PENDING
     public static void Yearly()
     {
         if (EmpireWorld.Current?.LiveRealms == null) return;
@@ -126,6 +125,5 @@ public static class HostageSystem
             }
         }
     }
-#endif
 }
 }

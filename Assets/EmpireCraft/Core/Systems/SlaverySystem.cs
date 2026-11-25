@@ -26,7 +26,6 @@ public static class SlaverySystem
         ManumitRate = 0.02f, FreeRate = 0.2f, OwnersPerSlave = 0.1f, OwnerMin = 0.003f, OwnerMax = 0.03f;
     private const int NoticePeople = 50;
 
-#if EC_PENDING
     public static bool Practices(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || kingdom.IsWild) return false;
@@ -41,21 +40,17 @@ public static class SlaverySystem
         string culture = CultureService.GetInstitutionCulture(kingdom);
         return CultureService.IsValidCulture(culture) && InstitutionSystem.GetFeature(culture, AbolishedFeature) > 0f;
     }
-#endif
 
     public static float Slaves(City city) => CityPopulationSystem.BackgroundOfClass(city, SocialClass.Slave);
 
     // 不能征为兵的人(奴隶；野人大半不征，见 GuoyeSystem；世家荫户，见 GentrySystem)
-#if EC_PENDING
     public static float Unfree(City city) => Slaves(city) + GuoyeSystem.Exempt(city) + GentrySystem.ShelteredPeople(city);
-#endif
 
     // 兵源总额扣了奴隶，实际抽人也要排除；义军仍可从被压迫者中征召。
     public static bool CanRecruit(PopGroup group, bool militia = false) =>
         group != null && group.Background >= 1f && (militia || group.social_class != SocialClass.Slave);
 
     // 奴隶主在本城自由民里应占的比例：奴隶越多奴隶主越多
-#if EC_PENDING
     public static float OwnerShare(City city)
     {
         if (!Practices(city?.Realm)) return 0f;
@@ -64,7 +59,6 @@ public static class SlaverySystem
         float free = Mathf.Max(1f, CityPopulationSystem.GetBackgroundTotal(city) - slaves);
         return Mathf.Clamp(slaves / free * OwnersPerSlave, OwnerMin, OwnerMax);
     }
-#endif
 
     // 劳动力里奴隶占几成
     public static float WorkforceShare(Dictionary<SocialClass, float> workforce)
@@ -76,7 +70,6 @@ public static class SlaverySystem
     }
 
     // 每年(背景人口自然增减时)：赎身、逃亡、放免；罪人负债者没为奴隶、饥荒卖身
-#if EC_PENDING
     public static void Settle(City city, CityPopulationData data, float years)
     {
         if (data?.groups == null || years <= 0f) return;
@@ -105,10 +98,8 @@ public static class SlaverySystem
         bonded = Mathf.Min(bonded, total * MaxShare - slaves);
         if (bonded > 0f) Convert(city, data, GuoyeSystem.CommonerOf(city), SocialClass.Slave, bonded);
     }
-#endif
 
     // 城破(ScorchedEarthSystem.OnCityCaptured)：施行奴隶制的一方俘其民为奴，押回都城
-#if EC_PENDING
     public static void OnCityCaptured(City city, Realm conqueror)
     {
         if (!CityPopulationSystem.AbstractPopulationEnabled || city?.Record == null || !Practices(conqueror)) return;
@@ -136,7 +127,6 @@ public static class SlaverySystem
         if (empire != null && !empire.IsGone()) empire.RecordHistory(directContent: content, kingdomId: conqueror.Key);
         else TranslateHelper.LogEventMessage(content, conqueror);
     }
-#endif
 
     // 把某阶层的一批背景人口改为另一阶层(按各组人数摊，文化、物种、理念不变)，返回实际改过去的人数
     public static float Convert(City city, CityPopulationData data, SocialClass from, SocialClass to, float amount)

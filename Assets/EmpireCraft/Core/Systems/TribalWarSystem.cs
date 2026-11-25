@@ -22,7 +22,6 @@ public static class TribalWarSystem
     // 本文化会不会联合诸部：华夏看「部落联合」(之后的家天下也算)，日本看弥生小国，游牧看诸部联合(之后的汗国也算)，
     // 阿拉伯看部族联合(之后的哈里发国也算；用户 2026-10-17 选"游牧、阿拉伯也从部落起步")；原始封建线看部落联盟(王权要以它为前置)；
     // 别的文化没有这一步，照旧
-#if EC_PENDING
     public static bool Unified(Realm kingdom)
     {
         string culture = CultureService.GetRealmCulture(kingdom);
@@ -38,7 +37,6 @@ public static class TribalWarSystem
             _ => true
         };
     }
-#endif
 
     // 正在由本系统了结的战争(战争目标不再结算一遍，见 WarGoalSystem.Settle)
     private static readonly HashSet<long> Settled = new();
@@ -126,7 +124,6 @@ public static class TribalWarSystem
 #endif
 
     // 记战功、换天命；返回记下的战功
-#if EC_PENDING
     private static int Award(Empire league, int points)
     {
         if (league?.data == null || points <= 0) return 0;
@@ -135,7 +132,6 @@ public static class TribalWarSystem
         if (gain > 0) league.AddMandate(gain);
         return points;
     }
-#endif
 
     // 退还胜者一方(胜者与它的友军)在败者各城占的地；不相干的第三方照旧
 #if EC_PENDING

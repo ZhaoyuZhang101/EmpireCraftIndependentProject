@@ -46,7 +46,6 @@ public static class DisasterSystem
     private static object _world;
 
     // 收成系数(FarmlandSystem 三处收成统一乘)：没灾、灾已过去为 1
-#if EC_PENDING
     public static float HarvestFactor(City city)
     {
         if (city?.Record == null || EmpireWorld.Current == null) return 1f;
@@ -58,7 +57,6 @@ public static class DisasterSystem
     }
 
     public static bool Active(City city) => HarvestFactor(city) < 1f;
-#endif
 
     // 正在受灾或灾后一年内的等级(0 = 没有)
     public static int RecentLevel(City city)
@@ -266,7 +264,6 @@ public static class DisasterSystem
 
     // 中灾、大灾记入史书：帝国中灾按例行政事记(屏幕日志只给举足轻重的国家)，大灾记史书并报世界提示；
     // 没有帝国的王国没有史书，大灾只报提示
-#if EC_PENDING
     private static void Record(Realm head, List<City> stricken, int level, string kind)
     {
         string separator = LM.Get("disaster_city_separator");
@@ -284,6 +281,5 @@ public static class DisasterSystem
         }
         else if (level >= Major) EventRecorder.Record(head, text);
     }
-#endif
 }
 }

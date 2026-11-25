@@ -51,7 +51,7 @@ internal static class CityResettlementSystem
         city.People?.Any(actor => actor != null && actor.City == city && !actor.IsGone() && actor.Alive) != true &&
         !StateSettlementSystem.AwaitingPopulation(city) && Due(city) &&
         !(city.GetOrCreate().OccupiedStatus?.Count > 0) &&
-        city.Zones.Any(zone => zone.GroundTiles > 0);
+        city.Zones.Any(zone => zone.GroundCount > 0);
 
     public static bool Request(Realm payer, StateSettlementData state)
     {
@@ -78,7 +78,7 @@ internal static class CityResettlementSystem
         float civilians = CityPopulationSystem.CivilianBackground(source);
         float people = Math.Max(0f, Math.Min(civilians * 0.05f, civilians - CityPopulationSystem.PeoplePerSlot(source)));
         float seed = CityPopulationSystem.PeoplePerSlot(target) * 2f;
-        float capacity = Math.Max(0f, target.getPopulationMaximum());
+        float capacity = Math.Max(0f, target.GetPopulationMaximum());
         if (capacity > 0f) seed = Math.Min(seed, Math.Max(1f, capacity - CityPopulationSystem.GetTotal(target)));
         return (float)Math.Floor(Math.Min(people, seed));
     }

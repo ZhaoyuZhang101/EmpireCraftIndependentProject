@@ -89,7 +89,6 @@ public static class WarWeather
 #endif
 
     // 打折与减员还剩几成：惯了这种地的减半，电气时代以后的军队减半
-#if EC_PENDING
     private static float Exposure(Realm kingdom, FrontTerrain terrain)
     {
         if (kingdom?.Record == null) return 1f;
@@ -107,7 +106,6 @@ public static class WarWeather
         if (!string.IsNullOrEmpty(culture) && TechnologySystem.GetEraTier(culture) >= ModernTier) exposure *= Softened;
         return exposure;
     }
-#endif
 
     // 交战地形效果叠上时令
 #if EC_PENDING

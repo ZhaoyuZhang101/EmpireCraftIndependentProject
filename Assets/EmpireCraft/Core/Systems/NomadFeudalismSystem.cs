@@ -12,7 +12,6 @@ public static class NomadFeudalismSystem
 {
     private const string WesternNode = "western_feudalization";
 
-#if EC_PENDING
     private static bool HasWesternInstitutions(Realm kingdom)
     {
         InstitutionRealm realm = InstitutionRealm.Of(kingdom);
@@ -22,10 +21,8 @@ public static class NomadFeudalismSystem
 
     public static RegimeType FeudalizationTarget(Realm kingdom) =>
         HasWesternInstitutions(kingdom) ? RegimeType.Feudalism : RegimeType.NomadFeudalism;
-#endif
 
     // 只修明确记为水土出路的旧版改制；真正采纳外制、非游牧文化及复合帝国不动。
-#if EC_PENDING
     public static bool NeedsLegacyRepair(Realm kingdom) =>
         kingdom?.Record != null && !kingdom.IsGone() && !AncientWarfareCompatibility.Owns(kingdom) &&
         kingdom.GetRegime()?.type == RegimeType.Feudalism &&
@@ -33,6 +30,7 @@ public static class NomadFeudalismSystem
         CultureService.GetRealmCulture(kingdom).IsNomadCulture() && !HasWesternInstitutions(kingdom) &&
         !RepublicSystem.IsRegimeLocked(kingdom) && !CompositeEmpireService.IsComposite(kingdom.GetEmpire());
 
+#if EC_PENDING
     public static void RepairAfterLoad()
     {
         if (EmpireWorld.Current?.LiveRealms == null || RegimeManager.GetTemplate(RegimeType.NomadFeudalism) == null) return;

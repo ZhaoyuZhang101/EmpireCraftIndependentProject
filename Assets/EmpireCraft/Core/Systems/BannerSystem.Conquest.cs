@@ -21,7 +21,6 @@ public static partial class BannerSystem
 
     // 入关：都城是属地文化一系的城，又不是旗下旧地。辽东的城多是汉民，以前清开局坐盛京就算入关了，
     // 头几年在辽东跑马圈地、剃发易服、颁逃人法，自家几座城怨声载道
-#if EC_PENDING
     private static bool Entered(Empire empire)
     {
         City capital = empire.CoreKingdom?.Capital;
@@ -29,14 +28,12 @@ public static partial class BannerSystem
         return CultureService.SameKin(CultureService.GetMainCulture(capital, initialize: false),
             CompositeEmpireService.GetInstitutionalCulture(empire));
     }
-#endif
 
     // 入关前的禁旅八旗自备鞍马器械、以旗地为生，出征只领行粮，军饷按 BannerRules.PreEntryUpkeep 折算(见 FormationSystem.UpkeepFactor、
     // CorpsSystem 量入为出)；入关以后照禁旅八旗的饷。以前清在关外也按禁旅八旗的饷(一般军的 1.4 倍)养兵，辽东几城的税养不起，
     // 战时军费系数只有两三成，兵额一路缩编
     // 外藩(编旗王朝治下别的游牧文化的成员国，见 LeagueBound)随八旗出征，自备鞍马、不领饷：兵额不看国库，也不记欠饷
     // (用户 2026-11-09 "清军还是应该人数再多点"；以前漠南诸部收入为零，军费系数 0，一兵都征不起)
-#if EC_PENDING
     public static bool SelfSupplied(Realm kingdom) => LeagueBound(kingdom);
 
     public static float PayFactor(Realm kingdom)
@@ -46,7 +43,6 @@ public static partial class BannerSystem
         double entered = core.GetOrCreate().banner_entered_at;
         return BannerRules.EntryPay(entered < 0d ? -1f : YearsSince(entered));
     }
-#endif
 
     private static float YearsSince(double at) => at < 0d ? -1f : (float)GameClock.YearsSince(at);
 
@@ -77,16 +73,15 @@ public static partial class BannerSystem
         if (BannerRules.RelaxDue(years, extra.banner_fugitive_law, extra.banner_law_relaxed, core.HasEnemies()))
             RelaxFugitiveLaw(empire, core, extra);
     }
+#endif
 
     private static void Announce(Empire empire, Realm core, string text)
     {
         empire.RecordHistory(directContent: text, kingdomId: core.Key);
         TranslateHelper.LogEventMessage(text, core);
     }
-#endif
 
     // 京畿：都城与近旁的属地文化之城(只挑核心直辖的)
-#if EC_PENDING
     private static List<City> EnclosureTargets(Empire empire, Realm core)
     {
         City capital = core.Capital;
@@ -101,10 +96,8 @@ public static partial class BannerSystem
             .Take(BannerRules.EnclosureCities)
             .ToList();
     }
-#endif
 
     // 剃发易服
-#if EC_PENDING
     private static void IssueQueue(Empire empire, Realm core, KingdomExtension.KingdomExtraData extra)
     {
         extra.banner_queue_at = GameClock.Now;
@@ -116,10 +109,8 @@ public static partial class BannerSystem
         empire.data.ruling_tradition_legitimacy = Mathf.Clamp(empire.data.ruling_tradition_legitimacy + QueueRulingLegitimacy, 0, 100);
         Announce(empire, core, string.Format(LM.Get("banner_queue_history"), empire.GetEmpireName()));
     }
-#endif
 
     // 剃发易服以后属地之城不服(见 CityStabilitySystem)
-#if EC_PENDING
     public static float QueueStabilityLoss(City city)
     {
         Empire empire = city?.Realm?.GetEmpire();
@@ -130,10 +121,8 @@ public static partial class BannerSystem
             return 0f;
         return BannerRules.QueueStability(YearsSince(at));
     }
-#endif
 
     // 永停圈地，退还一半旗地
-#if EC_PENDING
     private static void StopEnclosure(Empire empire, Realm core, KingdomExtension.KingdomExtraData extra)
     {
         extra.banner_enclosure_stopped = true;
@@ -152,10 +141,8 @@ public static partial class BannerSystem
         empire.data.maladies["annexation"] = Mathf.Clamp(annexation - StopAnnexationRelief, 0f, 100f);
         Announce(empire, core, string.Format(LM.Get("banner_enclosure_stopped_history"), empire.GetEmpireName(), returned));
     }
-#endif
 
     // 放宽逃人法：撤法，百姓又能迁徙
-#if EC_PENDING
     private static void RelaxFugitiveLaw(Empire empire, Realm core, KingdomExtension.KingdomExtraData extra)
     {
         extra.banner_fugitive_law = false;
@@ -169,6 +156,5 @@ public static partial class BannerSystem
         ClaimPolicySystem.AddGrievance(empire, SocialClass.Peasant, -RelaxPeasantRelief);
         Announce(empire, core, string.Format(LM.Get("banner_law_relaxed_history"), empire.GetEmpireName()));
     }
-#endif
 }
 }

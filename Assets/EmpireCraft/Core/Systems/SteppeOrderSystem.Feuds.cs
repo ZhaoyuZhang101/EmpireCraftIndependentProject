@@ -41,7 +41,6 @@ public static partial class SteppeOrderSystem
         at < 0d || GameClock.Now < at ? float.MaxValue : GameClock.YearsSince(at);
 
     // 兀鲁思：汗国(游牧帝国)里游牧政体的成员(核心、行省、羁縻不算)
-#if EC_PENDING
     private static bool IsUlus(Realm kingdom)
     {
         Empire empire = kingdom?.GetEmpire();
@@ -51,14 +50,11 @@ public static partial class SteppeOrderSystem
             JimiSystem.IsJimiRegion(kingdom, empire)) return false;
         return kingdom.GetRegime()?.type is RegimeType.YouMu or RegimeType.NomadFeudalism;
     }
-#endif
 
     // 能为草场兴兵：游牧、走出部落阶段、有君、不在打仗、不在起事
-#if EC_PENDING
     private static bool FeudCapable(Realm kingdom) =>
         Alive(kingdom) && NomadRaidSystem.IsNomad(kingdom) && !TribalFissionService.IsTribal(kingdom) && kingdom.HasRuler() &&
         !kingdom.HasEnemies() && !kingdom.IsFactionRebelling() && !kingdom.IsLocalRebelling();
-#endif
 
     // 两家能不能争草场(不看机会)：同为一方之主而不在同一帝国(过开战闸门)，或同一汗国的两个兀鲁思(只看停战年限)
 #if EC_PENDING
@@ -196,7 +192,6 @@ public static partial class SteppeOrderSystem
     }
 
     // 收场(WarPatch.end_war)：攻方胜或议和，争城里攻方占了一半以上地块的割给攻方；守方胜，攻方赔款、打下的争城退还
-#if EC_PENDING
     public static void OnWarEnded(War war, WarOutcome winner)
     {
         if (war?.Record == null || war.GetEmpireWarType() != EmpireWarType.草场之争) return;
@@ -248,10 +243,8 @@ public static partial class SteppeOrderSystem
             LogService.LogWarning($"{LogTag} {war.Name} 争草场收场失败: {exception.Message}");
         }
     }
-#endif
 
     // 记一笔：世界日志一条，两家所在的帝国史书各一条
-#if EC_PENDING
     private static void Chronicle(string text, params Realm[] involved)
     {
         Realm first = null;
@@ -266,6 +259,5 @@ public static partial class SteppeOrderSystem
         }
         TranslateHelper.LogEventOnly(text, first);
     }
-#endif
 }
 }

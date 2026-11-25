@@ -296,12 +296,12 @@ public static class PrinceStruggleSystem
         }
         else core.SetRuler(successor);
     }
+#endif
 
     private static void Record(Empire empire, string text, Person actor)
     {
         empire.RecordHistory(directContent: text, actorId: actor?.Key ?? -1L);
         TranslateHelper.LogEventMessage(text, empire.CoreKingdom);
     }
-#endif
 }
 }

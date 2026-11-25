@@ -9,8 +9,7 @@ public class EmpireCraftKingdomBehCheckReligionKingdom: GameAIKingdomBase
 {
     public override Type OriginalBeh => GetType();
 
-#if EC_PENDING
-    public override BehResult execute(Realm pKingdom)
+    public override BehResult Execute(Realm pKingdom)
     {
         var ked = KingdomExtension.GetOrCreate(pKingdom);
         if (ked != null && ked.last_religion_check_ts > 0)
@@ -42,6 +41,5 @@ public class EmpireCraftKingdomBehCheckReligionKingdom: GameAIKingdomBase
         if (ked != null) ked.last_religion_check_ts = GameClock.Now;
         return BehResult.Continue;
     }
-#endif
 }
 }

@@ -15,7 +15,7 @@ public static class OnomasticsHelper
     /// <summary>
     /// 通用载入命名模板并分组
     /// </summary>
-    /// <param name="data">要操作的 OnomasticsData 即命名模板数据 </param>
+    /// <param name="data">要操作的 NameParts 即命名模板数据 </param>
     /// <param name="cultureName">文化名称， 可为null，但一旦输入需要创建相应的文件至Locales目录下
     /// 比如"模组根目录/Locales/Cultures/"Culture_文化名称""
     /// 同时也要创建对应的文字集文件需为.csv格式
@@ -29,7 +29,7 @@ public static class OnomasticsHelper
     /// </param>
 #if EC_PENDING
     public static void Configure(
-        OnomasticsData data,
+        NameParts data,
         string cultureName,
         OnomasticsType[] template,
         params (string groupName, string CharacterSetName, string definedContent)[] groups

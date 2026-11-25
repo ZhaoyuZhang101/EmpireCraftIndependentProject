@@ -30,11 +30,11 @@ public static partial class HolyRomanSystem
     public static bool IsChurchEstate(Realm kingdom) => Estate(kingdom) == EstateChurch;
 
     // 投票时算教会诸侯的：主教领，以及教宗国、教区
-#if EC_PENDING
     public static bool IsEcclesiastical(Realm kingdom) =>
         IsChurchEstate(kingdom) || kingdom?.Record != null &&
         kingdom.GetKingdomType() is KingdomType.Feudalism_papal_state or KingdomType.Feudalism_diocese;
 
+#if EC_PENDING
     private static void MembersYearly(Empire empire, HolyRomanState state)
     {
         RepairEstates(empire);
@@ -47,7 +47,6 @@ public static partial class HolyRomanSystem
 
     // 旧档修补：自由城市、主教领以前税级被设成"无"(一分税收不上)，改回"低"(直接写选项：议会掌握征税权时
     // SetTaxLevel 会被否决，这是修补不是改税)；自由城市的市长被推举为皇帝、整座城成了中央的，中央不再算自由城市
-#if EC_PENDING
     private static void RepairEstates(Empire empire)
     {
         Realm core = empire.CoreKingdom;
@@ -61,7 +60,6 @@ public static partial class HolyRomanSystem
                 tax[0] = (int)TaxLevel.Low;
         }
     }
-#endif
 
     #region 自由城市
 
@@ -155,7 +153,6 @@ public static partial class HolyRomanSystem
 
     // 自由城市只给帝国缴税：本城税款照封建成员的分成交中央(见 TreasurySystem.TaxShares)，另每年缴一成年收入。
     // 这一成只从可用资金里出(扣掉安全储备)，不为它动用储备、举债
-#if EC_PENDING
     private static void FreeCityTaxes(Empire empire)
     {
         Realm core = empire.CoreKingdom;
@@ -169,10 +166,8 @@ public static partial class HolyRomanSystem
             core.AddMoney(amount, TreasuryCategory.Tribute);
         }
     }
-#endif
 
     // 典押：中央国库不足一成年收时，把一座自由城市押给出得起钱(三年城市收入)的最富诸侯
-#if EC_PENDING
     private static void TryPawnFreeCity(Empire empire)
     {
         Realm core = empire.CoreKingdom;
@@ -204,7 +199,6 @@ public static partial class HolyRomanSystem
         }
         return false;
     }
-#endif
 
     #endregion
 

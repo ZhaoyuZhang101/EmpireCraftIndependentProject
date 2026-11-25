@@ -60,7 +60,6 @@ public static partial class CourtSystem
     #region 表态
 
     // 不算交换的表态(DebateStances 的底子)
-#if EC_PENDING
     public static int BaseStance(Empire empire, TemporaryFaction claim, FixedFaction proposer, FixedFaction faction)
     {
         if (faction == proposer) return 1;
@@ -72,14 +71,12 @@ public static partial class CourtSystem
         if (stance == 0 && CliqueSystem.Patronage(empire, faction, proposer)) stance = 1;
         return stance;
     }
-#endif
 
     // 已成交换换来的表态(没有交换为 null)
     public static CourtDeal DealOf(CourtMemorial memorial, FixedFaction faction) =>
         faction == null ? null : memorial?.deals?.LastOrDefault(deal => deal.partner == faction.GetID() && deal.kind != "reneged");
 
     // 已廷议过的：改了交换当场重算表态与赞成率
-#if EC_PENDING
     private static void Retally(Empire empire, CourtMemorial memorial, TemporaryFaction claim, FixedFaction proposer)
     {
         if (memorial == null || memorial.stage < 2) return;
@@ -93,14 +90,12 @@ public static partial class CourtSystem
         }
         memorial.support = SupportShare(stances);
     }
-#endif
 
     #endregion
 
     #region 估价
 
     // 对方肯不肯：所得 − 改投的代价 + 亲疏
-#if EC_PENDING
     public static DealOpinion Evaluate(Empire empire, CourtMemorial memorial, TemporaryFaction claim, FixedFaction proposer,
         FixedFaction partner, IEnumerable<CourtTerm> terms, int after)
     {
@@ -127,7 +122,6 @@ public static partial class CourtSystem
         if (allied != 0) opinion.items.Add(("deal_item_allied", "", allied));
         return opinion;
     }
-#endif
 
     // 改投的代价：观望→赞成 4 起，反对→弃权 6 起，反对→赞成 12 起，越反对越贵；强烈反对的另加 30(几乎不卖)
     public static int SwitchCost(int before, int after, float score)
@@ -141,7 +135,6 @@ public static partial class CourtSystem
         return Mathf.RoundToInt(cost);
     }
 
-#if EC_PENDING
     public static int TermValue(Empire empire, FixedFaction proposer, FixedFaction partner, CourtTerm term) => term.kind switch
     {
         "capital" => term.amount,
@@ -171,7 +164,6 @@ public static partial class CourtSystem
         "withdraw" => EmpireCraft.Core.TranslateHelper.GetTemporaryFactionClaimText((TemporaryFactionType)term.amount),
         _ => term.amount.ToString()
     };
-#endif
 
     public static string StanceName(int stance) =>
         LM.Get(stance > 0 ? "court_stance_support" : stance < 0 ? "court_stance_oppose" : "court_stance_neutral");
@@ -181,7 +173,6 @@ public static partial class CourtSystem
     #region 付得起与付账
 
     // 上奏一派付不付得起这一项；付不起返回原因键
-#if EC_PENDING
     public static string CannotPay(Empire empire, FixedFaction proposer, FixedFaction partner, CourtTerm term, IEnumerable<CourtTerm> others = null)
     {
         CourtFactionState mine = FactionState(empire, proposer);
@@ -208,17 +199,13 @@ public static partial class CourtSystem
         }
         return "deal_unknown";
     }
-#endif
 
     // 对方顶这个官的人：它的成员里够得上这个官、名望最高的
-#if EC_PENDING
     private static Person Successor(FixedFaction partner, OfficeObject office) =>
         partner.AllMembers.Where(actor => actor != null && !actor.IsGone() && actor.Alive && office.GetActor() != actor && office.Accepts(actor))
             .OrderByDescending(actor => actor.Renown).FirstOrDefault();
-#endif
 
     // 上奏一派能拿出来的筹码(交换台的"加筹码")：本派在中枢的官、各档资本与钱、人情、结盟
-#if EC_PENDING
     public static List<(CourtTerm term, string reason)> Options(Empire empire, FixedFaction proposer, FixedFaction partner, IEnumerable<CourtTerm> onTable)
     {
         var result = new List<(CourtTerm term, string reason)>();
@@ -247,7 +234,6 @@ public static partial class CourtSystem
         bool current = memorial != null && memorial.proposer == proposer?.GetID() && memorial.claim == type.ToString();
         return own == null || own.IsStarted() || current ? null : own;
     }
-#endif
 
     private static IEnumerable<long> CentralOffices(Empire empire) =>
         (empire.data.centerOffice?.CoreOffices ?? new List<long>()).Concat(empire.data.centerOffice?.Divisions ?? new List<long>()).Distinct();
@@ -351,7 +337,6 @@ public static partial class CourtSystem
 
     // 凑出对方肯、上奏一派付得起的最省一份：依次试资本(各档)、钱(各档)、人情、结盟、让官，不够再叠一项；凑不出返回 null。
     // ai 时资本至少留下上奏的本钱
-#if EC_PENDING
     public static List<CourtTerm> Cheapest(Empire empire, CourtMemorial memorial, TemporaryFaction claim, FixedFaction proposer,
         FixedFaction partner, int after, bool ai = false)
     {
@@ -379,14 +364,12 @@ public static partial class CourtSystem
         }
         return Evaluate(empire, memorial, claim, proposer, partner, terms, after).Accepts ? terms : null;
     }
-#endif
 
     #endregion
 
     #region 交换台(神力)
 
     // 交换台能用：有奏议、还没批红准奏(留中的可以再谈)
-#if EC_PENDING
     public static bool CanBargain(Empire empire, out CourtMemorial memorial, out TemporaryFaction claim, out FixedFaction proposer)
     {
         memorial = State(empire)?.memorial;
@@ -394,7 +377,6 @@ public static partial class CourtSystem
         proposer = memorial == null ? null : FindFaction(empire, memorial.proposer);
         return memorial != null && claim != null && proposer != null && memorial.stage <= 3 && memorial.decision != "approve";
     }
-#endif
 
     public static void Toggle(Empire empire, string partner, CourtTerm term)
     {
@@ -409,7 +391,6 @@ public static partial class CourtSystem
         }
     }
 
-#if EC_PENDING
     public static bool Mediate(Empire empire, string partnerId)
     {
         if (!CanBargain(empire, out CourtMemorial memorial, out TemporaryFaction claim, out FixedFaction proposer)) return false;
@@ -422,7 +403,6 @@ public static partial class CourtSystem
         draft.terms.AddRange(terms);
         return true;
     }
-#endif
 
     // 成交：对方肯、付得起才成；forced 强令成交，不看意愿、不付代价，记作神力
 #if EC_PENDING
@@ -497,7 +477,6 @@ public static partial class CourtSystem
 #endif
 
     // 人情账：谁欠谁几回(诉求天平页)
-#if EC_PENDING
     public static List<(string debtor, string creditor, int count)> Ledger(Empire empire)
     {
         var result = new List<(string debtor, string creditor, int count)>();
@@ -506,7 +485,6 @@ public static partial class CourtSystem
                 result.Add((faction.Name, FindFaction(empire, pair.Key)?.Name ?? pair.Key, pair.Value));
         return result;
     }
-#endif
 
     #endregion
 }

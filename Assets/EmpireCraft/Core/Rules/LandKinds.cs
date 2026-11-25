@@ -31,11 +31,10 @@ public static class LandKinds
     private static volatile Table _table = new();
     private static readonly object Gate = new();
 
-#if EC_PENDING
     public static int Of(TerrainKind type)
     {
         if (type == null) return 0;
-        int index = type.index_id;
+        int index = type.Index;
         if (index < 0) return Compute(type);
         Table table = _table;
         // 编号撞上别的格子(模板格不分编号)就照算，不串用
@@ -78,7 +77,7 @@ public static class LandKinds
         if (type.Rocks || type.Mountains || type.Summit || id is "hills" or "snow_hills" ||
             biome is "biome_hill" or "biome_rocklands")
             kinds |= Rough;
-        bool high = type.biome_asset != null && id == type.biome_asset.tile_high;
+        bool high = type.BiomeAsset != null && id == type.BiomeAsset.TileHigh;
         switch (biome)
         {
             case "biome_birch":
@@ -116,6 +115,5 @@ public static class LandKinds
         if ((type.CanBeFarm || type.FarmField) && (kinds & (Rough | Dry | Sand)) == 0) kinds |= Arable;
         return kinds;
     }
-#endif
 }
 }

@@ -19,13 +19,13 @@ public static class ExamSystem
         Office //官员晋级
     }
     // 个人经历：现代国家的科举就是公务员考试，记作"通过某级公务员考试"
-#if EC_PENDING
     private static string PassedText(Person actor, string level)
     {
         bool modern = actor?.Realm?.GetRegime()?.type == EmpireCraft.Core.RegimeType.Modern;
         return LM.Get(modern ? $"personal_history_civil_exam_{level}_passed" : $"personal_history_exam_{level}_passed");
     }
 
+#if EC_PENDING
     public static void startExam(ExamType type, Entity nano)
     {
         switch (type) 
@@ -50,7 +50,7 @@ public static class ExamSystem
         if (CityPopulationSystem.AbstractPopulationEnabled)
         {
             int examinees = Mathf.Clamp(1 + CityPopulationSystem.LiterateHouseholds(city) / 3 +
-                                                    (city.hasBookSlots() ? 1 : 0), 1, 6);
+                                                    (city.HasBookSlots() ? 1 : 0), 1, 6);
             for (int i = 0; i < examinees; i++)
                 if (CityPopulationSystem.SpawnScholar(city) == null) break;
         }
@@ -206,6 +206,7 @@ public static class ExamSystem
             });
         }
     }
+#endif
 
     private static OfficeIdentity EnsureExamIdentity(Person actor)
     {
@@ -215,7 +216,6 @@ public static class ExamSystem
         actor.SetIdentity(identity, true);
         return identity;
     }
-#endif
 
     public static double startCityExam(this Person actor) 
     {

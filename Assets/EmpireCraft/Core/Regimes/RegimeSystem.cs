@@ -209,7 +209,6 @@ public class Regime
         return GameClock.Now < FactionChangeBlockUntil;
     }
 
-#if EC_PENDING
     public List<FixedFaction> GetPlayerFactions() =>
         PlayerFactions ??= new List<FixedFaction>(
             FactionManager.Config.PlayerRegimeFactions.TryGetValue(type, out List<FixedFaction> factions)
@@ -293,7 +292,6 @@ public class Regime
         return force ?? CliqueSystem.DominantClass(PlayerFactions) ??
             PlayerFactions.OrderByDescending(faction => faction.CentralRatio).First();
     }
-#endif
 
     public List<Person> GetAllFactionMembers()
     {
@@ -313,7 +311,6 @@ public class Regime
     // 见 KingdomExtension.NomadTaxFactorOf)。阿兹特克、林地部族挂在游牧线上、青铜后锁在游牧政体，却不逐水草而居，
     // 能用到"中"(用户 2026-10-21 选"阿兹特克、奥吉布瓦不再吃游牧的亏")。制度改革、诏令要把税级提到中、高的，到这一档为止。
     // 判文化用本政体的 type：换政体时新政体还没装到国家上(见 KingdomExtension.LoadRegime)
-#if EC_PENDING
     public TaxLevel MaxTaxLevel()
     {
         TaxLevel max = TaxLevel.High;
@@ -336,10 +333,8 @@ public class Regime
             !ConstitutionalEconomySystem.CanChangeTax(kingdom.GetEmpire())) return;
         options["option_tax_level"][0] = (int) level;
     }
-#endif
     // 存着的税级超过可选档数的压回最高一档(旧档里的游牧政体以前能设中、高)。直接写选项——议会掌握征税权时
     // SetTaxLevel 会被否决，这是修补不是改税。返回是否改了
-#if EC_PENDING
     public bool ClampTaxLevel()
     {
         if (options == null || !options.TryGetValue("option_tax_level", out int[] tax) || tax == null || tax.Length == 0)
@@ -349,7 +344,6 @@ public class Regime
         tax[0] = max;
         return true;
     }
-#endif
 
     public ReligionLevel GetReligionLevel()
     {

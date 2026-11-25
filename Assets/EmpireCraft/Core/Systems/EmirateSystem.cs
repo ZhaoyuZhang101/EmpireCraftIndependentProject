@@ -63,22 +63,17 @@ public static class EmirateSystem
 
     public static void ResetWorldState() => LastYear.Clear();
 
-#if EC_PENDING
     public static bool Applies(Empire empire) => empire?.CoreKingdom?.GetRegime()?.type == RegimeType.Arabic;
 
     public static bool IsSultanate(Empire empire) =>
         Applies(empire) && MilitaryRegency.KindOf(empire) == MilitaryRegency.Sultan;
-#endif
 
     // 印度这类阿拉伯政体却不奉哈里发的(法教传统，见 PapacySystem.IsCaliphal)：没有受册封的正统 +8，正统常年低约 8 点，
     // 坐大、削藩、苏丹承袭之乱的正统门槛按它减(用户 2026-10-21 定"印度门槛减 8")；奉哈里发的为 0
-#if EC_PENDING
     public static int InvestitureGap(Empire empire) =>
         Applies(empire) && !PapacySystem.IsCaliphal(empire) ? PapacySystem.CrownedLegitimacy : 0;
-#endif
 
     // 世袭的埃米尔：哈里发国里阿拉伯政体、世袭、通外交的成员(坐大的行省，或建国时就带着领地入伙的)
-#if EC_PENDING
     public static bool IsHereditaryEmir(Empire empire, Realm kingdom)
     {
         if (empire?.data == null || kingdom?.Record == null || kingdom.IsGone() || kingdom == empire.CoreKingdom ||
@@ -87,7 +82,6 @@ public static class EmirateSystem
         return regime?.type == RegimeType.Arabic && regime.IsAllowDiplomacy() &&
                regime.GetLeaderSelectMethod() == LeaderSelectMethod.Succession;
     }
-#endif
 
     // 离开阿拉伯政体：不再有苏丹、哈里发之分
 #if EC_PENDING

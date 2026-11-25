@@ -112,7 +112,6 @@ public static class NationalSentimentSystem
     #region 民族情绪
 
     // 统治者的文化：所在帝国的统治文化；独立国家按本国文化
-#if EC_PENDING
     public static string RulerCulture(City city)
     {
         Realm kingdom = city?.Realm;
@@ -122,10 +121,8 @@ public static class NationalSentimentSystem
             ? CompositeEmpireService.GetRulingCulture(empire)
             : CultureService.GetRealmCulture(kingdom);
     }
-#endif
 
     // 受异族统治：城市主流文化与统治者的文化不同
-#if EC_PENDING
     public static bool IsForeignRuled(City city)
     {
         string cityCulture = CultureService.GetMainCulture(city);
@@ -180,15 +177,12 @@ public static class NationalSentimentSystem
         }
         foreach (var pair in totals) EmpireSentiment[pair.Key] = pair.Value.sum / Math.Max(1, pair.Value.count);
     }
-#endif
 
     // 本国正被异族国家进攻(本国是守方，进攻方的文化与本城不同)
-#if EC_PENDING
     private static bool IsInvaded(Realm kingdom, string cityCulture) =>
         kingdom.GetWars().Any(war => war != null && !war.HasEnded() && war.IsDefender(kingdom) &&
                                      war.Attackers.Any(attacker => attacker != null && !attacker.IsGone() &&
                                          !CultureService.SameKin(CultureService.GetRealmCulture(attacker), cityCulture)));
-#endif
 
     #endregion
 
@@ -308,13 +302,11 @@ public static class NationalSentimentSystem
 #endif
 
     // 与核心文化不同的外族交战(对方不在本核心的政府里)
-#if EC_PENDING
     private static bool IsForeignWar(War war, HashSet<Realm> camp, string coreCulture) =>
         war.Attackers.Concat(war.Defenders).Any(kingdom => kingdom != null && !kingdom.IsGone() &&
             !camp.Contains(kingdom) && !kingdom.IsInSameEmpire(camp.First()) &&
             !CultureService.SameKin(CultureService.GetRealmCulture(kingdom), coreCulture)) &&
         war.Attackers.Concat(war.Defenders).Any(camp.Contains);
-#endif
 
     // 统一战线的各政府加入同一阵营抗敌
     private static void JoinForeignWars(List<Empire> governments, List<War> wars)
@@ -333,7 +325,6 @@ public static class NationalSentimentSystem
     }
 
     // 统一战线破裂(外敌消失满三年)：内战重启——中央与最强的另一理念政府重新开战
-#if EC_PENDING
     private static void EndFront(EmpireCore core, List<Empire> governments, bool restartCivilWar)
     {
         core.united_front_since = -1d;
@@ -350,7 +341,6 @@ public static class NationalSentimentSystem
         EventRecorder.Record(central, string.Format(LM.Get("nation_front_broken_history"),
             central.GetEmpireFullName(), rival.GetEmpireFullName()));
     }
-#endif
 
     #endregion
 }

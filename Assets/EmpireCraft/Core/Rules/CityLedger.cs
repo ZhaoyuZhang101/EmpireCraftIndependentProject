@@ -37,14 +37,14 @@ public static class CityLedger
 
     // 这种建筑记不记台账
 #if EC_PENDING
-    public static bool Virtual(BuildingAsset asset) =>
-        asset?.type != null && asset.city_building && asset.building_type == BuildingType.Building_Civ && !asset.docks &&
-        asset.book_slots <= 0 && VirtualTypes.Contains(asset.type) && !PureMapMode.IsDecor(asset) &&
+    public static bool Virtual(BuildingKind asset) =>
+        asset?.Type != null && asset.city_building && asset.building_type == BuildingType.Building_Civ && !asset.docks &&
+        asset.book_slots <= 0 && VirtualTypes.Contains(asset.Type) && !PureMapMode.IsDecor(asset) &&
         !LivelihoodSystem.Replaces(asset) && !TechnologySystem.IsFactory(asset);
-
-    public static BuildingAsset Asset(string id) =>
-        !string.IsNullOrEmpty(id) && AssetManager.buildings.dict.TryGetValue(id, out BuildingAsset asset) ? asset : null;
 #endif
+
+    public static BuildingKind Asset(string id) =>
+        !string.IsNullOrEmpty(id) && BuildingKinds.Table.dict.TryGetValue(id, out BuildingKind asset) ? asset : null;
 
     #region 读
 
@@ -82,7 +82,6 @@ public static class CityLedger
         }
     }
 
-#if EC_PENDING
     public static WorksSummary SummaryOf(City city)
     {
         CityWorks works = Works(city);
@@ -91,21 +90,19 @@ public static class CityLedger
         var summary = new WorksSummary();
         foreach (WorkLot lot in works.lots)
         {
-            BuildingAsset asset = lot == null || lot.n <= 0 ? null : Asset(lot.id);
+            BuildingKind asset = lot == null || lot.n <= 0 ? null : Asset(lot.id);
             if (asset == null) continue;
             summary.total += lot.n;
-            summary.by_id[asset.id] = (summary.by_id.TryGetValue(asset.id, out int byId) ? byId : 0) + lot.n;
-            if (asset.type != null)
-                summary.by_type[asset.type] = (summary.by_type.TryGetValue(asset.type, out int byType) ? byType : 0) + lot.n;
-            if (asset.hasHousingSlots()) summary.housing += asset.housing_slots * lot.n;
-            summary.max_houses += asset.max_houses * lot.n;
+            summary.by_id[asset.Id] = (summary.by_id.TryGetValue(asset.Id, out int byId) ? byId : 0) + lot.n;
+            if (asset.Type != null)
+                summary.by_type[asset.Type] = (summary.by_type.TryGetValue(asset.Type, out int byType) ? byType : 0) + lot.n;
+            if (asset.HasHousingSlots()) summary.housing += asset.HousingSlots * lot.n;
+            summary.max_houses += asset.MaxHouses * lot.n;
         }
         return works.summary = summary;
     }
-#endif
 
     // 台账里这一类、这一种建成几座；一共几座；住房位；许盖的民居数
-#if EC_PENDING
     public static int CountType(City city, string type) =>
         type != null && SummaryOf(city) is WorksSummary summary && summary.by_type.TryGetValue(type, out int n) ? n : 0;
 
@@ -115,71 +112,58 @@ public static class CityLedger
     public static int Total(City city) => SummaryOf(city)?.total ?? 0;
     public static int HousingSlots(City city) => SummaryOf(city)?.housing ?? 0;
     public static int MaxHouses(City city) => SummaryOf(city)?.max_houses ?? 0;
-#endif
 
     // 在建的那一种(没有为 null)
-#if EC_PENDING
-    public static BuildingAsset Pending(City city) => Asset(Works(city)?.building);
-#endif
+    public static BuildingKind Pending(City city) => Asset(Works(city)?.building);
 
     // 城里的建筑一共几座(实体加台账)
-#if EC_PENDING
-    public static int Buildings(City city) => (city?.buildings?.Count ?? 0) + Total(city);
-#endif
+    public static int Buildings(City city) => (city?.Buildings?.Count ?? 0) + Total(city);
 
     // 建成的城市建筑一座一项：实体的(real 不为空，zone 是它脚下的地块)连同台账里的(real 为空，zone 是记的地块或 -1)
     public struct Item
     {
-#if EC_PENDING
-        public BuildingAsset asset;
-#endif
+        public BuildingKind asset;
         public int zone;
-#if EC_PENDING
         public Building real;
-#endif
     }
 
-#if EC_PENDING
     public static void Collect(City city, List<Item> into)
     {
         if (city == null || into == null) return;
-        if (city.buildings != null)
-            foreach (Building building in city.buildings)
+        if (city.Buildings != null)
+            foreach (Building building in city.Buildings)
             {
-                if (building?.asset == null || building.IsGone() || building.isOnRemove() || building.isUnderConstruction()) continue;
-                into.Add(new Item { asset = building.asset, zone = building.current_tile?.zone?.id ?? -1, real = building });
+                if (building?.Asset == null || building.IsGone() || building.IsOnRemove() || building.IsUnderConstruction()) continue;
+                into.Add(new Item { asset = building.Asset, zone = building.Cell?.Zone?.Index ?? -1, real = building });
             }
         CityWorks works = Works(city);
         if (works == null) return;
         foreach (WorkLot lot in works.lots)
         {
-            BuildingAsset asset = lot == null || lot.n <= 0 ? null : Asset(lot.id);
+            BuildingKind asset = lot == null || lot.n <= 0 ? null : Asset(lot.id);
             if (asset == null) continue;
             for (int i = 0; i < lot.n; i++) into.Add(new Item { asset = asset, zone = lot.zone });
         }
     }
-#endif
 
     // 各种建成的建筑各几座(实体加台账)，不展开成一座一项
-#if EC_PENDING
-    public static void CollectCounts(City city, Dictionary<BuildingAsset, int> into)
+    public static void CollectCounts(City city, Dictionary<BuildingKind, int> into)
     {
         if (city == null || into == null) return;
-        if (city.buildings != null)
-            foreach (Building building in city.buildings)
+        if (city.Buildings != null)
+            foreach (Building building in city.Buildings)
             {
-                if (building?.asset == null || building.IsGone() || building.isOnRemove() || building.isUnderConstruction()) continue;
-                into[building.asset] = (into.TryGetValue(building.asset, out int n) ? n : 0) + 1;
+                if (building?.Asset == null || building.IsGone() || building.IsOnRemove() || building.IsUnderConstruction()) continue;
+                into[building.Asset] = (into.TryGetValue(building.Asset, out int n) ? n : 0) + 1;
             }
         CityWorks works = Works(city);
         if (works == null) return;
         foreach (WorkLot lot in works.lots)
         {
-            BuildingAsset asset = lot == null || lot.n <= 0 ? null : Asset(lot.id);
+            BuildingKind asset = lot == null || lot.n <= 0 ? null : Asset(lot.id);
             if (asset != null) into[asset] = (into.TryGetValue(asset, out int n) ? n : 0) + lot.n;
         }
     }
-#endif
 
     #endregion
 
@@ -210,17 +194,17 @@ public static class CityLedger
 
     // 记 n 座(篝火一城只记一处)
 #if EC_PENDING
-    public static void Add(City city, BuildingAsset asset, int zone = -1, int n = 1)
+    public static void Add(City city, BuildingKind asset, int zone = -1, int n = 1)
     {
-        if (city?.Record == null || asset?.id == null || n <= 0) return;
-        if (asset.type == BonfireType)
+        if (city?.Record == null || asset?.Id == null || n <= 0) return;
+        if (asset.Type == BonfireType)
         {
             if (CountType(city, BonfireType) > 0) return;
             n = 1;
         }
         CityWorks works = Ensure(city);
-        WorkLot lot = Find(works, asset.id, zone);
-        if (lot == null) works.lots.Add(new WorkLot { id = asset.id, zone = zone, n = n });
+        WorkLot lot = Find(works, asset.Id, zone);
+        if (lot == null) works.lots.Add(new WorkLot { id = asset.Id, zone = zone, n = n });
         else lot.n += n;
         Touch(city, works);
     }
@@ -252,7 +236,7 @@ public static class CityLedger
     public static int Move(City city, string id, int from, int to, int n = 1)
     {
         if (from == to) return 0;
-        BuildingAsset asset = Asset(id);
+        BuildingKind asset = Asset(id);
         if (asset == null) return 0;
         int moved = Remove(city, id, from, n);
         if (moved > 0) Add(city, asset, to, moved);
@@ -262,10 +246,10 @@ public static class CityLedger
 
     // 一座 from 换成 to(升级、降级)，留在原来那块地；zone 为 null 时随便挑一座
 #if EC_PENDING
-    public static bool Swap(City city, string from, BuildingAsset to, int? zone = null)
+    public static bool Swap(City city, string from, BuildingKind to, int? zone = null)
     {
         CityWorks works = Works(city);
-        if (works == null || from == null || to?.id == null || from == to.id) return false;
+        if (works == null || from == null || to?.Id == null || from == to.Id) return false;
         foreach (WorkLot lot in works.lots)
         {
             if (lot == null || lot.n <= 0 || lot.id != from || zone.HasValue && lot.zone != zone.Value) continue;
@@ -287,27 +271,25 @@ public static class CityLedger
 
     // 能不能把一座这种建筑升一级(资产许升、有高一级、科技许可)；返回高一级的资产
 #if EC_PENDING
-    public static BuildingAsset UpgradeTarget(City city, BuildingAsset from)
+    public static BuildingKind UpgradeTarget(City city, BuildingKind from)
     {
-        if (from == null || !from.can_be_upgraded || string.IsNullOrEmpty(from.upgrade_to) || from.upgrade_to == from.id) return null;
-        BuildingAsset to = Asset(from.upgrade_to);
-        return to != null && TechnologySystem.CanBuild(city, to.id) ? to : null;
+        if (from == null || !from.can_be_upgraded || string.IsNullOrEmpty(from.UpgradeTo) || from.UpgradeTo == from.Id) return null;
+        BuildingKind to = Asset(from.UpgradeTo);
+        return to != null && TechnologySystem.CanBuild(city, to.Id) ? to : null;
     }
 #endif
 
     // 开工：只记在建哪一种(一城一处工地)
-#if EC_PENDING
-    public static bool Start(City city, BuildingAsset asset, int zone = -1)
+    public static bool Start(City city, BuildingKind asset, int zone = -1)
     {
-        if (city?.Record == null || asset?.id == null) return false;
+        if (city?.Record == null || asset?.Id == null) return false;
         CityWorks works = Ensure(city);
         if (works.building != null) return false;
-        works.building = asset.id;
+        works.building = asset.Id;
         works.building_zone = zone;
         works.progress = 0;
         return true;
     }
-#endif
 
     // 推进在建的那一座，返回用掉的施工点；够了就记成一座
 #if EC_PENDING
@@ -315,13 +297,13 @@ public static class CityLedger
     {
         CityWorks works = Works(city);
         if (works?.building == null || points <= 0) return 0;
-        BuildingAsset asset = Asset(works.building);
+        BuildingKind asset = Asset(works.building);
         if (asset == null)
         {
             works.building = null;
             return 0;
         }
-        int needed = Mathf.Max(1, asset.construction_progress_needed + 1 - works.progress);
+        int needed = Mathf.Max(1, asset.ConstructionProgressNeeded + 1 - works.progress);
         int share = Mathf.Min(needed, points);
         works.progress += share;
         if (share < needed) return share;
@@ -349,13 +331,13 @@ public static class CityLedger
         BuildOrder order = CityBehBuild._possible_buildings.Count == 0 ? null : CityBehBuild._possible_buildings.GetRandom();
         CityBehBuild._possible_buildings.Clear();
         CityBehBuild._possible_buildings_no_resources.Clear();
-        BuildingAsset asset = order?.getBuildingAsset(city);
+        BuildingKind asset = order?.getBuildingAsset(city);
         if (asset == null) return false;
-        if (order.upgrade) return UpgradeOne(city, asset.id, true);
+        if (order.upgrade) return UpgradeOne(city, asset.Id, true);
         if (!Virtual(asset)) return CityBehBuild.tryToBuild(city, asset) != null;
-        if (!TechnologySystem.CanBuild(city, asset.id) || !city.hasEnoughResourcesFor(asset.cost)) return false;
+        if (!TechnologySystem.CanBuild(city, asset.Id) || !city.hasEnoughResourcesFor(asset.cost)) return false;
         int zone = -1;
-        if (CityZoningSystem.Manual(city) && asset.type != StockpileType)
+        if (CityZoningSystem.Manual(city) && asset.Type != StockpileType)
         {
             zone = CityZoningSystem.FreeZone(city);
             if (zone < 0) return false;
@@ -364,15 +346,15 @@ public static class CityLedger
         city.spendResourcesForBuildingAsset(asset.cost);
         return true;
     }
+#endif
 
     private static bool RealConstruction(City city)
     {
-        if (city.buildings == null) return false;
-        foreach (Building building in city.buildings)
-            if (building?.asset != null && building.isUnderConstruction()) return true;
+        if (city.Buildings == null) return false;
+        foreach (Building building in city.Buildings)
+            if (building?.Asset != null && building.IsUnderConstruction()) return true;
         return false;
     }
-#endif
 
     // 把一座这种建筑升一级：实体与台账里的按座数随机挑；spend 为真时照原版扣高一级的造价(不够不升)
 #if EC_PENDING
@@ -387,7 +369,7 @@ public static class CityLedger
             if (building == null) return false;
             return spend ? CityBehBuild.upgradeBuilding(building, city) : building.upgradeBuilding();
         }
-        BuildingAsset to = UpgradeTarget(city, Asset(id));
+        BuildingKind to = UpgradeTarget(city, Asset(id));
         if (to == null || spend && !city.hasEnoughResourcesFor(to.cost)) return false;
         if (!Swap(city, id, to)) return false;
         if (spend) city.spendResourcesForBuildingAsset(to.cost);
@@ -423,17 +405,17 @@ public static class CityLedger
 
 #if EC_PENDING
     private static bool Foldable(City city, Building building) =>
-        building?.asset != null && !building.IsGone() && !building.isOnRemove() && !building.isRuin() &&
-        building.current_tile?.zone?.city == city && Virtual(building.asset);
+        building?.Asset != null && !building.IsGone() && !building.IsOnRemove() && !building.isRuin() &&
+        building.Cell?.Zone?.City == city && Virtual(building.Asset);
 #endif
 
     // 把本城可记账的建筑实体记进台账：货挪进账面库存，在建的接着建(台账里已有工地时先留着，等它完工)，实体拆掉。返回并了几座
 #if EC_PENDING
     public static int Fold(City city)
     {
-        if (!Uses(city) || city.buildings == null || city.buildings.Count == 0) return 0;
+        if (!Uses(city) || city.Buildings == null || city.Buildings.Count == 0) return 0;
         List<Building> take = null;
-        foreach (Building building in city.buildings)
+        foreach (Building building in city.Buildings)
             if (Foldable(city, building)) (take ??= new List<Building>()).Add(building);
         if (take == null) return 0;
         HashSet<int> urban = CityZoningSystem.UrbanSet(city);
@@ -442,10 +424,10 @@ public static class CityLedger
         {
             try
             {
-                BuildingAsset asset = building.asset;
-                int at = building.current_tile.zone.id;
-                int zone = urban != null && asset.type != StockpileType && urban.Contains(at) ? at : -1;
-                if (building.isUnderConstruction())
+                BuildingKind asset = building.Asset;
+                int at = building.Cell.Zone.Index;
+                int zone = urban != null && asset.Type != StockpileType && urban.Contains(at) ? at : -1;
+                if (building.IsUnderConstruction())
                 {
                     if (Pending(city) != null || !Start(city, asset, zone)) continue;
                     Works(city).progress = Mathf.Max(0, building.getConstructionProgress());

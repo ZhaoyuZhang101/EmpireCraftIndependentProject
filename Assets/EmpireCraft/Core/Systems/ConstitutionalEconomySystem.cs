@@ -60,7 +60,6 @@ public static class ConstitutionalEconomySystem
         return state;
     }
 
-#if EC_PENDING
     private static string GetLine(Empire empire) =>
         InstitutionSystem.GetCultureLine(InstitutionSystem.GetPrimaryCulture(empire));
 
@@ -72,14 +71,13 @@ public static class ConstitutionalEconomySystem
         empire.RecordHistory(directContent: LM.Get(key),
             actorId: empire.Emperor?.Key ?? -1L, kingdomId: empire.CoreKingdom.Key);
     }
-#endif
 
     #region 海贸记录
 
 #if EC_PENDING
     public static void RecordArrival(Person boat)
     {
-        if (boat == null || boat.IsGone() || boat.asset?.is_boat != true || EmpireWorld.Current == null) return;
+        if (boat == null || boat.IsGone() || boat.Asset?.IsBoat != true || EmpireWorld.Current == null) return;
         City origin = boat.getHomeBuilding()?.city;
         City destination = boat.beh_building_target?.city;
         if (origin == null || destination == null || origin == destination ||
@@ -93,7 +91,7 @@ public static class ConstitutionalEconomySystem
 
     public static TradeDeliverySnapshot BeforeUnload(Person boat)
     {
-        if (boat?.asset?.is_boat != true || EmpireWorld.Current == null) return null;
+        if (boat?.Asset?.IsBoat != true || EmpireWorld.Current == null) return null;
         ActorExtension.ActorExtraData data = boat.GetOrCreate();
         if (data.pending_trade_origin_city_id < 0 || data.pending_trade_timestamp < 0) return null;
         City home = boat.getHomeBuilding()?.city;
@@ -312,6 +310,7 @@ public static class ConstitutionalEconomySystem
                 StartReform(empire);
         }
     }
+#endif
 
     public static int GetWelfareAnnualCost(Empire empire, int level) =>
         empire?.CoreKingdom == null || level <= 0 ? 0 :
@@ -326,6 +325,7 @@ public static class ConstitutionalEconomySystem
         if (state.welfare_funded) empire.CoreKingdom.SubMoney(cost, TreasuryCategory.Welfare);
     }
 
+#if EC_PENDING
     private static void UpdateBudding(Empire empire, ConstitutionalEconomyState state)
     {
         ConstitutionConfig config = Config;
@@ -392,6 +392,7 @@ public static class ConstitutionalEconomySystem
         ParliamentSystem.Update(empire);
         Record(empire, "constitution_culture_changed_history");
     }
+#endif
 
     private static void SyncRegime(Empire empire, ConstitutionalEconomyState state)
     {
@@ -401,21 +402,17 @@ public static class ConstitutionalEconomySystem
         state.constitutional_monarchy = false;
         Record(empire, "constitution_ended_history");
     }
-#endif
 
     // 本文化是否已有国家立宪(首开的记在文化上)：同文化别国立宪的示范(见 StateModernization)，不再代办
-#if EC_PENDING
     public static bool IsCultureConstitutional(Empire empire) =>
         empire != null && InstitutionSystem.GetOrCreateCultureState(InstitutionSystem.GetPrimaryCulture(empire))
             ?.constitutional_monarchy == true;
 
     public static CultureInstitutionState GetCultureConstitution(Empire empire) =>
         empire == null ? null : InstitutionSystem.GetOrCreateCultureState(InstitutionSystem.GetPrimaryCulture(empire));
-#endif
 
     // 以前本文化已立宪时，同文化的君主国直接随之立宪(进行中的制宪就此结束)；近代化改按国家各自走以后(用户 2026-11-10
     // "全文明一同现代化的设定")，先立宪的只作示范(见 StateModernization.ConstitutionSupportBonus)，这里只给旧档补记本文化首开
-#if EC_PENDING
     private static void AdoptCultureConstitution(Empire empire, ConstitutionalEconomyState state)
     {
         if (state.constitutional_monarchy && IsMonarchy(empire) && !IsCultureConstitutional(empire))
@@ -434,7 +431,6 @@ public static class ConstitutionalEconomySystem
             string.Format(LM.Get("constitution_culture_established_log"), empire.GetEmpireName(),
                 InstitutionSystem.GetPrimaryCulture(empire).GetCultureTranslate()), empire.CoreKingdom);
     }
-#endif
 
     // 立宪须到火药时代，且不行分封制(诸侯各自为政，君权分在列国，无从由一部宪法统一限制)；
     // 同文化别国已立宪也一样：不够格的不随之立宪，已经立了的作废。
@@ -446,7 +442,6 @@ public static class ConstitutionalEconomySystem
     public static string ForcedByCulture(Empire empire) => Ensure(empire)?.forced_by_culture ?? "";
 
     // 立宪的时代门槛：不够格返回原因(本地化键)，够格返回 null
-#if EC_PENDING
     public static string EraBlocker(Empire empire)
     {
         ConstitutionalEconomyState state = Ensure(empire);
@@ -468,12 +463,10 @@ public static class ConstitutionalEconomySystem
         Record(empire, blocker == "constitution_requires_centralization"
             ? "constitution_revoked_feudal_history" : "constitution_revoked_era_history");
     }
-#endif
 
     // 一党君主国的君主在革命压力下妥协、和平开放党禁时随之确立君主立宪(保王朝，见 PartyBanSystem.UpdateReopenPressure)。
     // 用户 2026-11-10：这是"君主妥协"自主路的立宪环节；受分封制与时代门槛限制(与随文化立宪一致)，
     // 不够格则只开放党禁、暂不立宪。
-#if EC_PENDING
     public static bool ConcedeConstitutionalMonarchy(Empire empire)
     {
         ConstitutionalEconomyState state = Ensure(empire);
@@ -487,7 +480,6 @@ public static class ConstitutionalEconomySystem
         Record(empire, "constitution_monarch_concession_history");
         return true;
     }
-#endif
 
     // 被迫现代化(如战败后被战胜国改造)：大败于立宪、共和或现代国家之手，丢了都城或四分之一以上的城，
     // 战胜国就强行替它开放党禁——不受分封制与时代门槛、核心繁荣门槛限制，也不算本文化首开立宪。
@@ -603,7 +595,6 @@ public static class ConstitutionalEconomySystem
     #region 查询（只读，UI 可以随便调用）
 
     // 当前主体文化已经稳定了多少年。文化刚变、年度同步还没跑到时按 0 计。
-#if EC_PENDING
     private static int GetStableCultureYears(Empire empire, ConstitutionalEconomyState state)
     {
         if (state == null || state.stable_culture_since < 0) return 0;
@@ -612,20 +603,16 @@ public static class ConstitutionalEconomySystem
             !string.Equals(state.stable_culture, culture, StringComparison.Ordinal)) return 0;
         return Math.Max(0, GameClock.YearsSince(state.stable_culture_since));
     }
-#endif
 
     // 立宪所需、而本文化尚未具备的制度特性
-#if EC_PENDING
     public static List<string> GetMissingFeatures(Empire empire)
     {
         string culture = InstitutionSystem.GetPrimaryCulture(empire);
         return InstitutionDefinitionRegistry.GetConstitutionRequiredFeatures(GetLine(empire))
             .Where(feature => !InstitutionSystem.HasFeature(culture, feature)).ToList();
     }
-#endif
 
     // 立宪所需、而本文化尚未研究的科技(科技树没启用时不限制)
-#if EC_PENDING
     public static List<string> GetMissingTechs(Empire empire)
     {
         string culture = InstitutionSystem.GetPrimaryCulture(empire);
@@ -634,10 +621,8 @@ public static class ConstitutionalEconomySystem
         return TechnologySystem.RealmMissingInstitutionTechs(empire.CoreKingdom,
             InstitutionDefinitionRegistry.GetConstitutionRequiredTechs(GetLine(empire)));
     }
-#endif
 
     // 缺失特性的显示文本：列出本线能提供该特性的节点名；本线没有的话显示特性本身的名称
-#if EC_PENDING
     private static string DescribeMissingFeatures(Empire empire, List<string> missing)
     {
         string line = GetLine(empire);
@@ -653,6 +638,7 @@ public static class ConstitutionalEconomySystem
         }));
     }
 
+#if EC_PENDING
     public static ConstitutionalEconomyView GetView(Empire empire)
     {
         var view = new ConstitutionalEconomyView();
@@ -686,6 +672,7 @@ public static class ConstitutionalEconomySystem
                 GetMissingTechs(empire).Select(TechnologySystem.GetTechName));
         return view;
     }
+#endif
 
     public static bool CanStartReform(Empire empire, out string reason)
     {
@@ -717,13 +704,11 @@ public static class ConstitutionalEconomySystem
         reason = "";
         return true;
     }
-#endif
 
     #endregion
 
     // 上帝模式：跳过商人家庭/海贸/年限条件，直接出现资本主义萌芽。强制出现的萌芽带标记，
     // 之后即使商业条件不达标也不会消退(否则几年后又自己退回去，按钮等于白点)。
-#if EC_PENDING
     public static bool ForceBudding(Empire empire)
     {
         ConstitutionalEconomyState state = Ensure(empire);
@@ -734,10 +719,8 @@ public static class ConstitutionalEconomySystem
         Record(empire, "constitution_budding_history");
         return true;
     }
-#endif
 
     // 上帝模式：跳过全部条件和制宪过程，直接确立君主立宪(同样记为本文化首开，同文化君主国随之立宪)
-#if EC_PENDING
     public static bool CanForceConstitution(Empire empire)
     {
         ConstitutionalEconomyState state = Ensure(empire);
@@ -745,6 +728,7 @@ public static class ConstitutionalEconomySystem
                InstitutionDefinitionRegistry.IsConstitutionEnabled(GetLine(empire));
     }
 
+#if EC_PENDING
     public static bool ForceConstitution(Empire empire)
     {
         if (!CanForceConstitution(empire)) return false;
@@ -772,6 +756,7 @@ public static class ConstitutionalEconomySystem
         ParliamentSystem.Update(empire);
         return true;
     }
+#endif
 
     public static bool StartReform(Empire empire)
     {
@@ -785,6 +770,7 @@ public static class ConstitutionalEconomySystem
         return true;
     }
 
+#if EC_PENDING
     private static void AdvanceReform(Empire empire, ConstitutionalEconomyState state)
     {
         ConstitutionConfig config = Config;
@@ -834,6 +820,7 @@ public static class ConstitutionalEconomySystem
         ParliamentSystem.Update(empire);
         Record(empire, "constitution_enacted_history");
     }
+#endif
 
     public static float GetParliamentarySupport(Empire empire)
     {
@@ -861,12 +848,9 @@ public static class ConstitutionalEconomySystem
 
     public static bool HasConstitution(Empire empire) =>
         Ensure(empire)?.constitutional_monarchy == true && IsMonarchy(empire);
-#endif
 
     // 议会取得征税同意权
-#if EC_PENDING
     public static bool HasAssemblyTaxPower(Empire empire) => ParliamentSystem.HasParliament(empire);
-#endif
 
     // 派系是否站在宪制一边：决定议会支持率，也决定议会选举中宪政联盟的组成
     public static bool IsConstitutionalist(FixedFaction faction, bool budding)

@@ -11,9 +11,9 @@ public sealed class IdeologyMapColorData : RecordData { }
 
 public sealed class IdeologyMapColor : RecordObject<IdeologyMapColorData>
 {
-#if EC_PENDING
-    public override MetaType meta_type => EmpireCraft.Core.MetaTypeExtension.Ideology;
+    public override EntityKind KindOfEntity => EmpireCraft.Core.MetaTypeExtension.Ideology;
 
+#if EC_PENDING
     public override ColorLibrary getColorLibrary() => AssetManager.culture_colors_library;
 
     public static IdeologyMapColor Create(PartyIdeology ideology)

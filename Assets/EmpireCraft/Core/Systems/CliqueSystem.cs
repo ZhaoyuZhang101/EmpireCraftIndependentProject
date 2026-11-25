@@ -48,7 +48,6 @@ public static class CliqueSystem
 
     public static bool IsEunuch(Person actor) => actor?.Record != null && !actor.IsGone() && actor.HasTrait(EunuchTrait);
 
-#if EC_PENDING
     public static bool Applies(Empire empire)
     {
         Realm core = empire?.CoreKingdom;
@@ -65,11 +64,9 @@ public static class CliqueSystem
             return false;
         }
     }
-#endif
 
     // 身份立场：寒门阁臣、宦官 → 天子派(皇权；阉党分出时宦官归阉党)；宗室 → 宗室派；
     // 贵族(受封诸侯、世袭王族)、世家 → 诸侯派(门阀)；后党(外戚宗族)另有专门的归入规则(见 Consorts)。其余官员按自己信的学说归属
-#if EC_PENDING
     public static PartyIdeology? IdentityStance(Empire empire, Person actor)
     {
         if (empire == null || actor?.Record == null || actor.IsGone()) return null;
@@ -82,17 +79,14 @@ public static class CliqueSystem
         if (IsMilitary(actor)) return PartyIdeology.MilitaryMerit;
         return null;
     }
-#endif
 
     // 武人：统兵的将领(军团统帅)，或任武职的官员
     private static bool IsMilitary(Person actor) =>
         CorpsSystem.IsGeneral(actor) || actor.GetOffice()?.peerageType == PeerageType.Military;
 
     // 派系里按什么归属：身份立场优先，否则按信的学说
-#if EC_PENDING
     private static PartyIdeology Stance(Empire empire, Person actor) =>
         IdentityStance(empire, actor) ?? IdeologyPopulationSystem.Get(actor);
-#endif
 
     // 派系类型 → 起点理念
     private static PartyIdeology? TypeIdeology(FactionType type) => type switch
@@ -119,29 +113,23 @@ public static class CliqueSystem
         PartyIdeology.MilitaryMerit
     };
 
-#if EC_PENDING
     private static List<FixedFaction> Cliques(Regime regime) =>
         regime.GetPlayerFactions().Where(faction => faction != null && faction.IsClique && !faction.Ban).ToList();
-#endif
 
     public static bool IsClassClique(FixedFaction faction) => faction != null && IdeologyFamilies.IsIdentityStance(faction.Ideology);
 
     // 学说朋党(会倡立、合并、分裂、消亡的那些)
-#if EC_PENDING
     private static List<FixedFaction> Schools(Regime regime) => Cliques(regime).Where(clique => !IsClassClique(clique)).ToList();
 
     private static FixedFaction ClassClique(Regime regime, PartyIdeology stance) =>
         Cliques(regime).FirstOrDefault(clique => clique.Ideology == stance);
-#endif
 
     // 阉党已从天子派里分出(有人领头)
-#if EC_PENDING
     private static bool EunuchFactionRisen(Empire empire)
     {
         Regime regime = empire?.CoreKingdom?.GetRegime();
         return regime != null && ClassClique(regime, PartyIdeology.Eunuchs)?.GetLeader() != null;
     }
-#endif
 
     private static float Ratio(Empire empire, FixedFaction faction) => empire.CoreKingdom.GetFactionRatioValue(faction);
 
@@ -180,16 +168,13 @@ public static class CliqueSystem
 #endif
 
     // 本朝官员(在任、成年，皇帝除外)
-#if EC_PENDING
     private static List<Person> Officials(Empire empire) =>
-        empire.getUnits().Where(actor => actor?.Record != null && !actor.IsGone() && actor.Alive && actor.IsAdult() &&
+        empire.GetUnits().Where(actor => actor?.Record != null && !actor.IsGone() && actor.Alive && actor.IsAdult() &&
                                          actor.IsOnOffice() && actor.Key != empire.Emperor?.Key).ToList();
-#endif
 
     #region 起点
 
     // 模板派系改作朋党(换政体后模板派系重建，也再改一次)
-#if EC_PENDING
     private static void Convert(Empire empire, Regime regime)
     {
         bool hasMilitary = Cliques(regime).Any(clique => clique.Ideology == PartyIdeology.MilitaryMerit);
@@ -211,10 +196,8 @@ public static class CliqueSystem
             faction.EmpireId = empire.Key;
         }
     }
-#endif
 
     // 阶级派系缺哪个补哪个：有这身份的官员就由名望最高的人领头，没有就先蛰伏(势力为零)
-#if EC_PENDING
     private static void EnsureClassCliques(Empire empire, Regime regime, List<Person> officials)
     {
         foreach (PartyIdeology stance in ClassStances)
@@ -225,10 +208,8 @@ public static class CliqueSystem
             Create(empire, regime, stance, leader, 0);
         }
     }
-#endif
 
     // 以前新建的朋党诉求清单是空的(一条本类型的诉求都没有)：补上本类型的诉求；手动删过的不再补回
-#if EC_PENDING
     private static void EnsureCatalog(FixedFaction faction)
     {
         if (faction.CliqueFoundedAt < 0d || !FactionManager.FactionConfig.TryGetValue(faction.Type, out List<TemporaryFactionType> catalog))
@@ -242,13 +223,11 @@ public static class CliqueSystem
         foreach (TemporaryFaction claim in faction.TemporaryFactions) claim?.Init(faction);
         faction.FixMissedTemporaryFactions();
     }
-#endif
 
     #endregion
 
     #region 倡立
 
-#if EC_PENDING
     private static void TryFound(Empire empire, Regime regime, List<Person> officials)
     {
         List<FixedFaction> cliques = Cliques(regime);
@@ -274,20 +253,16 @@ public static class CliqueSystem
             return;
         }
     }
-#endif
 
     // 手动立派(添加派系窗口"按理念新建"，见 FactionEditor)：按理念立一个朋党，暂无魁首(年度结算里按身份、学说招人)，
     // 占一成中央，名字照史书习惯
-#if EC_PENDING
     internal static FixedFaction CreateManual(Empire empire, PartyIdeology ideology)
     {
         Regime regime = empire?.CoreKingdom?.GetRegime();
         return regime == null ? null : Create(empire, regime, ideology, null, FoundRatio);
     }
-#endif
 
     // 某理念朋党的默认称号(重了加领袖之姓、籍贯或序号)
-#if EC_PENDING
     internal static string DefaultName(Regime regime, PartyIdeology ideology, Person leader) => NameFor(regime, ideology, leader);
 
     private static FixedFaction Create(Empire empire, Regime regime, PartyIdeology ideology, Person leader, int ratio,
@@ -323,7 +298,6 @@ public static class CliqueSystem
         if (ratio > 0) empire.CoreKingdom.TryIncreaseFactionRatio(clique, ratio);
         return clique;
     }
-#endif
 
     // 旧称号用诸子百家的名字，玩家看不出是干什么的(用户 2026-10-17："不要用诸子百家的名字只按功能来就行，
     // 至少玩家一看就知道干嘛的")：旧存档里还叫这些名字的朋党改成按功能的新称号
@@ -335,17 +309,14 @@ public static class CliqueSystem
         ["纵横之士"] = "Diplomatists", ["縱橫之士"] = "Diplomatists", ["Persuaders"] = "Diplomatists",
     };
 
-#if EC_PENDING
     private static void RenameSchoolLabels(Regime regime)
     {
         foreach (FixedFaction faction in regime.GetPlayerFactions())
             if (faction?.Name != null && OldSchoolLabels.TryGetValue(faction.Name, out string key))
                 faction.Name = LM.Get("clique_label_" + key);
     }
-#endif
 
     // 史书习惯的名字：这一家的称号；重了称领袖之姓"某党"；再重了称籍贯首字"某党"
-#if EC_PENDING
     private static string NameFor(Regime regime, PartyIdeology ideology, Person leader)
     {
         var used = new HashSet<string>(regime.GetPlayerFactions().Where(faction => faction != null).Select(faction => faction.Name));
@@ -370,23 +341,19 @@ public static class CliqueSystem
         }
         return label;
     }
-#endif
 
     // 籍贯首字(族谱记的出生地，没有就看所在的城)
-#if EC_PENDING
     private static string Hometown(Person actor)
     {
         string place = actor?.GetPersonalIdentity()?.birthplace;
         if (string.IsNullOrWhiteSpace(place)) place = actor?.City?.GetCityName();
         return string.IsNullOrWhiteSpace(place) ? "" : place.Substring(0, 1);
     }
-#endif
 
     #endregion
 
     #region 归属、合并、分裂、消亡
 
-#if EC_PENDING
     private static void Drift(Empire empire, Regime regime, List<Person> officials)
     {
         List<FixedFaction> cliques = Cliques(regime);
@@ -491,7 +458,6 @@ public static class CliqueSystem
         }
         Record(empire, string.Format(LM.Get("clique_split_history"), rebel.FullName(), faction.Count(), big.Name, split.Name), rebel);
     }
-#endif
 
     #endregion
 
@@ -505,13 +471,10 @@ public static class CliqueSystem
     private const float ContentionFoundShare = 0.1f, OfficialConvertChance = 0.2f;
     private const int OfficialConvertsPerYear = 3, DiviningRise = 2;
 
-#if EC_PENDING
     public static PartyIdeology? OfficialSchool(Empire empire) =>
         empire?.data == null ? null : AncientSchoolsSystem.Orthodox(InstitutionSystem.GetPrimaryCulture(empire));
-#endif
 
     // 百家争鸣：本朝所在的天下无主，或本文化正值百家争鸣
-#if EC_PENDING
     private static bool HundredSchools(Empire empire) => TianxiaSystem.PhaseOf(empire.CoreKingdom) == TianxiaSystem.Chaos ||
                                                          AncientSchoolsSystem.Contending(InstitutionSystem.GetPrimaryCulture(empire));
 
@@ -538,7 +501,6 @@ public static class CliqueSystem
             if (diviners != null) empire.CoreKingdom.TryIncreaseFactionRatio(diviners, DiviningRise);
         }
     }
-#endif
 
     #endregion
 
@@ -567,7 +529,6 @@ public static class CliqueSystem
         [PartyIdeology.MilitaryMerit] = new[] { TemporaryFactionType.屯田实边 }
     };
 
-#if EC_PENDING
     private static void EnsureIssues(Regime regime)
     {
         foreach (FixedFaction clique in Cliques(regime))
@@ -582,16 +543,15 @@ public static class CliqueSystem
             clique.FixMissedTemporaryFactions();
         }
     }
-#endif
 
     // 诛宦官：阉党有人领头时才能诛
-#if EC_PENDING
     public static bool CanPurgeEunuchs(Empire empire)
     {
         Regime regime = empire?.CoreKingdom?.GetRegime();
         return regime != null && empire.Emperor?.Record != null && ClassClique(regime, PartyIdeology.Eunuchs)?.GetLeader() != null;
     }
 
+#if EC_PENDING
     public static string PurgeEunuchs(Empire empire)
     {
         if (!CanPurgeEunuchs(empire)) return null;
@@ -604,7 +564,6 @@ public static class CliqueSystem
 #endif
 
     // 党锢：禁锢朝中势力最大、又不投靠上奏一派的学说朋党(至少占一成)
-#if EC_PENDING
     public static FixedFaction ProscriptionTarget(Empire empire, string proposerId)
     {
         Regime regime = empire?.CoreKingdom?.GetRegime();
@@ -635,7 +594,6 @@ public static class CliqueSystem
         Record(empire, string.Format(LM.Get("clique_proscribed_history"), proposer?.Name ?? "", name), proposer?.GetLeader());
         return name;
     }
-#endif
 
     #endregion
 
@@ -646,7 +604,6 @@ public static class CliqueSystem
     //   · 权只归阶级派系：自己的占比 + 投靠它的学说朋党的占比；主导派系在阶级派系里按权比(见 Regime.GetDominateFaction)；
     //   · 学说朋党只有影响(自己的占比)：廷议照样按它表态、算分量，但不争主导，卡片写"影响 x%"；
     //   · 不投靠任何一方的学说朋党，占比不并入任何一家。
-#if EC_PENDING
     public static int Power(FixedFaction faction)
     {
         Empire empire = faction?.Empire;
@@ -659,17 +616,13 @@ public static class CliqueSystem
             if (Patron(empire, school) == faction) power += school.CentralRatio;
         return power;
     }
-#endif
 
     // 朝中有阶级派系时，主导的是权最大的阶级派系
-#if EC_PENDING
     public static FixedFaction DominantClass(IEnumerable<FixedFaction> factions) =>
         factions?.Where(faction => faction != null && !faction.Ban && faction.IsClique && IsClassClique(faction))
             .OrderByDescending(Power).FirstOrDefault();
-#endif
 
     // 没人领头的后党、阉党不该白占份额：每年把占比归入天子派
-#if EC_PENDING
     private static void DrainDormant(Empire empire, Regime regime)
     {
         Dictionary<FixedFaction, int> ratios = empire.CoreKingdom.GetOrCreate().FactionRatio;
@@ -683,7 +636,6 @@ public static class CliqueSystem
             ratios[crown] = (ratios.TryGetValue(crown, out int current) ? current : 0) + power;
         }
     }
-#endif
 
     #endregion
 
@@ -692,7 +644,6 @@ public static class CliqueSystem
     // 学说朋党投靠利义最合得来的阶级派系(一致程度至少 0.15，否则不投靠任何一方)；玩家指定过的不动
     private const float PatronAgreement = 0.15f;
 
-#if EC_PENDING
     private static void AssignPatrons(Empire empire, Regime regime)
     {
         List<FixedFaction> classes = Cliques(regime).Where(IsClassClique).ToList();
@@ -724,16 +675,12 @@ public static class CliqueSystem
 
     public static bool PatronLocked(Empire empire, FixedFaction school) =>
         empire != null && school != null && CourtSystem.FactionState(empire, school).patron_locked;
-#endif
 
     // 两派互为投靠关系(学说朋党与它投靠的阶级派系)
-#if EC_PENDING
     public static bool Patronage(Empire empire, FixedFaction a, FixedFaction b) =>
         a != null && b != null && (Patron(empire, a) == b || Patron(empire, b) == a);
-#endif
 
     // 手动改投(神力)：按 自动 → 各阶级派系 → 不投靠 → 自动 轮换
-#if EC_PENDING
     public static void CyclePatron(Empire empire, FixedFaction school)
     {
         Regime regime = empire?.CoreKingdom?.GetRegime();
@@ -755,7 +702,6 @@ public static class CliqueSystem
             AssignPatrons(empire, regime);
         }
     }
-#endif
 
     #endregion
 
@@ -860,7 +806,6 @@ public static class CliqueSystem
 
     #endregion
 
-#if EC_PENDING
     private static void Record(Empire empire, string content, Person actor)
     {
         LogService.LogInfo("[EmpireCraft][朋党] " + content);
@@ -868,6 +813,5 @@ public static class CliqueSystem
         actor?.RecordPersonalHistory(content);
         if (EventRecorder.ShowRoutine(empire)) TranslateHelper.LogEventMessage(content, empire.CoreKingdom);
     }
-#endif
 }
 }

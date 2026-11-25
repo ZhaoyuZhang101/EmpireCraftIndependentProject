@@ -30,7 +30,7 @@ public static class DormantActorAI
     public static bool Dormant(Person actor) =>
         CityPopulationSystem.AbstractPopulationEnabled && actor?.Record != null && !actor.IsGone() && actor.Alive &&
         actor.IsSapient() && actor.HasCity() && !actor.IsRuler() && !actor.IsCityLeader() && !actor.IsWarrior() &&
-        !actor.hasArmy() && (actor.plot == null || EmpireCraft.Core.DecisionSystem.Manages(actor.plot.getAsset())) && !actor.isFavorite() && !actor.isCameraFollowingUnit() &&
+        !actor.HasArmy() && (actor.plot == null || EmpireCraft.Core.DecisionSystem.Manages(actor.plot.getAsset())) && !actor.isFavorite() && !actor.isCameraFollowingUnit() &&
         !CorpsSystem.IsGeneral(actor) && !AncientWarfareCompatibility.OwnsObject(actor);
 #endif
 

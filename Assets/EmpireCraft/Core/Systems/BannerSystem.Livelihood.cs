@@ -27,7 +27,6 @@ public static partial class BannerSystem
     }
 
     // 每年：旗缺、闲散、典卖旗地、汉军出旗(在发饷之前算，旗饷按缺发)
-#if EC_PENDING
     private static float LivelihoodYearly(Empire empire, Realm core, KingdomExtension.KingdomExtraData extra, float bannermen)
     {
         float years = extra.banner_quota_at < 0d ? 0f : YearsSince(extra.banner_quota_at);
@@ -56,10 +55,8 @@ public static partial class BannerSystem
         if (BannerRules.ReleaseDue(idle, extra.banner_hanjun_released)) ReleaseHanjun(empire, core, extra);
         return idle;
     }
-#endif
 
     // 汉军出旗：属地文化一系的旗人出旗为民
-#if EC_PENDING
     private static void ReleaseHanjun(Empire empire, Realm core, KingdomExtension.KingdomExtraData extra)
     {
         extra.banner_hanjun_released = true;
@@ -83,20 +80,16 @@ public static partial class BannerSystem
         extra.banner_quota = Mathf.Max(0f, extra.banner_quota - released);
         Announce(empire, core, string.Format(LM.Get("banner_hanjun_released_history"), empire.GetEmpireName(), (int)released));
     }
-#endif
 
     // 汉军出旗以后，编旗只收属地文化一系以外的人
-#if EC_PENDING
     private static bool MayEnroll(City city, PopGroup group)
     {
         Empire empire = city?.Realm?.GetEmpire();
         if (empire == null || !Practices(empire) || !empire.CoreKingdom.GetOrCreate().banner_hanjun_released) return true;
         return !CultureService.SameKin(group.culture, CompositeEmpireService.GetInstitutionalCulture(empire));
     }
-#endif
 
     // 编旗：把本城庶民按各组人数摊入旗下(汉军出旗以后跳过属地文化一系)
-#if EC_PENDING
     private static void Enroll(City city, CityPopulationData data, SocialClass commoner, float amount)
     {
         if (amount <= 0f) return;
@@ -110,7 +103,6 @@ public static partial class BannerSystem
             if (removed > 0f) CityPopulationSystem.AddBackground(city, SocialClass.Banner, group.culture, group.species, group.ideology, removed);
         }
     }
-#endif
 
     #region 团练成勇营
 

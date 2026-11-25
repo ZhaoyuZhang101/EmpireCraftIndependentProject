@@ -69,6 +69,7 @@ public static class MarketSystem
             default: return city.getResourcesAmount("common_metals");
         }
     }
+#endif
 
     public static float Reserve(City city, Good good)
     {
@@ -82,8 +83,10 @@ public static class MarketSystem
         };
     }
 
+#if EC_PENDING
     private static float Surplus(City city, Good good) => Mathf.Max(0f, Stock(city, good) - Reserve(city, good) * SurplusCushion);
     private static float Deficit(City city, Good good) => Mathf.Max(0f, Reserve(city, good) - Stock(city, good));
+#endif
 
     public static int Capacity(City city)
     {
@@ -96,12 +99,11 @@ public static class MarketSystem
                 if (group.social_class == SocialClass.Merchant) merchants += group.Background;
             capacity += Mathf.RoundToInt(merchants / CityPopulationSystem.PeoplePerSlot(city)) * CapacityPerMerchantHousehold;
         }
-        if (city.hasBuildingType("type_market")) capacity += MarketCapacity;
-        if (city.hasBuildingType("type_docks")) capacity += DocksCapacity;
+        if (city.HasBuildingType("type_market")) capacity += MarketCapacity;
+        if (city.HasBuildingType("type_docks")) capacity += DocksCapacity;
         // 港口、河口、路口商贸最旺(见 CityGeographySystem)
         return Mathf.RoundToInt(capacity * CityGeographySystem.Commerce(city));
     }
-#endif
 
     // ---- 禁运与封锁 ----
     // 交战双方互不通商；双方的盟友也跟着禁运(本国盟友不和本国的敌人做生意，敌人的盟友也不和本国做生意)；
@@ -214,7 +216,7 @@ public static class MarketSystem
                 if (!domestic || !seen.Add(other)) continue;
                 sellers.Add((other, near.Cost));
             }
-            if ((city.hasBuildingType("type_market") || city.hasBuildingType("type_docks")) && city.NeighbourCities != null)
+            if ((city.HasBuildingType("type_market") || city.HasBuildingType("type_docks")) && city.NeighbourCities != null)
                 foreach (City other in city.NeighbourCities)
                 {
                     if (other?.Realm == null || other.IsGone() || other.Realm.IsWild || seen.Contains(other)) continue;
@@ -239,7 +241,7 @@ public static class MarketSystem
         foreach (City other in DomesticMarket(city))
             if (other != null && other != city && !other.IsGone() && !Blockaded(other) &&
                 !Embargoed(city.Realm, other.Realm)) sellers.Add(other);
-        if (!city.hasBuildingType("type_market") && !city.hasBuildingType("type_docks")) return sellers;
+        if (!city.HasBuildingType("type_market") && !city.HasBuildingType("type_docks")) return sellers;
         if (city.NeighbourCities == null) return sellers;
         foreach (City other in city.NeighbourCities)
         {
@@ -421,7 +423,7 @@ public static class MarketSystem
         if (IdeologyPopulationSystem.GetDominant(buyer) != ideology)
             IdeologyPopulationSystem.InfluenceCity(buyer, ideology, Mathf.Min(0.05f, IdeologyInfluencePerTrade * volume) * reach);
         float chance = Mathf.Min(MaxReligionChance, ReligionChancePerVolume * volume) * reach;
-        if (seller.Religion != null && buyer.Religion != seller.Religion && !buyer.hasBuildingType("type_temple") &&
+        if (seller.Religion != null && buyer.Religion != seller.Religion && !buyer.HasBuildingType("type_temple") &&
             EcRandom.value < chance)
             buyer.SetReligion(seller.Religion);
         if (foreign && seller.language != null && buyer.language != seller.language && EcRandom.value < chance)

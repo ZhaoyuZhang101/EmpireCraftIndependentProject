@@ -179,7 +179,6 @@ internal static class WorldMapZones
     // 按起点分地(州府治所锚点与各城，见 WorldMapScenario.AnchorTerritory)：各起点同时按地形代价往外走——只走能领的陆地、
     // 交界要有路口、不过边墙(同 Fill)，每块地归先到的起点，各起点至多走 budget。返回各区块的标签，没走到为 -1。
     // 无人区挂接仍用原有距离口径；明确历史范围由剧本默认数据预先赋值，不改通用分区算法。
-#if EC_PENDING
     public static int[] Partition(List<(int index, int label, float budget)> seeds, bool wild = false)
     {
         var label = new int[_travel.Length];
@@ -217,11 +216,9 @@ internal static class WorldMapZones
         }
         return label;
     }
-#endif
 
     // 治所只是辖境提示，不是可以隔着另一省独立生长的城市。先保留连到真实城市的部分，
     // 再从其边缘按地形接收孤立提示块；明确手绘／历史面由调用方随后覆盖。
-#if EC_PENDING
     public static int[] RootedPartition(List<(int index, int label, float budget)> seeds,
         List<(int index, int label)> roots, bool wild = false)
     {
@@ -271,7 +268,6 @@ internal static class WorldMapZones
         for (int i = 0; i < labels.Length; i++) if (labels[i] == -2) labels[i] = -1;
         return labels;
     }
-#endif
 
     public static bool SettledLand(int index) => index >= 0 && index < _land.Length && _land[index] >= MinLand &&
         _claimable[index] && _barren[index] == BarrenLandSystem.None;
@@ -282,7 +278,6 @@ internal static class WorldMapZones
 
     // 各区块走得到的最近起点；默认含跨海，不过边墙。landOnly 供城市实际辖地使用，只走可定居陆地与真实路口。
     // 返回起点在 sources 里的序号，走不到为 -1。
-#if EC_PENDING
     public static int[] NearestOf(IList<int> sources, bool landOnly = false)
     {
         var cost = new float[_travel.Length];
@@ -319,7 +314,6 @@ internal static class WorldMapZones
         }
         return label;
     }
-#endif
 
     // 从 a 走到相邻的 b：按要进的那块的地形，山脉腹地(从山里再往山里走)加倍，过河另加，再乘平滑起伏
     private static float Grain(int index) => index < _grain.Length ? _grain[index] : 1f;
@@ -684,9 +678,7 @@ internal static class WorldMapZones
     // 见 TerrainSystem.Crossable)：铺辖地、铺满都只从有路口的交界扩过去，翻过山脊才到的地不领(留给山那边的城或空着)；
     // 城心那块也照交界算(seatOpen:false)，紧挨城心的一圈同样不隔脊领地
     // 边墙两侧也不通(见 SetWalls)
-#if EC_PENDING
     private static bool Open(int a, int b) => !Blocked(a, b) && TerrainSystem.Crossable(_zones[a], _zones[b], seatOpen: false);
-#endif
 
     // 区块里至少这么多格陆地才算陆地(一格两格的礁石、沙洲不领)
     private const int MinLand = 6;

@@ -22,10 +22,12 @@ public class KingdomTitleManager : RecordStore<KingdomTitle, KingdomTitleData>
     {
         this.type_id = "kingdomTitle";
     }
+#endif
 
-    public override void updateDirtyUnits()
+    public override void UpdateDirtyUnits()
     {
     }
+#if EC_PENDING
     public Sprite[] getBackgroundsList()
     {
         if (_cached_banner_backgrounds == null)
@@ -43,10 +45,10 @@ public class KingdomTitleManager : RecordStore<KingdomTitle, KingdomTitleData>
         }
         return _cached_banner_icons;
     }
-    public override void startCollectHistoryData()
+#endif
+    public override void StartCollectHistoryData()
     {
     }
-#endif
     // 国君空缺(老君死了新君未立)也能建：以前要求有国王，手动建法理赶上空位期就点了没反应(用户 2026-10-22 转群友"有时候无法建立法理")
 #if EC_PENDING
     public KingdomTitle newKingdomTitle(City pCity)
@@ -73,16 +75,14 @@ public class KingdomTitleManager : RecordStore<KingdomTitle, KingdomTitleData>
     // 上帝之力手动加城不受影响。
     public static int MaxCitiesPerTitle => ModClass.KINGDOM_TITLE_FREEZE ? 0 : Math.Max(0, ModClass.TITLE_MAX_CITIES);
 
-#if EC_PENDING
     public static int CountTitleCities(KingdomTitle title) =>
-        title?.getCities()?.Count(city => city != null && !city.IsGone()) ?? 0;
+        title?.GetCities()?.Count(city => city != null && !city.IsGone()) ?? 0;
 
     public static bool HasRoomFor(KingdomTitle title, int adding = 1)
     {
         int max = MaxCitiesPerTitle;
         return max <= 0 || title == null || CountTitleCities(title) + adding <= max;
     }
-#endif
 
     // 把本国还没有法理的城市并进指定法理(受单个法理城市上限约束)，返回并入城数。
     // 新立的法理只收都城一座；称帝时按国家持有的法理登记帝国法理，漏掉其余城市，帝国法理、天下就只剩都城一块地

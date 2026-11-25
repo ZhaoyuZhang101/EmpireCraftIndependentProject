@@ -158,7 +158,6 @@ public static class RealmCultureSystem
 #endif
 
     // 别的文化的城里 from 的少数：文化比例并入 to，背景人口改成 to
-#if EC_PENDING
     private static void ConvertMinority(City city, string from, string to)
     {
         Dictionary<string, float> shares = CultureService.GetCityCultureShares(city, initialize: false);
@@ -176,10 +175,8 @@ public static class RealmCultureSystem
             if (moved > 0f) CityPopulationSystem.AddBackground(city, group.social_class, to, group.species, group.ideology, moved);
         }
     }
-#endif
 
     // 征服王朝的双重身份作罢；帝国的统治文化、开国族群改成这个文化
-#if EC_PENDING
     private static void PrepareEmpire(Empire empire, string culture)
     {
         if (CompositeEmpireService.IsComposite(empire)) CompositeEmpireService.Dissolve(empire);
@@ -187,6 +184,7 @@ public static class RealmCultureSystem
         empire.data.ruling_culture = culture;
     }
 
+#if EC_PENDING
     private static void FinishEmpire(Empire empire, string culture, bool wholeEmpire)
     {
         EmpireCore core = EmpireCoreManager.Get(empire);

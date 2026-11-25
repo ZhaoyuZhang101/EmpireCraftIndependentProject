@@ -36,7 +36,6 @@ public sealed class ClaimAgendaView
 
 public static class ClaimAgendaSystem
 {
-#if EC_PENDING
     public static ClaimAgendaContext BuildContext(Empire empire)
     {
         if (empire?.CoreKingdom == null) return null;
@@ -53,6 +52,7 @@ public static class ClaimAgendaSystem
         };
     }
 
+#if EC_PENDING
     public static ClaimAgendaView Evaluate(ClaimAgendaContext context, FixedFaction faction,
         TemporaryFaction claim)
     {
@@ -169,6 +169,7 @@ public static class ClaimAgendaSystem
             (view.IdeologyStage >= 2 ? 0.1f : 0f), 0.35f, 1.65f);
         return view;
     }
+#endif
 
     private static float GetUrgency(ClaimAgendaContext context, TemporaryFactionType type)
     {
@@ -248,7 +249,6 @@ public static class ClaimAgendaSystem
         // 财阀游说：冲着它来的议题提不上议程，合它意的更急(见 ConglomerateSystem.Lobby)
         return ConglomerateSystem.Lobby(empire, type, urgency);
     }
-#endif
 
     // 天下归于一家算统一完成(同 UnificationSystem 的九成)
     private const float UnifiedRealmShare = 0.9f;
@@ -258,7 +258,6 @@ public static class ClaimAgendaSystem
     // 统一要动兵，农民一反对议程分就低，提得出它的天子派、变法派总把它排在末尾，专主用兵的武官派又多被并掉、
     // 只剩一两人(官员按学说归党)，天下分裂、失地未复也没人上奏。只给朋党朝廷(别的朝廷还是固定的两三派，主统一的那派一直在、上奏机会也多)；
     // 天下已统一、别家受着天命(不能问鼎)、周制(征伐不服王化另有一套)、本朝是别国附庸的，都不急
-#if EC_PENDING
     private static float UnificationUrgency(Empire empire)
     {
         Realm core = empire?.CoreKingdom;
@@ -271,7 +270,6 @@ public static class ClaimAgendaSystem
         float share = held.TryGetValue(core, out int ours) ? ours / (float)total : 0f;
         return share >= UnifiedRealmShare ? 0f : 15f + 10f * (1f - share) + UnificationDrive.AgendaUrgency * UnificationDrive.Of(core);
     }
-#endif
 
     // 国库欠饷、入不敷出，或税率压得很低时急着加税(以前加税没有紧迫度，减税却税率越高越急，税率只降不升)
     private static float TaxRaiseUrgency(Empire empire)
@@ -288,7 +286,6 @@ public static class ClaimAgendaSystem
         return urgency;
     }
 
-#if EC_PENDING
     private static float GetLandlessUrgency(Empire empire)
     {
         var cities = empire.CoreKingdom?.Cities?.Where(city => city != null && !city.IsGone()).ToList();
@@ -296,6 +293,5 @@ public static class ClaimAgendaSystem
             Mathf.Clamp((float)cities.Average(city => LandEconomySystem.GetReport(city).LandlessPopulationRatio) * 100f,
                 0f, 30f);
     }
-#endif
 }
 }

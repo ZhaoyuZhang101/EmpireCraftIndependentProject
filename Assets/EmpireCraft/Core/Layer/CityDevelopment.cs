@@ -42,7 +42,6 @@ public static class CityDevelopment
 #endif
 
     // 民居最高等级(从 1 起，没有民居为 -1)
-#if EC_PENDING
     public static int HouseTier(City city) => StatsOf(city)?.house ?? -1;
 
     private static Stats StatsOf(City city)
@@ -52,13 +51,13 @@ public static class CityDevelopment
         if (Cache.TryGetValue(city.Key, out Stats cached) && now - cached.at < CacheSeconds) return cached;
         var stats = new Stats { at = now };
         // 建成的建筑：实体连同建筑台账里的(见 CityLedger)
-        var built = new Dictionary<BuildingAsset, int>();
+        var built = new Dictionary<BuildingKind, int>();
         EmpireCraft.Core.CityLedger.CollectCounts(city, built);
         {
-            foreach (KeyValuePair<BuildingAsset, int> pair in built)
+            foreach (KeyValuePair<BuildingKind, int> pair in built)
             {
-                BuildingAsset asset = pair.Key;
-                switch (asset.type)
+                BuildingKind asset = pair.Key;
+                switch (asset.Type)
                 {
                     case "type_house":
                         stats.house = Mathf.Max(stats.house, Tier(asset));
@@ -83,21 +82,20 @@ public static class CityDevelopment
         Cache[city.Key] = stats;
         return stats;
     }
-#endif
 
     // 民居等级(从 1 起)：原版 house_*_N 为 N+1；近代模组的 Nhouse_*(接在原版之后)为 N+1；都不是就按升级等级
-#if EC_PENDING
-    public static int Tier(BuildingAsset asset)
+    public static int Tier(BuildingKind asset)
     {
-        string id = asset.id ?? "";
+        string id = asset.Id ?? "";
         int digits = 0;
         while (digits < id.Length && char.IsDigit(id[digits])) digits++;
         if (digits > 0 && int.TryParse(id.Substring(0, digits), out int prefix)) return prefix + 1;
         int underscore = id.LastIndexOf('_');
         if (underscore >= 0 && int.TryParse(id.Substring(underscore + 1), out int suffix)) return suffix + 1;
-        return asset.upgrade_level + 1;
+        return asset.UpgradeLevel + 1;
     }
 
+#if EC_PENDING
     private static Sprite SpriteOf(string id)
     {
         if (Sprites.TryGetValue(id, out Sprite sprite)) return sprite;

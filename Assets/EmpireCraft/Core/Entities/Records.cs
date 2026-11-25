@@ -8,13 +8,14 @@ namespace EmpireCraft.Core
     {
         public abstract long Key { get; }
         public abstract bool Alive { get; }
+        public virtual EntityKind KindOfEntity => EntityKind.None;
     }
 
     // Bases of the mod's decision routines (its AI folder). Their per-tick entry points were
     // driven by WorldBox's behaviour trees and stay suspended; the helpers on them are used widely.
-    public abstract class RealmTask { }
-    public abstract class CityTask { }
-    public abstract class PersonTask { }
+    public abstract class RealmTask { protected static EmpireWorld world => EmpireWorld.Current; public virtual BehResult Execute(Realm realm) => BehResult.Continue; }
+    public abstract class CityTask { protected static EmpireWorld world => EmpireWorld.Current; public virtual BehResult Execute(City city) => BehResult.Continue; }
+    public abstract class PersonTask { protected static EmpireWorld world => EmpireWorld.Current; public virtual BehResult Execute(Person person) => BehResult.Continue; }
 
     // The saved part of a record object. Field names follow the data classes of the
     // ported systems that derive from it.
@@ -37,6 +38,11 @@ namespace EmpireCraft.Core
         public virtual void LoadData(TData record) { data = record; }
         // The colours of this object, for those that have any (an empire, a title).
         public virtual Tint GetColor() => null;
+        // What belongs to this object, for those that hold cities or persons; and its own bookkeeping before a save.
+        public virtual IEnumerable<City> GetCities() => System.Linq.Enumerable.Empty<City>();
+        public virtual IEnumerable<Person> GetUnits() => System.Linq.Enumerable.Empty<Person>();
+        public virtual int CountUnits() => 0;
+        public virtual void Save() { }
         // Called by the store when the object leaves the world.
         public virtual void Dispose() { _removed = true; }
     }
@@ -88,5 +94,7 @@ namespace EmpireCraft.Core
         }
 
         public virtual void Update(float elapsed) { }
+        public virtual void UpdateDirtyUnits() { }
+        public virtual void StartCollectHistoryData() { }
     }
 }

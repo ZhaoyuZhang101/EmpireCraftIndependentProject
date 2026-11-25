@@ -15,14 +15,11 @@ public static class PettyRebellion
     public const int MaxCities = 2;
 
     // 原主是分封制的诸侯国
-#if EC_PENDING
     public static bool Feudal(Realm origin) =>
         origin?.Record != null && !origin.IsGone() &&
         (ZhouEraSystem.SphereOf(origin) != null || origin.GetRegime()?.type == RegimeType.ZhouFeudalism);
-#endif
 
     // 起事时(CityPatch.makeOwnKingdom)记下原主
-#if EC_PENDING
     public static void Mark(Realm rebel, Realm origin)
     {
         if (rebel?.Record == null || !Feudal(origin) || EmpireWorld.Current == null) return;
@@ -30,7 +27,6 @@ public static class PettyRebellion
         data.petty_rebel_origin = origin.Key;
         data.petty_rebel_since = GameClock.Now;
     }
-#endif
 
     // 还是不是分封制下的小乱(原主亡了、停战满一年就不算了)
     public static bool IsPetty(Realm rebel)

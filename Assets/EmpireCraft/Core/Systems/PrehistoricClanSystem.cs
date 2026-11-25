@@ -96,7 +96,6 @@ public static class PrehistoricClanSystem
         Primordial(culture) ? Pick(WordPool(culture, SettingOf(culture)?.Kingdom?.ancient_group)) : null;
 
     // 支脉起氏：做官的族人一半以官为氏，没有身份的平民三成以职业为氏，其余以国、邑、祖名的首字为氏
-#if EC_PENDING
     public static string PickShi(string culture, Person founder, string source)
     {
         ClanSetting clan = SettingOf(culture)?.Clan;
@@ -108,7 +107,6 @@ public static class PrehistoricClanSystem
             return craft;
         return ShiFrom(source, culture);
     }
-#endif
 
     // 这个文化是否走姓氏演变：华夏线、且文化配置开了 surname_evolution
     private static bool Evolves(string culture) =>
@@ -216,7 +214,6 @@ public static class PrehistoricClanSystem
     }
 
     // 名字上显示的姓(或氏)；返回空串表示只称名
-#if EC_PENDING
     public static string DisplaySurname(Person actor, string surname)
     {
         if (actor?.Record == null || string.IsNullOrEmpty(surname)) return surname;
@@ -238,7 +235,6 @@ public static class PrehistoricClanSystem
                 return ShiOf(actor) ?? surname;
         }
     }
-#endif
 
     // 身份变了(即位)：周制、只有贵族称姓的时代，名字上显不显示姓随身份走，名字却是起名时定的——平民起名时无氏，
     // 当上君主照旧只称名(玩家 2026-10-21 反馈"有的皇帝掉姓")。重起一次名按新身份补上

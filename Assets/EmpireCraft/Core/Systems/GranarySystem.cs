@@ -24,7 +24,6 @@ public static class GranarySystem
     // 之前的分封时代收成全留地方，也没有国家赈灾
     public const string FeatureStateGranary = "state_granary";
 
-#if EC_PENDING
     public static bool Enabled(Realm kingdom)
     {
         Realm realm = ModRealm(kingdom);
@@ -34,7 +33,6 @@ public static class GranarySystem
         string culture = CultureService.GetInstitutionCulture(realm);
         return CultureService.IsValidCulture(culture) && InstitutionSystem.HasFeature(culture, FeatureStateGranary);
     }
-#endif
 
     public static ConstitutionGrain Policy(Realm kingdom)
     {
@@ -57,7 +55,6 @@ public static class GranarySystem
     }
 
     // 收成：按政策交国家粮仓的部分存进粮仓，返回留给本城的部分。只从余粮里征(见 SurplusShare)
-#if EC_PENDING
     public static float Collect(City city, float harvest, CityPopulationData data = null)
     {
         Realm realm = ModRealm(city?.Realm);
@@ -68,13 +65,11 @@ public static class GranarySystem
         realm.GetOrCreate().granary += levied;
         return harvest - levied;
     }
-#endif
 
     // 收成里余粮的比例：本城一年要吃的粮(每户 1，其中半份由菜园渔猎自给，余下的靠收成)比上年的收成(交粮仓之前)，
     // 余下的才是余粮；上年收成还没结算过的不征
     private const float HarvestNeedPerHousehold = 0.5f;
 
-#if EC_PENDING
     public static float SurplusShare(City city, CityPopulationData data = null)
     {
         data ??= CityPopulationSystem.Get(city);
@@ -83,17 +78,14 @@ public static class GranarySystem
         float need = CityPopulationSystem.BackgroundHouseholds(city) * HarvestNeedPerHousehold;
         return Mathf.Clamp01(1f - need / gross);
     }
-#endif
 
     // 捐粮入国家粮仓(世家灾年赈济，见 GentrySystem.Events)；没有国家粮仓的不收
-#if EC_PENDING
     public static void Donate(Realm kingdom, float amount)
     {
         Realm realm = ModRealm(kingdom);
         if (amount <= 0f || !Enabled(kingdom)) return;
         realm.GetOrCreate().granary += amount;
     }
-#endif
 
     // 赈灾：缺粮的城市从国家粮仓调粮，返回调到的数量
 #if EC_PENDING
@@ -139,7 +131,6 @@ public static class GranarySystem
 #endif
 
     // 年度损耗；顺便把上一年的赈灾写进史书
-#if EC_PENDING
     private static void Spoil(Realm realm)
     {
         KingdomExtension.KingdomExtraData data = realm.GetOrCreate();
@@ -161,7 +152,6 @@ public static class GranarySystem
         Empire empire = realm.GetEmpire();
         if (empire?.data != null && !empire.IsGone()) EmpireCraft.Core.HistoryRecordSystem.RecordHistory(empire, directContent: text);
     }
-#endif
 
     public static void ResetWorldState()
     {

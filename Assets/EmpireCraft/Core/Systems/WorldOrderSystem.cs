@@ -200,7 +200,6 @@ public static class WorldOrderSystem
     private static readonly Dictionary<long, Profile> Profiles = new();
     private const float ProfileSeconds = 5f;
 
-#if EC_PENDING
     private static Profile ProfileOf(Realm kingdom)
     {
         Realm top = ModRealm(kingdom);
@@ -221,10 +220,8 @@ public static class WorldOrderSystem
         Profiles[top.Key] = profile;
         return profile;
     }
-#endif
 
     // 理念定亲疏(见 EmpireCraftOpinionAddition)
-#if EC_PENDING
     public static int IdeologyOpinion(Realm main, Realm target)
     {
         if (main?.Record == null || target?.Record == null || main == target || main.IsInSameEmpire(target)) return 0;
@@ -236,7 +233,6 @@ public static class WorldOrderSystem
         if (a.monarchy && b.radical || b.monarchy && a.radical) value += RevolutionaryOpinion;
         return value;
     }
-#endif
 
     // 阵营与制裁
     public static int BlocOpinionOf(Realm main, Realm target)
@@ -281,17 +277,14 @@ public static class WorldOrderSystem
         empire.kingdoms_list?.Where(kingdom => kingdom?.Cities != null && !kingdom.IsGone()).Sum(kingdom => kingdom.Cities.Count) ?? 0;
 
     // 近代的主权国家：组建了政府、够得上近代国家，不是别国的附从与封臣
-#if EC_PENDING
     private static List<Empire> States() => ModClass.EMPIRE_MANAGER.Where(empire =>
         empire?.data != null && !empire.IsGone() && !empire.IsArchived() && empire.CoreKingdom?.Record != null &&
         !empire.CoreKingdom.IsGone() && empire.CoreKingdom.HasRuler() && StateModernization.IsModernPower(empire.CoreKingdom) &&
         !WarlordEraSystem.Dependent(empire.CoreKingdom) && FeudalVassalService.GetOverlord(empire.CoreKingdom) == null &&
         Cities(empire) > 0).ToList();
-#endif
 
     // 一国的旗号看立国理念(宪法定的、共和国建国时的，没有才看执政理念，见 WarlordEraSystem.GovernmentIdeology)：
     // 以前看执政理念，一换届阵营就跟着变色、盟主"改旗易帜"阵营瓦解
-#if EC_PENDING
     private static PartyIdeology Ideology(Empire empire) => WarlordEraSystem.GovernmentIdeology(empire);
 
     private static float Distance(Empire a, Empire b) => PartySystem.IdeologyDistance(Ideology(a), Ideology(b));
@@ -299,6 +292,7 @@ public static class WorldOrderSystem
     private static float Distance(Empire empire, BlocData bloc) =>
         PartySystem.IdeologyDistance(Ideology(empire), (PartyIdeology)bloc.ideology);
 
+#if EC_PENDING
     private static bool Contact(Empire a, Empire b)
     {
         Realm ca = a.CoreKingdom, cb = b.CoreKingdom;
@@ -341,7 +335,6 @@ public static class WorldOrderSystem
 #endif
 
     // 记一笔：主角的史书与屏幕；其余只进各自的史书
-#if EC_PENDING
     internal static void Record(string text, Empire main, IEnumerable<Empire> others = null)
     {
         if (main != null) EventRecorder.Record(main, text);
@@ -350,13 +343,11 @@ public static class WorldOrderSystem
             if (other != null && other != main && !other.IsGone() && !other.IsArchived())
                 other.RecordHistory(directContent: text, kingdomId: other.CoreKingdom?.Key ?? -1L);
     }
-#endif
 
     #endregion
 
     #region 阵营
 
-#if EC_PENDING
     private static void PruneBlocs(HashSet<long> alive, List<Empire> greats, Dictionary<long, double> power, double now)
     {
         foreach (BlocData bloc in _data.blocs.ToList())
@@ -410,6 +401,7 @@ public static class WorldOrderSystem
             EndColdWar(war, Bloc(war.a == bloc.id ? war.b : war.a), members);
     }
 
+#if EC_PENDING
     private static void FormBlocs(List<Empire> greats, double now)
     {
         foreach (Empire great in greats)
@@ -437,6 +429,7 @@ public static class WorldOrderSystem
                 PartySystem.GetIdeologyName(Ideology(great)), BlocName(bloc), rival.GetEmpireFullName()), great, new[] { rival });
         }
     }
+#endif
 
     private static void Join(BlocData bloc, Empire state)
     {
@@ -445,6 +438,7 @@ public static class WorldOrderSystem
         EventRecorder.RecordRoutine(state, string.Format(LM.Get("world_bloc_joined_history"), state.GetEmpireFullName(), BlocName(bloc)));
     }
 
+#if EC_PENDING
     private static void JoinBlocs(List<Empire> states)
     {
         if (_data.blocs.Count == 0) return;
@@ -626,7 +620,6 @@ public static class WorldOrderSystem
     }
 
     // winner 为空：握手言和(理念不再相左)。losers：输的一方的成员(阵营已散时传进来)
-#if EC_PENDING
     private static void EndColdWar(ColdWarData war, BlocData winner, List<Empire> losers)
     {
         if (!_data.cold_wars.Remove(war)) return;
@@ -648,7 +641,6 @@ public static class WorldOrderSystem
         // 输的一方人心动摇
         foreach (Empire loser in losers ?? new List<Empire>()) RevolutionSystem.Shock(loser, 20f);
     }
-#endif
 
     #endregion
 
@@ -704,6 +696,7 @@ public static class WorldOrderSystem
             if (_data.league == null) return;
         }
     }
+#endif
 
     private static void FoundLeague(Empire founder, IEnumerable<Empire> members, double now, string key)
     {
@@ -716,6 +709,7 @@ public static class WorldOrderSystem
         Record(string.Format(LM.Get(key), founder.GetEmpireFullName()), founder, _data.league.members.Select(Living));
     }
 
+#if EC_PENDING
     private static void Decide(LeagueData league, List<Empire> council, Empire aggressor, Empire victim, Empire founder)
     {
         string a = aggressor.GetEmpireFullName(), v = victim.GetEmpireFullName();
@@ -762,7 +756,6 @@ public static class WorldOrderSystem
         });
     }
 
-#if EC_PENDING
     private static void ExpireSanctions(double now)
     {
         foreach (SanctionData sanction in _data.sanctions.ToList())
@@ -775,14 +768,12 @@ public static class WorldOrderSystem
                 EventRecorder.RecordRoutine(target, string.Format(LM.Get("world_sanction_lifted_history"), target.GetEmpireFullName()));
         }
     }
-#endif
 
     #endregion
 
     #region 世界大战
 
     // 打到第三年起，参战各国工农的怨气逐年加码(见 WorldWarSystem)
-#if EC_PENDING
     private static void WarWeariness()
     {
         foreach (War war in EmpireWorld.Current.LiveWars.ToList())
@@ -803,10 +794,8 @@ public static class WorldOrderSystem
             }
         }
     }
-#endif
 
     // 世界大战打完(WorldWarSystem.Resolve)：战败国正统大跌、革命形势陡增，战胜国发起万国公会
-#if EC_PENDING
     public static void OnWorldWarEnded(War war, WarOutcome winner)
     {
         if (war == null || winner != WarOutcome.Attackers && winner != WarOutcome.Defenders) return;
@@ -830,7 +819,6 @@ public static class WorldOrderSystem
         FoundLeague(chief, winners.Where(victor => StateModernization.IsModernPower(victor.CoreKingdom)),
             GameClock.Now, "world_league_postwar_history");
     }
-#endif
 
     #endregion
 }

@@ -33,7 +33,6 @@ public static class IdeologyDynamicsSystem
     public static float GetFatigue(Empire empire) => empire?.data?.constitutional_economy?.ideology_fatigue ?? 0f;
     public static float GetTrend(Empire empire) => empire?.data?.constitutional_economy?.economic_trend ?? 0f;
 
-#if EC_PENDING
     public static void Update(Empire empire, ConstitutionalEconomyState state)
     {
         if (empire?.CoreKingdom == null || state == null || empire.IsGone() || empire.IsArchived()) return;
@@ -50,7 +49,6 @@ public static class IdeologyDynamicsSystem
         UpdateSpeechPressure(empire, state, constitution);
         UpdateSuppression(empire, state, constitution, crisisStarted);
     }
-#endif
 
     #region 思想解放期与压不住的思想
 
@@ -81,7 +79,6 @@ public static class IdeologyDynamicsSystem
 
     private const float BurstAdultShare = 0.7f;
 
-#if EC_PENDING
     private static int BurstBackground(City city, PartyIdeology founding, List<PartyIdeology> targets,
         List<PartyIdeology> emerging, Dictionary<PartyIdeology, int> counts, int total, float share)
     {
@@ -163,10 +160,8 @@ public static class IdeologyDynamicsSystem
         else if (state.opinion_level >= PublicOpinionSystem.RevolutionaryWave)
             TryBurst(empire, state, constitution, "liberation_reason_wave");
     }
-#endif
 
     // 被压抑的思想爆发；没积累到门槛时什么也不发生
-#if EC_PENDING
     private static bool TryBurst(Empire empire, ConstitutionalEconomyState state, ConstitutionData constitution,
         string reasonKey)
     {
@@ -220,7 +215,6 @@ public static class IdeologyDynamicsSystem
         StartLiberation(empire, state, reasonKey);
         return true;
     }
-#endif
 
     #endregion
 
@@ -234,7 +228,6 @@ public static class IdeologyDynamicsSystem
     // 已经是最宽松/最严格时，同方向的压力不再累积。玩家在宪法页手定过言论自由的不改。
     private const float SpeechThreshold = 50f;
 
-#if EC_PENDING
     private static void UpdateSpeechPressure(Empire empire, ConstitutionalEconomyState state, ConstitutionData constitution)
     {
         if (constitution.provisional || ConstitutionSystem.IsPlayerLocked(empire, ConstitutionSystem.ClauseSpeech))
@@ -277,14 +270,12 @@ public static class IdeologyDynamicsSystem
         EventRecorder.Record(empire, string.Format(LM.Get(looser ? "speech_loosened_history" : "speech_tightened_history"),
             empire.GetEmpireFullName(), ConstitutionSystem.ValueText(ConstitutionSystem.ClauseSpeech, next.ToString())));
     }
-#endif
 
     #endregion
 
     #region 经济趋势
 
     // 返回今年是否新爆发了金融危机(压不住的思想的触发条件之一)
-#if EC_PENDING
     private static bool UpdateEconomicTrend(Empire empire, ConstitutionalEconomyState state)
     {
         List<City> cities = empire.kingdoms_list.Where(kingdom => kingdom?.Cities != null && !kingdom.IsGone())
@@ -318,13 +309,11 @@ public static class IdeologyDynamicsSystem
         if (delta != 0f) AdjustGrievances(empire, delta);
         return started;
     }
-#endif
 
     #endregion
 
     #region 意识形态疲劳
 
-#if EC_PENDING
     private static void UpdateFatigue(Empire empire, ConstitutionalEconomyState state, ConstitutionData constitution)
     {
         if (state.ideology_constitution_number != constitution.number)
@@ -349,7 +338,6 @@ public static class IdeologyDynamicsSystem
         growth += SpeechFreedomSystem.FatigueModifier(empire);
         state.ideology_fatigue = Mathf.Clamp(state.ideology_fatigue + growth, 0f, 100f);
     }
-#endif
 
     #endregion
 
@@ -357,7 +345,6 @@ public static class IdeologyDynamicsSystem
 
     private enum Line { Reform, Hardline, Continuity }
 
-#if EC_PENDING
     private static void UpdateLine(Empire empire, ConstitutionalEconomyState state, ConstitutionData constitution)
     {
         Person head = empire.Emperor ?? empire.CoreKingdom.Ruler;
@@ -420,10 +407,8 @@ public static class IdeologyDynamicsSystem
         if (roll < reform) return Line.Reform;
         return roll < reform + hardline ? Line.Hardline : Line.Continuity;
     }
-#endif
 
     // 比立国理念更温和(离中间派更近)、又与它最接近的已解锁理念，如共产主义 → 社会主义
-#if EC_PENDING
     private static PartyIdeology? ModerateNeighbour(Empire empire, PartyIdeology founding)
     {
         float own = PartySystem.IdeologyDistance(founding, PartyIdeology.Centrism);
@@ -434,10 +419,8 @@ public static class IdeologyDynamicsSystem
             .OrderBy(ideology => PartySystem.IdeologyDistance(ideology, founding))
             .Cast<PartyIdeology?>().FirstOrDefault();
     }
-#endif
 
     // 每座城把一部分居民(from 为空时为所有非目标理念者)转为 to；党员与统治者不在此列
-#if EC_PENDING
     private static void Convert(Empire empire, PartyIdeology? from, PartyIdeology to, float share)
     {
         foreach (City city in empire.kingdoms_list.Where(kingdom => kingdom?.Cities != null && !kingdom.IsGone())
@@ -456,7 +439,6 @@ public static class IdeologyDynamicsSystem
             LayerCityCache.Invalidate(city);
         }
     }
-#endif
 
     #endregion
 

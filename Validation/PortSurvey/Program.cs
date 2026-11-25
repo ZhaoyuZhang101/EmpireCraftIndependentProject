@@ -23,16 +23,20 @@ using Newtonsoft.Json.Linq;
 //
 //   PortSurvey suspend <sources> <report.json> <core folder> [<more source folders>...]
 //     Wraps the members that cannot compile yet in #if EC_PENDING (see Suspend.cs).
+//
+//   PortSurvey graph <sources> <graph.json> <core folder> [<more source folders>...]
+//     Every member's own errors and the members it refers to, suspended parts included (see Graph.cs).
 public static class Program
 {
     static readonly CSharpParseOptions Options = new CSharpParseOptions(LanguageVersion.Latest);
 
     public static int Main(string[] args)
     {
-        if (args.Length < 4 || (args[0] != "survey" && args[0] != "fix" && args[0] != "suspend"))
-        { Console.Error.WriteLine("PortSurvey survey|fix|suspend <sources> <report.json|members.json> <core folder> [more folders]"); return 2; }
+        if (args.Length < 4 || (args[0] != "survey" && args[0] != "fix" && args[0] != "suspend" && args[0] != "graph"))
+        { Console.Error.WriteLine("PortSurvey survey|fix|suspend|graph <sources> <report.json|members.json> <core folder> [more folders]"); return 2; }
         string sources = Path.GetFullPath(args[1]);
         if (args[0] == "suspend") return Suspend.Run(sources, args[2], args.Skip(3));
+        if (args[0] == "graph") return Graph.Run(sources, args[2], args.Skip(3));
         var others = new List<SyntaxTree>();
         for (int i = 3; i < args.Length; i++)
             foreach (string file in Directory.EnumerateFiles(args[i], "*.cs", SearchOption.AllDirectories))
@@ -146,6 +150,15 @@ public static class Program
                         edits.Add(new TextChange(TextSpan.FromBounds(coalesce.Left.Span.End, coalesce.Right.Span.End), ""));
                     continue;
                 }
+                // An overriding property whose base has it under another name.
+                if (node is PropertyDeclarationSyntax property && property.Modifiers.Any(SyntaxKind.OverrideKeyword))
+                {
+                    var declared = model.GetDeclaredSymbol(property);
+                    if (declared != null && declared.OverriddenProperty == null && declared.ContainingType != null &&
+                        Lookup(map, declared.ContainingType.BaseType, property.Identifier.Text, out string overridden) && overridden.Length > 0)
+                        edits.Add(new TextChange(property.Identifier.Span, overridden));
+                    continue;
+                }
                 if (!Unresolved(model, node, out string owner, out var member, out var receiverType)) continue;
                 string name = member.Identifier.Text;
                 // A chain of two collapsed into one member: x.data.color_id -> x.ColorId.
@@ -157,7 +170,14 @@ public static class Program
                     LeadingBinding(asked.WhenNotNull) is MemberBindingExpressionSyntax next &&
                     Lookup(map, receiverType, name + "." + next.Name.Identifier.Text, out string joined) && joined.Length > 0)
                 { edits.Add(new TextChange(TextSpan.FromBounds(member.SpanStart, next.Name.Span.End), joined)); continue; }
-                if (!Lookup(map, receiverType, name, out string renamed)) continue;
+                if (!Lookup(map, receiverType, name, out string renamed))
+                {
+                    // A field of a mod class called Kingdom or Actor: its declaration was renamed with the type; follow it.
+                    string follows = name == "Kingdom" ? "Realm" : name == "Actor" ? "Person" : null;
+                    if (follows != null && receiverType.TypeKind != TypeKind.Error && receiverType.GetMembers(follows).Length > 0)
+                        edits.Add(new TextChange(member.Identifier.Span, follows));
+                    continue;
+                }
                 if (renamed.Length > 0) { edits.Add(new TextChange(member.Identifier.Span, renamed)); continue; }
                 // An empty target drops the access, dot included: cities.list -> cities.
                 if (node is MemberAccessExpressionSyntax plain)

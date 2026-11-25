@@ -14,7 +14,6 @@ public static class ModernStability
     public const float RebellionFactor = 0.5f;
     public const int Loyalty = 15;
 
-#if EC_PENDING
     public static bool IsModern(Realm kingdom)
     {
         var empire = kingdom?.GetEmpire();
@@ -22,12 +21,9 @@ public static class ModernStability
         return realm?.GetRegime()?.type == RegimeType.Modern || TransmigrantSystem.Governs(empire) ||
                TransmigrantSystem.IsTransmigrant(realm);
     }
-#endif
 
     // 开国保护、新地方稳定期和当前正统统一在改动归属前判断。
-#if EC_PENDING
     public static bool PassRebellionGate(Realm kingdom) =>
         RebellionSystem.CanAttempt(kingdom) && EcRandom.value < RebellionSystem.ChanceFactor(kingdom);
-#endif
 }
 }

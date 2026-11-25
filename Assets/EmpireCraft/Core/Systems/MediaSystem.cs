@@ -30,7 +30,6 @@ public static class MediaSystem
     private static readonly float[] CrossBorderPressure = { 0f, 0.3f, 0.6f, 1f };
 
     // 本文化没启用科技系统时按活字印刷处理(各项系数为 1，不改变原来的平衡)
-#if EC_PENDING
     public static int PrintLevel(Realm kingdom)
     {
         if (kingdom == null || kingdom.IsGone()) return PrintMovable;
@@ -51,18 +50,14 @@ public static class MediaSystem
 
     public static float BookFactor(Realm kingdom) => BookFactors[PrintLevel(kingdom)];
     public static float NeighbourFactor(Realm kingdom) => NeighbourFactors[PrintLevel(kingdom)];
-#endif
 
     // 新兴理念能否在民间大规模传播(传统理念不受印刷限制)
     public static bool IsMassIdeology(PartyIdeology ideology) => !IdeologyFamilies.IsTraditional(ideology);
     public static float MassFactor(int printLevel) => MassFactors[printLevel];
-#if EC_PENDING
     public static float MassFactor(Realm kingdom, PartyIdeology ideology) =>
         IsMassIdeology(ideology) ? MassFactors[PrintLevel(kingdom)] : 1f;
-#endif
 
     // 开放国家：言论没有严格审查(没有宪法按"一般"算，也是开放的)，也没有锁国(制度特性 closed_country，如日本锁国令)
-#if EC_PENDING
     public static bool IsOpen(Realm kingdom)
     {
         if (kingdom == null || kingdom.IsGone()) return false;
@@ -71,17 +66,14 @@ public static class MediaSystem
         Empire empire = kingdom.IsInEmpire() ? kingdom.GetEmpire() : null;
         return empire == null || ConstitutionSystem.GetSpeech(empire) != ConstitutionSpeech.Strict;
     }
-#endif
 
     // 两国之间通过通信技术连得上的等级(双方取低)；接收方不开放时为 0
-#if EC_PENDING
     public static int LinkLevel(Realm source, Realm target)
     {
         if (!IsOpen(target)) return 0;
         int a = CommLevel(source), b = CommLevel(target);
         return a < b ? a : b;
     }
-#endif
 
     public static float CrossBorderExposurePerYear(int link) => CrossBorderExposure[link];
     public static float CrossBorderPressureFactor(int link) => CrossBorderPressure[link];

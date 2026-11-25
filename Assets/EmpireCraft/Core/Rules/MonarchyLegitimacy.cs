@@ -15,7 +15,6 @@ public static class MonarchyLegitimacy
     private static readonly Dictionary<long, (bool applies, int value, float at)> Cache = new();
     private static object _cacheWorld;
 
-#if EC_PENDING
     private static (bool applies, int value) Cached(Empire empire)
     {
         if (!ReferenceEquals(_cacheWorld, EmpireWorld.Current))
@@ -33,15 +32,12 @@ public static class MonarchyLegitimacy
     }
 
     public static bool Applies(Empire empire) => empire?.data != null && Cached(empire).applies;
-#endif
     // 独立于数值计算，供年度积弊/苛政选择模型，不经正统来源列表，避免互相递归。
-#if EC_PENDING
     public static bool UsesTraditionalModel(Empire empire) => empire?.data != null && EmpireWorld.Current != null &&
         empire.CoreKingdom != null && !empire.CoreKingdom.IsGone() && !empire.IsArchived() &&
         !ModernLegitimacy.Applies(empire) && !WarlordEraSystem.IsProvisionalGovernment(empire) &&
         !RepublicSystem.IsTransitioning(empire);
     public static int Get(Empire empire) => empire?.data == null ? 0 : Cached(empire).value;
-#endif
     public static void Invalidate(Empire empire = null)
     {
         if (empire == null) Cache.Clear();
@@ -49,7 +45,6 @@ public static class MonarchyLegitimacy
     }
 
     // 只读取已结算的苛政与财政数据，不在城市忠诚/外交频繁读取时扫描人口、地块或单位。
-#if EC_PENDING
     public static List<(string key, int value)> Breakdown(Empire empire)
     {
         var items = new List<(string key, int value)>();
@@ -120,6 +115,5 @@ public static class MonarchyLegitimacy
         if (retreat > 0) items.Add(("mandate_southern_retreat", retreat));
         return items;
     }
-#endif
 }
 }

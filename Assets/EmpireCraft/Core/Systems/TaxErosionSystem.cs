@@ -25,7 +25,6 @@ public static class TaxErosionSystem
             TreasuryCategory.CommercialTax;
 
     // 这一笔税在征收前流失的比例：隐田逃户、胥吏舞弊
-#if EC_PENDING
     public static (float hidden, float fraud) Evasion(Empire empire, TreasuryCategory category)
     {
         if (empire?.data == null || !IsTax(category) || !MaladySystem.Applies(empire)) return (0f, 0f);
@@ -49,13 +48,10 @@ public static class TaxErosionSystem
         }
         return (hidden, fraud);
     }
-#endif
 
     // 各省截留中央那份的比例
-#if EC_PENDING
     public static float Withholding(Empire empire) =>
         empire?.data == null || !MaladySystem.Applies(empire) ? 0f : Withhold * MaladySystem.Severity(empire, MaladySystem.Graft);
-#endif
 
     // 随机舍入(小额税款按期望值流失，不会因取整一直是 0)
     public static int Round(double value) =>

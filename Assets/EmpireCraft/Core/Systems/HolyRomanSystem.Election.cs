@@ -48,11 +48,11 @@ public static partial class HolyRomanSystem
     }
 
     // 在座选帝侯(被禁者停权)
-#if EC_PENDING
     private static List<Person> SeatedElectors(Empire empire) =>
         empire.GetCabinetMembers().Where(actor => actor?.Record != null && !actor.IsGone() && actor.Alive &&
                                                   actor.Realm?.GetEmpire() == empire && !IsBanned(actor.Realm)).ToList();
 
+#if EC_PENDING
     private static List<Person> ElectionCandidates(Empire empire) =>
         Members(empire).Where(realm => realm.HasRuler() && Estate(realm) == EstateNone && !IsBanned(realm))
             .Select(realm => realm.Ruler)

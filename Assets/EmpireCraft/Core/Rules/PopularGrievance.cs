@@ -31,7 +31,6 @@ public static class PopularGrievance
     private static readonly Dictionary<long, (int year, Dictionary<SocialClass, float> shares)> KingdomShares = new();
     private static object _cacheWorld;
 
-#if EC_PENDING
     public static float Index(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || EmpireWorld.Current == null) return 0f;
@@ -49,20 +48,16 @@ public static class PopularGrievance
             return 0f;
         }
     }
-#endif
 
     // 0~1 的系数(民怨 / 100)
-#if EC_PENDING
     public static float Factor(Realm kingdom) => Index(kingdom) / 100f;
 
     public static int Tier(Realm kingdom) => Tier(Index(kingdom));
-#endif
 
     public static int Tier(float index) =>
         index >= 80f ? Boiling : index >= 60f ? Seething : index >= 30f ? Murmuring : Calm;
 
     // 平民阶层怨气：按人口加权的平均(阶层怨气只有帝国逐年结算；独立王国一般为 0)
-#if EC_PENDING
     public static float CommonerGrievance(Empire empire)
     {
         if (empire?.data == null || empire.IsGone()) return 0f;
@@ -73,7 +68,6 @@ public static class PopularGrievance
     private static float CommonerGrievance(Realm kingdom) =>
         Weighted(kingdom.GetOrCreate()?.institution_state?.class_grievances,
             () => SharesOf(KingdomShares, kingdom.Key, new[] { kingdom }));
-#endif
 
     public static bool IsCommoner(SocialClass socialClass) =>
         socialClass.IsPeasantry() || socialClass is SocialClass.Labour or SocialClass.Slave;
@@ -96,7 +90,6 @@ public static class PopularGrievance
         return weight > 0f ? sum / weight : 0f;
     }
 
-#if EC_PENDING
     private static Dictionary<SocialClass, float> SharesOf(
         Dictionary<long, (int year, Dictionary<SocialClass, float> shares)> cache, long id, IEnumerable<Realm> scope)
     {
@@ -116,6 +109,5 @@ public static class PopularGrievance
         cache[id] = (year, shares);
         return shares;
     }
-#endif
 }
 }

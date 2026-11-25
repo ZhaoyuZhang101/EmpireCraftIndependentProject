@@ -106,7 +106,6 @@ public static class ImperialSealSystem
         return state;
     }
 
-#if EC_PENDING
     private static CultureInstitutionState StateOf(Empire empire, out string culture)
     {
         culture = CultureService.GetEmpireDefaultCulture(empire);
@@ -121,10 +120,8 @@ public static class ImperialSealSystem
         CultureInstitutionState state = StateOf(empire, out _);
         return state != null && empire?.data != null && state.imperial_seal_empire_id == empire.data.id;
     }
-#endif
 
     // 还没称帝的华夏王国怀着玉玺
-#if EC_PENDING
     public static bool HeldByKingdom(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone()) return false;
@@ -133,20 +130,16 @@ public static class ImperialSealSystem
         CultureInstitutionState state = SealState(culture);
         return state != null && state.imperial_seal_empire_id <= 0 && state.imperial_seal_kingdom_id == kingdom.Key;
     }
-#endif
 
     // 怀玺(帝国或王国)：称帝、受天命时看这个
-#if EC_PENDING
     public static bool Holds(Realm kingdom)
     {
         if (kingdom == null) return false;
         Empire empire = kingdom.IsEmpire() ? kingdom.GetEmpire() : null;
         return empire != null ? HeldBy(empire) : HeldByKingdom(kingdom);
     }
-#endif
 
     // 开国天命的增减：怀玺称帝不另加(路线已给)，别家怀着玉玺时无玺称帝 -10
-#if EC_PENDING
     public static int FoundingMandateAdjustment(Realm founder)
     {
         string culture = CultureService.GetRealmCulture(founder);
@@ -157,6 +150,7 @@ public static class ImperialSealSystem
         return another ? -10 : 0;
     }
 
+#if EC_PENDING
     private static Item ItemOf(long id) => id > 0 ? EmpireWorld.Current.items.get(id) : null;
 #endif
 
@@ -166,14 +160,12 @@ public static class ImperialSealSystem
     private static bool Alive(Empire empire) => empire?.data != null && !empire.IsGone() && !empire.IsArchived();
 
     // 进入帝制(不是原始部落联盟、周制天子)
-#if EC_PENDING
     private static bool Imperial(Empire empire)
     {
         RegimeType? type = empire?.CoreKingdom?.GetRegime()?.type;
         return type != null && !RegimeManager.IsPrimitive(type) && type != RegimeType.ZhouFeudalism &&
                RegimeManager.IsMonarchy(type) && !RepublicSystem.IsRepublic(empire);
     }
-#endif
 
     #endregion
 
@@ -263,6 +255,7 @@ public static class ImperialSealSystem
         LogService.LogInfo("[EmpireCraft][传国玉玺] " + content);
         if (Alive(former)) former.RecordHistory(directContent: content);
     }
+#endif
 
     private static void Announce(Empire empire, string content)
     {
@@ -270,7 +263,6 @@ public static class ImperialSealSystem
         empire.RecordHistory(directContent: content, actorId: empire.Emperor?.Key ?? -1L);
         TranslateHelper.LogEventMessage(content, empire.CoreKingdom);
     }
-#endif
 
     #endregion
 

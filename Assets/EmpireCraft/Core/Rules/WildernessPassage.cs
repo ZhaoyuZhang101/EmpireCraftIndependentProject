@@ -71,13 +71,10 @@ public static class WildernessPassage
     }
 
     // 地图上有过不去的无人区(开关关掉、还没划区时为假)：为假时处处能走，寻路里不必逐块查
-#if EC_PENDING
     public static bool Active => Ensure();
-#endif
 
     // traveller 走不走得进这块地：不是无人区、无人区里有路、或这国惯走这一类(见 Habit)。
     // 归了城的地块不是无人区(同 WildernessSystem：神力立村设镇放行给城的那一块，到下次重划之前也算城的)
-#if EC_PENDING
     public static bool Passable(Cell zone, Realm traveller)
     {
         if (zone == null || !Ensure()) return true;
@@ -86,16 +83,12 @@ public static class WildernessPassage
         byte block = _block[id];
         return block == 0 || zone.City != null || (block & (1 << Habit(traveller))) == 0;
     }
-#endif
 
     // 多线程读(见 FrontSystem.Parallel)：主线程先取，返回眼下的"过不去"表(按地块编号，低三位是军队的走法)，
     // 地图上没有过不去的无人区时为空(处处能走)。拿去的表只读，主线程不重算时内容不变
-#if EC_PENDING
     internal static byte[] BlockSnapshot() => Ensure() ? _block : null;
-#endif
 
     // 政令走得进这块地：同 Passable，小径、丘陵不算(见类头)
-#if EC_PENDING
     public static bool CivilPassable(Cell zone, Realm traveller)
     {
         if (zone == null || !Ensure()) return true;
@@ -104,34 +97,26 @@ public static class WildernessPassage
         byte block = _block[id];
         return block == 0 || zone.City != null || (block & CivilWay(traveller)) == 0;
     }
-#endif
 
     // 不分国家：不是无人区，或无人区里有路
-#if EC_PENDING
     public static bool PassableByRoad(Cell zone)
     {
         if (zone == null || !Ensure()) return true;
         int id = zone.Index;
         return id < 0 || id >= _block.Length || _block[id] == 0 || zone.City != null;
     }
-#endif
 
     // 寻路里逐邻查用：先取一次走法(Way)，确认过 Active 后用 Open，省掉每块的版本比对与判习性
-#if EC_PENDING
     public static int Way(Realm traveller) => 1 << Habit(traveller);
-#endif
 
     // 政令的走法(同样交给 Open)
-#if EC_PENDING
     public static int CivilWay(Realm traveller) => 1 << (Habit(traveller) + CivilShift);
-#endif
 
     public static bool Open(Cell zone, int way) =>
         zone == null || zone.Index < 0 || zone.Index >= _block.Length || (_block[zone.Index] & way) == 0 || zone.City != null;
 
     // 两块地之间绕得过、或沿路穿得过 traveller 过不去的无人区：同一片陆地上被这种无人区隔成两片的为假；
     // 不在同一片陆地上(隔海)的不归这里管，算真。自己就是过不去的无人区的地块，按挨着的能走的地块算
-#if EC_PENDING
     public static bool Reachable(Cell a, Cell b, Realm traveller)
     {
         if (a == null || b == null || a == b || !Ensure()) return true;
@@ -139,10 +124,8 @@ public static class WildernessPassage
         if (!SharesPart(land, a, b)) return true;
         return SharesPart(Parts(Habit(traveller)), a, b);
     }
-#endif
 
     // 政令绕得过、或沿修通的路穿得过(同 Reachable，小径、丘陵不算)
-#if EC_PENDING
     public static bool CivilReachable(Cell a, Cell b, Realm traveller)
     {
         if (a == null || b == null || a == b || !Ensure()) return true;
@@ -150,11 +133,9 @@ public static class WildernessPassage
         if (!SharesPart(land, a, b)) return true;
         return SharesPart(Parts(CivilPart + Habit(traveller)), a, b);
     }
-#endif
 
     // 军队从 a 真走得到 b(开战闸门用，见 WarReach)：无人区之外还看高山与山脊(TerrainSystem.Impassable、Crossable)；
     // 隔海的、走不了的都算不通(同 Reachable 相反，隔海的另由水师判)。地图上没有过不去的无人区时不查，照以前按接壤算
-#if EC_PENDING
     public static bool Walks(Cell a, Cell b, Realm traveller)
     {
         if (a == null || b == null || a == b || !Ensure()) return true;
@@ -173,10 +154,8 @@ public static class WildernessPassage
         Rebuild(world, zones, enabled);
         return _any;
     }
-#endif
 
     // 整张重算：每块地是什么无人区、有没有路(都是 O(1) 的查询)；只有真变了才作废连片
-#if EC_PENDING
     private static void Rebuild(EmpireWorld world, List<Cell> zones, bool enabled)
     {
         bool changed = false;
@@ -234,10 +213,8 @@ public static class WildernessPassage
         byte army = RoadNetwork.IsTrail(zone) || kind == WildKind.Mountain && TerrainSystem.Hilly(zone) ? (byte)0 : civil;
         return (byte)(army | civil << CivilShift);
     }
-#endif
 
     // 悬停提示：这块无人区军队怎么走(语言键)；不是无人区、归了城、开发过半的(开发度那行写着)不写
-#if EC_PENDING
     public static string TipKey(Cell zone)
     {
         if (zone == null || zone.City != null) return null;
@@ -254,7 +231,6 @@ public static class WildernessPassage
             _ => "wild_passage_blocked"
         };
     }
-#endif
 
     // 走的一方惯走哪些无人区：真游牧(见 KingdomExtension.IsTrueNomad)沙漠冻土，阿拉伯制度线沙漠，别的(连同不知是谁的)都不惯；
     // 同一帧里同一国只判一次(寻路、控制力一趟会问很多块地，战线里几国交替着问)
@@ -262,7 +238,6 @@ public static class WildernessPassage
     private static int _habitFrame = -1, _lastHabit;
     private static Realm _lastKingdom;
 
-#if EC_PENDING
     private static int Habit(Realm kingdom)
     {
         if (kingdom?.Record == null) return Settled;
@@ -282,10 +257,8 @@ public static class WildernessPassage
         _lastHabit = habit;
         return habit;
     }
-#endif
 
     // 连片：下标见 CivilShift 那行(Land 不看无人区)，海面、地图边缘不算陆地；八方向连通
-#if EC_PENDING
     private static int[] Parts(int way)
     {
         int[] parts = _parts[way];
@@ -295,10 +268,8 @@ public static class WildernessPassage
         _partRevision[way] = revision;
         return _parts[way];
     }
-#endif
 
     // 连地形的连片：地形变了不跟(格子时时在变)，无人区、路网变了隔半分钟重连，平时两分钟兜底
-#if EC_PENDING
     private static int[] TerrainParts(int part)
     {
         int[] parts = _parts[part];
@@ -360,7 +331,6 @@ public static class WildernessPassage
 
     private static bool Walkable(Cell zone, int mask) =>
         !zone.OnEdge && !SeaRegionSystem.IsSea(zone) && (_block[zone.Index] & mask) == 0;
-#endif
 
     private static int PartOf(int[] parts, Cell zone) =>
         zone != null && zone.Index >= 0 && zone.Index < parts.Length ? parts[zone.Index] : Blocked;

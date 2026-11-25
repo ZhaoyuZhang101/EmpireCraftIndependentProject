@@ -268,7 +268,7 @@ public static partial class TransmigrantSystem
             {
                 if (zone.City == null && zone.canStartCityHere()) return zone;
                 if (fallback == null && zone.City != null && !zone.City.IsGone() && zone.City.Zones.Count > 4 &&
-                    zone.City.SeatCell()?.Zone != zone && zone.GroundTiles >= 48)
+                    zone.City.SeatCell()?.Zone != zone && zone.GroundCount >= 48)
                 {
                     fallback = zone;
                     fallbackCity = zone.City;
@@ -280,10 +280,10 @@ public static partial class TransmigrantSystem
         carveFrom = fallbackCity;
         return fallback;
     }
+#endif
 
     private static bool Coastal(Cell zone) =>
-        zone != null && zone.GroundTiles >= 32 && SeaLanding.Waters(zone).Any();
-#endif
+        zone != null && zone.GroundCount >= 32 && SeaLanding.Waters(zone).Any();
 
     // 地图上落脚处附近的临高(城或村镇)；没有就用临高这个名字给自己的城
     private static (string name, bool native) LingaoNear(Cell zone)
@@ -302,7 +302,6 @@ public static partial class TransmigrantSystem
         return (lingao, false);
     }
 
-#if EC_PENDING
     private static void RenameCity(City city, string name)
     {
         city.Name = name;
@@ -322,17 +321,15 @@ public static partial class TransmigrantSystem
         CityPopulationData data = CityPopulationSystem.Get(city);
         if (data != null)
         {
-            float housing = Mathf.Max(0f, city.getPopulationMaximum() - Mathf.Max(0f, data.brush_capacity));
+            float housing = Mathf.Max(0f, city.GetPopulationMaximum() - Mathf.Max(0f, data.brush_capacity));
             data.brush_capacity = Mathf.Max(data.brush_capacity, CityPopulationSystem.GetTotal(city) - housing);
         }
         CityPopulationSystem.InvalidateHouseholdCaches();
         LayerCityCache.Invalidate(city);
     }
-#endif
 
     // 知识带来了，工业底子要自己建：火药时代以前全会，随身带来的枪械、炸药、发电等几项现代技术(BroughtTechs，连同前置)直接会，
     // 工业、电气时代的其余各项先有一半进度
-#if EC_PENDING
     private static void GrantTechs(Realm kingdom)
     {
         foreach (TechNodeConfig tech in TechnologySystem.Techs.ToList())
@@ -344,7 +341,6 @@ public static partial class TransmigrantSystem
         RealmTechState realm = TechnologySystem.GetRealmState(kingdom);
         foreach (string id in TechnologySystem.GetState(Culture).researched_techs.ToList()) realm.Adopt(id);
     }
-#endif
 
     // 码头、各类建筑一次建好，一处厂区，城貌按工业时代画
 #if EC_PENDING
@@ -352,23 +348,24 @@ public static partial class TransmigrantSystem
     {
         try
         {
-            BuildingAsset dock = city.getActorAsset()?.getBuildingDockAsset();
+            BuildingKind dock = city.getActorAsset()?.getBuildingDockAsset();
             Cell dockTile = dock == null ? null : ai.behaviours.CityBehBuild.getDockTile(city);
             if (dockTile != null) EmpireWorld.Current.buildings.addBuilding(dock, dockTile);
             CityConstructionSystem.Flourish(city);
             Cell center = city.SeatCell()?.Zone;
-            Cell yard = city.Zones.FirstOrDefault(zone => zone != center && zone.GroundTiles >= 48);
+            Cell yard = city.Zones.FirstOrDefault(zone => zone != center && zone.GroundCount >= 48);
             if (yard != null) FactorySystem.Place(yard.Center, 2, out _, manual: true);
             var extra = city.GetOrCreate();
             extra.urban_peak_progress = Mathf.Max(extra.urban_peak_progress, 1f);
             extra.urban_peak_housing = Math.Max(extra.urban_peak_housing, 6);
-            PureMapPatch.Redraw(city);
+            GameView.Redraw(city);
         }
         catch (Exception exception)
         {
             LogService.LogWarning($"[EmpireCraft][穿越] 营建落脚城失败: {exception.Message}");
         }
     }
+#endif
 
     private static void LaunchFleet(Realm kingdom, City city)
     {
@@ -383,7 +380,6 @@ public static partial class TransmigrantSystem
             warships = AosongNavyRules.FloorWarships(1), transports = AosongNavyRules.FloorTransports(1)
         });
     }
-#endif
 
     #endregion
 
@@ -894,14 +890,12 @@ public static partial class TransmigrantSystem
         empire?.CoreKingdom is Realm core && !core.IsGone() && StageOf(core) >= RegionStage;
 
     // 大区的名号：第三次全体大会以前用治所城名，以后照法理地区名(返回 null)
-#if EC_PENDING
     public static string RegionFront(Realm kingdom)
     {
         if (!IsRegion(kingdom) || StageOf(SenateOf(kingdom)) >= RegionRenameStage) return null;
         City seat = kingdom.Capital;
         return seat == null || seat.IsGone() ? null : seat.GetCityName();
     }
-#endif
 
     // 每年：以前按封国分出去的成员(能外交、世袭、握着法理)改成大区；各大区照阶段重定名号与城名
 #if EC_PENDING
@@ -995,16 +989,13 @@ public static partial class TransmigrantSystem
     private const float NaturalizeLogMin = 50f;
 
     // 华夏诸国(穿越者以外的华夏天下文化)打穿越政体：剿髡之战
-#if EC_PENDING
     public static void NameWar(War war)
     {
         string name = WarName(war);
         if (name != null) war.Name = name;
     }
-#endif
 
     // 战争目标定下后按目标重起名时也先看这个(见 WarCatalog.Compose)
-#if EC_PENDING
     public static string WarName(War war)
     {
         if (war?.Record == null) return null;
@@ -1015,7 +1006,6 @@ public static partial class TransmigrantSystem
             return null;
         return string.Format(LM.Get("transmigrant_war_name"), attacker.GetKingdomName());
     }
-#endif
 
     // 降临即是一国之政府(同现代政体组建政府，见 ModernStateFormationSystem.FormGovernment)：进帝国层，享有帝国的全部机制。
     // 降临时建；没建成(或帝国散了)的每年补建
@@ -1037,14 +1027,12 @@ public static partial class TransmigrantSystem
 #endif
 
     // 帝国名就是国号(临高、大宋)，后缀照国家的(元老院、澳洲行在)
-#if EC_PENDING
     private static void SyncEmpireName(Realm kingdom)
     {
         Empire empire = kingdom.GetEmpire();
         if (empire?.CoreKingdom == kingdom && !string.IsNullOrWhiteSpace(kingdom.GetCustomCountryName()))
             empire.SetEmpireName(kingdom.GetCustomCountryName());
     }
-#endif
 
     // 澳洲人文化只归穿越政权与它的殖民地：别国打下澳洲人的城、分出去的部落随了城里的文化，改记华夏，
     // 免得成了没有元老院席位的"元老院"政体(见 CultureService.SetRealmCulture)
@@ -1100,7 +1088,6 @@ public static partial class TransmigrantSystem
         return null;
     }
 
-#if EC_PENDING
     private static Cell HuaxiaCoast()
     {
         List<City> coast = EmpireWorld.Current.Cities
@@ -1110,10 +1097,8 @@ public static partial class TransmigrantSystem
         List<City> pool = huaxia.Count > 0 ? huaxia : coast;
         return pool.Count == 0 ? null : pool[EcRandom.Range(0, pool.Count)].SeatCell();
     }
-#endif
 
     // 出版指导小组：只放比本国落后两个时代以上、不涉军事政治的技术(兵书、政论锁在大图书馆里)
-#if EC_PENDING
     private static void Publish(Realm kingdom, TransmigrantState state)
     {
         double now = GameClock.Now;
@@ -1143,7 +1128,6 @@ public static partial class TransmigrantSystem
             TranslateHelper.LogEventOnly(string.Format(LM.Get("transmigrant_publish_history"), title, reached), kingdom);
         }
     }
-#endif
 
     #endregion
 }

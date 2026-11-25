@@ -218,7 +218,6 @@ public class OfficeIdentity
     public long actor_id;
     [JsonIgnore]
     public Person actor => EmpireWorld.Current.PersonByKey(actor_id);
-#if EC_PENDING
     public void init (Person actor) 
     {
         actor_id = actor.Key;
@@ -240,7 +239,6 @@ public class OfficeIdentity
     {
         return OfficialRankSystem.NameFor(actor);
     }
-#endif
     /// <summary>
     /// 进入内阁
     /// </summary>
@@ -260,21 +258,18 @@ public class OfficeIdentity
     {
         return _is_cabinet;
     }
-#if EC_PENDING
     public void SetOfficeId(long oid, Person actor)
     {
         performanceEvents = new PerformanceEvents();
         performanceEvents.init(actor);
         this.officeID = oid;
     }
-#endif
 
     public bool HasOffice()
     {
         return officeID != -1L;
     }
 
-#if EC_PENDING
     public void RemoveOffice()
     {
         if (OfficeManager.Offices.TryGetValue(this.GetOfficeId(), out var value))
@@ -285,14 +280,12 @@ public class OfficeIdentity
         officialLevel = -1;
         officeID = -1L;
     }
-#endif
 
     public long GetOfficeId()
     {
         return this.officeID;
     }
     
-#if EC_PENDING
     public void ChangeOfficialLevel(int level)
     {
         Person actor = EmpireWorld.Current.PersonByKey(actor_id);
@@ -306,7 +299,6 @@ public class OfficeIdentity
             performanceEvents.init(actor);
         }
     }
-#endif
 }
 public enum PerformanceEventType
 {
@@ -347,7 +339,7 @@ public static class ActorExtension
 #if EC_PENDING
     public static bool CanFoundCivKingdom(this Person actor)
     {
-        string id = actor?.asset?.kingdom_id_civilization;
+        string id = actor?.Asset?.kingdom_id_civilization;
         return actor != null && !actor.IsGone() && actor.Alive && !string.IsNullOrEmpty(id) &&
                AssetManager.kingdoms.dict.TryGetValue(id, out KingdomAsset asset) && asset.civ;
     }
@@ -549,7 +541,6 @@ public static class ActorExtension
         return data.target_tile == tile;
     }
 
-#if EC_PENDING
     public static bool ShouldBlockGoToByFrontLine(this Person a, Cell requestedTile)
     {
         if (a == null || requestedTile == null)
@@ -562,7 +553,7 @@ public static class ActorExtension
             return false;
         }
 
-        if (!a.hasArmy() || a.Realm == null || !a.Realm.HasEnemies())
+        if (!a.HasArmy() || a.Realm == null || !a.Realm.HasEnemies())
         {
             return false;
         }
@@ -604,6 +595,7 @@ public static class ActorExtension
         return true;
     }
 
+#if EC_PENDING
     public static bool HasNearbyEnemyAttackOpportunity(this Person a)
     {
         if (a == null || a.Realm == null || a.Cell?.Zone == null)
@@ -633,6 +625,7 @@ public static class ActorExtension
 
         return false;
     }
+#endif
 
     private static bool IsNearbyEnemyAttackTarget(this Person a, Cell requestedTile)
     {
@@ -665,7 +658,7 @@ public static class ActorExtension
         for (int i = 0; i < city.PopulationCount(); i++)
         {
             Person other = city.People[i];
-            if (other == null || other == actor || !other.hasArmy() || other.Cell?.Zone != zone)
+            if (other == null || other == actor || !other.HasArmy() || other.Cell?.Zone != zone)
             {
                 continue;
             }
@@ -678,7 +671,6 @@ public static class ActorExtension
 
         return false;
     }
-#endif
     public static bool IsNeedToAddLover(this Person a)
     {
         return a.GetOrCreate().last_add_lover_timestamp < 0 ||
@@ -714,7 +706,6 @@ public static class ActorExtension
     // 派系年度整理(FixedFaction.Update)对每个成员都调、每死一个文明人也调，帝国一多(部落时代)就是帝国数 × 人数
     // (用户 2026-10-26 嫌卡)。派系编号都是新生成的 GUID(见 FixedFaction.Clone、DeepClone 与各处新建)，各帝国不重，
     // 先查哪家结果都一样；没入派系的(编号为空串)对不上任何派系，直接返回
-#if EC_PENDING
     public static FixedFaction GetFaction(this Person a)
     {
         string factionId = a.GetOrCreate()?.factionID;
@@ -750,7 +741,6 @@ public static class ActorExtension
         a.RecordPersonalHistory(string.Format(LM.Get("personal_history_joined_faction"), faction.Name));
         faction.AddMember(a);
     }
-#endif
 
     public static void RemoveFaction(this Person a)
     {
@@ -839,17 +829,15 @@ public static class ActorExtension
     }
 
     // WarBox 等模组的载具(坦克、飞机、炮艇)也是 Person，不能当官、入党、进宗族、当议员
-#if EC_PENDING
     public static bool IsWarMachine(this Person a)
     {
         if (a == null) return false;
         // 原版的船只也是 Person：不能当君主、官员、作者，也不算人口
-        if (a.asset?.is_boat == true) return true;
+        if (a.Asset?.IsBoat == true) return true;
         if (a.HasTrait("warbox_unit")) return true;
-        string id = a.asset?.id;
+        string id = a.Asset?.Id;
         return id != null && id.StartsWith("warbox_", StringComparison.Ordinal);
     }
-#endif
 
     // 妃嫔(记为妾室的)或在位君主的配偶：不出任后宫以外的官职
     public static bool IsHaremOrConsort(this Person a)
@@ -860,7 +848,6 @@ public static class ActorExtension
         return spouse != null && !spouse.IsGone() && spouse.Alive && spouse.IsRuler();
     }
 
-#if EC_PENDING
     public static bool CanServeOffice(this Person a, Realm kingdom)
     {
         if (a == null || a.IsGone() || !a.Alive || a.IsWarMachine()) return false;
@@ -874,7 +861,6 @@ public static class ActorExtension
         var empireId = kingdom.GetEmpireID();
         return empireId < 0 || !a.IsBannedFromOffice(empireId);
     }
-#endif
 
     public static bool IsLawCheckDue(this Person a, string key, float years = 1f)
     {
@@ -913,7 +899,6 @@ public static class ActorExtension
         timestamps[key] = GameClock.Now;
     }
 
-#if EC_PENDING
     public static void SetTyrantValue(this Person a, int value)
     {
         if (a?.GetIdentity()==null) return;
@@ -931,7 +916,6 @@ public static class ActorExtension
         if (a == null || addition == 0f) return;
         a.SetTyrantValue(a.GetViolateValue() + addition);
     }
-#endif
 
     private static void OnTyrantValueFullReached(this Person a)
     {
@@ -951,7 +935,6 @@ public static class ActorExtension
         // 概率判定（Unity）
         return EcRandom.value < rate;
     }
-#if EC_PENDING
     public static double CalcCorruptionValue(this Person actor)
     {
         double result = 0f;
@@ -962,7 +945,6 @@ public static class ActorExtension
         }
         return result;
     }
-#endif
     public static double GetLastTaxTime(this Person k)
     {
         return k.GetOrCreate().last_tax_timestamp;
@@ -1040,7 +1022,6 @@ public static class ActorExtension
         var ed = a.GetOrCreate();
         return SpecificClanManager.getPerson(ed.personal_identity);
     }
-#if EC_PENDING
     public static void RecordPersonalHistory(this Person a, string content, string eventKey = "", long relatedActorId = -1L,
         long relatedPersonalIdentityId = -1L, bool major = false)
     {
@@ -1052,7 +1033,6 @@ public static class ActorExtension
         identity.RecordPersonalHistory(content, historyDate, kingdom?.GetKingdomName(), empire?.Key ?? -1L, eventKey,
             relatedActorId, relatedPersonalIdentityId, major);
     }
-#endif
 
     // 个人经历上限：族谱里连已故族人的经历也存档，不设上限存档会膨胀到几百 MB、读档内存不够直接闪退。
     // 超出时留第一条(通常是出生)、最近几条与大事，先删例行公事(见 BiographySystem.Trim)
@@ -1210,7 +1190,6 @@ public static class ActorExtension
             return ModClass.EMPIRE_MANAGER.Get(GetOrCreate(a).empire_id);
         }
     }
-#if EC_PENDING
     public static string HereditaryRealmRank(Person a)
     {
         Realm realm = a?.Realm;
@@ -1222,7 +1201,6 @@ public static class ActorExtension
             method != EmpireCraft.Core.LeaderSelectMethod.Default) return null;
         return realm.GetOffice()?.GetName(realm);
     }
-#endif
 
     public static bool HasVirtualEnfeoff(this Person a, Empire empire = null)
     {
@@ -1269,7 +1247,6 @@ public static class ActorExtension
         // 整份折算会让内阁大员稳态多出上千、压过皇帝，见 RenownSystem)
         return Math.Max(0, Math.Min(30, (int)Math.Floor(annualPerformance / 2d)));
     }
-#if EC_PENDING
     public static void AddOfficeExamLevel(this Person actor, EmpireExamLevel level)
     {
         if (GetOrCreate(actor).officeIdentity!=null)
@@ -1309,7 +1286,6 @@ public static class ActorExtension
             actor.UpgradeOfficial(direct:dir);
         }
     }
-#endif
 
     public static List<EmpireExamLevel> GetEmpireExamLevels(this Person actor)
     {
@@ -1349,7 +1325,6 @@ public static class ActorExtension
         GetOrCreate(a).peerageType = type;
     }
     
-#if EC_PENDING
     public static void initializeActorName(this Person a)
     {
         string culture_name = CultureService.GetFounderCulture(a);
@@ -1359,7 +1334,6 @@ public static class ActorExtension
             a.GetModName().Initialize(setting, culture_name);
         }
     }
-#endif
 
     public static void SetFirstName(this Person a, string name)
     {
@@ -1381,7 +1355,6 @@ public static class ActorExtension
     {
         return a?.GetOrCreate().officeIdentity != null;
     }
-#if EC_PENDING
     public static OfficeIdentity GetIdentity( this Person a)
     {
         if (!a.HasOfficeIdentity()) return null;
@@ -1406,7 +1379,6 @@ public static class ActorExtension
         if (a == null) return;
         GetOrCreate(a).officeIdentity.ChangeOfficialLevel(level);
     }
-#endif
 
     public static void SetIdentityType(this Person a, PeerageType type=PeerageType.Civil)
     {
@@ -1418,7 +1390,6 @@ public static class ActorExtension
     {
         return a == null ? PeerageType.Civil : GetOrCreate(a).officeIdentity.peerageType;
     }
-#if EC_PENDING
     public static void SetIdentity(this Person a, OfficeIdentity identity, bool isInitial=false)
     {
         if (a == null) return;
@@ -1440,7 +1411,6 @@ public static class ActorExtension
         };
         a.SetIdentity(identity, true);
     }
-#endif
 
     public static void RemoveIdentity(this Person a)
     {
@@ -1457,13 +1427,11 @@ public static class ActorExtension
         if (identity.officialLevel == -1) return false;
         return true;
     }
-#if EC_PENDING
     public static bool isNoble(this Person a)
     {
         if (a == null) return false;
         return EmpireCaftActorJudgeClass.JudgeClass(a) == SocialClass.Noble;
     }
-#endif
 
     public static bool CanGrabAlliance(this Person a)
     {
@@ -1570,7 +1538,6 @@ public static class ActorExtension
         }
     }
 
-#if EC_PENDING
     public static string GetActorName(this Person a)
     {
         if (a == null) return null;
@@ -1597,6 +1564,7 @@ public static class ActorExtension
         return nameParts[0].Split(' ').Last();
     }
 
+#if EC_PENDING
     public static List<KingdomTitle> getAcquireTitle(this Person a)
     {
         List<KingdomTitle> titles = new();
@@ -1720,12 +1688,12 @@ public static class ActorExtension
 
 
     // 只问有没有：找到第一个就停(决议条件里每个君主都要问，不必把全部法理算完)
-#if EC_PENDING
     public static bool canTakeTitle(this Person a)
     {
         return TakeableTitles(a).Any();
     }
 
+#if EC_PENDING
     public static List<KingdomTitle> titleCanBeDestroy(this Person a)
     {
         List<KingdomTitle> titles = new List<KingdomTitle>();
@@ -1753,7 +1721,7 @@ public static class ActorExtension
         var destroyable = new List<KingdomTitle>();
         foreach (KingdomTitle kt in titles)
         {
-            int absorbed = kt.getCities().Count(city => city != null && !city.IsGone() && city.Realm == a.Realm);
+            int absorbed = kt.GetCities().Count(city => city != null && !city.IsGone() && city.Realm == a.Realm);
             if (absorbed > room) continue;
             room -= absorbed;
             destroyable.Add(kt);
@@ -1804,12 +1772,11 @@ public static class ActorExtension
         }
         return takedTitles;
     }
-
-    private static List<KingdomTitle> GetTakeableTitles(Person actor) => TakeableTitles(actor).ToList();
 #endif
 
+    private static List<KingdomTitle> GetTakeableTitles(Person actor) => TakeableTitles(actor).ToList();
+
     // 可取的法理：本国控制的在前，其余不经战争就能取的在后(各算一次)，再按归属筛
-#if EC_PENDING
     private static IEnumerable<KingdomTitle> TakeableTitles(Person actor)
     {
         if (actor == null || !actor.IsRuler() || actor.Realm == null || actor.Realm.IsGone()) yield break;
@@ -1852,7 +1819,6 @@ public static class ActorExtension
         empire = EmpireCoreManager.GetEmpires(core).FirstOrDefault(e => e != null && !e.IsArchived());
         return empire != null && claimant.Realm.IsDeJureTitleAcquisitionBlocked(empire);
     }
-#endif
 
     public static void AddAcquireTitle(this Person a, KingdomTitle title)
     {
@@ -1973,7 +1939,6 @@ public static class ActorExtension
         data.peeragesLevel = lvl;
     }
 
-#if EC_PENDING
     public static string GetPeerageDisplayName(this Person a)
     {
         if (a == null) return "";
@@ -2025,7 +1990,6 @@ public static class ActorExtension
         }
         return JoinRealmRank(prefix, suffix);
     }
-#endif
 
     // 单字国名接爵称要补“国”：湘国公、湘国侯、湘国伯；王号照旧(湘王)
     private static readonly HashSet<string> RealmRanks = new() { "公", "侯", "伯", "子", "男" };

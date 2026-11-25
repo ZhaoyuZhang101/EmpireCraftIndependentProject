@@ -394,11 +394,11 @@ public static class ScenarioWorldExport
                 if (kin.Count > 0) entry["kin"] = kin;
             }
             // 种族照原图写：国家取君主的(没有君主取建国时的)，城取原版记的建城种族，与国家相同的不写；不写的开局会照文化定
-            string realmSpecies = WorldMapScenario.KnownSpecies(Safe(() => ruler != null ? king.asset?.id : kingdom.getSpecies(), null));
+            string realmSpecies = WorldMapScenario.KnownSpecies(Safe(() => ruler != null ? king.Asset?.Id : kingdom.GetSpecies(), null));
             if (realmSpecies != null) entry["species"] = realmSpecies;
             foreach (City city in realm.cities)
             {
-                string citySpecies = WorldMapScenario.KnownSpecies(Safe(() => city.getSpecies(), null));
+                string citySpecies = WorldMapScenario.KnownSpecies(Safe(() => city.GetSpecies(), null));
                 if (citySpecies != null && citySpecies != realmSpecies && CityId(city) is string cityId) speciesMap[cityId] = citySpecies;
             }
             if (realm.divisions.Count > 0)
@@ -580,7 +580,6 @@ public static class ScenarioWorldExport
     // WorldMapScenario.PaintTerritory)，永久中立区刷 "n"，挂了法理的无人区刷 "r:<地区编号>"(与剧本编辑器约定)；没挂法理的无人区、
     // 无主的地不刷。两遍：先按开局取样的那一点(每块地中心那一格，算法同 PaintTerritory)写各块地的归属——没归属的那一格占着不让别的块写；
     // 再把各块地每一格经纬度落的格子补上(编辑器里看得出原图的形状)，先到先得
-#if EC_PENDING
     private static List<WorldMapPaint> Paint(Projection projection, Dictionary<KingdomTitle, string> regionOf, Func<City, string> cityId)
     {
         List<Cell> zones = EmpireWorld.Current?.Zones?.All;
@@ -629,7 +628,6 @@ public static class ScenarioWorldExport
         }
         return ScenarioCells.FromMap(cells);
     }
-#endif
 
     #endregion
 
@@ -647,7 +645,7 @@ public static class ScenarioWorldExport
     {
         int width = EmpireWorld.Current.Width;
         var tiles = new HashSet<int>(MapWallSystem.Walls.Keys);
-        Cell[] all = EmpireWorld.Current?.Zones;
+        Cell[] all = EmpireWorld.Current?.AllCells;
         if (all != null)
             foreach (Cell tile in all)
                 if (tile?.data != null && tile.Type?.Wall == true) tiles.Add(tile.Index);

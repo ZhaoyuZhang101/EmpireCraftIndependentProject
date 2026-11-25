@@ -15,7 +15,6 @@ public static class EmpireCoreNamingSystem
 {
     private const float ControlShare = 0.8f;
 
-#if EC_PENDING
     public static void TryApplyCoreName(Empire empire, EmpireCore core)
     {
         ConstitutionalEconomyState state = empire?.data?.constitutional_economy;
@@ -38,14 +37,11 @@ public static class EmpireCoreNamingSystem
         EventRecorder.Record(empire, string.Format(LM.Get("empire_core_country_name_history"), before,
             EmpireCoreManager.GetDisplayName(core), empire.GetEmpireFullName()));
     }
-#endif
 
     // 兼容旧存档：旧版核心名会在末尾附加“帝国”，新核心直接保存无后缀的本名。
-#if EC_PENDING
     public static string GetCoreBaseName(EmpireCore core)
     {
         return EmpireCoreManager.NormalizeCoreName(EmpireCoreManager.GetDisplayName(core));
     }
-#endif
 }
 }

@@ -236,7 +236,6 @@ public static class CityStabilitySystem
 
     // 公式之外按本城情形另扣的自然稳定度(城市稳定度初建、每月结算都要扣——以前只在初建时扣一次，
     // 之后每月按公式重算就没了，难民、异教、鞭长莫及从来没有真正压低过稳定度)
-#if EC_PENDING
     private static float LocalPressures(City city, float natural, ref string detail)
     {
         void Note(ref string text, string cause) => text = string.IsNullOrEmpty(text) ? cause : text + " / " + cause;
@@ -338,6 +337,7 @@ public static class CityStabilitySystem
         return CityStabilityRules.Clamp(natural - remote);
     }
 
+#if EC_PENDING
     public static float Effective(City city)
     {
         var state = State(city);

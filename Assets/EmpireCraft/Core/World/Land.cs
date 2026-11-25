@@ -10,7 +10,10 @@ namespace EmpireCraft.Core
     public sealed class TerrainKind
     {
         public readonly string Id;          // "deep_ocean", "shallow_waters", "lake", "river", "summit", "mountains", "hills", "sand", "snow", "soil"
-        public readonly string BiomeId;     // the ORBIS biome name
+        public readonly string BiomeId;     // the biome under the name the ported rules know it by (see Land.BiomeIdOf)
+        public readonly Biome Biome;        // the ORBIS biome
+        public int Index { get; internal set; }   // a small number of its own, for tables indexed by kind
+        public BiomeInfo BiomeAsset => BiomeInfo.Of(BiomeId);
         public readonly bool Liquid, Ocean, Ground, Mountains, Summit, Rocks, Sand, Block, CanBeFarm;
         // Things this world's ground never is. Roads, walls and fields are not terrain here.
         public bool Lava => false;
@@ -21,7 +24,7 @@ namespace EmpireCraft.Core
 
         internal TerrainKind(string id, Biome biome, bool liquid, bool ocean, bool mountains, bool summit, bool rocks, bool sand)
         {
-            Id = id; BiomeId = biome.ToString(); Liquid = liquid; Ocean = ocean; Ground = !liquid;
+            Id = id; Biome = biome; BiomeId = liquid ? "" : Land.BiomeIdOf(biome); Liquid = liquid; Ocean = ocean; Ground = !liquid;
             Mountains = mountains; Summit = summit; Rocks = rocks; Sand = sand; Block = summit;
             CanBeFarm = !liquid && !mountains && !sand && biome != Biome.Snow && biome != Biome.Alpine;
         }
@@ -31,6 +34,27 @@ namespace EmpireCraft.Core
     {
         // Elevation bands in metres. The summit line is where ORBIS stops calling land habitable.
         public const int HillHeight = 1000, MountainHeight = 2000, SummitHeight = 3520;
+        // The mod's land rules read a biome by the id the base game gave it. This is the nearest of those for each ORBIS biome.
+        public static string BiomeIdOf(Biome biome)
+        {
+            switch (biome)
+            {
+                case Biome.Beach: return "biome_sand";
+                case Biome.Grassland: return "biome_grass";
+                case Biome.Woodland: return "biome_birch";
+                case Biome.Rainforest: return "biome_jungle";
+                case Biome.Desert: return "biome_desert";
+                case Biome.Steppe: return "biome_savanna";
+                case Biome.Taiga: return "biome_maple";
+                case Biome.Tundra: return "biome_permafrost";
+                case Biome.Alpine: return "biome_rocklands";
+                case Biome.Snow: return "biome_permafrost";
+                case Biome.Wetland: return "biome_swamp";
+                default: return "";
+            }
+        }
+        // How many small tiles the mod's zone held. Its rules count ground and water inside a zone in these.
+        public const int TilesPerZone = 64;
         // Cells along the side of a zone. The mod's zones were blocks of small tiles; here a zone is one cell.
         public const int ZoneSize = 1;
         static readonly Dictionary<int, TerrainKind> Kinds = new Dictionary<int, TerrainKind>();
@@ -75,7 +99,7 @@ namespace EmpireCraft.Core
                     case 8: kind = new TerrainKind("snow", biome, false, false, false, false, false, false); break;
                     default: kind = new TerrainKind("soil", biome, false, false, false, false, false, false); break;
                 }
-                Kinds[key] = kind;
+                kind.Index = key; Kinds[key] = kind;
                 return kind;
             }
         }
@@ -102,11 +126,15 @@ namespace EmpireCraft.Core
         public TerrainKind Type => Land.KindOf(World.Map, Index);
         public TerrainKind MainType => Type;
         public TerrainKind TopType => null;      // nothing is laid over the ground here
+        public Building Building => null;        // and nothing is built on it as an object
         public int Height => World.Map.Elevation[Index];
         public bool IsWater => Type.Liquid;
         public bool IsLand => World.Claimable(Index);
         public IReadOnlyList<Cell> GroundTiles => IsLand ? Tiles : Array.Empty<Cell>();
         public IReadOnlyList<Cell> LiquidTiles => IsWater ? Tiles : Array.Empty<Cell>();
+        // Ground and water inside the cell, in the mod's small tiles: all ground, all water, or a river running through.
+        public int GroundCount => IsWater ? 0 : World.Map.Water[Index] == WaterKind.River ? Land.TilesPerZone * 3 / 4 : Land.TilesPerZone;
+        public int LiquidCount => Land.TilesPerZone - GroundCount;
         public bool OnEdge => Y == 0 || Y == World.Height - 1;         // the map wraps east-west; only the polar rows are an edge
         public bool CanSettle => World.Settleable(Index) && World.TileCity[Index] < 0;
         public EcVector2Int Pos => new EcVector2Int(X, Y);
@@ -170,7 +198,10 @@ namespace EmpireCraft.Core
         public Cell this[int index] => _world.CellAt(index);
         public Cell Get(int x, int y) => _world.CellAt(x, y);
         public Cell ById(long id) => id < 0 || id >= Count ? null : _world.CellAt((int)id);
-        public ZoneGrid All => this;
+        // Every cell as a list, made on first use; and cells by number.
+        List<Cell> _all;
+        public List<Cell> All { get { if (_all == null) { var cells = new List<Cell>(Count); for (int i = 0; i < Count; i++) cells.Add(_world.CellAt(i)); _all = cells; } return _all; } }
+        public ZoneLookup Lookup => new ZoneLookup(_world);
         public void MarkDirty() { }
         public IEnumerator<Cell> GetEnumerator() { for (int i = 0; i < Count; i++) yield return _world.CellAt(i); }
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();

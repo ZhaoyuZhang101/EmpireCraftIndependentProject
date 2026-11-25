@@ -78,6 +78,7 @@ public static class HarshRuleSystem
         if (classPressure > 0) items.Add(("harsh_class", classPressure));
         return items.OrderByDescending(item => item.value).ToList();
     }
+#endif
 
     private static void AddDynasticBurden(Empire empire, List<(string key, int value)> items)
     {
@@ -85,7 +86,6 @@ public static class HarshRuleSystem
         int strain = DynasticCycleRules.HarshBurden(DynasticCycleSystem.GetPressure(empire));
         if (strain > 0) items.Add((DynasticCycleSystem.HarshSource, strain));
     }
-#endif
 
     // 独立王国的苛政构成(国库为负算欠饷)
 #if EC_PENDING
@@ -140,7 +140,6 @@ public static class HarshRuleSystem
     }
 
     // 腐败和王朝积弊已经有独立正统来源，不能再通过苛政把同一项重复扣一次。
-#if EC_PENDING
     public static float OtherGovernanceBurden(Empire empire)
     {
         float settled = State(empire)?.harsh_other_burden ?? -1f;
@@ -150,7 +149,6 @@ public static class HarshRuleSystem
         return Mathf.Max(0f, GetBurden(empire) - corruption -
             DynasticCycleRules.HarshBurden(DynasticCycleSystem.GetPressure(empire)));
     }
-#endif
 
     // 独立王国的苛政(帝国成员返回 0，按帝国看 GetBurden(Empire))
     public static float GetBurden(Realm kingdom) =>
@@ -259,7 +257,6 @@ public static class HarshRuleSystem
     #region 前现代：民变
 
     // 苛政的城市忠诚惩罚：前现代帝国按帝国，独立王国按本国；现代国家改为街头抗争
-#if EC_PENDING
     public static int LoyaltyPenalty(City city)
     {
         Realm kingdom = city?.Realm;
@@ -275,6 +272,7 @@ public static class HarshRuleSystem
         return burden <= 20f ? 0 : -Mathf.RoundToInt(Mathf.Min(30f, (burden - 20f) * 0.5f));
     }
 
+#if EC_PENDING
     private static void TryUprising(IEnumerable<Realm> realms, float burden, string causeKey, Empire empire,
         bool modern)
     {
@@ -399,9 +397,7 @@ public static class HarshRuleSystem
     };
 
     // 民意异见的增加：每级 +0.05
-#if EC_PENDING
     public static float DissentBonus(Empire empire) => ModernLegitimacy.Applies(empire) ? 0.05f * GetStreetStage(empire) : 0f;
-#endif
 
     public static string GetStageName(int stage) => LM.Get($"street_unrest_stage_{Mathf.Clamp(stage, 0, 3)}");
 
@@ -431,7 +427,6 @@ public static class HarshRuleSystem
 #endif
 
     // AI 的回应：言论严格倾向镇压，威权/法西斯政府在合法性尚可时也镇压；连续镇压两年无效改为让步
-#if EC_PENDING
     public static bool AiChoosesRepression(Empire empire, ConstitutionalEconomyState state)
     {
         if (state.repression_years >= 2) return false;
@@ -440,10 +435,8 @@ public static class HarshRuleSystem
         return governing != null && (governing.Ideology == PartyIdeology.Authoritarianism ||
                                      governing.Ideology == PartyIdeology.Fascism) && empire.Legitimacy >= 50;
     }
-#endif
 
     // 玩家能否回应：现代国家、出现街头抗争、一年内还没回应过；返回不能的原因(本地化 key)，能则 null
-#if EC_PENDING
     public static string CanPlayerRespond(Empire empire)
     {
         ConstitutionalEconomyState state = State(empire);
@@ -454,6 +447,7 @@ public static class HarshRuleSystem
         return null;
     }
 
+#if EC_PENDING
     public static string PlayerRespond(Empire empire, bool repress)
     {
         string reason = CanPlayerRespond(empire);
@@ -502,7 +496,6 @@ public static class HarshRuleSystem
 #endif
 
     // 让步：减税、整顿腐败(街头压力下绕过议会的征税同意权)
-#if EC_PENDING
     private static void Concede(Empire empire, float taxCut, double corruptionCut)
     {
         empire.data.TaxRate = Mathf.Max(Mathf.Min(empire.data.TaxRate, Empire.MinimumTaxRate),
@@ -510,6 +503,7 @@ public static class HarshRuleSystem
         empire.CoreKingdom.AddCorruptionRate(-corruptionCut);
     }
 
+#if EC_PENDING
     private static void Crisis(Empire empire, ConstitutionalEconomyState state)
     {
         string country = empire.GetEmpireFullName();

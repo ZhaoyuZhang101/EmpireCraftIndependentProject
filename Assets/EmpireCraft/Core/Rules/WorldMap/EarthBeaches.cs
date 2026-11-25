@@ -21,7 +21,7 @@ public static class EarthBeaches
     internal static int Migrate()
     {
         EmpireWorld world = EmpireWorld.Current;
-        Cell[] tiles = world?.Zones;
+        Cell[] tiles = world?.AllCells;
         if (tiles == null || tiles.Length == 0) return 0;
         int width = EmpireWorld.Current.Width, height = EmpireWorld.Current.Height;
         if (width <= 0 || height <= 0 || tiles.Length < width * height) return 0;

@@ -28,11 +28,9 @@ public static class RebellionSystem
     // 统一战争期间、统一天下后三十年(开国气象)不起事(见 UnificationSystem.InGrace)；
     // 神力拉入的成员十五年内不起事、不自立(见 MembershipCooldown.ManualJoinActive)；
     // 世界法则「禁止叛乱」开着时一律不起事
-#if EC_PENDING
     public static bool CanAttempt(Realm kingdom) => kingdom != null && !kingdom.IsGone() && !RebellionsBanned() &&
         GraceYearsRemaining(kingdom) == 0 && !RulerTraitSystem.FounderShield(kingdom) && !UnificationSystem.InGrace(kingdom) &&
         !MembershipCooldown.ManualJoinActive(kingdom);
-#endif
 
     // 拥兵自立的向背(用户 2026-10-20 定"拥兵自立失效要修")：对朝廷的好感里去掉"同帝国 +100""受封五十年内 +100"两项名分——
     // 它们只说明是成员、不说明忠心；"正统 (正统−50)×5"一项改按离自立门槛的远近算 (正统 − 门槛)×5，门槛照
@@ -46,11 +44,9 @@ public static class RebellionSystem
     // 汗国的兀鲁思本就松散：向背低于 −20 就肯自立(用户 2026-10-21 选"游牧雄主死后真分裂")
     public const int UlusSecessionThreshold = -20;
 
-#if EC_PENDING
     public static int SecessionThresholdFor(Realm kingdom, Empire empire) =>
         NomadCycleSystem.IsKhanate(empire) && kingdom?.GetRegime()?.type == EmpireCraft.Core.RegimeType.YouMu
             ? UlusSecessionThreshold : SecessionThreshold;
-#endif
     private static readonly HashSet<string> SecessionIgnoredOpinions = new()
         { "opinion_in_same_empire", "opinion_just_enfeoff", "opinion_empire_loyalty" };
 
@@ -67,6 +63,7 @@ public static class RebellionSystem
                 if (pair.Key?.id != null && SecessionIgnoredOpinions.Contains(pair.Key.id)) total -= pair.Value;
         return total + (empire.Legitimacy - NomadCycleSystem.SecessionGate(kingdom)) * SecessionLegitimacyWeight;
     }
+#endif
 
     public static float ChanceFactor(Realm kingdom)
     {
@@ -74,7 +71,6 @@ public static class RebellionSystem
         return RebellionRules.LegitimacyFactor(empire != null && !empire.IsGone() ? empire.Legitimacy : -1) *
                (ModernStability.IsModern(kingdom) ? ModernStability.RebellionFactor : 1f) * PhaseFactor(kingdom);
     }
-#endif
 
     // 天命阶段(用户 2026-10-19 选"以天命为准")：治世起事少两成五，动荡多两成五；乱世天下无主照常
     private static float PhaseFactor(Realm kingdom) => TianxiaSystem.PhaseOf(kingdom) switch
@@ -139,7 +135,6 @@ public static class RebellionSystem
     }
 
     // 成功开战之后才记录，避免失败的尝试在史书里变成已发生的叛乱。
-#if EC_PENDING
     public static void Record(Realm rebel, War war, RebellionCauseData cause)
     {
         if (rebel == null || cause == null) return;
@@ -152,7 +147,6 @@ public static class RebellionSystem
         Empire origin = cause.origin_empire_id >= 0 ? ModClass.EMPIRE_MANAGER?.Get(cause.origin_empire_id) : null;
         EventRecorder.Record(origin, text, rebel.Ruler, rebel);
     }
-#endif
 
     // 原版提示的左右列互不避让；说明放左列并短行换行，数值单独放右列。
     public static IEnumerable<string> DetailLines(string detail)

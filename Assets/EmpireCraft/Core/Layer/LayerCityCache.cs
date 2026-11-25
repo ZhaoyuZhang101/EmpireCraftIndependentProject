@@ -81,22 +81,18 @@ public static class LayerCityCache
         }
     }
 
-#if EC_PENDING
     private static readonly Cache<PartyIdeology> IdeologyCache = new(IdeologyPopulationSystem.ComputeDominant);
     private static readonly Cache<string> CultureCache = new(city => CultureService.GetMainCulture(city) ?? "");
 
     public static PartyIdeology Ideology(City city) => IdeologyCache.Get(city);
 
     public static string Culture(City city) => CultureCache.Get(city);
-#endif
 
     // 明确知道某城变了(如玩家改了城市文化)时可以立即作废，不必等轮到它
-#if EC_PENDING
     public static void Invalidate(City city)
     {
         IdeologyCache.Invalidate(city);
         CultureCache.Invalidate(city);
     }
-#endif
 }
 }

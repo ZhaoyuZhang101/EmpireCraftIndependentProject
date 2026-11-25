@@ -67,6 +67,7 @@ public static class NativeFaithSystem
         ReligionDiagnostics.Add(ReligionDiagnostics.Returned, returned);
         if (returned > 0) LogService.LogInfo($"[EmpireCraft][宗教] 本年 {returned} 城由外来民族宗教回归本土大教");
     }
+#endif
 
     private static Dictionary<string, List<City>> CitiesBySphere()
     {
@@ -81,7 +82,6 @@ public static class NativeFaithSystem
         }
         return bySphere;
     }
-#endif
 
     // 这个天下立教先立古神(两段式开着、本天下的大教是教会或伊斯兰)
     private static bool OldGodsFirst(FaithType type) => ReligionTenets.Revelation.enabled && ReligionFaith.IsLateFaith(type);
@@ -136,7 +136,6 @@ public static class NativeFaithSystem
 #endif
 
     // 本天下以前立过、如今没有城奉的本土宗教
-#if EC_PENDING
     private static Religion Dormant(string sphere)
     {
         foreach (Religion religion in EmpireWorld.Current.Religions.list)
@@ -144,7 +143,6 @@ public static class NativeFaithSystem
                 ReligionSphere.SphereOf(religion) == sphere) return religion;
         return null;
     }
-#endif
 
     // asType：立古神时按民间型立(创教时 ReligionPatch 按文化定成了教会/伊斯兰，这里改回并按古神名库取名)
 #if EC_PENDING
@@ -206,6 +204,7 @@ public static class NativeFaithSystem
         Person king = city.IsCapital() ? city.Realm.Ruler : null;
         return Alive(king) && king.HasCulture() ? king : null;
     }
+#endif
 
     private static void Announce(Religion religion, City city, string key)
     {
@@ -219,12 +218,10 @@ public static class NativeFaithSystem
         ReligionChronicle.Record(religion, ReligionChronicle.KindFounding, text);
         LogService.LogInfo($"[EmpireCraft][宗教] {text}");
     }
-#endif
 
     #region 启示宗教(两段式的后一段)
 
     // 本天下立了、还在宽限期里的启示宗教(还没成正教；宗教窗口、君主皈依用)
-#if EC_PENDING
     public static Religion RevealedOf(string sphere)
     {
         if (string.IsNullOrEmpty(sphere) || EmpireWorld.Current?.Religions == null || !ReligionTenets.Revelation.enabled) return null;
@@ -238,6 +235,7 @@ public static class NativeFaithSystem
         return null;
     }
 
+#if EC_PENDING
     private static void TryRevelation(Dictionary<string, List<City>> bySphere)
     {
         if (!ReligionTenets.Revelation.enabled) return;
@@ -286,7 +284,6 @@ public static class NativeFaithSystem
 #endif
 
     // 启示之地：本天下城数最少的独立之国的都城(别教的圣地不算；小国先奉，像亚美尼亚)，没有就取人口居中的城
-#if EC_PENDING
     private static City RevelationSeat(List<City> cities)
     {
         City capital = cities.Where(city => city.IsCapital() && city.Realm?.Record != null && city.Realm.GetEmpire() == null &&
@@ -297,7 +294,6 @@ public static class NativeFaithSystem
             .OrderByDescending(city => city.CountLivingPopulation()).ToList();
         return ranked.Count == 0 ? null : ranked[ranked.Count / 2];
     }
-#endif
 
     #endregion
 

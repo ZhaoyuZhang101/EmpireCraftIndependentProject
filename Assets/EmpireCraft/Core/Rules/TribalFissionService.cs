@@ -43,19 +43,14 @@ namespace EmpireCraft.Core
 //   · 共事关系按月缓存成反查表(见 VassalIndex)，每月整理里的整图重画并成末尾一次(见 Redraw)。
 public static class TribalFissionService
 {
-#if EC_PENDING
     public static bool IsTribal(Realm kingdom) =>
         kingdom?.Record != null && !kingdom.IsGone() && !kingdom.IsWild && RegimeManager.IsPrimitive(kingdom.GetRegime()?.type);
-#endif
 
     // 原始政体的部落联盟(共主是原始政体的帝国)
-#if EC_PENDING
     private static bool IsConfederation(Empire empire) =>
         empire?.data != null && !empire.IsGone() && !empire.IsArchived() && IsTribal(empire.CoreKingdom);
-#endif
 
     // 这一部奉谁为共主：帝国之外、记着的部落联盟还在且仍是原始政体；不是返回 null
-#if EC_PENDING
     public static Empire OverlordOf(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || kingdom.GetEmpire() != null || ModClass.EMPIRE_MANAGER == null) return null;
@@ -64,7 +59,6 @@ public static class TribalFissionService
         Empire empire = ModClass.EMPIRE_MANAGER.Get(id);
         return IsConfederation(empire) && empire.CoreKingdom != kingdom ? empire : null;
     }
-#endif
 
     // 原始改革的阶段：0 环壕聚落、1 部落中心、2 早期城址(本文化原始政体的节点走到几成；城市精细图也按它画，见 PureMapPatch.Tribal)
     public static int Stage(string culture)
@@ -83,22 +77,16 @@ public static class TribalFissionService
     private const int CapacityBase = 3, CapacityPerStage = 2;
     private const float ReachBase = 60f, ReachPerStage = 20f;
 
-#if EC_PENDING
     private static int StageOf(Empire overlord) => Stage(CultureService.GetRealmCulture(overlord?.CoreKingdom));
-#endif
 
     // 共主管得过来几部、多远以内
-#if EC_PENDING
     public static int Capacity(Empire overlord) => CapacityBase + CapacityPerStage * StageOf(overlord);
 
     public static float Reach(Empire overlord) => ReachBase + ReachPerStage * StageOf(overlord);
-#endif
 
     // 各部落联盟(共主)
-#if EC_PENDING
     public static List<Empire> Confederations() =>
         ModClass.EMPIRE_MANAGER?.Where(IsConfederation).ToList() ?? new List<Empire>();
-#endif
 
     // 共事关系的反查表(共主 id → 共事它的部落，按国家列表的先后)，按月缓存(用户 2026-10-26 嫌卡)：以前 VassalsOf 每次都把
     // 全部王国扫一遍，放走(Overflow)、议事会、禅让、帝号逐个部落联盟地调，是部落联盟数 × 王国数。
@@ -112,7 +100,6 @@ public static class TribalFissionService
     // 换世界、读档时清掉(见 SaveManagerPatch)
     public static void ResetWorldState() => _vassalIndex = null;
 
-#if EC_PENDING
     private static Dictionary<long, List<Realm>> VassalIndex()
     {
         double now = EmpireWorld.Current?.Now() ?? -1d;
@@ -130,10 +117,8 @@ public static class TribalFissionService
         _vassalIndexAt = now;
         return map;
     }
-#endif
 
     // 各共主名下共事的部落(配色用，见 KingdomColorService)
-#if EC_PENDING
     public static Dictionary<long, List<Realm>> VassalMap()
     {
         var map = new Dictionary<long, List<Realm>>();
@@ -145,17 +130,14 @@ public static class TribalFissionService
         }
         return map;
     }
-#endif
 
     // 共事 overlord 的部落
-#if EC_PENDING
     public static List<Realm> VassalsOf(Empire overlord)
     {
         if (overlord == null || EmpireWorld.Current?.LiveRealms == null ||
             !VassalIndex().TryGetValue(overlord.Key, out List<Realm> cached)) return new List<Realm>();
         return cached.Where(kingdom => OverlordOf(kingdom) == overlord).ToList();
     }
-#endif
 
     // 离共主都城多远(格)
     private static float DistanceTo(Empire overlord, Realm kingdom)
@@ -165,23 +147,18 @@ public static class TribalFissionService
     }
 
     // 共主还收不收得下这一部(已满、太远就不收)
-#if EC_PENDING
     private static bool CanHold(Empire overlord, Realm tribe) =>
         overlord != null && VassalsOf(overlord).Count < Capacity(overlord) && DistanceTo(overlord, tribe) <= Reach(overlord);
-#endif
 
     // 共主与共事它的部落(部落之间不算)：彼此不宣战。a 为开战的一方(WarGate、开战谋划、统一战争都按此传)：
     // 屡次不来会盟、记为不臣的部落，共主可以讨伐(只放开共主打它；部落打共主照旧不行，见 TribalAssemblySystem)
-#if EC_PENDING
     public static bool Bound(Realm a, Realm b) =>
         a != null && b != null && a != b &&
         (OverlordOf(a) is Empire ea && (b == ea.CoreKingdom || b.GetEmpire() == ea) ||
          OverlordOf(b) is Empire eb && (a == eb.CoreKingdom || a.GetEmpire() == eb) &&
          !(a == eb.CoreKingdom && TribalAssemblySystem.DefiantTo(b, eb)));
-#endif
 
     // 铭牌下标的"共事某某"：共主那一部的名字(不带邦、方国这类后缀)
-#if EC_PENDING
     public static string OverlordName(Empire overlord)
     {
         string name = overlord?.CoreKingdom?.Name;
@@ -189,10 +166,8 @@ public static class TribalFissionService
         int cut = name.IndexOf('\u200a');
         return cut > 0 ? name.Substring(0, cut) : name;
     }
-#endif
 
     // CityManager.buildNewCity 之后(见 CityPatch.CityBuilt)、国家移民安置完毕后(见 StateSettlementSystem)调用
-#if EC_PENDING
     public static void OnCityBuilt(City city, Person founder)
     {
         Realm mother = city?.Realm;
@@ -201,7 +176,6 @@ public static class TribalFissionService
         Person leader = Fit(founder, city) ? founder : Fit(city.Leader, city) ? city.Leader : CityStateService.FindLocalLeader(city, mother.Ruler);
         if (leader != null) Split(city, mother, leader);
     }
-#endif
 
     // 每月(RoyalHouseSystem)：名下不止一座城的部落分出一座(离都城最远的先分)；部落联盟的成员离开帝国、奉其为共主；
     // 旧档的部落帝国撤去(见 DissolveSettledTribes)；共主改行分封的，奉它的部落并入为诸侯
@@ -266,7 +240,6 @@ public static class TribalFissionService
         actor != null && !actor.IsGone() && actor.Alive && actor.IsAdult() && !actor.IsRuler() && actor.City == city &&
         actor.IsFitToRule();
 
-#if EC_PENDING
     private static void Split(City city, Realm mother, Person leader)
     {
         try
@@ -292,7 +265,6 @@ public static class TribalFissionService
             LogService.LogWarning($"[EmpireCraft][部落分迁] {mother.GetKingdomName()} 分出新部落失败: {exception.Message}");
         }
     }
-#endif
 
     // 奉 overlord 为共主：退出同盟、不进帝国，记下共主；改奉新共主的记下归附的时间(共事年数定爵，见 Enfeoff；
     // 共主讨伐不臣、重新收回的照旧从原来算)
@@ -430,7 +402,6 @@ public static class TribalFissionService
 #endif
 
     // 胜者所在的部落联盟：胜者共事的共主，或胜者自己是共主；都不是返回 null(战功记在这里，见 TribalWarSystem.Concede)
-#if EC_PENDING
     public static Empire LeagueOf(Realm kingdom)
     {
         Empire overlord = OverlordOf(kingdom);
@@ -438,7 +409,6 @@ public static class TribalFissionService
         Empire own = kingdom?.GetEmpire();
         return IsConfederation(own) && own.CoreKingdom == kingdom ? own : null;
     }
-#endif
 
     // 两国都城相距多远(格)
     private static float Distance(Realm a, Realm b)
@@ -504,7 +474,6 @@ public static class TribalFissionService
     // 没有帝国用着的帝国法理随即销毁。以前共主每年只按帝国成员收法理(见 EmpireCoreManager.TryAbsorbTitle)，共事的部落在帝国之外，
     // 法理又各在自立时建的帝国法理里(那里遇上已在别的帝国法理里的一律不收)，永远收不进共主、周室。
     // 只收同一天下的法理；别的现存帝国(部落联盟除外)法理里的、军阀临时法理、伪法理里的不动(见 YieldsTitle)。固定法理时不收
-#if EC_PENDING
     public static void AbsorbTitles(Empire overlord, Realm kingdom, EmpireCore oldCore)
     {
         if (overlord?.data == null || ModClass.KINGDOM_TITLE_FREEZE) return;
@@ -528,11 +497,9 @@ public static class TribalFissionService
         }
         foreach (EmpireCore from in emptied) DropEmptyCore(from);
     }
-#endif
 
     // 别的帝国法理里的法理能不能并给 absorber：那个帝国法理已没有现存帝国用着(部落帝国撤了、部落联盟亡了留下的)或只有部落联盟用着，
     // 同一天下，不是军阀临时法理、争正统的伪法理
-#if EC_PENDING
     private static bool Releases(EmpireCore other, Empire absorber)
     {
         if (other == null || absorber?.data == null || other.warlord_parent_core_id > 0 || other.false_core_against_empire_id > 0)
@@ -542,24 +509,19 @@ public static class TribalFissionService
             !CultureService.SameKin(mine, other.default_culture)) return false;
         return EmpireCoreManager.GetEmpires(other).All(empire => empire == absorber || empire.IsArchived() || IsConfederation(empire));
     }
-#endif
 
     // 帝国每年收成员法理时(见 EmpireCoreManager.TryAbsorbTitle)对部落时代放开：部落联盟、周室收共事部落、旧部落帝国留下的法理
     // (Releases)，不因法理已在别的帝国法理里就拒收；别的帝国照旧
-#if EC_PENDING
     public static bool YieldsTitle(EmpireCore other, Empire absorber) =>
         (IsConfederation(absorber) || ZhouEraSystem.Applies(absorber)) && Releases(other, absorber);
-#endif
 
     // 法理并空了、也没有帝国用着的帝国法理销毁(它作主的天下交给别的成员，见 EmpireCoreManager.DestroyEmpireCore)
-#if EC_PENDING
     public static void DropEmptyCore(EmpireCore core)
     {
         if (core == null || EmpireCoreManager.Get(core.id) != core || EmpireCoreManager.GetTitles(core).Count > 0 ||
             EmpireCoreManager.GetEmpires(core).Count > 0) return;
         EmpireCoreManager.DestroyEmpireCore(core);
     }
-#endif
 
     // 共主改了政体、或已不在：奉它的部落并入为它的臣属，或各自独立(用户 2026-10-26 选"其他文明也延续""爵位按资历")：
     //   · 周制(宗法分封)：并入为诸侯，按共事年数定爵——满 SeniorYears 年、或同批并入至少 EarlySeniorBatch 部时最早共事的
@@ -751,10 +713,8 @@ public static class TribalFissionService
 
     // 共事的部落都已离去、帝国里也只有自己的部落联盟(按资历定下的周室除外，见 Migrate)
     // 神力立的帝国不算(见 EmpireData.formed_by_god)：没有共事的部落也留着帝号
-#if EC_PENDING
     private static bool Deserted(Empire empire) =>
         IsConfederation(empire) && !empire.data.formed_by_god && !(empire.data.zhou?.royal_settled_at >= 0d) && Followers(empire).Count == 0;
-#endif
 
     // 按资历定唯一王室(用户 2026-10-26 选"按资历定唯一王室""王畿不止一城")：本文化第一次施行宗法分封——推行改革的那一家当场改了周制
     // (见 InstitutionSystem.CompleteReform)，其余部落还没改(见 Migrate)——在同一天下的部落联盟与独立部落里选出唯一的周室
@@ -821,7 +781,6 @@ public static class TribalFissionService
     }
 
     // 正在改周制的：已是周制，或还是原始政体而本文化已解析成周制(Migrate 随即就改)
-#if EC_PENDING
     private static bool Transitioning(Realm kingdom)
     {
         if (kingdom.GetRegime()?.type == RegimeType.ZhouFeudalism) return true;
@@ -829,6 +788,7 @@ public static class TribalFissionService
                target == RegimeType.ZhouFeudalism;
     }
 
+#if EC_PENDING
     private static void SettleRoyalHouse(string culture)
     {
         double now = GameClock.Now;
@@ -1053,7 +1013,6 @@ public static class TribalFissionService
 #endif
 
     // 超出上限的共主每月放走一部：先放离得最远的(超出路程的先放)
-#if EC_PENDING
     private static void Overflow()
     {
         if (ModClass.EMPIRE_MANAGER == null) return;
@@ -1072,7 +1031,6 @@ public static class TribalFissionService
             Redraw();
         }
     }
-#endif
 
     // 归属变了：整图重画(铭牌、边框跟着变)。每月整理(EnforceOneCity)当中只记下要画，整轮末尾至多画一次——
     // 以前离开帝国、撤帝号、分封、脱离、放走、配色各画一遍，脱离、放走还是每部一遍，一个月整图重画好几次

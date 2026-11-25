@@ -54,7 +54,6 @@ public static class CityTerritoryProtection
                 CityPopulationSystem.Get(city)?.levied > 0f);
     }
 
-#if EC_PENDING
     public static bool ShouldKeepVirtualOwner(City city)
     {
         if (!CityPopulationSystem.AbstractPopulationEnabled || city?.Realm == null ||
@@ -64,6 +63,7 @@ public static class CityTerritoryProtection
                StateSettlementSystem.AwaitingPopulation(city);
     }
 
+#if EC_PENDING
     public static bool CanRemoveZone(City city, Cell zone)
     {
         if (city == null || zone == null) return false;

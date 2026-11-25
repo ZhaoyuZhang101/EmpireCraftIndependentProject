@@ -39,18 +39,14 @@ public static class ParliamentBillSystem
         public readonly List<(FixedFaction party, int seats, int vote, float stance)> Parties = new();
     }
 
-#if EC_PENDING
     public static bool Applies(Empire empire) =>
         empire?.data?.constitutional_economy != null && !empire.IsGone() && ParliamentSystem.HasParliament(empire);
-#endif
 
     private static ConstitutionalEconomyState State(Empire empire) => empire?.data?.constitutional_economy;
 
-#if EC_PENDING
     private static FixedFaction Find(Empire empire, string id) =>
         string.IsNullOrEmpty(id) ? null
             : empire?.CoreKingdom?.GetRegime()?.GetPlayerFactions()?.FirstOrDefault(faction => faction?.GetID() == id);
-#endif
 
     private static double Now => EmpireWorld.Current?.Now() ?? 0d;
 
@@ -58,7 +54,6 @@ public static class ParliamentBillSystem
     public static bool Paused(Empire empire) => (State(empire)?.next_bill_at ?? -1d) > Now;
 
     // 提案的一方：责任内阁下按议席在执政联盟里抽(首相党加倍)，否则势力最大的派系
-#if EC_PENDING
     public static FixedFaction Sponsor(Empire empire, Regime regime)
     {
         FixedFaction dominate = regime?.GetDominateFaction();
@@ -79,20 +74,17 @@ public static class ParliamentBillSystem
             if ((roll -= weight) <= 0f) return party;
         return weighted[weighted.Count - 1].party;
     }
-#endif
 
     private static int Seats(ConstitutionalEconomyState state, string id) =>
         state?.parliament_seats?.Count(seat => seat.faction_id == id) ?? 0;
 
     // 议员立场：诉求立场 + 理念远近
-#if EC_PENDING
     public static float Stance(FixedFaction party, TemporaryFaction claim)
     {
         float score = CourtIssues.Stance(party, claim);
         if (party?.IsParty == true && claim != null) score += IdeologyLean(party.Ideology, claim.type);
         return Mathf.Clamp(score, -30f, 30f);
     }
-#endif
 
     // 诉求出自哪几种理念的纲领：离其中最近的那一种越近越赞成(相距 0 加 10，100 不加，200 减 10)
     public static float IdeologyLean(PartyIdeology ideology, TemporaryFactionType issue)
@@ -108,7 +100,6 @@ public static class ParliamentBillSystem
     }
 
     // 各党怎么投：提案的党赞成；执政联盟守党纪；在野党按立场
-#if EC_PENDING
     public static Tally Count(Empire empire, TemporaryFaction claim, FixedFaction sponsor)
     {
         var tally = new Tally();
@@ -139,7 +130,6 @@ public static class ParliamentBillSystem
         tally.Passed = tally.Parties.Count == 0 || tally.Yes > tally.No;
         return tally;
     }
-#endif
 
     // 提案并表决：通过就开跑；否决记冷却。返回是否开跑
 #if EC_PENDING
@@ -163,7 +153,7 @@ public static class ParliamentBillSystem
         string issue = CourtSystem.IssueName(claim.type, empire);
         if (tally.Passed)
         {
-            claim.pusherType = MetaType.None;
+            claim.pusherType = EntityKind.None;
             claim.Start();
             record.outcome = claim.IsStarted() ? "running" : "failed";
             if (record.outcome == "failed") record.closed = Now;
@@ -187,17 +177,14 @@ public static class ParliamentBillSystem
 #endif
 
     // 这件诉求是不是表决通过、正在施行的议案(朝政检查不要把它当成"未经许可开跑"叫停)
-#if EC_PENDING
     public static bool IsPassedBill(Empire empire, TemporaryFaction claim)
     {
         List<ParliamentBillRecord> bills = State(empire)?.parliament_bills;
         return claim != null && bills != null && bills.Any(bill => bill.outcome == "running" && bill.sponsor == claim.factionID &&
                                                                    bill.claim == claim.type.ToString());
     }
-#endif
 
     // 每月：施行中的议案办完了就记结局
-#if EC_PENDING
     public static void Tick(Empire empire)
     {
         List<ParliamentBillRecord> bills = State(empire)?.parliament_bills;
@@ -212,7 +199,6 @@ public static class ParliamentBillSystem
             if (bill.government) PartyFinanceSystem.OnBillFinished(empire, Find(empire, bill.sponsor), bill.outcome == "completed");
         }
     }
-#endif
 
     // 下一件议案的预估(诉求天平页)：照眼下由谁提、提哪一条、表决会怎样
 #if EC_PENDING
@@ -242,7 +228,6 @@ public static class ParliamentBillSystem
             state.parliament_bills.RemoveRange(HistorySize, state.parliament_bills.Count - HistorySize);
     }
 
-#if EC_PENDING
     private static void Log(Empire empire, string key, params object[] args)
     {
         string text;
@@ -256,6 +241,5 @@ public static class ParliamentBillSystem
         }
         EventRecorder.RecordRoutine(empire, $"{empire.GetEmpireFullName()}：{text}", null);
     }
-#endif
 }
 }

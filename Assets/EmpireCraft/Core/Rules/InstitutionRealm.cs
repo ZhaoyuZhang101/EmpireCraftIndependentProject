@@ -40,7 +40,6 @@ public sealed class InstitutionRealm
 
     // 能自己推制度的独立王国：开化、非野、有都城、君主是本国的(不是别国君主兼领)、不是帝国也不在帝国里、
     // 没有封建宗主、不奉部落共主、不归古战模组管。朝贡国照样算(朝贡不管内政)；战国离开周室的诸侯按上面的常量
-#if EC_PENDING
     public static bool IsSovereignKingdom(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || !kingdom.IsCivilized() || kingdom.IsWild) return false;
@@ -57,7 +56,6 @@ public sealed class InstitutionRealm
 #pragma warning restore CS0162
         return true;
     }
-#endif
 
     public bool IsEmpire => Empire != null;
 
@@ -70,17 +68,13 @@ public sealed class InstitutionRealm
         : Realm?.Record != null && !Realm.IsGone();
 
     // 王国是独立政权才推制度；帝国总是
-#if EC_PENDING
     public bool IsSovereign => Empire != null ? IsAlive : IsSovereignKingdom(Realm);
-#endif
 
     // 制度文化：帝国按制度文化(征服王朝、统治多数派，见 InstitutionSystem.GetPrimaryCulture)，王国按本国文化；
     // 旧制犹存的按旧制所属的文化(见 LegacyInstitutionSystem)，推的也是那棵制度树
-#if EC_PENDING
     public string Culture => Empire != null
         ? InstitutionSystem.GetPrimaryCulture(Empire)
         : CultureService.GetInstitutionCulture(Realm);
-#endif
 
     // 制度效果、阶层人口所及的国家：帝国全体成员，王国只有自己
     public IEnumerable<Realm> Scope => Empire != null
@@ -95,9 +89,9 @@ public sealed class InstitutionRealm
     // 推改革要够的威望：帝国看正统，王国看君威(见 RealmAuthority)
 #if EC_PENDING
     public int Authority => Empire != null ? Empire.Legitimacy : RealmAuthority.Get(Realm);
+#endif
 
     public string Name => Empire != null ? Empire.GetEmpireName() : Realm?.GetKingdomName() ?? "";
-#endif
 
     public Person Ruler => Empire != null ? Empire.Emperor : Realm?.Ruler;
 
@@ -105,7 +99,6 @@ public sealed class InstitutionRealm
     public string Key => Empire != null ? "e" + Empire.Key : "k" + (Realm?.Key ?? -1L);
 
     // 记一笔：帝国写进史书；王国没有史书，只进日志(世界消息由调用方另发)
-#if EC_PENDING
     public void Record(string content, long actorId = -1L, long kingdomId = -1L)
     {
         if (string.IsNullOrEmpty(content)) return;
@@ -114,10 +107,9 @@ public sealed class InstitutionRealm
     }
 
     public bool Is(InstitutionRealm other) =>
-        other != null && ReferenceEquals(Empire, other.Empire) && ReferenceEquals(Realm, other.Kingdom);
+        other != null && ReferenceEquals(Empire, other.Empire) && ReferenceEquals(Realm, other.Realm);
 
     public override bool Equals(object obj) => obj is InstitutionRealm other && Is(other);
-#endif
 
     public override int GetHashCode() => Empire != null ? Empire.GetHashCode() : Realm?.GetHashCode() ?? 0;
 }

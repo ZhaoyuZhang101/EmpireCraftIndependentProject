@@ -13,7 +13,6 @@ public static class ReligionHeads
 {
     public const int MaxHeads = 60;
 
-#if EC_PENDING
     public static void Note(Religion religion)
     {
         if (religion?.data == null || religion.IsGone() || EmpireWorld.Current == null || !ReligionFaith.HasHierarchy(religion)) return;
@@ -50,7 +49,6 @@ public static class ReligionHeads
         foreach (Religion religion in EmpireWorld.Current.Religions.list)
             Note(religion);
     }
-#endif
 
     public static List<ReligionExtension.ReligionHeadRecord> Of(Religion religion) =>
         religion?.data == null ? new List<ReligionExtension.ReligionHeadRecord>()

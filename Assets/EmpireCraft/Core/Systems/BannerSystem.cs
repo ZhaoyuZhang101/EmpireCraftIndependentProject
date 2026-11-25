@@ -70,7 +70,6 @@ public static partial class BannerSystem
     private static Realm CoreOf(Realm kingdom) => kingdom?.GetEmpire()?.CoreKingdom ?? kingdom;
 
     // 本国(帝国按核心)的统治族群：征服王朝按统治文化，别的按核心的文化
-#if EC_PENDING
     public static string RulingCultureOf(Realm kingdom)
     {
         Realm core = CoreOf(kingdom);
@@ -80,16 +79,13 @@ public static partial class BannerSystem
             ? CompositeEmpireService.GetRulingCulture(empire)
             : CultureService.GetRealmCulture(core);
     }
-#endif
 
     // 编旗：八旗多元制，或统治族群施行了八旗制度
-#if EC_PENDING
     public static bool Organized(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone()) return false;
         return Practices(kingdom) || InstitutionSystem.HasFeature(RulingCultureOf(kingdom), Feature);
     }
-#endif
 
     // 政体叫法：国情、官制这些地方显示八旗多元制，别的照旧
     public static string RegimeName(Realm kingdom, string fallback) =>
@@ -122,7 +118,6 @@ public static partial class BannerSystem
 
     // 编旗的王朝入主(采纳华夏制度，见 CompositeEmpireService.AdoptCentralInstitutions)：改行八旗多元制。
     // 朝廷、国号照入主的常规走(不像剧本那样定死)，只是路线固定兼用；本族之城算旗下旧地
-#if EC_PENDING
     public static bool TryEnter(Empire empire)
     {
         Realm core = empire?.CoreKingdom;
@@ -142,10 +137,8 @@ public static partial class BannerSystem
         LogService.LogInfo($"[EmpireCraft][八旗] {empire.GetEmpireName()} 入主，改行八旗多元制");
         return true;
     }
-#endif
 
     // 不再是复合帝国(北归、帝国散了)：退回编旗，满城、旗地、逃人法跟着作废
-#if EC_PENDING
     private static void Leave(Empire empire)
     {
         var extra = empire.CoreKingdom.GetOrCreate();
@@ -159,10 +152,8 @@ public static partial class BannerSystem
         }
         LogService.LogInfo($"[EmpireCraft][八旗] {empire.GetEmpireName()} 不再是征服王朝，退回编旗");
     }
-#endif
 
     // 进世界后、开局兵力之前当场编旗，禁旅八旗才有兵可补
-#if EC_PENDING
     public static void SettleAll(Empire empire)
     {
         foreach (City city in CitiesOf(empire).ToList())
@@ -171,7 +162,6 @@ public static partial class BannerSystem
             if (data?.groups != null) Settle(city, data, 1f / BannerRules.SettleRate);
         }
     }
-#endif
 
     #endregion
 
@@ -180,7 +170,6 @@ public static partial class BannerSystem
     private static float TotalOf(CityPopulationData data) => data.groups.Sum(group => group.Background);
 
     // 每年(背景人口自然增减时)：编旗或出旗
-#if EC_PENDING
     public static void Settle(City city, CityPopulationData data, float years)
     {
         if (city?.Record == null || data?.groups == null) return;
@@ -202,7 +191,6 @@ public static partial class BannerSystem
         float enroll = BannerRules.ToEnroll(TotalOf(data), have, BannerRules.TargetShare(extra.banner_home, extra.manchu_city), years);
         if (enroll > 0f) Enroll(city, data, commoner, enroll);
     }
-#endif
 
     // 税收折扣(乘在税率上)：旗人不纳粮，旗地不交田赋
     public static float TaxFactor(City city)
@@ -228,9 +216,7 @@ public static partial class BannerSystem
         return group.social_class == SocialClass.Banner || group.culture == rulingCulture || group.culture == MongolCulture;
     }
 
-#if EC_PENDING
     public static string RulingCulture(Realm kingdom) => RulingCultureOf(kingdom);
-#endif
 
     public static float Vigor(Realm kingdom)
     {
@@ -239,13 +225,10 @@ public static partial class BannerSystem
     }
 
     // 八旗交战加成(见 FrontSystem)：编旗之国的禁旅八旗，随八旗锐气起落；绿营、外藩部落兵不加
-#if EC_PENDING
     public static float CombatFactor(Realm kingdom, CorpsData corps) =>
         corps != null && FormationSystem.BannerSource(corps) && Organized(kingdom) ? BannerRules.CombatFactor(Vigor(kingdom)) : 1f;
-#endif
 
     // 旗人皆兵(见 CorpsSystem 征兵)：编旗之国的中央(禁旅八旗所在)征兵时，城里的旗人多算一份；行省的绿营不收旗人，不算
-#if EC_PENDING
     public static float ExtraLevy(City city)
     {
         Realm kingdom = city?.Realm;
@@ -253,7 +236,6 @@ public static partial class BannerSystem
         return CityPopulationSystem.BackgroundOfClass(city, SocialClass.Banner) * BannerRules.ExtraLevy *
                AdministrativeControlSystem.Yield(city);
     }
-#endif
 
     // 八旗战力一年一算(编旗的城结算人口时、帝国例行检查时，谁先到谁算)
     private static void TickVigor(Realm core)
@@ -395,7 +377,6 @@ public static partial class BannerSystem
 #endif
 
     // 逃人法：记在核心上，每年补给新添的成员(换政体重载会丢)
-#if EC_PENDING
     public static void EnactFugitiveLaw(Realm realm)
     {
         Empire empire = realm?.GetEmpire();
@@ -416,7 +397,6 @@ public static partial class BannerSystem
             if (!regime.laws.Contains(LawType.逃人法)) regime.laws.Add(LawType.逃人法);
         }
     }
-#endif
 
     private static City Neighbor(City city)
     {
@@ -427,7 +407,6 @@ public static partial class BannerSystem
 
     #endregion
 
-#if EC_PENDING
     public static Summary SummaryOf(Empire empire)
     {
         var summary = new Summary();
@@ -463,6 +442,5 @@ public static partial class BannerSystem
         if (summary.multi) summary.idle = BannerRules.IdleShare(summary.bannermen, extra.banner_quota);
         return summary;
     }
-#endif
 }
 }

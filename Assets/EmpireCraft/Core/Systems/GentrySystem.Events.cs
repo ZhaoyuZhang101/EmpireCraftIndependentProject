@@ -108,7 +108,6 @@ public static partial class GentrySystem
     }
 
     // 世家相争(每年，见 YearlyCourt)
-#if EC_PENDING
     private static void TryFeud(Empire empire, List<SpecificClan> clans)
     {
         double now = GameClock.Now;
@@ -127,6 +126,5 @@ public static partial class GentrySystem
         NoteClan(a, "clan_history_gentry_feud", text);
         NoteClan(b, "clan_history_gentry_feud", text);
     }
-#endif
 }
 }

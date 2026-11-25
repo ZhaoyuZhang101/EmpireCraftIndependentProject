@@ -351,12 +351,12 @@ public static class EmpireCraftStrategicScheduler
             {
                 double now = GameClock.Now;
                 state.LastStrategicWorldTime = now;
-                KingdomTypeCheck.execute(kingdom);
+                KingdomTypeCheck.Execute(kingdom);
                 CultureService.UpdateCityCultureShiftCandidates(kingdom);
                 CultureService.UpdateCulturalAssimilationDuty(kingdom);
-                PlotCheck.execute(kingdom);
-                TemporaryFactionCheck.execute(kingdom);
-                ReligionKingdomCheck.execute(kingdom);
+                PlotCheck.Execute(kingdom);
+                TemporaryFactionCheck.Execute(kingdom);
+                ReligionKingdomCheck.Execute(kingdom);
                 ExclaveMaintenanceSystem.Check(kingdom);
             }
             else if (CityPopulationSystem.AbstractPopulationEnabled)
@@ -376,12 +376,12 @@ public static class EmpireCraftStrategicScheduler
                     steps++;
                     switch (state.MonthlyPhase++)
                     {
-                        case 0: KingdomTypeCheck.execute(kingdom); break;
+                        case 0: KingdomTypeCheck.Execute(kingdom); break;
                         case 1: CultureService.UpdateCityCultureShiftCandidates(kingdom); break;
                         case 2: CultureService.UpdateCulturalAssimilationDuty(kingdom); break;
-                        case 3: PlotCheck.execute(kingdom); break;
-                        case 4: TemporaryFactionCheck.execute(kingdom); break;
-                        case 5: ReligionKingdomCheck.execute(kingdom); break;
+                        case 3: PlotCheck.Execute(kingdom); break;
+                        case 4: TemporaryFactionCheck.Execute(kingdom); break;
+                        case 5: ReligionKingdomCheck.Execute(kingdom); break;
                         case 6: StateSettlementSystem.Check(kingdom); break;
                         case 7: ExclaveMaintenanceSystem.Check(kingdom); break;
                     }

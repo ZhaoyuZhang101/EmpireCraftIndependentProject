@@ -10,7 +10,7 @@ namespace EmpireCraft.Core
     // a bed fingerprint. Derived indices (tile owners, living list) are rebuilt.
     public static class EmpireSave
     {
-        public const int Version=5;
+        public const int Version=6;
         const uint Magic=0x44574345; // "ECWD"
         const int MaxEntities=4_000_000,MaxString=256;
 
@@ -102,6 +102,9 @@ namespace EmpireCraft.Core
             foreach(var r in w.Realms){b.Write(Held(r.Religion));b.Write(Held(r.Culture));}
             foreach(var c in w.Cities){b.Write(Held(c.Religion));b.Write(Held(c.Culture));}
             foreach(var p in w.People){b.Write(Held(p.Religion));b.Write(Held(p.Culture));}
+            if(version<6){b.Flush();return stream.ToArray();}
+            // Version 6: the family of rules each culture follows.
+            foreach(var x in w.Cultures.list)b.Write(x.Family??"");
             b.Flush();return stream.ToArray();
         }
 
@@ -225,6 +228,8 @@ namespace EmpireCraft.Core
                 foreach(var c in w.Cities){c.Religion=Faith(b,w);c.Culture=Folk(b,w);}
                 foreach(var p in w.People){p.Religion=Faith(b,w);p.Culture=Folk(b,w);}
             }
+            if(version>=6)
+                foreach(var x in w.Cultures.list){string family=Text(b);x.Family=family.Length==0?null:family;}
             Check(stream.Position==stream.Length,"Trailing bytes in EmpireCraft section");
             var errors=EmpireInvariants.Check(w,1);
             Check(errors.Count==0,"Inconsistent EmpireCraft section: "+(errors.Count>0?errors[0]:""));

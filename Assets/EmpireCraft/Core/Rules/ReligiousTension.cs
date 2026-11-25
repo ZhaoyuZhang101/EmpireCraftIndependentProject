@@ -41,7 +41,6 @@ public static class ReligiousTension
     public enum Policy { Intolerant, PollTax, Tolerant }
 
     // 中央(帝国按核心)的宗教选项是"有国教-自由信仰"或"无国教"
-#if EC_PENDING
     private static bool FreeBelief(Realm kingdom)
     {
         Realm realm = kingdom?.GetEmpire()?.CoreKingdom ?? kingdom;
@@ -49,7 +48,6 @@ public static class ReligiousTension
         return regime?.options != null && regime.options.ContainsKey("option_religion_type") &&
                regime.GetReligionLevel() <= ReligionLevel.Low;
     }
-#endif
 
     public static void ResetWorldState()
     {
@@ -66,7 +64,6 @@ public static class ReligiousTension
         return state != null && local != null && state != local;
     }
 
-#if EC_PENDING
     public static Policy PolicyOf(Realm kingdom)
     {
         // 国教不排他(多神、萨满、三教、法教、神道，见 ReligionFaith)向来宽容；宗教选项在自由信仰及以下的也宽容(见 TempFac_自由信仰)
@@ -80,16 +77,12 @@ public static class ReligiousTension
             EmpireCraft.Core.OnomasticsRule.HasPoliticalTrait(culture, PapacySystem.DharmicTrait)) return Policy.Tolerant;
         return InstitutionSystem.HasFeature(institutions, PollTaxFeature) ? Policy.PollTax : Policy.Intolerant;
     }
-#endif
 
     // 异教之城征兵打几折(见 CorpsSystem.Mobilize)：收人头税的国家豁免异教之民的兵役，只征 DhimmiLevy
-#if EC_PENDING
     public static float LevyFactor(City city) =>
         IsHeterodox(city) && PolicyOf(city.Realm) == Policy.PollTax ? DhimmiLevy : 1f;
-#endif
 
     // 异教之城的稳定度损失(见 CityStabilitySystem.Natural)
-#if EC_PENDING
     public static float StabilityLoss(City city) =>
         !IsHeterodox(city) ? 0f : PolicyOf(city.Realm) switch
         {
@@ -97,10 +90,8 @@ public static class ReligiousTension
             Policy.PollTax => 6f,
             _ => 10f
         };
-#endif
 
     // 异教之城的民族情绪每年增长(见 NationalSentimentSystem)
-#if EC_PENDING
     public static float SentimentGain(City city) =>
         !IsHeterodox(city) ? 0f : PolicyOf(city.Realm) switch
         {
@@ -111,7 +102,6 @@ public static class ReligiousTension
 
     public static string Describe(City city) =>
         string.Format(LM.Get("stability_religion_detail"), city.Religion?.Name ?? "", LM.Get("religion_policy_" + PolicyOf(city.Realm)));
-#endif
 
     // 每年一次：人头税、宗教叛乱
 #if EC_PENDING

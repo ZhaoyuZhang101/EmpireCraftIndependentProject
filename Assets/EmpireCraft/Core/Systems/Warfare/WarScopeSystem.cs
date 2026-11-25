@@ -78,7 +78,6 @@ public static class WarScopeSystem
     }
 
     // 这座城按战时兵额征兵(战备状态)
-#if EC_PENDING
     public static bool InScope(City city)
     {
         if (city?.Record == null || city.Realm == null || EmpireWorld.Current == null) return false;
@@ -92,7 +91,6 @@ public static class WarScopeSystem
         }
         return Scope.Contains(city.Key);
     }
-#endif
 
     private static War Alive(War war) => war?.Record != null && war.Alive && !war.HasEnded() ? war : null;
 
@@ -103,7 +101,6 @@ public static class WarScopeSystem
 
     private const double RebuildSeconds = 5d;
 
-#if EC_PENDING
     private static void Rebuild()
     {
         using var timing = FrameProfiler.Measure("就近动员·重算");
@@ -170,7 +167,6 @@ public static class WarScopeSystem
             if (!garrisoned && staging != null && (war ? LeadsWar(kingdom) : !WarMuster.Following(kingdom))) Scope.Add(staging.Key);
         }
     }
-#endif
 
     // 这座城离那一国最近的城有多远(格，按城心)；那国没有城时为极大
     public static float DistanceTo(City city, Realm target)
@@ -229,7 +225,6 @@ public static class WarScopeSystem
         }
     }
 
-#if EC_PENDING
     private static void VerifyAgainstScan(Realm kingdom, HashSet<Realm> warring)
     {
         HostileChecks++;
@@ -245,7 +240,6 @@ public static class WarScopeSystem
         if (HostileMismatches++ < 5)
             LogService.LogWarning($"[EmpireCraft][就近动员] 核对不上：{kingdom.GetKingdomName()} 逐个问得 {scanned} 国，按名单找得 {Hostiles.Count} 国");
     }
-#endif
 
     private static void AddCenters(Realm kingdom)
     {

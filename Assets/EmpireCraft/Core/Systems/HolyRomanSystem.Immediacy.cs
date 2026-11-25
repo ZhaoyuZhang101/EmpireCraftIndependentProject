@@ -138,7 +138,6 @@ public static partial class HolyRomanSystem
 #endif
 
     // 维护帝国直属：花权威 10 驳回请愿
-#if EC_PENDING
     private static void Veto(Empire empire, HolyRomanState state, Realm lord, Realm small)
     {
         ClearPetition(state);
@@ -148,10 +147,8 @@ public static partial class HolyRomanSystem
             small.GetKingdomName(), lord.GetKingdomName()));
         FiscalDiagnostics.Count("神罗·直属驳回");
     }
-#endif
 
     // 陪臣化：小邦的城并入请愿者，原君主留任城主；返回议会纪事用的结果
-#if EC_PENDING
     private static string Mediatize(Empire empire, HolyRomanState state, Realm lord, Realm small, string route)
     {
         string smallName = small.GetKingdomName(), lordName = lord.GetKingdomName();
@@ -181,7 +178,6 @@ public static partial class HolyRomanSystem
         LogService.LogInfo($"[EmpireCraft][神罗] {empire.GetEmpireFullName()} 陪臣化({route})：{text}");
         return string.Format(LM.Get("hre_diet_mediatize_outcome"), smallName, lordName);
     }
-#endif
 
     private static void NoteMediatization(HolyRomanState state, string small, string lord, string route, bool blocked)
     {
@@ -215,7 +211,6 @@ public static partial class HolyRomanSystem
     #region 典押
 
     // 典押留底(PawnFreeCity 调用)
-#if EC_PENDING
     private static void NotePawn(HolyRomanState state, City city, Realm holder, int price)
     {
         state.pawns ??= new List<PawnRecord>();
@@ -225,7 +220,6 @@ public static partial class HolyRomanSystem
             price = price, at = GameClock.Now
         });
     }
-#endif
 
     private static long RedeemPrice(PawnRecord record) => (long)(record.price * RedeemPremium);
 
@@ -284,7 +278,6 @@ public static partial class HolyRomanSystem
     #region 上帝视角
 
     // 维护帝国直属：驳回待决的请愿
-#if EC_PENDING
     public static bool ActDefendImmediacy(Empire empire)
     {
         (Realm lord, Realm small) = PendingPetition(empire);
@@ -292,7 +285,6 @@ public static partial class HolyRomanSystem
         Veto(empire, State(empire), lord, small);
         return true;
     }
-#endif
 
     // 赎回最早一笔付得起的典押
 #if EC_PENDING
@@ -314,7 +306,6 @@ public static partial class HolyRomanSystem
     #endregion
 
     // 年度诊断的帝国直属一段
-#if EC_PENDING
     private static string ImmediacyStatus(Empire empire, HolyRomanState state)
     {
         (Realm lord, Realm small) = PendingPetition(empire);
@@ -325,6 +316,5 @@ public static partial class HolyRomanSystem
                 : $"每年请愿几率{ImperialAuthorityRules.PetitionChance(Authority(empire)):P1}";
         return $"{pending}；近来陪臣化{done}起、受阻{blocked}起；典押中{state.pawns?.Count ?? 0}城";
     }
-#endif
 }
 }

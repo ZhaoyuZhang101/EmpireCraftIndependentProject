@@ -237,13 +237,12 @@ public static class WorldMapWilderness
     internal static IEnumerable<int> KnownTerritory() => Active && WildernessSystem.Enabled && _state.territory != null
         ? _state.territory.Keys : Enumerable.Empty<int>();
 
-#if EC_PENDING
     private static bool LandOrigin(Cell zone, out City city, out KingdomTitle title)
     {
         city = null;
         title = null;
         // 有实体城市或仍属无人区时，分别由城市／无人区处理；只兜底已经退出的、有明确来源的陆地。
-        if (!Active || !WildernessSystem.Enabled || zone == null || zone.City != null || zone.GroundTiles <= 0 || WildernessSystem.IsWild(zone) ||
+        if (!Active || !WildernessSystem.Enabled || zone == null || zone.City != null || zone.GroundCount <= 0 || WildernessSystem.IsWild(zone) ||
             _state.territory == null || !_state.territory.TryGetValue(zone.Index, out ScenarioLandOrigin land)) return false;
         city = land.city >= 0 ? EmpireWorld.Current?.CityByKey(land.city) : null;
         if (city?.Record == null || city.IsGone()) city = null;
@@ -257,7 +256,7 @@ public static class WorldMapWilderness
         if (title != null && title.IsGone()) title = null;
         // 笔刷固定的是法理，不是后来改投其他法理的城市；行政图层也要使用固定法理下的城市。
         if (land.pinned && city?.GetTitle() != title)
-            city = title?.getCities().FirstOrDefault(candidate => candidate?.Record != null && !candidate.IsGone());
+            city = title?.GetCities().FirstOrDefault(candidate => candidate?.Record != null && !candidate.IsGone());
         return city != null || title != null;
     }
 
@@ -318,7 +317,6 @@ public static class WorldMapWilderness
 
     internal static bool HasPreservedAdministration(Empire empire) => Active && empire?.kingdoms_list != null &&
         empire.kingdoms_list.Any(kingdom => kingdom?.Cities != null && kingdom.Cities.Any(PreservesAdministration));
-#endif
 
     // 这块地按州府锚点归哪座城(没有、城没了为 null)：无人区挂它的王国法理，跟着它的行政区(见 WildernessSystem.Attach)
     internal static City AnchorCity(Cell zone)
@@ -332,7 +330,6 @@ public static class WorldMapWilderness
     }
 
     // 剧本摆好时(WorldMapScenario.Finish)：记下范围、大小、时代，史实归属先记都城
-#if EC_PENDING
     public static void Begin(WorldMapFrame frame, Vector2Int size, WorldMapEra era, Dictionary<string, City> capitals,
         Dictionary<string, KingdomTitle> titles = null)
     {
@@ -350,14 +347,13 @@ public static class WorldMapWilderness
                 if (!_capitals.TryGetValue(pair.Key, out City capital) ||
                     !titles.TryGetValue(pair.Value ?? "", out KingdomTitle title) || title == null || title.IsGone()) continue;
                 // 小地图缺城或复制剧本改了国家时，不将当地法理强行交给原国家。
-                if (!title.getCities().Any(city => SamePolity(city, capital))) continue;
+                if (!title.GetCities().Any(city => SamePolity(city, capital))) continue;
                 (_state.regional ??= new())[pair.Key] = title.Key;
             }
         Bind();
         _plan = null;
         if (_state?.regional is { Count: > 0 }) WildernessSystem.RequestReattach();
     }
-#endif
 
     public static void Load(WorldMapWildSave saved)
     {
@@ -803,7 +799,6 @@ public static class WorldMapWilderness
 
     // 剧本摆好时(WorldMapScenario.Finish，导入地图也调)：各地块中心落在哪种刷的格子里(同 PaintTerritory 按 0.2° 一格找)；
     // capitals 为剧本国家 → 都城，titles 为地区 → 王国法理
-#if EC_PENDING
     public static void BeginPaint(WorldMapEra era, WorldMapFrame frame, Vector2Int size, Dictionary<string, City> capitals,
         Dictionary<string, KingdomTitle> titles)
     {
@@ -832,7 +827,6 @@ public static class WorldMapWilderness
         WildernessSystem.RequestReattach();
         LogService.LogInfo($"[EmpireCraft][世界地图] 剧本刷的无人区归属：{keys.Count} 块地");
     }
-#endif
 
     // 刷的键换成法理编号(头一回挂法理、存档时)：p: 取那国都城此刻的王国法理(同史实归属，见 ResolveOwners)，r: 取那块法理
     private static void ResolvePaint()

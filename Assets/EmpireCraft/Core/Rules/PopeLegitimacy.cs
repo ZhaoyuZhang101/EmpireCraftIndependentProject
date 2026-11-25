@@ -22,9 +22,9 @@ public static class PopeLegitimacy
     public const int AntipopeBelow = 40, HealedAt = 50, CoronationBelow = 40;
     public const float AntipopeChance = 0.05f, RallyPerPoint = 0.004f;
 
-#if EC_PENDING
     public static bool Applies(Religion religion) => ReligionFaith.IsPapal(religion) && PapacySystem.Pope(religion) != null;
 
+#if EC_PENDING
     public static List<(string key, int value)> Breakdown(Religion religion, bool countSchism = true)
     {
         var items = new List<(string key, int value)>();

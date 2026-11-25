@@ -18,28 +18,24 @@ public static class ModernTitleCentralization
     private static readonly HashSet<KingdomType> ModernDivisionTypes = new()
         { KingdomType.Modern_province, KingdomType.Modern_state, KingdomType.Modern_autonomous_prefecture };
 
-#if EC_PENDING
     public static bool IsModernState(Empire empire) =>
         empire?.CoreKingdom != null && !empire.IsGone() && !empire.IsArchived() &&
         empire.CoreKingdom.GetRegime()?.type == RegimeType.Modern;
-#endif
 
     // 现代国家的成员国：王国法理归中央，自己只受托管理
-#if EC_PENDING
     public static bool IsModernMember(Realm kingdom)
     {
         if (kingdom == null || kingdom.IsGone() || kingdom.IsEmpire() || !kingdom.IsInEmpire()) return false;
         return IsModernState(kingdom.GetEmpire());
     }
-#endif
 
     // 省、州、自治州是现代国家的行政区(与律令制的道、节度使同类：受托管理法理，用法理的省份名)
-#if EC_PENDING
     public static bool IsModernDivisionType(Realm kingdom) =>
         IsModernMember(kingdom) && ModernDivisionTypes.Contains(kingdom.GetKingdomType());
 
     public static bool BlocksMemberMainTitle(Realm kingdom) => IsModernMember(kingdom);
 
+#if EC_PENDING
     public static void Update(Empire empire)
     {
         if (!IsModernState(empire)) return;
@@ -111,6 +107,7 @@ public static class ModernTitleCentralization
             }
         }
     }
+#endif
 
     private static KingdomTitle NeighbourTitle(City city, Realm kingdom, Empire empire)
     {
@@ -126,7 +123,6 @@ public static class ModernTitleCentralization
         }
         return fallback;
     }
-#endif
 
     // 只挪归属名单，不走 Person.removeTitle(那会连带改动旧主人所在王国的主法理、甚至脱离帝国)
     private static void GiveToHead(KingdomTitle title, Person head)

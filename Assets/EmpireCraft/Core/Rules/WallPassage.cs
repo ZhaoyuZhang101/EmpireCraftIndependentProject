@@ -138,7 +138,7 @@ public static class WallPassage
     private static bool Ensure()
     {
         EmpireWorld world = EmpireWorld.Current;
-        if (world?.Zones?.All == null || world.Zones == null) return false;
+        if (world?.Zones?.All == null || world.AllCells == null) return false;
         if (ReferenceEquals(_world, world) && _version == MapWallSystem.Version && _revision == MapWallSystem.Revision)
         {
             if (Dirty.Count > 0) Refresh();
@@ -175,7 +175,7 @@ public static class WallPassage
         Keepers.Clear();
         _forts = null;
         int count = 0;
-        Cell[] tiles = world.Zones;
+        Cell[] tiles = world.AllCells;
         foreach (int id in MapWallSystem.Walls.Keys)
             if (id >= 0 && id < tiles.Length) count += Mark(tiles[id]?.Zone);
         foreach (TerrainKind type in AssetManager.top_tiles?.list ?? new List<TerrainKind>())

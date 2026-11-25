@@ -144,7 +144,6 @@ public static class CourtIssues
     // 立场的来由(诉求天平页逐项列出；用户 2026-11-11 "得写清楚为什么要这个议题谁同意谁不同意，是如何让他们同意的")：
     // 各阶层的利弊(本派对该阶层的亲疏 × 议题对该阶层的利弊；朋党按学说/利害表态时这部分折半)、学说/利害、本派诉求、
     // 与本派诉求相悖、针对的目标。各项加起来(夹在 ±30)就是 Stance；key 是语言键，arg 填进去
-#if EC_PENDING
     public static List<(string key, string arg, float value)> Explain(FixedFaction faction, TemporaryFaction claim)
     {
         var parts = new List<(string key, string arg, float value)>();
@@ -168,7 +167,6 @@ public static class CourtIssues
         if (Math.Abs(target) >= 0.5f) parts.Add(("stance_part_target", "", target));
         return parts.OrderByDescending(part => Math.Abs(part.value)).ToList();
     }
-#endif
 
     public static int StanceLevel(float score) =>
         score >= SupportThreshold ? 1 : score <= -SupportThreshold ? -1 : 0;
@@ -177,12 +175,10 @@ public static class CourtIssues
         StanceLevel(Stance(faction, issue));
 
     // 带目标的立场：议题立场 ＋ 诉求针对的具体目标引起的立场(如册立储君立的是哪一派的皇子)
-#if EC_PENDING
     public static float Stance(FixedFaction faction, TemporaryFaction claim) =>
         claim == null ? 0f : Math.Max(-30f, Math.Min(30f, Stance(faction, claim.type) + claim.TargetStance(faction)));
 
     public static int StanceLevel(FixedFaction faction, TemporaryFaction claim) =>
         StanceLevel(Stance(faction, claim));
-#endif
 }
 }

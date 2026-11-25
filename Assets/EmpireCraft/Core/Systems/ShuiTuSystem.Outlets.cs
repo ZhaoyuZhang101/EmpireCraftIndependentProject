@@ -212,11 +212,11 @@ public static partial class ShuiTuSystem
                 return true;
         return false;
     }
+#endif
 
     private static bool NomadicCity(City city) =>
         city?.Record != null && !city.IsGone() &&
         CompositeEmpireService.IsNomadicCulture(CultureService.GetMainCulture(city, initialize: false));
-#endif
 
     // 读档后每个政权头一趟：以前附近没有游牧也"整国游牧化"了的定居文化国，附近确实没有游牧的改回本文化眼下应有的政体，
     // 国号、君主称号随政体恢复(用户 2026-10-22 选"读档时改回原政体")
@@ -273,7 +273,6 @@ public static partial class ShuiTuSystem
     #region 北归
 
     // 旱地上的本族旧地：直辖城里主流文化是游牧文化的旱地城(本国文化优先，人口多的优先)；各成员国的都城不拿
-#if EC_PENDING
     private static City HomelandSeat(Realm unit, List<City> cities, string culture)
     {
         return cities.Where(city => city.Realm == unit || city.Realm.Capital != city)
@@ -284,7 +283,6 @@ public static partial class ShuiTuSystem
             .ThenByDescending(pair => pair.city.CountLivingPopulation())
             .Select(pair => pair.city).FirstOrDefault();
     }
-#endif
 
     // 北归：迁都旱地旧地；农地为主的直辖成员各自脱离；本国的农地城一片片交当地首领(至多 RetreatClusters 片)。离草从头计
 #if EC_PENDING
@@ -360,14 +358,12 @@ public static partial class ShuiTuSystem
         return cluster;
     }
 
-#if EC_PENDING
     private static List<City> UnfitCluster(List<City> unfit)
     {
         City seed = unfit.OrderByDescending(UnfitTier).ThenBy(city => city.Key).First();
         var set = new HashSet<City>(unfit);
         return Cluster(seed, city => set.Contains(city) && city.Realm == seed.Realm);
     }
-#endif
 
     // 羁縻、交当地首领：到档最高的那片旱地城按政体文化转为羁縻州、朝贡国、附庸(同扩张上限)
 #if EC_PENDING
@@ -458,7 +454,6 @@ public static partial class ShuiTuSystem
 #endif
 
     // 邻近的游牧文化：这片城与它们的邻城里的主流文化(这片城自己的算两份)；没有就找本文化制度线上的游牧文化
-#if EC_PENDING
     private static string NomadCultureNear(List<City> cluster)
     {
         var counts = new Dictionary<string, int>(StringComparer.Ordinal);
@@ -479,10 +474,8 @@ public static partial class ShuiTuSystem
             ? counts.OrderByDescending(pair => pair.Value).ThenBy(pair => pair.Key, StringComparer.Ordinal).First().Key
             : null;
     }
-#endif
 
     // 屯田实边(见 TempFac_屯田实边)：本国不服水土的旱地城计时往回拨 DelayYears 年(不晚于现在)，返回拨了几座
-#if EC_PENDING
     public static int Delay(Realm kingdom)
     {
         Realm unit = UnitOf(kingdom);
@@ -524,7 +517,6 @@ public static partial class ShuiTuSystem
         if (delayed > 0) LogService.LogInfo($"[EmpireCraft][水土] {unit.GetKingdomName()} 屯田实边，{delayed} 座旱地城的计时往回拨 {DelayYears} 年");
         return delayed;
     }
-#endif
 
     #endregion
 

@@ -65,7 +65,7 @@ public class SpecificClan
 #if EC_PENDING
     [JsonIgnore]
     // 整族虚拟时没有实体族人，按族谱里在世族人记的物种取
-    public ActorAsset asset => AllAliveMembers?.FirstOrDefault()?.asset ??
+    public PersonKind asset => AllAliveMembers?.FirstOrDefault()?.Asset ??
                                AssetManager.actor_library.get(SnapshotPeople()
                                    .FirstOrDefault(person => person != null && person.is_alive &&
                                                              !string.IsNullOrEmpty(person.species))?.species ?? "");
@@ -300,7 +300,6 @@ public class SpecificClan
             _peopleRevision++;
         }
     }
-#if EC_PENDING
     public void RecordHistoryEmpire(Empire empire, City capital)
     {
         if (empire == null || empire.IsGone() || capital == null || capital.IsGone()) return;
@@ -311,7 +310,6 @@ public class SpecificClan
         capital_city_pos_x = capital.Center.x;
         capital_city_pos_y = capital.Center.y;
     }
-#endif
     public void RecordAncestralCity(City city)
     {
         if (city == null || city.IsGone()) return;
@@ -586,7 +584,7 @@ public static class SpecificClanManager
             Clan target = VanillaClanOf(specific, actor, cache);
             if (target == null)
             {
-                target = EmpireWorld.Current.clans.newClan(actor, true);
+                target = EmpireWorld.Current.Clans.newClan(actor, true);
                 if (target == null) return;
                 target.SetSpecificClan(specific);
                 SpecificClanManager.SyncVanillaClanName(target);
@@ -599,6 +597,7 @@ public static class SpecificClanManager
             LogService.LogWarning($"[EmpireCraft][族谱] 同步原版氏族失败: {exception.Message}");
         }
     }
+#endif
 
     private static Clan VanillaClanOf(SpecificClan specific, Person except, Dictionary<long, Clan> cache)
     {
@@ -607,7 +606,7 @@ public static class SpecificClanManager
         Clan found = specific.AllAliveMembers.Where(member => member != except && member.Clan != null)
             .Select(member => member.Clan).FirstOrDefault(clan => clan.GetSpecificClan() == specific);
         if (found == null && cache == null)
-            foreach (Clan clan in EmpireWorld.Current.clans.list)
+            foreach (Clan clan in EmpireWorld.Current.Clans)
                 if (clan?.Record != null && !clan.IsGone() && clan.GetSpecificClan() == specific)
                 {
                     found = clan;
@@ -616,7 +615,6 @@ public static class SpecificClanManager
         if (found != null && cache != null) cache[specific.id] = found;
         return found;
     }
-#endif
 
     // 把记下的父母接回族谱(父亲、母亲各接一位；已有的不动)，返回是否接上了
 #if EC_PENDING
@@ -1205,9 +1203,9 @@ public static class SpecificClanManager
 
     public static int SyncAllVanillaClanNames()
     {
-        if (EmpireWorld.Current?.clans?.list == null) return 0;
+        if (EmpireWorld.Current?.Clans == null) return 0;
         int changed = 0;
-        foreach (Clan clan in EmpireWorld.Current.clans.list.ToList())
+        foreach (Clan clan in EmpireWorld.Current.Clans.ToList())
         {
             string before = clan?.Name;
             SyncVanillaClanName(clan);
@@ -1302,7 +1300,7 @@ public static class SpecificClanManager
         {
             try
             {
-                EmpireWorld.Current.clans.newClan(actor, true);
+                EmpireWorld.Current.Clans.newClan(actor, true);
             }
             catch
             {
@@ -1640,7 +1638,7 @@ public class PersonalClanIdentity
         birthday = a.TrueBirthday();
         sex = a.Sex;
         recordedAge = a.Age();
-        species = a.asset.id;
+        species = a.Asset.Id;
         is_main = true;
         culture = CultureService.ResolveRecordedActorCulture(a);
         generation = 0;
@@ -1826,6 +1824,7 @@ public class PersonalClanIdentity
         sex = _actor.Sex;
         generation = identity.generation + 1;
     }
+#endif
 
     public void RecordPendingChildBirthHistory()
     {
@@ -1842,7 +1841,6 @@ public class PersonalClanIdentity
         }
         pending_child_birth_history_parents.Clear();
     }
-#endif
 
     public void AddRelatedHistoryRecord(PersonalHistoryRecord record)
     {
@@ -1871,7 +1869,6 @@ public class PersonalClanIdentity
         }
     }
 
-#if EC_PENDING
     public void BackfillCurrentEraNameHistory()
     {
         Person actor = _actor;
@@ -1894,7 +1891,6 @@ public class PersonalClanIdentity
             owner_personal_identity_id = id
         });
     }
-#endif
 
     public void BackfillChildBirthHistoryNames()
     {

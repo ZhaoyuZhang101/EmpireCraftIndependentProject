@@ -17,7 +17,6 @@ public class PerformanceEvent
     public double performance_add_on { get; set; }
     public List<int> official_levels {  get; set; }
 
-#if EC_PENDING
     public double trigger(Person actor)
     {
         double minDouble = 0;
@@ -27,13 +26,11 @@ public class PerformanceEvent
         identity.OfficePerformance += randomDouble;
         return identity.OfficePerformance;
     }
-#endif
 }
 public class PerformanceEvents
 {
     public Dictionary<string, PerformanceEvent> events = null;
     
-#if EC_PENDING
     public void init(Person actor)
     {
         string filePath = Path.Combine(GameData.Folder, "Scripts", "Data", "PerformanceData.json");
@@ -61,8 +58,8 @@ public class PerformanceEvents
 
         foreach (var trait in actor.Traits)
         {
-            if (trait.type == TraitType.Positive) score += 1;
-            if (trait.type == TraitType.Negative) score -= 1;
+            if (trait.TraitKindOf() == TraitType.Positive) score += 1;
+            if (trait.TraitKindOf() == TraitType.Negative) score -= 1;
         }
 
         // 收束到 (0,1)，当 score = 0 时结果=0.5
@@ -142,6 +139,5 @@ public class PerformanceEvents
         performance = weightedList.Last().e.trigger(actor);
         return (weightedList.Last().e, performance);
     }
-#endif
 }
 }

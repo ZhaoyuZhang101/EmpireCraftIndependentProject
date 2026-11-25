@@ -19,7 +19,6 @@ public static class CorruptionSystem
             : CorruptionRules.Bound(core.GetCorruptionRate()) * 0.4d + CorruptionRules.Bound(local) * 0.6d;
     }
 
-#if EC_PENDING
     public static void Update(Empire empire)
     {
         var state = empire?.data?.constitutional_economy;
@@ -41,12 +40,14 @@ public static class CorruptionSystem
         empire.data.constitutional_economy.local_corruption_snapshot = (rates.provinces + rates.cities) * 0.5d;
     }
 
+#if EC_PENDING
     public static double GetRate(Realm kingdom)
     {
         if (kingdom == null || kingdom.IsGone()) return 0d;
         var rates = LocalRates(kingdom, new[] { kingdom }, null);
         return CorruptionRules.ModRealm(kingdom.GetCorruptionRate(), rates.provinces, rates.cities);
     }
+#endif
 
     private static (double provinces, double cities) LocalRates(Realm core, IEnumerable<Realm> realms,
         Empire empire)
@@ -81,13 +82,10 @@ public static class CorruptionSystem
         actor == null || actor.IsGone() || !actor.Alive ? 0d
             : CorruptionRules.AnnualOfficeChange(corruptibility ?? actor.CalcCorruptionValue(), kingdom.IsInEmpire(),
                 Integrity(actor));
-#endif
 
     // 清廉程度：品行(正面特质多于负面)越好越高，0~1
-#if EC_PENDING
     private static double Integrity(Person actor) =>
         Math.Max(0d, EmpireCraft.Core.PerformanceEvents.GetPersonalPerformance(actor) - 0.5d) / 0.5d;
-#endif
 
     private static IEnumerable<Realm> CampaignRealms(Empire empire, Realm target) =>
         target == empire.CoreKingdom
@@ -107,7 +105,6 @@ public static class CorruptionSystem
             k.Cities.Any(c => c != null && !c.IsGone() && c.Realm == k && c.GetCorruptionRate() >= 0.25d));
     }
 
-#if EC_PENDING
     public static bool TryCampaign(Empire empire, Realm target)
     {
         if (!CanCampaign(empire, target)) return false;
@@ -126,10 +123,8 @@ public static class CorruptionSystem
         MaladySystem.Relieve(empire, MaladySystem.Graft, 15f);
         return true;
     }
-#endif
 
     // 原有国家意志 AI 的年度入口。只有中央发起全国整顿，附属国不会各自重复全国行动。
-#if EC_PENDING
     public static bool TryYearlyCampaign(Realm kingdom)
     {
         Empire empire = kingdom?.GetEmpire();
@@ -153,10 +148,8 @@ public static class CorruptionSystem
         EventRecorder.Record(empire, string.Format(LM.Get("anticorruption_campaign_history"), empire.GetEmpireFullName()));
         return true;
     }
-#endif
 
     // 由法律系统在处罚后调用；辖区在处罚前捕获，罢官/流放后仍能整顿原任职地。
-#if EC_PENDING
     public static void OnLawEnforced(Realm kingdom, City city, bool administration, LawType law,
         IList<PunishmentLevel> punishments, int moneyBefore, int moneyAfter)
     {
@@ -174,6 +167,5 @@ public static class CorruptionSystem
         else if (administration) kingdom.AddCorruptionRate(-cut);
         MonarchyLegitimacy.Invalidate(kingdom.GetEmpire());
     }
-#endif
 }
 }

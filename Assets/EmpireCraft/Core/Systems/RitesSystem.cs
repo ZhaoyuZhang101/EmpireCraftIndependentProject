@@ -19,12 +19,9 @@ public static class RitesSystem
     private static bool Has(string culture, string feature) =>
         CultureService.IsValidCulture(culture) && InstitutionSystem.GetFeature(culture, feature) > 0f;
 
-#if EC_PENDING
     private static string RulerName(Realm kingdom) => kingdom?.Ruler?.FullName() ?? kingdom?.GetKingdomName() ?? "";
-#endif
 
     // 每年(帝国例行检查，见 EmpireCraftEmpireBehCheckMandate)
-#if EC_PENDING
     public static void Yearly(Empire empire)
     {
         Realm core = empire?.CoreKingdom;
@@ -58,10 +55,8 @@ public static class RitesSystem
             Record(empire, core, string.Format(LM.Get("rites_year_ominous"), RulerName(core)));
         }
     }
-#endif
 
     // 宣战(WarPatch.new_war)：施行了祭祀的攻方先卜
-#if EC_PENDING
     public static void OnWarDeclared(War war)
     {
         Realm attacker = war?.MainAttacker, defender = war?.MainDefender;
@@ -84,6 +79,5 @@ public static class RitesSystem
         LogService.LogInfo("[EmpireCraft][祭祀] " + content);
         if (empire != null && !empire.IsGone()) empire.RecordHistory(directContent: content, kingdomId: kingdom?.Key ?? -1L);
     }
-#endif
 }
 }

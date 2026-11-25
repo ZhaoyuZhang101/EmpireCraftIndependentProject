@@ -35,7 +35,6 @@ public static class MusterSystem
         war?.Record != null && (war.GetKind() == WarKinds.Rebellion || Rebellions.Contains(war.GetEmpireWarType()));
 
     // 这场叛乱的集结期(月)，第一次问到时掷定并记在战争上
-#if EC_PENDING
     public static int Months(War war)
     {
         var data = war.GetOrCreate();
@@ -53,10 +52,8 @@ public static class MusterSystem
     private static bool Underway(War war) =>
         war?.Record != null && war.Alive && !war.HasEnded() && IsRebellion(war) &&
         GameClock.MonthsSince(war.StartedStamp) < Months(war);
-#endif
 
     // loyal 一方还在集结、对 rebel 这伙叛军不能全力应战
-#if EC_PENDING
     public static bool Mustering(Realm loyal, Realm rebel)
     {
         if (loyal?.Record == null || rebel?.Record == null || loyal == rebel) return false;
@@ -69,16 +66,12 @@ public static class MusterSystem
         }
         return false;
     }
-#endif
 
     // 守方仓促应战的战力系数
-#if EC_PENDING
     public static float DefenseFactor(Realm defender, Realm attacker) =>
         Mustering(defender, attacker) ? SurprisedDefense : 1f;
-#endif
 
     // 每月(战线结算前)：新起的叛乱记"仓促应战"，集结期满记"大军集结完毕"
-#if EC_PENDING
     public static void MonthTick()
     {
         foreach (War war in EmpireWorld.Current.LiveWars.ToList())
@@ -100,6 +93,5 @@ public static class MusterSystem
             }
         }
     }
-#endif
 }
 }

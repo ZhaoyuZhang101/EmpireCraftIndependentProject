@@ -32,19 +32,16 @@ public static class LabourSystem
     private static ConstitutionalEconomyState State(Empire empire) => empire?.data?.constitutional_economy;
     private static ConstitutionalEconomyState State(Realm kingdom) => kingdom?.GetEmpire()?.data?.constitutional_economy;
 
-#if EC_PENDING
     public static bool Applies(Empire empire)
     {
         if (empire?.CoreKingdom == null || empire.IsGone() || empire.IsArchived() || State(empire) == null) return false;
         if (TransmigrantSystem.Governs(empire)) return false;
         return TechnologySystem.GetEraTier(InstitutionSystem.GetPrimaryCulture(empire)) >= EconomicCycleSystem.IndustrialEra;
     }
-#endif
 
     #region 年度
 
     // 每年(ConstitutionalEconomySystem，在 WarBox 罢工统计之后、苛政与革命形势之前)
-#if EC_PENDING
     public static void Update(Empire empire, ConstitutionalEconomyState state)
     {
         if (empire?.CoreKingdom == null || state == null) return;
@@ -117,7 +114,6 @@ public static class LabourSystem
         if (general) EventRecorder.Record(empire, text);
         else EventRecorder.RecordRoutine(empire, text);
     }
-#endif
 
     // 民意、革命形势读的那两个数(见 PublicOpinionSystem、RevolutionSystem.FindSpark)
     private static void MarkStrike(ConstitutionalEconomyState state)
@@ -127,7 +123,6 @@ public static class LabourSystem
         if (general) state.general_strike = true;
     }
 
-#if EC_PENDING
     private static string AiResponse(Empire empire, ConstitutionalEconomyState state)
     {
         if (state.union_status == Banned) return Repress;
@@ -181,7 +176,6 @@ public static class LabourSystem
         if (general || kind == Repress) EventRecorder.Record(empire, text);
         else EventRecorder.RecordRoutine(empire, text);
     }
-#endif
 
     #endregion
 
@@ -191,7 +185,6 @@ public static class LabourSystem
     public static string CanPlayerRespond(Empire empire) =>
         State(empire) is { } state && state.strike_stage > NoStrike ? null : "labour_response_no_need";
 
-#if EC_PENDING
     public static string PlayerRespond(Empire empire, bool repress)
     {
         string reason = CanPlayerRespond(empire);
@@ -199,7 +192,6 @@ public static class LabourSystem
         Resolve(empire, State(empire), repress ? Repress : Concede, true);
         return null;
     }
-#endif
 
     public static int UnionStatus(Empire empire) => State(empire)?.union_status ?? Tolerated;
 

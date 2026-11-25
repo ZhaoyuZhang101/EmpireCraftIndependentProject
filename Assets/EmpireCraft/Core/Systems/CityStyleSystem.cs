@@ -59,9 +59,7 @@ public static class CityStyleSystem
     private static bool NomadCulture(string culture) =>
         !string.IsNullOrEmpty(culture) && EmpireCraft.Core.OnomasticsRule.IsNomadCulture(culture);
 
-#if EC_PENDING
     public static bool Nomad(City city) => city?.Record != null && !city.IsGone() && Established(city) == "nomad";
-#endif
 
     // 游牧营地的人口上限：逐水草而居，一片草场养的人远不如农耕城，住房上限只算 NomadCapacityShare(见 CityPatch.getPopulationMaximum)。
     // 只看城是不是营地：游牧政权占了的农耕城照旧；营地改建成别的风格后也照旧。原有超出的人口按住房超额的规则每年流失超出部分的
@@ -75,24 +73,19 @@ public static class CityStyleSystem
 #endif
 
     // 不修路的城：只有游牧营地(用户 2026-10-21 选：阿兹特克照定居城修路，林地只修最低一档，见 RoadGradeCap)
-#if EC_PENDING
     public static bool Roadless(City city) =>
         city?.Record != null && !city.IsGone() && Established(city) == "nomad";
-#endif
 
     // 连着这座城的路最高修到几等(路级见 RoadBuildingSystem：1 土路 … 5 柏油公路)：林地只修最低一档的土路，不升等；
     // 其余不限(用户 2026-10-21 选林地"只修最低一档的路"——部落之间踩出来的路，不修驿道官道)
     public const int WoodlandRoadGrade = 1;
 
-#if EC_PENDING
     public static int RoadGradeCap(City city) =>
         city?.Record != null && !city.IsGone() && Established(city) == "woodland" ? WoodlandRoadGrade : RoadBuildingSystem.MaxGrade;
 
     public static string CurrentFamily(City city) => Family(TechnologySystem.GetCultureOf(city) ?? "");
-#endif
 
     // 这座城定型的风格(第一次问到时按现文化定下)
-#if EC_PENDING
     public static string Established(City city)
     {
         var data = city.GetOrCreate();
@@ -109,7 +102,6 @@ public static class CityStyleSystem
         }
         return data.map_style;
     }
-#endif
 
     // 营地(游牧、林地)：不筑城墙、不修街
     public static bool Camp(string family) => family is "nomad" or "woodland";
@@ -130,7 +122,6 @@ public static class CityStyleSystem
     // 风格与现文化不合、又没在改建的城。易主不改建筑(用户 2026-10-20 "游牧入主中原这种情况，不能改变中原原有的建筑")：
     //   · 定居的城池不改建成营地(游牧、林地)：游牧打下的城照旧是城池，城墙、宫城、关城、村镇都留着；
     //   · 城貌手动选定的(见 SetByHand)不改
-#if EC_PENDING
     private static List<City> Stale(Realm kingdom) =>
         kingdom?.Cities?.Where(city =>
         {
@@ -148,10 +139,8 @@ public static class CityStyleSystem
         int count = Stale(kingdom).Count;
         return count > 0 && kingdom.GetMoney() >= count * CostPerCity;
     }
-#endif
 
     // 决议施行：出钱，各城按现文化风格开工改建
-#if EC_PENDING
     public static bool Enact(Person king)
     {
         Realm kingdom = king?.Realm;
@@ -171,7 +160,6 @@ public static class CityStyleSystem
         EventRecorder.Record(kingdom.GetEmpire(), text, king, kingdom);
         return true;
     }
-#endif
 
     #region 城貌(手动)
 
@@ -187,7 +175,6 @@ public static class CityStyleSystem
     public static string StyleName(string option) => LM.Get("city_style_name_" + (string.IsNullOrEmpty(option) ? "huaxia" : option));
 
     // 这座城眼下的画法选项(游牧营地按画出来的分毡帐、冬营地，见 PureMapPatch.Layout)
-#if EC_PENDING
     public static string OptionOf(City city, bool winter)
     {
         if (city?.Record == null) return "";
@@ -207,10 +194,8 @@ public static class CityStyleSystem
         data.map_style_camp = option == WinterCamp ? 2 : option == "nomad" ? 1 : 0;
         Changed(city);
     }
-#endif
 
     // 交还规矩：当场照现文化改过来，以后改建决议、冬营地判定照常管
-#if EC_PENDING
     public static void FollowCulture(City city)
     {
         if (city?.Record == null || city.IsGone()) return;
@@ -223,18 +208,15 @@ public static class CityStyleSystem
         data.map_style_camp = 0;
         Changed(city);
     }
-#endif
 
     // 风格换了：本城重画，路网照新风格重找(不修路的城不连官道)，政令路程跟着重算
-#if EC_PENDING
     private static void Changed(City city)
     {
-        PureMapPatch.Redraw(city);
+        GameView.Redraw(city);
         RuralSettlementSystem.Touch();
         RoadNetwork.ReplanCity(city);
         AdministrativeControlSystem.Refresh(city.Realm);
     }
-#endif
 
     #endregion
 }

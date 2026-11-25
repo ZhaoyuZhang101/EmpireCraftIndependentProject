@@ -54,23 +54,24 @@ public static class AnimalHusbandrySystem
     private const int PestsPerCity = 60;
 
 #if EC_PENDING
-    private static bool IsPest(ActorAsset asset) =>
-        asset != null && !asset.civ && (Pests.Contains(asset.id) || Pests.Contains(asset.kingdom_id_wild ?? ""));
+    private static bool IsPest(PersonKind asset) =>
+        asset != null && !asset.Civ && (Pests.Contains(asset.Id) || Pests.Contains(asset.kingdom_id_wild ?? ""));
 
-    public static bool IsGame(ActorAsset asset)
+    public static bool IsGame(PersonKind asset)
     {
-        if (asset == null || asset.civ || asset.is_boat) return false;
+        if (asset == null || asset.Civ || asset.IsBoat) return false;
         string wild = asset.kingdom_id_wild ?? "";
         return Large.Contains(wild) || Medium.Contains(wild) || Small.Contains(wild);
     }
 
-    private static (float meat, float leather, float bones, float head) Yield(ActorAsset asset)
+    private static (float meat, float leather, float bones, float head) Yield(PersonKind asset)
     {
         string wild = asset.kingdom_id_wild ?? "";
         if (Large.Contains(wild)) return (6f, 3f, 2f, 2f);
         if (Medium.Contains(wild)) return (3f, 1.5f, 1f, 1f);
         return (1f, 0.4f, 0.3f, 0.3f);
     }
+#endif
 
     public static bool IsNomadic(Realm kingdom)
     {
@@ -89,12 +90,11 @@ public static class AnimalHusbandrySystem
     public static int CountBuildings(City city, string type)
     {
         int count = 0;
-        if (city?.buildings == null) return 0;
-        foreach (Building building in city.buildings)
-            if (building?.asset?.type == type && !building.isUnderConstruction()) count++;
+        if (city?.Buildings == null) return 0;
+        foreach (Building building in city.Buildings)
+            if (building?.Asset?.Type == type && !building.IsUnderConstruction()) count++;
         return count;
     }
-#endif
 
     // 牧场、屠宰场几座(纯净地图：牧村、林场村折算，见 LivelihoodSystem)
 #if EC_PENDING
@@ -181,6 +181,7 @@ public static class AnimalHusbandrySystem
         }
         return (tiles == 0 ? 0f : open / tiles, Mathf.Clamp01(trees / (city.Zones.Count * 8f)));
     }
+#endif
 
     private static float Grazing(TerrainKind type)
     {
@@ -200,7 +201,6 @@ public static class AnimalHusbandrySystem
         if ((kinds & (LandKinds.Forest | LandKinds.Woodland)) != 0) return 0.8f;
         return 1f;
     }
-#endif
 
     // 狩猎：每座屠宰场每月按山林程度猎得的野味(折合中型野兽只数)
     private const float HuntPerSlaughterhouseMonth = 6f;
@@ -302,20 +302,20 @@ public static class AnimalHusbandrySystem
 #if EC_PENDING
     private static void GroupAnimal(Person actor)
     {
-            if (actor?.Record == null || actor.IsGone() || !actor.Alive || actor.asset == null) return;
+            if (actor?.Record == null || actor.IsGone() || !actor.Alive || actor.Asset == null) return;
             if (actor.isFavorite() || actor.isCameraFollowingUnit()) return;
             Cell tile = actor.Cell;
             City owner = tile?.Zone?.City;
             if (owner == null) return;
             // 无小人模式没有农民赶虫：农田(田地、规划农耕区)上的害虫由城市每月清除
-            if (_pestControl && IsPest(actor.asset) &&
+            if (_pestControl && IsPest(actor.Asset) &&
                 (tile.Type != null && tile.Type.FarmField || FarmlandSystem.IsPlanned(owner, tile.Zone)))
             {
                 if (!PestsByCity.TryGetValue(owner, out List<Person> pests)) PestsByCity[owner] = pests = new List<Person>();
                 if (pests.Count < PestsPerCity) pests.Add(actor);
                 return;
             }
-            if (!IsGame(actor.asset) || !Wanted.Contains(owner)) return;
+            if (!IsGame(actor.Asset) || !Wanted.Contains(owner)) return;
             if (!AnimalsByCity.TryGetValue(owner, out List<Person> list)) AnimalsByCity[owner] = list = new List<Person>();
             list.Add(actor);
     }
@@ -333,7 +333,7 @@ public static class AnimalHusbandrySystem
         float capacity = HerdCapacity(city);
         if (data.herd > capacity) data.herd = capacity;
         AnimalsByCity.TryGetValue(city, out List<Person> animals);
-        animals?.RemoveAll(animal => animal?.asset == null || animal.IsGone() || !animal.Alive ||
+        animals?.RemoveAll(animal => animal?.Asset == null || animal.IsGone() || !animal.Alive ||
             animal.Cell?.Zone?.City != city);
         float meat = 0f, leather = 0f, bones = 0f;
 
@@ -344,8 +344,8 @@ public static class AnimalHusbandrySystem
             for (int i = animals.Count - 1; i >= 0 && limit > 0 && data.herd < capacity; i--)
             {
                 Person animal = animals[i];
-                if (animal?.asset == null || !Livestock.Contains(animal.asset.kingdom_id_wild ?? "")) continue;
-                data.herd += Yield(animal.asset).head;
+                if (animal?.Asset == null || !Livestock.Contains(animal.Asset.kingdom_id_wild ?? "")) continue;
+                data.herd += Yield(animal.Asset).head;
                 Remove(animal);
                 animals.RemoveAt(i);
                 limit--;
@@ -373,8 +373,8 @@ public static class AnimalHusbandrySystem
                 for (int i = animals.Count - 1; i >= 0 && limit > 0; i--)
                 {
                     Person animal = animals[i];
-                    if (animal?.asset == null) continue;
-                    (float m, float l, float b, _) = Yield(animal.asset);
+                    if (animal?.Asset == null) continue;
+                    (float m, float l, float b, _) = Yield(animal.Asset);
                     meat += m;
                     leather += l;
                     bones += b;

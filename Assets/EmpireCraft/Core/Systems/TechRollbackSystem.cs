@@ -81,9 +81,7 @@ public static class TechRollbackSystem
     {
         public City City;
         public Cell Tile;
-#if EC_PENDING
-        public BuildingAsset Asset;
-#endif
+        public BuildingKind Asset;
         public float Since;
     }
 
@@ -95,7 +93,6 @@ public static class TechRollbackSystem
     private static float _clock;
     private static int _lost;
 
-#if EC_PENDING
     public static void ResetWorldState()
     {
         Jobs.Clear();
@@ -108,7 +105,6 @@ public static class TechRollbackSystem
         _buildings = null;
         _lost = 0;
     }
-#endif
 
     #region 回退
 
@@ -136,7 +132,6 @@ public static class TechRollbackSystem
 #endif
 
     // 真退了科技才写世界日志、记史书
-#if EC_PENDING
     private static void Announce(string culture, Realm kingdom, TechRollbackResult result)
     {
         if (result.techs <= 0) return;
@@ -145,7 +140,6 @@ public static class TechRollbackSystem
         EmpireCraft.Core.TranslateHelper.LogMajor(text, kingdom);
         Record(culture, text);
     }
-#endif
 
     // 举世退回原始：存过科技、制度的文化与眼下有国家、有城的文化，一齐退回原始时代
 #if EC_PENDING
@@ -245,7 +239,6 @@ public static class TechRollbackSystem
             .Any(tech => TechnologySystem.TryGetTech(tech, out _) && !TechnologySystem.HasTech(culture, tech));
 
     // 回退记进本文化各帝国的史书(culture 为空：记进所有帝国)
-#if EC_PENDING
     private static void Record(string culture, string text)
     {
         if (ModClass.EMPIRE_MANAGER == null || string.IsNullOrEmpty(text)) return;
@@ -257,7 +250,6 @@ public static class TechRollbackSystem
                 kingdomId: empire.CoreKingdom?.Key ?? -1L);
         }
     }
-#endif
 
     private static bool Enqueue(City city, string culture)
     {
@@ -275,9 +267,7 @@ public static class TechRollbackSystem
     private static City _city;
     private static string _cityCulture;
     private static Job _cityJob;
-#if EC_PENDING
     private static List<Building> _buildings;
-#endif
     private static int _index;
 
     // 每帧(见 ModClass.Update)：在时间片里一座座城过建筑，再试几处补盖；暂停时只过建筑，补盖等拆除动画走完
@@ -335,7 +325,7 @@ public static class TechRollbackSystem
     private static bool BeginCity(City city, string culture)
     {
         if (!Jobs.TryGetValue(culture ?? "", out Job job)) return false;
-        if (city?.Record == null || city.IsGone() || city.buildings == null ||
+        if (city?.Record == null || city.IsGone() || city.Buildings == null ||
             !string.Equals(TechnologySystem.GetCultureOf(city), culture, StringComparison.Ordinal))
         {
             EndCity(null, job);
@@ -344,7 +334,7 @@ public static class TechRollbackSystem
         _city = city;
         _cityCulture = culture;
         _cityJob = job;
-        _buildings = new List<Building>(city.buildings);
+        _buildings = new List<Building>(city.Buildings);
         _index = 0;
         try
         {
@@ -363,24 +353,24 @@ public static class TechRollbackSystem
 #if EC_PENDING
     private static void DowngradeLedger(City city, string culture, Job job)
     {
-        var lots = new List<(BuildingAsset asset, int zone, int n)>();
+        var lots = new List<(BuildingKind asset, int zone, int n)>();
         foreach (EmpireCraft.Core.WorkLot lot in CityLedger.Lots(city))
-            if (lot != null && lot.n > 0 && CityLedger.Asset(lot.id) is BuildingAsset asset) lots.Add((asset, lot.zone, lot.n));
-        foreach ((BuildingAsset asset, int zone, int n) in lots)
+            if (lot != null && lot.n > 0 && CityLedger.Asset(lot.id) is BuildingKind asset) lots.Add((asset, lot.zone, lot.n));
+        foreach ((BuildingKind asset, int zone, int n) in lots)
         {
-            string tech = TechnologySystem.GetRequiredTechForBuilding(asset.id);
+            string tech = TechnologySystem.GetRequiredTechForBuilding(asset.Id);
             if (tech == null || TechnologySystem.HasTech(culture, tech)) continue;
-            if (asset.type == BonfireType)
+            if (asset.Type == BonfireType)
             {
                 job.Kept += n;
                 continue;
             }
             bool house = CityZoningSystem.IsHouse(asset);
-            BuildingAsset lower = Lower(culture, asset);
+            BuildingKind lower = Lower(culture, asset);
             if (lower == null && house)
             {
                 lower = CityZoningSystem.BestAsset(city, CityZoningSystem.HouseType);
-                if (lower != null && lower.id == asset.id) lower = null;
+                if (lower != null && lower.Id == asset.Id) lower = null;
             }
             if (lower == null && house)
             {
@@ -389,11 +379,11 @@ public static class TechRollbackSystem
             }
             if (lower == null)
             {
-                job.Removed += CityLedger.Remove(city, asset.id, zone, n);
+                job.Removed += CityLedger.Remove(city, asset.Id, zone, n);
                 continue;
             }
             for (int i = 0; i < n; i++)
-                if (CityLedger.Swap(city, asset.id, lower, zone)) job.Downgraded++;
+                if (CityLedger.Swap(city, asset.Id, lower, zone)) job.Downgraded++;
         }
     }
 
@@ -438,23 +428,23 @@ public static class TechRollbackSystem
 #if EC_PENDING
     private static void Downgrade(City city, string culture, Building building, Job job)
     {
-        BuildingAsset asset = building?.asset;
-        if (asset == null || building.IsGone() || building.isOnRemove() || building.isRuin()) return;
-        string tech = TechnologySystem.GetRequiredTechForBuilding(asset.id);
+        BuildingKind asset = building?.Asset;
+        if (asset == null || building.IsGone() || building.IsOnRemove() || building.isRuin()) return;
+        string tech = TechnologySystem.GetRequiredTechForBuilding(asset.Id);
         if (tech == null || TechnologySystem.HasTech(culture, tech)) return;
         // 城心的公所、篝火不动：拆了城就没有城心(rolled_back 记着，读档也不会按它补科技)
-        if (asset.type == HallType || asset.type == BonfireType)
+        if (asset.Type == HallType || asset.Type == BonfireType)
         {
             job.Kept++;
             return;
         }
         bool house = CityZoningSystem.IsHouse(asset);
-        bool unfinished = building.isUnderConstruction();
-        BuildingAsset lower = unfinished ? null : Lower(culture, asset);
+        bool unfinished = building.IsUnderConstruction();
+        BuildingKind lower = unfinished ? null : Lower(culture, asset);
         if (lower == null && house && !unfinished)
         {
             lower = CityZoningSystem.BestAsset(city, CityZoningSystem.HouseType);
-            if (lower != null && lower.id == asset.id) lower = null;
+            if (lower != null && lower.Id == asset.Id) lower = null;
         }
         if (lower == null && house && !unfinished)
         {
@@ -462,7 +452,7 @@ public static class TechRollbackSystem
             job.Kept++;
             return;
         }
-        Cell origin = building.current_tile;
+        Cell origin = building.Cell;
         // 民居先在同一块地上找空处盖低一级的、再拆旧的(住房不留空档)
         if (lower != null && house && origin?.Zone != null && origin.Zone.City == city && FindSpot(city, origin.Zone, lower) is Cell spot &&
             Put(city, lower, spot))
@@ -489,13 +479,13 @@ public static class TechRollbackSystem
 
     // 顺着升级链往下(谁升到它)找本文化能建的最高一级；要的科技本文化有、或不受科技管的才算
 #if EC_PENDING
-    private static BuildingAsset Lower(string culture, BuildingAsset asset)
+    private static BuildingKind Lower(string culture, BuildingKind asset)
     {
         for (int step = 0; asset != null && step < MaxChainSteps; step++)
         {
             asset = Below(asset);
             if (asset == null) return null;
-            string tech = TechnologySystem.GetRequiredTechForBuilding(asset.id);
+            string tech = TechnologySystem.GetRequiredTechForBuilding(asset.Id);
             if (tech == null || TechnologySystem.HasTech(culture, tech)) return asset;
         }
         return null;
@@ -503,42 +493,40 @@ public static class TechRollbackSystem
 #endif
 
     // 升级链倒查表：升级目标 → 升到它的那一级(几座都升到同一座时取同类型、等级最高的)。资产数变了重建
-#if EC_PENDING
-    private static Dictionary<string, BuildingAsset> _below;
-#endif
+    private static Dictionary<string, BuildingKind> _below;
     private static int _belowCount = -1;
 
 #if EC_PENDING
-    private static BuildingAsset Below(BuildingAsset asset)
+    private static BuildingKind Below(BuildingKind asset)
     {
-        List<BuildingAsset> list = AssetManager.buildings?.list;
-        if (list == null || asset?.id == null) return null;
+        List<BuildingKind> list = BuildingKinds.Table?.list;
+        if (list == null || asset?.Id == null) return null;
         if (_below == null || _belowCount != list.Count)
         {
-            _below = new Dictionary<string, BuildingAsset>(StringComparer.Ordinal);
+            _below = new Dictionary<string, BuildingKind>(StringComparer.Ordinal);
             _belowCount = list.Count;
-            foreach (BuildingAsset candidate in list)
+            foreach (BuildingKind candidate in list)
             {
-                if (string.IsNullOrEmpty(candidate?.id) || string.IsNullOrEmpty(candidate.upgrade_to) ||
-                    candidate.upgrade_to == candidate.id) continue;
-                if (_below.TryGetValue(candidate.upgrade_to, out BuildingAsset old) && !Prefer(candidate, old)) continue;
-                _below[candidate.upgrade_to] = candidate;
+                if (string.IsNullOrEmpty(candidate?.Id) || string.IsNullOrEmpty(candidate.UpgradeTo) ||
+                    candidate.UpgradeTo == candidate.Id) continue;
+                if (_below.TryGetValue(candidate.UpgradeTo, out BuildingKind old) && !Prefer(candidate, old)) continue;
+                _below[candidate.UpgradeTo] = candidate;
             }
         }
-        if (_below.TryGetValue(asset.id, out BuildingAsset below) && below != asset) return below;
-        BuildingAsset from = string.IsNullOrEmpty(asset.upgraded_from) ? null : AssetManager.buildings.get(asset.upgraded_from);
-        return from != null && from.id != asset.id && from.upgrade_to == asset.id ? from : null;
-    }
-
-    private static bool Prefer(BuildingAsset candidate, BuildingAsset old)
-    {
-        BuildingAsset target = AssetManager.buildings.get(candidate.upgrade_to);
-        bool sameNew = target != null && candidate.type == target.type;
-        bool sameOld = target != null && old.type == target.type;
-        if (sameNew != sameOld) return sameNew;
-        return candidate.upgrade_level > old.upgrade_level;
+        if (_below.TryGetValue(asset.Id, out BuildingKind below) && below != asset) return below;
+        BuildingKind from = string.IsNullOrEmpty(asset.upgraded_from) ? null : BuildingKinds.Table.Get(asset.upgraded_from);
+        return from != null && from.Id != asset.Id && from.UpgradeTo == asset.Id ? from : null;
     }
 #endif
+
+    private static bool Prefer(BuildingKind candidate, BuildingKind old)
+    {
+        BuildingKind target = BuildingKinds.Table.Get(candidate.UpgradeTo);
+        bool sameNew = target != null && candidate.Type == target.Type;
+        bool sameOld = target != null && old.Type == target.Type;
+        if (sameNew != sameOld) return sameNew;
+        return candidate.UpgradeLevel > old.UpgradeLevel;
+    }
 
     // 补盖：原处腾出来了就盖在原处；等了 SpotSeconds 还没腾出来，改在本块地、本城别的地块找地方(民居不去沙漠冻土)
 #if EC_PENDING
@@ -567,10 +555,10 @@ public static class TechRollbackSystem
 
     // 同 CityZoningSystem 的放置：格子放得下、原版允许本城在这里建
 #if EC_PENDING
-    private static bool Fits(City city, Cell tile, BuildingAsset asset) =>
+    private static bool Fits(City city, Cell tile, BuildingKind asset) =>
         tile?.Type != null && tile.canBuildOn(asset) && EmpireWorld.Current.buildings.canBuildFrom(tile, asset, city);
 
-    private static Cell FindSpot(City city, Cell zone, BuildingAsset asset)
+    private static Cell FindSpot(City city, Cell zone, BuildingKind asset)
     {
         if (zone?.Tiles == null || asset == null) return null;
         foreach (Cell tile in zone.Tiles)
@@ -581,13 +569,13 @@ public static class TechRollbackSystem
 
     // 当场盖一座建成的(同 CityZoningSystem.Put)
 #if EC_PENDING
-    private static bool Put(City city, BuildingAsset asset, Cell tile)
+    private static bool Put(City city, BuildingKind asset, Cell tile)
     {
         Building building = EmpireWorld.Current.buildings.addBuilding(asset, tile);
-        if (building?.asset == null) return false;
-        if (building.isUnderConstruction())
+        if (building?.Asset == null) return false;
+        if (building.IsUnderConstruction())
         {
-            building.updateBuild(Mathf.Max(1, building.asset.construction_progress_needed + 1 - building.getConstructionProgress()));
+            building.updateBuild(Mathf.Max(1, building.Asset.ConstructionProgressNeeded + 1 - building.getConstructionProgress()));
             if (city.under_construction_building == building) city.under_construction_building = null;
         }
         return true;

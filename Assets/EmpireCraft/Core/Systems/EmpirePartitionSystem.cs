@@ -72,7 +72,6 @@ public static class EmpirePartitionSystem
         _ => 1f
     };
 
-#if EC_PENDING
     private static bool Eligible(Empire empire)
     {
         Realm core = empire?.CoreKingdom;
@@ -87,7 +86,6 @@ public static class EmpirePartitionSystem
         double since = empire.data.partition_time;
         return since < 0d || GameClock.YearsSince(since) >= CooldownYears;
     }
-#endif
 
     private static float Span(IEnumerable<City> cities, out bool horizontal)
     {
@@ -305,7 +303,6 @@ public static class EmpirePartitionSystem
     private const float SiblingFollowShare = 0.5f, CourtFollowShare = 0.3f;
 
     // 宗室随新君而去：妻妾子孙全随行，兄弟一家各一半，留在原朝京城的宗室三成；在新朝疆域里的本就归新朝
-#if EC_PENDING
     private static void Followers(Empire source, Empire twin, Person ruler, City seat)
     {
         PersonalClanIdentity self = ruler?.GetPersonalIdentity();
@@ -350,7 +347,6 @@ public static class EmpirePartitionSystem
         twin.RecordHistory(directContent: text, actorId: ruler.Key);
         LogService.LogInfo("[EmpireCraft][分裂] " + text);
     }
-#endif
 
     // 新朝承袭：史书、王号序数、制度、税率、国教、开国之君、法统
 #if EC_PENDING
@@ -401,14 +397,12 @@ public static class EmpirePartitionSystem
     private static T Clone<T>(T value) where T : class =>
         value == null ? null : JsonConvert.DeserializeObject<T>(JsonConvert.SerializeObject(value));
 
-#if EC_PENDING
     private static void Publish(Empire first, Empire second, string text, Person actor)
     {
         first?.RecordHistory(directContent: text, actorId: actor?.Key ?? -1L);
         second?.RecordHistory(directContent: text, actorId: actor?.Key ?? -1L);
         TranslateHelper.LogEventMessage(text, (first ?? second)?.CoreKingdom);
     }
-#endif
 
     #endregion
 
@@ -758,7 +752,6 @@ public static class EmpirePartitionSystem
 #endif
 
     // 兄弟之国遭外敌攻打：另一朝出兵相助(WarPatch.new_war)
-#if EC_PENDING
     public static void OnWarStarted(War war)
     {
         Realm defender = war?.MainDefender, attacker = war?.MainAttacker;
@@ -773,7 +766,6 @@ public static class EmpirePartitionSystem
         twin.RecordHistory(directContent: text);
         TranslateHelper.LogEventOnly(text, ally);
     }
-#endif
 
     #endregion
 

@@ -60,7 +60,6 @@ public static class OfficialRankSystem
     private static Realm RealmOf(Realm kingdom) => kingdom?.GetEmpire()?.CoreKingdom ?? kingdom;
 
     // 看哪个政体的官职表：殖民地、特许公司和穿越政权看自己，其余看帝国核心
-#if EC_PENDING
     private static RegimeType? RegimeOf(Realm kingdom)
     {
         RegimeType? own = kingdom?.GetRegime()?.type;
@@ -68,13 +67,11 @@ public static class OfficialRankSystem
         RegimeType? type = RealmOf(kingdom)?.GetRegime()?.type;
         return type == RegimeType.Republic ? RegimeType.Modern : type;
     }
-#endif
 
     private static bool IsMonarchy(Realm kingdom, RegimeType regime) =>
         RegimeManager.IsMonarchy(regime) && !RepublicSystem.IsRepublic(kingdom?.GetEmpire());
 
     // 政体形态：现代政体分一党与多党，君主国开了议会算立宪，其余就是政体本身
-#if EC_PENDING
     public static string FormOf(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone()) return null;
@@ -107,10 +104,8 @@ public static class OfficialRankSystem
 
     public static string PyramidKey(Empire empire) =>
         IsModern(empire?.CoreKingdom) ? "bureau_office_pyramid_modern" : "bureau_office_pyramid";
-#endif
 
     // 称谓和它的标题。殖民地、特许公司的武职跟宗主国走
-#if EC_PENDING
     private static string SetFor(Realm kingdom, string form, bool military, out string labelKey, out string rankForm, out string civilization)
     {
         civilization = CivilizationOf(kingdom);
@@ -129,7 +124,6 @@ public static class OfficialRankSystem
         labelKey = (military ? def?.military_label : def?.civil_label) ?? (military ? "official_rank_label_military" : "official_rank_label_civil");
         return set;
     }
-#endif
 
     private static OfficialRank Build(string form, string civilization, string set, string labelKey, int tier, bool military)
     {
@@ -147,7 +141,6 @@ public static class OfficialRankSystem
     private static int PostFloor(OfficeObject office, RegimeType regime) =>
         OfficialRankRules.PostFloor(Config, regime.ToString(), office.officeType, IsCapitalPost(office), office.honorary);
 
-#if EC_PENDING
     public static OfficialRank Of(Person actor)
     {
         if (actor?.Record == null || !actor.HasRealm()) return default;
@@ -176,7 +169,7 @@ public static class OfficialRankSystem
         }
 
         bool militaryOffice = office != null && OfficialRankRules.MilitaryOffice(Config, regimeName, office.officeType, office.meta_object is Army);
-        bool inArmy = actor.hasArmy();
+        bool inArmy = actor.HasArmy();
         bool military = OfficialRankRules.IsMilitary(general, office != null, militaryOffice, inArmy,
             identity?.peerageType == PeerageType.Military);
         string set = SetFor(kingdom, form, military, out string labelKey, out string rankForm, out string civilization);
@@ -188,7 +181,7 @@ public static class OfficialRankSystem
         }
 
         bool ladder = OfficialRankRules.FormDef(Config, form)?.performance_ladder == true;
-        bool captain = actor.is_army_captain;
+        bool captain = actor.IsArmyCaptain;
         int postFloor = office != null ? PostFloor(office, regime) : sovereign ? 0 : -1;
         int generalFloor = general && CorpsSystem.CommandOf(actor) is CorpsData corps ? OfficialRankRules.GeneralFloor(Config, rankForm, corps.full) : -1;
         bool noCommand = military && !general && !captain && office == null;
@@ -204,10 +197,8 @@ public static class OfficialRankSystem
             captain ? OfficialRankRules.CaptainFloor(Config, rankForm) : -1, noCommand && inArmy, performance);
         return tier < 0 ? default : Build(rankForm, civilization, set, labelKey, tier, military);
     }
-#endif
 
     // 空缺的官位：按岗位本身的底线；律令制不设底线，不显示
-#if EC_PENDING
     public static OfficialRank OfPost(OfficeObject office, Realm kingdom)
     {
         if (office == null) return default;
@@ -224,10 +215,8 @@ public static class OfficialRankSystem
         string set = SetFor(kingdom, form, military, out string labelKey, out string rankForm, out string civilization);
         return string.IsNullOrEmpty(set) ? default : Build(rankForm, civilization, set, labelKey, floor, military);
     }
-#endif
 
     // 上任：到岗位对应的级别，卸任后保留
-#if EC_PENDING
     public static void OnAppointed(Person actor, OfficeObject office)
     {
         OfficeIdentity identity = actor?.GetIdentity();
@@ -237,23 +226,19 @@ public static class OfficialRankSystem
         if (form == null || regime == null || OfficialRankRules.FormDef(Config, form)?.performance_ladder == true) return;
         identity.honoraryOfficial = OfficialRankRules.Ratchet(identity.honoraryOfficial, PostFloor(office, regime.Value));
     }
-#endif
 
     // 考核、战功：律令制以外只升不降。没有军职的普通士兵不超过上限，免得杀敌多了直接当将军
-#if EC_PENDING
     public static void OnPerformance(Person actor)
     {
         OfficeIdentity identity = actor?.GetIdentity();
         if (identity == null) return;
         int earned = OfficialRankRules.FromPerformance(identity.TotalPerformance);
-        if (actor.hasArmy() && !actor.is_army_captain && !CorpsSystem.IsGeneral(actor) && !actor.IsOnOffice())
+        if (actor.HasArmy() && !actor.IsArmyCaptain && !CorpsSystem.IsGeneral(actor) && !actor.IsOnOffice())
             earned = Math.Max(earned, OfficialRankRules.Clamp(Config.soldier_cap));
         identity.honoraryOfficial = OfficialRankRules.Ratchet(identity.honoraryOfficial, earned);
     }
-#endif
 
     // 卸下军团：按统过的兵力留军衔
-#if EC_PENDING
     public static void OnCommandEnded(Person general, CorpsData corps)
     {
         OfficeIdentity identity = general?.GetIdentity();
@@ -261,10 +246,8 @@ public static class OfficialRankSystem
         SetFor(general.Realm, FormOf(general.Realm), true, out _, out string rankForm, out _);
         identity.honoraryOfficial = OfficialRankRules.Ratchet(identity.honoraryOfficial, OfficialRankRules.GeneralFloor(Config, rankForm, corps.full));
     }
-#endif
 
     // 换岗时身份重建：律令制以外不掉级
-#if EC_PENDING
     public static void CarryOver(OfficeIdentity previous, OfficeIdentity next, Person actor)
     {
         if (previous == null || next == null || ReferenceEquals(previous, next) || actor == null || !actor.HasRealm()) return;
@@ -291,6 +274,5 @@ public static class OfficialRankSystem
         OfficialRank rank = Of(actor);
         return LM.Get(!rank.Shown || UsesPerformanceLadder(actor?.Realm) ? "label_rank" : rank.LabelKey);
     }
-#endif
 }
 }

@@ -31,8 +31,10 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
     public Person owner;
 #if EC_PENDING
     public Tint kingdomColor => getColor();
-    public override MetaType meta_type => MetaTypeExtension.KingdomTitle;
+#endif
+    public override EntityKind KindOfEntity => MetaTypeExtension.KingdomTitle;
 
+#if EC_PENDING
     public void SetOwner(Person pActor)
     {
         owner?.removeTitle(this);
@@ -69,7 +71,7 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
         // 城里没有古国名、借了所属国的名字：那国是道、省这类行政区，或本来就叫城名的，这个法理名就是地名
         this.data.place_name = string.IsNullOrEmpty(kingdomName) && RealmNamingSystem.IsPlaceName(this.data.name);
         this.addCity(city);
-        data.original_actor_asset = king?.asset?.id ?? city.Realm.Record.original_actor_asset;
+        data.original_actor_asset = king?.Asset?.Id ?? city.Realm.Record.original_actor_asset;
         CultureService.InitializeTitleCulture(this);
         recalculate();
         generateColor();
@@ -138,7 +140,7 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
 
     public Sprite getElementIcon()
     {
-        ActorAsset actorAsset = getActorAsset();
+        PersonKind actorAsset = getActorAsset();
         if (actorAsset == null) return null;
         try
         {
@@ -160,7 +162,7 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
     
     public Sprite getElementBackground()
     {
-        ActorAsset actorAsset = getActorAsset();
+        PersonKind actorAsset = getActorAsset();
         if (actorAsset == null) return null;
         try
         {
@@ -202,12 +204,12 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
     }
 
 
-    public override ActorAsset getActorAsset()
+    public override PersonKind getActorAsset()
     {
         return getFounderSpecies();
     }
 
-    public override int countUnits()
+    public override int CountUnits()
     {
         var num = 0;
         foreach (var city in city_list)
@@ -218,7 +220,7 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
     }
     public override void generateColor()
     {
-        ActorAsset actorAsset = getActorAsset();
+        PersonKind actorAsset = getActorAsset();
         if (actorAsset == null)
         {
             data.setColorID(0);
@@ -228,17 +230,17 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
         data.setColorID(nextColorIndex);
     }
 
-    public ActorAsset getFounderSpecies()
+    public PersonKind getFounderSpecies()
     {
         if (!string.IsNullOrWhiteSpace(data?.original_actor_asset))
         {
-            ActorAsset storedAsset = AssetManager.actor_library.get(data.original_actor_asset);
+            PersonKind storedAsset = AssetManager.actor_library.get(data.original_actor_asset);
             if (storedAsset != null) return storedAsset;
         }
 
-        ActorAsset recoveredAsset = title_capital?.Realm?.Ruler?.asset ??
-                                    city_list.FirstOrDefault(city => city?.Realm?.Ruler?.asset != null)?.kingdom.king.asset;
-        if (recoveredAsset != null && data != null) data.original_actor_asset = recoveredAsset.id;
+        PersonKind recoveredAsset = title_capital?.Realm?.Ruler?.Asset ??
+                                    city_list.FirstOrDefault(city => city?.Realm?.Ruler?.Asset != null)?.Realm.Ruler.Asset;
+        if (recoveredAsset != null && data != null) data.original_actor_asset = recoveredAsset.Id;
         return recoveredAsset;
     }
 #endif
@@ -332,8 +334,9 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
         }
         return true;
     }
+#endif
 
-    public override void save()
+    public override void Save()
     {
         if (this.data == null) return;
         if (this.city_list_hash == null || this.city_list_hash.Count == 0)
@@ -382,7 +385,6 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
         }
 
     }
-#endif
 
     public List<Cell> allZones()
     {
@@ -444,7 +446,6 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
     }
 #endif
     // Token: 0x06001124 RID: 4388 RVA: 0x000C7748 File Offset: 0x000C5948
-#if EC_PENDING
     public bool checkActive()
     {
         bool tChanged = false;
@@ -540,7 +541,6 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
         } 
         return this.city_list.Count >= 1 || (this.data.cities != null && this.data.cities.Count > 0);
     }
-#endif
     public void recalculate()
     {
         this.city_list.Clear();
@@ -576,12 +576,14 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
             city.RemoveTitle();
         }
     }
+#endif
 
-    public override IEnumerable<City> getCities()
+    public override IEnumerable<City> GetCities()
     {
         return city_list;
     }
 
+#if EC_PENDING
     public override void LoadData(KingdomTitleData pData)
     {
         base.LoadData(pData);
@@ -611,7 +613,7 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
         pData.jurisdiction_history ??= new List<KingdomTitleJurisdictionRecord>();
         if (string.IsNullOrWhiteSpace(this.data.original_actor_asset) && this.title_capital != null)
         {
-            this.data.original_actor_asset = this.title_capital.Realm?.Ruler?.asset?.id ?? this.title_capital.Realm?.asset?.id ?? this.title_capital.getSpecies();
+            this.data.original_actor_asset = this.title_capital.Realm?.Ruler?.Asset?.Id ?? this.title_capital.Realm?.asset?.id ?? this.title_capital.GetSpecies();
         }
         if(string.IsNullOrEmpty(pData.province_name) && title_capital != null)
         {

@@ -189,7 +189,6 @@ public static class PeaceTable
 
     // 君主签约：mustAccept = 由朝廷自己裁的那一国(它肯才签；君主这一边他自己拿主意，不看天平)；
     // 为空是两位君主当面谈成的，不再看天平。最短战期照常(WarPeaceRules)
-#if EC_PENDING
     public static bool SignDeal(War war, PeaceDeal deal, Realm mustAccept)
     {
         if (!Usable(war) || !WarPeaceRules.MayNegotiate(war)) return false;
@@ -210,11 +209,9 @@ public static class PeaceTable
         Drafts.Remove(id);
         return true;
     }
-#endif
 
     // 罢兵(用户 2026-11-10"谁开启的战争谁就可以自主停战""但是停战需要赔付钱""相当于战争目标没完成打输了")：
     // 开战的一方随时可以自己收兵，不看对方肯不肯；算作目标没打成、打输了——守方胜，攻方照败方赔款、占地交还(见 WarGoalSystem.Settle)
-#if EC_PENDING
     public static bool Withdraw(War war, bool byGod)
     {
         if (!Usable(war)) return false;
@@ -227,7 +224,6 @@ public static class PeaceTable
         TranslateHelper.LogEventMessage(text, attacker);
         return true;
     }
-#endif
 
     // 开战一方罢兵的代价：照败方赔款，就是标准一档(国库四分之一，另三年分付，同 WarReparationsSystem.Impose 的默认)；
     // 国库制度没开的返回 null(罢兵不赔)
@@ -333,7 +329,6 @@ public static class PeaceTable
 #endif
 
     // 主城池那一项(守方出)：撮合时不动它
-#if EC_PENDING
     private static string MainKey(War war)
     {
         City main = WarObjective.Main(war.GetOrCreate());
@@ -341,13 +336,10 @@ public static class PeaceTable
             ? new PeaceTerm { kind = CessionKind(main, war.MainDefender, war.MainAttacker), city_id = main.Key }.Key
             : null;
     }
-#endif
 
     // 照目标开价时割城的写法：近代割他国本土写"割地立傀儡"(民族意识的砝码少得多，见 PeaceTermRules)，别的照旧割让
-#if EC_PENDING
     private static PeaceTermKind CessionKind(City city, Realm giver, Realm receiver) =>
         OccupationPuppetSystem.NationalLand(city, giver, receiver) ? PeaceTermKind.Puppet : PeaceTermKind.City;
-#endif
 
     #endregion
 
@@ -391,7 +383,6 @@ public static class PeaceTable
 #endif
 
     // 出的一方的城：对方占着的在前，再是挨着对方的，再按户数
-#if EC_PENDING
     private static List<City> CityOptions(War war, Realm giver, Realm receiver, bool receiverAttacks, bool nearOnly)
     {
         Realm realm = FrontSystem.ModRealm(receiver) ?? receiver;
@@ -402,7 +393,6 @@ public static class PeaceTable
             .ThenByDescending(entry => PeaceTermRules.CityValue(entry.city))
             .Select(entry => entry.city).ToList();
     }
-#endif
 
     private static bool Borders(City city, Realm realm)
     {
@@ -488,7 +478,6 @@ public static class PeaceTable
 
     #region 估价与意愿
 
-#if EC_PENDING
     public static PeaceBasis Basis(War war)
     {
         var basis = new PeaceBasis();
@@ -551,10 +540,8 @@ public static class PeaceTable
         }
         return 0;
     }
-#endif
 
     // 两国各自的意愿账
-#if EC_PENDING
     public static (PeaceOpinion attacker, PeaceOpinion defender) Evaluate(War war, PeaceDeal deal, PeaceBasis basis)
     {
         if (!Usable(war)) return (new PeaceOpinion(), new PeaceOpinion());
@@ -563,10 +550,8 @@ public static class PeaceTable
             war.MainAttacker.Cities?.Count ?? 0, war.MainDefender.Cities?.Count ?? 0,
             term => Nation(war, term, basis), term => Gain(war, term, basis));
     }
-#endif
 
     // 民族意识(失地一方另记)：割让、立傀儡他国本土(见 OccupationPuppetSystem.Resistance)
-#if EC_PENDING
     private static int Nation(War war, PeaceTerm term, PeaceBasis basis)
     {
         if (!term.IsCity && term.kind != PeaceTermKind.Protectorate) return 0;
@@ -581,16 +566,13 @@ public static class PeaceTable
         if (basis != null) basis.values[key] = value;
         return value;
     }
-#endif
 
     // 收的一方所得：立傀儡只是间接统治，按城价的几成
-#if EC_PENDING
     private static int Gain(War war, PeaceTerm term, PeaceBasis basis)
     {
         int value = Value(war, term, basis);
         return term.kind == PeaceTermKind.Puppet ? (int)Math.Round(value * PeaceTermRules.PuppetGainShare) : value;
     }
-#endif
 
     // 意愿账的算术(不碰游戏对象，回归测试直接跑这一段)：value 给条款折价，capital 判这座城是不是出的一方的都城
     // nation：失地一方另记的民族意识；gain：收的一方的所得(不写同 value)
@@ -751,6 +733,7 @@ public static class PeaceTable
         data.peace_momentum_attacker = attacker.Cities;
         data.peace_momentum_defender = defender.Cities;
     }
+#endif
 
     private static bool TalksAllowed(War war)
     {
@@ -760,7 +743,6 @@ public static class PeaceTable
             return false;
         return WarSituation.WarYears(war) >= WarPeaceRules.MinWarYears;
     }
-#endif
 
     // 以议和收场时结算(WarGoalSystem.Settle)：签下的照台上的条款；别的路子(强制停战、罢兵、外交面板停战)照目标开价后撮合出折中
 #if EC_PENDING

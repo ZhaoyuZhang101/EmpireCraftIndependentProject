@@ -26,7 +26,6 @@ public static class SeaLanding
     public static void ResetWorldState() => ReachCache.Clear();
 
     // 陆上地块外面相邻的海区
-#if EC_PENDING
     public static List<SeaRegionSystem.Region> Waters(Cell zone)
     {
         var result = new List<SeaRegionSystem.Region>();
@@ -36,7 +35,6 @@ public static class SeaLanding
                 result.Add(region);
         return result;
     }
-#endif
 
     // 本方(连同宗主中央)的船从本国港口出发、不经敌方制海能到的海区 → 航线经过几个海区(含首尾)。
     // 敌方制海的海区能驶入(登陆点、卸粮点)但不能穿过，与 NavySystem.LandingRoute 的规矩一致
@@ -72,7 +70,6 @@ public static class SeaLanding
 #endif
 
     // 沿陆路由近及远的临海地块：同一片陆地，不进海面与不可通行的高山(起点本身临海也算)
-#if EC_PENDING
     public static IEnumerable<Cell> Shores(Cell from)
     {
         if (from == null) yield break;
@@ -92,7 +89,6 @@ public static class SeaLanding
             }
         }
     }
-#endif
 
     // 海滩：from 所在那片陆地上沿陆路最近、能靠岸的临海地块与航线——航线从 start(空则本方全部出海口)出发、
     // 不经敌方制海、不超过舰种航程(见 NavySystem.MaxRange)。找不到返回 (null, null)

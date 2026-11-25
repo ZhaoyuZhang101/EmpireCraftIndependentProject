@@ -9,20 +9,16 @@ namespace EmpireCraft.Core
 // (议案、提案、审议、元首裁决、信任、中央、元首)，规则与数目不变。用在诉求天平页、朝局面板与朝局纪事(见 CourtSystem.Log)
 public static class ModernWording
 {
-#if EC_PENDING
     public static bool Applies(Empire empire)
     {
         if (empire?.CoreKingdom?.Record == null || empire.IsGone()) return false;
         return RepublicSystem.IsRepublic(empire) || empire.CoreKingdom.GetRegime()?.type == RegimeType.Modern;
     }
-#endif
 
     public static string Key(bool modern, string key) => modern && !string.IsNullOrEmpty(key) && LM.Has(key + "_modern") ? key + "_modern" : key;
 
-#if EC_PENDING
     public static string Key(Empire empire, string key) => Key(Applies(empire), key);
 
     public static string Get(Empire empire, string key) => LM.Get(Key(empire, key));
-#endif
 }
 }

@@ -104,7 +104,6 @@ public static class FormationSystem
 
     #region 身份与番号
 
-#if EC_PENDING
     private static FormationRegimeMap MapOf(Realm kingdom)
     {
         Regime regime = kingdom?.GetRegime();
@@ -114,10 +113,8 @@ public static class FormationSystem
             : BannerSystem.Practices(kingdom) ? "Banner" : BannerSystem.Organized(kingdom) ? "BannerKhanate" : regime?.type.ToString();
         return key != null && Config.regimes.TryGetValue(key, out FormationRegimeMap map) ? map : Config.fallback;
     }
-#endif
 
     // 这支军该归哪种建制：特殊阶段 → 政体默认 → 通用回退
-#if EC_PENDING
     public static string Resolve(Realm kingdom, CorpsData corps)
     {
         if (corps == null || corps.militia || corps.order_id >= 0) return "";
@@ -135,7 +132,6 @@ public static class FormationSystem
             _ => member ? map.district : map.central
         };
     }
-#endif
 
     private static bool IsMember(Realm kingdom)
     {
@@ -144,7 +140,6 @@ public static class FormationSystem
     }
 
     // 旧档里成员国的都城驻军记成了中央建制(辽东挂着禁军)：改回地方建制，番号重编，旧称记下
-#if EC_PENDING
     private static void DemoteMemberGuards(Realm kingdom, List<CorpsData> list)
     {
         if (!IsMember(kingdom)) return;
@@ -158,10 +153,8 @@ public static class FormationSystem
             corps.formation_serial = 0;
         }
     }
-#endif
 
     // 旧档还没有建制的军：只有降临带来的那支认作伏波军，别的按政体默认，手动军保持手动
-#if EC_PENDING
     private static string Migrate(Realm kingdom, CorpsData corps)
     {
         if (corps.manual && !corps.militia && TransmigrantSystem.Of(kingdom) is TransmigrantState state && state.landed_at >= 0d &&
@@ -170,7 +163,6 @@ public static class FormationSystem
             return Fubo;
         return Resolve(kingdom, corps);
     }
-#endif
 
     private static string RangeKey(FormationDef def, CorpsData corps) => def.scope switch
     {
@@ -197,7 +189,6 @@ public static class FormationSystem
     }
 
     // 定下建制与番号；分遣队、义军、骑士团不占番号
-#if EC_PENDING
     public static void Ensure(Realm kingdom, CorpsData corps)
     {
         if (corps == null || kingdom?.Record == null || corps.militia || corps.order_id >= 0 || corps.parent_id >= 0) return;
@@ -205,10 +196,8 @@ public static class FormationSystem
         FormationDef def = Def(corps.formation);
         if (def != null && corps.formation_serial <= 0) corps.formation_serial = NextNumber(kingdom, def, corps);
     }
-#endif
 
     // 每月：旧档按原来的军号先后补上，番号顺序不乱；都有了就只比一遍
-#if EC_PENDING
     public static void EnsureAll(Realm kingdom, List<CorpsData> list)
     {
         if (list == null) return;
@@ -224,7 +213,6 @@ public static class FormationSystem
         if (!missing) return;
         foreach (CorpsData corps in list.OrderBy(entry => entry.serial).ToList()) Ensure(kingdom, corps);
     }
-#endif
 
     private static void Remember(CorpsData corps, string name)
     {
@@ -235,7 +223,6 @@ public static class FormationSystem
     }
 
     // 改投别国、被收编：按新主人的军制另编，记下旧称。人、老兵值、兵种不动
-#if EC_PENDING
     public static void Reassign(Realm to, CorpsData corps, string formerName)
     {
         if (corps == null || corps.militia || corps.order_id >= 0) return;
@@ -244,10 +231,8 @@ public static class FormationSystem
         corps.formation_serial = 0;
         Ensure(to, corps);
     }
-#endif
 
     // 显式整编：改建制、换番号、记旧称；retrain 时要重新整训(组织度、老兵值回落)。人员、来源、兵种不动
-#if EC_PENDING
     public static bool Reorganize(Realm kingdom, CorpsData corps, string formation, bool retrain = true)
     {
         if (kingdom?.Record == null || corps == null || corps.militia || corps.order_id >= 0 || corps.parent_id >= 0 ||
@@ -266,10 +251,8 @@ public static class FormationSystem
         FrontSystem.Log(kingdom, string.Format(LM.Get("corps_log_reorganized"), former, CorpsSystem.Name(corps)));
         return true;
     }
-#endif
 
     // 穿越政权到了 merge_at_stage：早期的建制撤销番号，并入后来的建制，只并一次；人员、经验、装备和旧番号都留着
-#if EC_PENDING
     public static int MergeEarly(Realm kingdom, TransmigrantState state)
     {
         if (kingdom?.Record == null || state == null || state.security_merged) return 0;
@@ -286,7 +269,6 @@ public static class FormationSystem
                 if (Reorganize(realm, corps, map.central, retrain: false)) merged++;
         return merged;
     }
-#endif
 
     // 还没有伏波军标记、可以显式整编的手动军，兵多的在前(旧档认不出的走这个入口，见军事页)
     public static List<CorpsData> ReorganizeCandidates(Realm kingdom) =>
@@ -300,7 +282,6 @@ public static class FormationSystem
     #region 名字
 
     // 正式番号全称；还没有番号的返回空(调用方退回旧写法)
-#if EC_PENDING
     public static string Name(CorpsData corps)
     {
         if (corps == null || corps.militia) return null;
@@ -320,7 +301,6 @@ public static class FormationSystem
         return string.Format(LM.Get(modern ? def.modern_template : def.template), number, DisplayName(def),
             CorpsSystem.Home(corps)?.GetCityName() ?? "", EchelonName(def, corps), RegionPrefix(kingdom, ordinal));
     }
-#endif
 
     private static string PlainNumber(int serial, bool ordinal) =>
         ordinal ? CorpsSystem.Ordinal(serial) : CorpsSystem.Chinese(serial);
@@ -349,14 +329,12 @@ public static class FormationSystem
     }
 
     // 成员国的军带上国名：每国各数各的，不带就满朝都是"镇军甲字营"；中央和独立国不带
-#if EC_PENDING
     private static string RegionPrefix(Realm kingdom, bool spaced)
     {
         if (!IsMember(kingdom)) return "";
         string name = kingdom.GetKingdomName();
         return string.IsNullOrEmpty(name) ? "" : spaced ? name + " " : name;
     }
-#endif
 
     private static CorpsData FindParent(CorpsData corps)
     {
@@ -393,10 +371,8 @@ public static class FormationSystem
     // 禁旅八旗只收旗人(见 BannerSystem.MayRecruit)
     public static bool BannerSource(CorpsData corps) => RulesOf(corps).source == "banner";
     // 禁旅八旗入关前只领行粮(见 BannerSystem.PayFactor)
-#if EC_PENDING
     public static float UpkeepFactor(CorpsData corps) =>
         RulesOf(corps).upkeep * (BannerSource(corps) ? BannerSystem.PayFactor(EmpireWorld.Current?.RealmByKey(corps.kingdom_id)) : 1f);
-#endif
 
     public static bool AllowsArm(CorpsData corps, CorpsArmSystem.Arm arm) => !RulesOf(corps).denied_arms.Contains(arm.ToString());
 
@@ -440,7 +416,6 @@ public static class FormationSystem
     }
 
     // 这个月为什么补不了员(语言键)，能补的返回空
-#if EC_PENDING
     public static string ReinforceBlock(Realm kingdom, CorpsData corps)
     {
         if (corps == null || CorpsSystem.Deficit(kingdom, corps) < 1f) return null;
@@ -450,7 +425,6 @@ public static class FormationSystem
         if (TrainedSource(corps) && NoTrained(kingdom)) return "formation_block_no_trained";
         return null;
     }
-#endif
 
     #endregion
 }

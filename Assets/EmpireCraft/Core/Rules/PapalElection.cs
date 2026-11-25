@@ -69,7 +69,6 @@ public static class PapalElection
 #endif
 
     // 控制教廷的帝国：教宗国是其成员、附庸，或教廷之囚落在它手里
-#if EC_PENDING
     private static Empire Patron(Realm papacy)
     {
         foreach (Empire empire in ModClass.EMPIRE_MANAGER?.ToList() ?? new List<Empire>())
@@ -77,7 +76,6 @@ public static class PapalElection
                 empire.Emperor != null && RealmNamingSystem.ControlsPapacy(empire, papacy)) return empire;
         return null;
     }
-#endif
 
     // 枢机所在：教宗国都城与本教各主教领的都城
     private static IEnumerable<City> Conclave(Realm papacy, Religion religion)

@@ -62,12 +62,12 @@ public static class SpeechFreedomSystem
 #if EC_PENDING
     public static void Update(Empire empire)
     {
-        if (empire?.CoreKingdom == null || empire.IsGone() || empire.IsArchived() || EmpireWorld.Current?.books == null) return;
+        if (empire?.CoreKingdom == null || empire.IsGone() || empire.IsArchived() || EmpireWorld.Current?.Books == null) return;
         ConstitutionClauses clauses = ConstitutionSystem.GetClauses(empire);
         if (clauses == null) return;
         List<City> cities = empire.kingdoms_list.Where(kingdom => kingdom?.Cities != null && !kingdom.IsGone())
             .SelectMany(kingdom => kingdom.Cities)
-            .Where(city => city != null && !city.IsGone() && city.People != null && city.hasBookSlots()).ToList();
+            .Where(city => city != null && !city.IsGone() && city.People != null && city.HasBookSlots()).ToList();
         if (cities.Count == 0) return;
         // 不到 4 城的小国按城数折算出版的机会(现代小国林立时，以前每国每年都至少出一本，书多到卡)
         if (cities.Count < 4 && EcRandom.value > cities.Count / 4f) return;
@@ -100,7 +100,7 @@ public static class SpeechFreedomSystem
 #if EC_PENDING
     private static bool Publish(City city, ConstitutionClauses clauses, bool announce)
     {
-        if (city == null || city.IsGone() || !city.hasBookSlots()) return false;
+        if (city == null || city.IsGone() || !city.HasBookSlots()) return false;
         List<Person> writers = city.People.Where(actor => actor != null && actor.Alive && actor.IsAdult() &&
                                                          actor.City == city && actor.language != null &&
                                                          actor.Culture != null && !actor.IsWarMachine())
@@ -137,7 +137,7 @@ public static class SpeechFreedomSystem
             ideology = IdeologyPopulationSystem.Get(author);
         }
 
-        Book book = EmpireWorld.Current.books.generateNewBook(author);
+        Book book = EmpireWorld.Current.Books.GenerateNewBook(author);
         if (book == null) return false;
         string culture = TechnologySystem.GetCultureOf(author);
         string title = PickTitle(culture, ideology, author, city);
@@ -156,7 +156,7 @@ public static class SpeechFreedomSystem
         if (kingdom == null) return;
         Color color = kingdom.GetColor().ColorText;
         new News(NewsKinds.ideology_treatise_log,
-            author.FullName(), book.name, PartySystem.GetIdeologyName(ideology))
+            author.FullName(), book.Name, PartySystem.GetIdeologyName(ideology))
         {
             Location = author.current_position,
             Color1 = color,

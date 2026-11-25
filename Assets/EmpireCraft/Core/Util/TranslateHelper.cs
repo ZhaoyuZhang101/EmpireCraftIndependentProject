@@ -60,7 +60,6 @@ namespace EmpireCraft.Core
         ///     $minister$ → 大臣名
         ///     $title$ → 新称号
         /// </summary>
-#if EC_PENDING
         public static void LogPowerfulMinisterAcquireTitle(Person minister, Empire empire, string title)
         {
             new News(NewsKinds.empire_powerful_minister_aquire_title,
@@ -105,7 +104,6 @@ namespace EmpireCraft.Core
                 Color3 = minister.GetColor().ColorText
             }.Add();
         }
-#endif
 
         public static void LogEmpressDowagerInstallsSon(Person dowager, Person deposed, Person son)
         {
@@ -129,7 +127,6 @@ namespace EmpireCraft.Core
                 Color3 = title.GetColor().ColorText
             }.Add();
         }
-#if EC_PENDING
         public static void LogEmpireCoreAbsorbTitle(Empire empire, KingdomTitle title, EmpireCore core)
         {
             if (empire == null || title == null || core == null) return;
@@ -158,10 +155,8 @@ namespace EmpireCraft.Core
                 Color3 = defender.GetColor().ColorText
             }.RecordIntoEmpire(attacker);
         }
-#endif
         
         // 选定接班人：只报帝国与五城以上的大国(小国换来换去刷屏)
-#if EC_PENDING
         public static void LogKingChooseHeir(Realm kingdom,string relation, Person pActor)
         {
             if (kingdom != null && pActor != null && (kingdom.IsEmpire() || kingdom.CountCities() >= 5))
@@ -174,7 +169,6 @@ namespace EmpireCraft.Core
                     Color3 = pActor.GetColor().ColorText
                 }.RecordIntoEmpire(pActor.GetEmpire());
         }
-#endif
         
         public static void LogProvinceChangeToKingdom(Realm province, string name)
         {
@@ -188,7 +182,6 @@ namespace EmpireCraft.Core
 
             }.RecordIntoEmpire();
         }
-#if EC_PENDING
         public static void LogMinisterSelectEmpire(Empire empire, OfficeObject office, Realm kingdom, Person actor)
         {
             new News(NewsKinds.minister_select_emperor_log,
@@ -201,6 +194,7 @@ namespace EmpireCraft.Core
 
             }.RecordIntoEmpire(empire);
         }
+#if EC_PENDING
         public static string GetEmpireHistoryFormatedText(this News pMessage)
         {
             NewsKind asset = pMessage.GetKind();
@@ -221,7 +215,6 @@ namespace EmpireCraft.Core
         // 系统事件：发一条世界消息（不再弹屏幕中央提示）。记入史书由调用方负责——大部分调用点
         // 在此之前已经 RecordHistory 过了，这里不重复记录。
         // 世界日志里的事件也写进这国所属帝国的史书(已经写过同一句的不重复写；独立王国没有史书)
-#if EC_PENDING
         public static void LogEventMessage(string content, Realm kingdom = null)
         {
             // 进史书的：屏幕提示只上帝国、大国的(见 ScreenFeedPatch)
@@ -230,7 +223,6 @@ namespace EmpireCraft.Core
             EmpireCraft.Core.Empire empire = kingdom.GetEmpire();
             if (empire?.data != null && !empire.IsGone()) empire.RecordHistory(directContent: content);
         }
-#endif
 
         // 只进世界日志、不进史书：太频繁的事(市场缺货、发现矿藏、任命统帅、理念传播之类)。
         // 同一句话三年内只报一次(世界提示刷屏的多是同一件事反复报)
@@ -342,8 +334,8 @@ namespace EmpireCraft.Core
             if (context == null) return;
             EmpireLawSystem.FinishCase(context);
 
-            Person actor = context.Actor;
-            Realm kingdom = context.Kingdom;
+            Person actor = context.Person;
+            Realm kingdom = context.Realm;
             if (actor == null || kingdom == null || kingdom.IsGone()) return;
             Empire empire = kingdom.GetEmpire();
             // 立案时没记(旧的调用方自己拼的案情)就按现在的身份判断
@@ -375,6 +367,7 @@ namespace EmpireCraft.Core
 
             worldLog.Add();
         }
+#endif
 
         public static void LogLawArrest(Person actor, Realm kingdom, string crimeName, string crimeDate)
         {
@@ -404,7 +397,6 @@ namespace EmpireCraft.Core
 
             worldLog.Add();
         }
-#endif
 
         // 所施刑罚；减等、赎罪、开释、从重另注结果与缘由(八议、赎金、时代废刑……)
         private static string GetPunishmentText(LawEnforcementContext context)
@@ -481,7 +473,6 @@ namespace EmpireCraft.Core
 
             return false;
         }
-#if EC_PENDING
         public static void LogOfficerJoinFaction(OfficeObject office, Person pActor, FixedFaction faction)
         {
             new News(NewsKinds.officer_join_faction,
@@ -496,7 +487,6 @@ namespace EmpireCraft.Core
 
             }.RecordIntoEmpire(faction.Empire);
         }
-#endif
 
         private static News CreateTemporaryFactionMessage(NewsKind asset, Empire empire, string pSpecial1, string pSpecial2 = "", string pSpecial3 = "")
         {
@@ -595,7 +585,6 @@ namespace EmpireCraft.Core
             return actorName ?? "";
         }
 
-#if EC_PENDING
         private static string GetActorLogOfficeName(Person actor)
         {
             if (actor == null)
@@ -616,7 +605,6 @@ namespace EmpireCraft.Core
             string title = actor.GetTitle();
             return string.IsNullOrWhiteSpace(title) ? "" : title;
         }
-#endif
 
         private static string FormatActorFullLogName(string officeName, string actorName)
         {
@@ -641,7 +629,6 @@ namespace EmpireCraft.Core
                 .Replace("$actor$", actorName);
         }
 
-#if EC_PENDING
         public static string GetActorFullLogName(Person actor)
         {
             if (actor == null)
@@ -652,7 +639,7 @@ namespace EmpireCraft.Core
             return FormatActorFullLogName(GetActorLogOfficeName(actor), GetBaseActorLogName(actor));
         }
 
-        public static string GetTemporaryFactionTargetText(MetaType targetType, long targetId)
+        public static string GetTemporaryFactionTargetText(EntityKind targetType, long targetId)
         {
             if (targetId < 0)
             {
@@ -661,15 +648,15 @@ namespace EmpireCraft.Core
 
             switch (targetType)
             {
-                case MetaType.Kingdom:
+                case EntityKind.Realm:
                     return EmpireWorld.Current?.RealmByKey(targetId)?.GetKingdomName();
-                case MetaType.City:
+                case EntityKind.City:
                     return EmpireWorld.Current?.CityByKey(targetId)?.GetCityName();
-                case MetaType.Religion:
+                case EntityKind.Religion:
                     return EmpireWorld.Current?.Religions?.Get(targetId)?.data?.name;
-                case MetaType.Unit:
+                case EntityKind.Person:
                     return GetActorFullLogName(EmpireWorld.Current?.PersonByKey(targetId));
-                case MetaType.None:
+                case EntityKind.None:
                     return null;
                 default:
                     if (targetType == MetaTypeExtension.KingdomTitle)
@@ -681,6 +668,7 @@ namespace EmpireCraft.Core
             }
         }
 
+#if EC_PENDING
         public static void LogTemporaryFactionPreparing(Empire empire, string claimName, string targetName = null, string crimeName = null)
         {
             if (empire == null || string.IsNullOrWhiteSpace(claimName))
@@ -786,7 +774,6 @@ namespace EmpireCraft.Core
             }.RecordIntoEmpire(empire);
         }
 
-#if EC_PENDING
         public static void LogTemporaryFactionReduceFeudatory(Empire empire, Realm kingdom)
         {
             if (empire == null || kingdom == null) return;
@@ -853,7 +840,6 @@ namespace EmpireCraft.Core
                 Color3 = victim.Realm?.GetColor().ColorText ?? Tint.Warning
             }.RecordIntoEmpire(empire);
         }
-#endif
         
         public static void LogOfficerBecomeFactionLeader(Person pActor, FixedFaction faction)
         {
@@ -1036,6 +1022,7 @@ namespace EmpireCraft.Core
 
             }.RecordNationalHistoryIntoEmpire(empire);
         }
+#endif
         public static void LogNewEmperor(Person emperor, City city, string year_name, bool isNew = false)
         {
             if (emperor == null || emperor.Record == null || emperor.Realm == null || city == null) return;
@@ -1061,6 +1048,7 @@ namespace EmpireCraft.Core
                     "personal_history_new_year_name");
             }
         }
+#if EC_PENDING
         public static void LogEmperorNewYearName(Person emperor, Empire empire)
         {
             if (emperor == null || empire == null || !empire.HasYearName()) return;
@@ -1079,6 +1067,7 @@ namespace EmpireCraft.Core
             emperor.RecordPersonalHistory(string.Format(LM.Get("personal_history_new_year_name"), empire.data.year_name),
                 "personal_history_new_year_name");
         }
+#endif
         public static void LogNewEmperorWest(Person emperor, City city, bool isNew = false)
         {
             if (emperor?.Record == null || emperor.IsGone() || emperor.Realm?.Record == null) return;
@@ -1100,7 +1089,6 @@ namespace EmpireCraft.Core
                 empire.data.currentHistory.is_first = isNew;
             }
         }
-#endif
 
         /// <summary>
         /// 加入朝贡国的提示
@@ -1243,7 +1231,6 @@ namespace EmpireCraft.Core
             }
         }
 
-#if EC_PENDING
         public static void LogRoyalKingBecomeEmperor(Empire empire,KingdomTitle title, Person actor)
         {
             var language = LM.Language;
@@ -1265,7 +1252,6 @@ namespace EmpireCraft.Core
 
             }.RecordIntoEmpire(empire);
         }
-#endif
 
         public static void LogEmpireTakeBackTitle(Person a, string titles, string crime)
         {
@@ -1322,7 +1308,6 @@ namespace EmpireCraft.Core
         ///     $emperor$ → 皇帝名
         ///     $year_name$ → 年号
         /// </summary>
-#if EC_PENDING
         public static void LogEmperorCreateNewYearName(Person minister, Empire empire, string title)
         {
             new News(NewsKinds.empire_powerful_minister_aquire_title,
@@ -1335,7 +1320,6 @@ namespace EmpireCraft.Core
 
             }.RecordIntoEmpire(empire);
         }
-#endif
 
         /// <summary>
         /// 记录“大臣获取了天命”
@@ -1343,7 +1327,6 @@ namespace EmpireCraft.Core
         ///     $minister$ → 大臣名
         ///     $empire$ → 新帝国名
         /// </summary>
-#if EC_PENDING
         public static void LogministerAqcuireEmpire(Person minister, Empire new_empire)
         {
             new News(NewsKinds.minister_aqcuire_empire_log,
@@ -1355,7 +1338,6 @@ namespace EmpireCraft.Core
                 Color2 = new_empire.CoreKingdom.GetColor().ColorText,
             }.RecordIntoEmpire(new_empire);
         }
-#endif
         /// <summary>
         /// 记录“恢复历史帝国”
         ///     $clan$ -> 家族
@@ -1550,7 +1532,6 @@ namespace EmpireCraft.Core
             }.Add();
         }
 
-#if EC_PENDING
         public static void LogCulturalAssimilationDutyAssigned(Realm kingdom, string targetCulture)
         {
             if (kingdom?.Record == null) return;
@@ -1562,7 +1543,6 @@ namespace EmpireCraft.Core
                 Color2 = kingdom.GetColor().ColorText
             }.Add();
         }
-#endif
 
         // "文化同化"决议指定帝国直辖城市（而非整个行政区）时记录，与上面按
         // 行政区指定的版本是同一事件的两种触发路径，只是主体从王国换成了城市。
@@ -1578,14 +1558,12 @@ namespace EmpireCraft.Core
             }.Add();
         }
 
-#if EC_PENDING
         public static void LogCulturalAssimilationDutyCompleted(Realm kingdom, string targetCulture)
         {
             if (kingdom?.Record == null) return;
             LogCulturalAssimilationDutyCompleted(kingdom.GetKingdomName(),
                 kingdom.GetColor().ColorText, targetCulture);
         }
-#endif
 
         public static void LogCulturalAssimilationDutyCompleted(City city, string targetCulture)
         {
@@ -1623,6 +1601,7 @@ namespace EmpireCraft.Core
                 ? string.Format(LM.Get("personal_history_culture_reform_surname"), cultureName, surname)
                 : string.Format(LM.Get("personal_history_culture_reform"), cultureName));
         }
+#endif
 
         public static void LogKingdomRegimeConversion(Realm kingdom, RegimeType? oldRegime, RegimeType newRegime)
         {
@@ -1638,6 +1617,7 @@ namespace EmpireCraft.Core
             }.Add();
         }
 
+#if EC_PENDING
         public static void LogCompositeEmpireAdoptionStarted(Empire empire,
             CompositeEmpireService.AdoptionStatus status)
         {

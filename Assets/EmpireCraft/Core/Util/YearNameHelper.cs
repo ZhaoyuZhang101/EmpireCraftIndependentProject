@@ -11,7 +11,6 @@ namespace EmpireCraft.Core
 {
 public static class YearNameHelper
 {
-#if EC_PENDING
     public static string generateName()
     {
         string CharacterSetPath = Path.Combine(GameData.Folder, "Locales", "Cultures", "YearName1.csv");
@@ -23,6 +22,5 @@ public static class YearNameHelper
         for (int tries = 0; tries < 8 && second == first; tries++) second = LM.Get(names2.GetRandom());
         return first + second;
     }
-#endif
 }
 }

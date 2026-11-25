@@ -18,7 +18,6 @@ namespace EmpireCraft.Core
 // 每年由 ConstitutionalEconomySystem 的年度结算调用；没有宪法的国家不推行。
 public static class IdeologyEducationSystem
 {
-#if EC_PENDING
     public static void Update(Empire empire)
     {
         if (empire?.CoreKingdom == null || empire.IsGone() || empire.IsArchived()) return;
@@ -70,6 +69,5 @@ public static class IdeologyEducationSystem
         if (pupils.Count == 0 && converted == 0) return;
         LayerCityCache.Invalidate(city);
     }
-#endif
 }
 }

@@ -19,7 +19,6 @@ public static class FactionRebelNaming
     private static readonly string[] Digits = { "", "一", "二", "三", "四", "五", "六", "七", "八", "九" };
 
     // 叛军的称呼(起兵前调：要按本国原来的名号与官职算)。官称直接拼在地名后面，只合中文；别的语言称"某地军"
-#if EC_PENDING
     public static string RebelName(Realm kingdom)
     {
         string title = Chinese() ? Title(kingdom) : null;
@@ -28,7 +27,6 @@ public static class FactionRebelNaming
         if (string.IsNullOrWhiteSpace(front)) front = kingdom.Capital?.GetCityName() ?? kingdom.Name ?? "";
         return string.Format(LM.Get("faction_rebel_army_name"), front);
     }
-#endif
 
     // 这场派系起兵的战争名
 #if EC_PENDING
@@ -57,7 +55,6 @@ public static class FactionRebelNaming
 #endif
 
     // 本国官职的称呼(地名 + 官称)
-#if EC_PENDING
     private static string Title(Realm kingdom)
     {
         try
@@ -69,7 +66,6 @@ public static class FactionRebelNaming
             return null;
         }
     }
-#endif
 
     // 两家合称时的一字：王取封号首字，余取首领之姓
 #if EC_PENDING
@@ -110,17 +106,16 @@ public static class FactionRebelNaming
                 return Kind.Realm;
         }
     }
+#endif
 
     private static bool Chinese()
     {
-        string language = PlayerConfig.dict != null && PlayerConfig.dict.TryGetValue("language", out PlayerOptionData option)
-            ? option.stringVal : "";
+        string language = GameOptions.All != null && GameOptions.All.TryGetValue("language", out GameOption option)
+            ? option.StringVal : "";
         return language is "cz" or "ch";
     }
-#endif
 
     // 家数：中文界面用汉字(七国、八王；两家称"两"不称"二")，其余用阿拉伯数字
-#if EC_PENDING
     private static string Number(int count)
     {
         if (!Chinese()) return count.ToString();
@@ -130,6 +125,5 @@ public static class FactionRebelNaming
         if (count < 100) return Digits[count / 10] + "十" + Digits[count % 10];
         return count.ToString();
     }
-#endif
 }
 }

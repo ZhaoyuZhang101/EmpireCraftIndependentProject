@@ -66,17 +66,14 @@ public static class NativeDefenseSystem
 #endif
 
     // 本土帝国的中央：帝国中央，文化与都城的主流文化同族
-#if EC_PENDING
     public static bool IsNativeEmpire(Realm realm)
     {
         if (!Alive(realm) || realm.Capital == null) return false;
         Empire empire = realm.GetEmpire();
         return empire?.data != null && !empire.IsGone() && empire.CoreKingdom == realm && NativeBorn(realm);
     }
-#endif
 
     // 本国的文化与都城的主流文化同族
-#if EC_PENDING
     private static bool NativeBorn(Realm kingdom)
     {
         if (kingdom?.Capital == null) return false;
@@ -86,7 +83,6 @@ public static class NativeDefenseSystem
 
     private static bool SameKin(Realm a, Realm b) =>
         CultureService.SameKin(CultureService.GetRealmCulture(a), CultureService.GetRealmCulture(b));
-#endif
 
     // side 所在的本土帝国正遭 foe(按所在帝国的中央)这一异族入侵，对方整体国力又不大于本帝国
 #if EC_PENDING
@@ -119,7 +115,6 @@ public static class NativeDefenseSystem
 #endif
 
     // 本帝国(中央连同成员)作为守方的仗，主攻方与本帝国不同族
-#if EC_PENDING
     private static IEnumerable<War> InvasionWars(Realm native)
     {
         Empire empire = native.GetEmpire();
@@ -138,7 +133,6 @@ public static class NativeDefenseSystem
             }
         }
     }
-#endif
 
     #region 号召
 

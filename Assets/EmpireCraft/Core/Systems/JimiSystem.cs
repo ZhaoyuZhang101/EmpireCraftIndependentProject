@@ -25,16 +25,13 @@ public static class JimiSystem
     public const int CentralTaxPercent = 10;
     private static double _lastScan = -1d;
 
-#if EC_PENDING
     public static bool Enacted(Empire empire) =>
         empire != null && InstitutionSystem.GetFeature(empire, Feature) > 0f;
-#endif
 
     public static JimiMode Mode(Realm kingdom) =>
         kingdom?.Record == null ? JimiMode.Auto : (JimiMode)Math.Max(0, Math.Min(2, kingdom.GetOrCreate().jimi_mode));
 
     // 政体条件 jimi_region 用：这个地方政区是否按羁縻管理
-#if EC_PENDING
     public static bool IsJimiRegion(Realm kingdom, Empire empire)
     {
         if (kingdom == null || empire == null || kingdom.IsEmpire() || !Enacted(empire)) return false;
@@ -44,23 +41,20 @@ public static class JimiSystem
             case JimiMode.Direct: return false;
         }
         Realm core = empire.CoreKingdom;
-        if (core != null && kingdom.species_id != core.species_id) return true;
+        if (core != null && kingdom.SpeciesId != core.SpeciesId) return true;
         string empireCulture = CultureService.GetEmpireDefaultCulture(empire);
         string realmCulture = CultureService.GetRealmCulture(kingdom);
         return CultureService.IsValidCulture(empireCulture) && CultureService.IsValidCulture(realmCulture) &&
                !CultureService.SameKin(empireCulture, realmCulture);
     }
-#endif
 
     // 当前实际是羁縻政区(都护府或羁縻州)
-#if EC_PENDING
     public static bool IsJimiAdministration(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone()) return false;
         KingdomType type = kingdom.GetKingdomType();
         return type == KingdomType.LvLing_duhufu || type == KingdomType.LvLing_jimizhou;
     }
-#endif
 
     // 神力：自动 → 羁縻 → 直辖 → 自动。返回提示文字
 #if EC_PENDING
@@ -82,7 +76,6 @@ public static class JimiSystem
 #endif
 
     // 边防义务：每月一次(挂在 CityPatch 的世界扫描轮转上)
-#if EC_PENDING
     public static void TryMonthlyScan()
     {
         if (EmpireWorld.Current == null || ModClass.EMPIRE_MANAGER == null || ModClass.IS_CLEAR) return;
@@ -130,7 +123,6 @@ public static class JimiSystem
             }
         }
     }
-#endif
 
     private static bool IsMember(War war, Realm kingdom) =>
         war.Attackers != null && war.Attackers.Contains(kingdom) ||

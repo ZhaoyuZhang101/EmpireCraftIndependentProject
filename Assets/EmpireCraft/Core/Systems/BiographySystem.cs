@@ -160,6 +160,7 @@ public static class BiographySystem
         };
         return string.Format(LM.Get(key), place, age);
     }
+#endif
 
     private static string Place(Person actor)
     {
@@ -174,7 +175,6 @@ public static class BiographySystem
         string realm = actor?.Realm?.Record != null && actor.Realm.IsCivilized() ? actor.Realm.GetKingdomName() : "";
         return string.IsNullOrEmpty(realm) ? name : string.Format(LM.Get("death_killer_of"), realm, name);
     }
-#endif
 
     // 要人：在位的君主、有官职、有爵位封号、名将名臣
     public static bool Notable(Person actor) =>
@@ -196,13 +196,11 @@ public static class BiographySystem
 #endif
 
     // 一句生平(大事)，人不在、没族谱身份的跳过
-#if EC_PENDING
     public static void Note(Person actor, string text, Person related = null)
     {
         if (actor?.Record == null || actor.IsGone() || string.IsNullOrEmpty(text) || actor.GetPersonalIdentity() == null) return;
         actor.RecordPersonalHistory(text, relatedActorId: related?.Record != null ? related.Key : -1L, major: true);
     }
-#endif
 
     public static string Format(string key, params object[] args) => string.Format(LM.Get(key), args);
 

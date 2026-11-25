@@ -96,7 +96,6 @@ public static class NameCultureRepair
     }
 
     // 按这个文化的国号规则起一个合本文化的名字；起不出返回 null
-#if EC_PENDING
     private static string Fresh(string culture)
     {
         Culture native = CultureService.GetNativeCultureObject(culture);
@@ -104,16 +103,14 @@ public static class NameCultureRepair
         for (int i = 0; i < Tries; i++)
         {
             string name;
-            try { name = native.getOnomasticData(MetaType.Kingdom)?.generateName()?.UseLocalizedNameSeparator(); }
+            try { name = native.GetOnomasticData(EntityKind.Realm)?.GenerateName()?.UseLocalizedNameSeparator(); }
             catch { return null; }
             if (!string.IsNullOrWhiteSpace(name) && !Foreign(name, culture)) return name.Trim();
         }
         return null;
     }
-#endif
 
     // 国号不合本国文化：按本国文化重起。founding 为假(年检)时只给没核对过的打标记、不改名
-#if EC_PENDING
     public static bool RepairKingdom(Realm kingdom, bool founding = true)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || kingdom.IsWild || kingdom.HasCustomCountryNaming() ||
@@ -137,10 +134,8 @@ public static class NameCultureRepair
         LogService.LogInfo($"[EmpireCraft][国号文化] {before}({culture}文化)国号出自别的文化，改称 {kingdom.GetKingdomName()}");
         return true;
     }
-#endif
 
     // 法理名不合法理文化：按法理文化重起(原来带"国"字的照样带)。founding 为假(年检)时只打标记、不改名
-#if EC_PENDING
     public static bool RepairTitle(KingdomTitle title, bool founding = true)
     {
         string name = title?.data?.name;
@@ -158,7 +153,6 @@ public static class NameCultureRepair
         LogService.LogInfo($"[EmpireCraft][国号文化] 法理 {name}({culture}文化)名出自别的文化，改称 {fresh}");
         return true;
     }
-#endif
 
     // 年度扫描(CityPatch.WorldYearlyScans)
 #if EC_PENDING

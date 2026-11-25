@@ -30,7 +30,6 @@ public static class WarReadinessSystem
 
     // 朝议定策的集结(见 WarMuster)：定策的国与随同动员的成员合起来算——范围里的军补到 filled、七成五开到了边境。
     // 没有朝向目标的边境的成员(隔着别的省)不算在内，开战后再上
-#if EC_PENDING
     public static bool Ready(IEnumerable<Realm> sides, float filled)
     {
         float full = 0f, strength = 0f, massed = 0f;
@@ -51,11 +50,9 @@ public static class WarReadinessSystem
         if (strength <= 0f) return true;
         return (full <= 0f || strength >= full * filled) && massed >= strength * MassedShare;
     }
-#endif
 
     // 被盯上的一方看不看得见：对方有军开到了边境。吏治败坏的察觉得晚(群友"朝廷积弊越大刺探到情报的可能性越小")——
     // 六弊平均每 10 点，要等对方多一成的兵到了边境才看得见，至多六成
-#if EC_PENDING
     public static bool Spotted(Realm author, Realm target)
     {
         if (!Massing(author)) return false;
@@ -72,16 +69,15 @@ public static class WarReadinessSystem
         }
         return strength <= 0f || massed >= strength * blind;
     }
-#endif
 
     // 进度已满、大军还没陈兵边境：暂缓宣战
 #if EC_PENDING
     public static bool Hold(Plot plot)
     {
-        if (!CorpsSystem.Enabled || plot?.data == null || plot.getAsset() == null ||
-            global::System.Array.IndexOf(CityPopulationSystem.WarPlots, plot.getAsset().id) < 0 ||
+        if (!CorpsSystem.Enabled || plot?.data == null || plot.GetKind() == null ||
+            global::System.Array.IndexOf(CityPopulationSystem.WarPlots, plot.GetKind().Id) < 0 ||
             plot.data.progress_current < plot.getProgressMax()) return false;
-        Realm kingdom = plot.getAuthor()?.kingdom, target = plot.target_kingdom;
+        Realm kingdom = plot.GetAuthor()?.Realm, target = plot.TargetRealm;
         if (kingdom?.Record == null || target?.Record == null || kingdom.IsGone() || target.IsGone()) return false;
         if (CityPopulationSystem.FrontZones(kingdom).Count == 0) return false;
         long key = plot.data.id;
@@ -106,7 +102,6 @@ public static class WarReadinessSystem
 #endif
 
     // 本国动员的军已有开到边境的(对方看得见，见 CityPopulationSystem.Alert)
-#if EC_PENDING
     public static bool Massing(Realm kingdom)
     {
         if (!CorpsSystem.Enabled || kingdom?.Record == null) return false;
@@ -116,10 +111,8 @@ public static class WarReadinessSystem
                                                     CorpsSystem.Zone(corps) is Cell at &&
                                                     front.Any(zone => CorpsSystem.ZoneDistance(zone, at) <= MassedZones));
     }
-#endif
 
     // 动员范围里的军补足了战时兵额、大部分开到了边境
-#if EC_PENDING
     public static bool Ready(Realm kingdom)
     {
         List<CorpsData> list = CorpsSystem.Of(kingdom)
@@ -135,6 +128,5 @@ public static class WarReadinessSystem
             .Sum(corps => corps.strength);
         return massed >= strength * MassedShare;
     }
-#endif
 }
 }

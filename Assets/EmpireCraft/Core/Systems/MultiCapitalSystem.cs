@@ -28,7 +28,6 @@ public static partial class MultiCapitalSystem
         return lead != null && TianxiaSystem.IsJoint(lead) ? lead : null;
     }
 
-#if EC_PENDING
     private static bool Eligible(Empire empire) =>
         RealmNamingSystem.MultiCapitalEnabled && empire?.data != null && !empire.IsGone() && !empire.IsArchived() &&
         empire.CoreKingdom?.Capital != null && empire.CoreKingdom.GetRegime()?.type == RegimeType.LvLing &&
@@ -36,7 +35,6 @@ public static partial class MultiCapitalSystem
         // 天下的正统(据有整个天下一半以上城)才行多京(用户 2026-10-20 定)；剧本定下的两京不看这条(用户 10-29 "我大明的南直隶呢"：
         // 1628 的中华连后金算进去，明不到一半，开局设的南京第二年就撤了)，京城失了照样撤
         (empire.data.scripted_jing || RealmNamingSystem.HoldsHalfOfRealm(empire, RealmLead(empire)));
-#endif
 
     // 这座城是京(京师或陪京)
     public static bool IsJing(City city)
@@ -107,7 +105,6 @@ public static partial class MultiCapitalSystem
 #endif
 
     // 陪京候选：同一天下别的正式帝国法理，首都在本帝国、据其三分之二城；据城多的在前
-#if EC_PENDING
     private static List<(EmpireCore core, City city)> CandidateCapitals(Empire empire, int limit)
     {
         var result = new List<(EmpireCore core, City city, int held)>();
@@ -132,10 +129,8 @@ public static partial class MultiCapitalSystem
         return result.OrderByDescending(entry => entry.held).ThenBy(entry => entry.core.id).Take(limit)
             .Select(entry => (entry.core, entry.city)).ToList();
     }
-#endif
 
     // 定下各京：与上一年比，新设的、撤掉的各记一笔
-#if EC_PENDING
     private static void Arrange(Empire empire, List<(EmpireCore core, City city)> picks, string reasonKey = "jing_reason_lost")
     {
         City main = empire.CoreKingdom.Capital;
@@ -174,7 +169,7 @@ public static partial class MultiCapitalSystem
             var extra = city.GetOrCreate();
             extra.palace_kept = true;
             extra.palace_owner = city.Realm?.Key ?? -1L;
-            PureMapPatch.Redraw(city);
+            GameView.Redraw(city);
         }
         empire.data.jing = records;
         AdministrativeControlSystem.Refresh(empire.CoreKingdom);
@@ -182,7 +177,6 @@ public static partial class MultiCapitalSystem
                            (records.Count == 0 ? "罢多京" : string.Join("；", records.Select(r =>
                                $"{JingName(r)} {EmpireWorld.Current?.CityByKey(r.city_id)?.GetCityName()}(据 {RealmNamingSystem.CoreName(EmpireCoreManager.Get(r.core_id))})"))));
     }
-#endif
 
     // 沿用旧的设立时间
     private static JingRecord Keep(Empire empire, long cityId, long coreId, string direction, double now)

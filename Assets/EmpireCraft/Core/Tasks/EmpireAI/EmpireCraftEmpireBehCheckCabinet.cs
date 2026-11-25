@@ -12,7 +12,7 @@ public class EmpireCraftEmpireBehCheckCabinet : GameAIEmpireBase
     public override Type OriginalBeh => GetType();
     
 #if EC_PENDING
-    public override BehResult execute(Realm pKingdom)
+    public override BehResult Execute(Realm pKingdom)
     {
         if (pKingdom?.Record == null || pKingdom.IsGone()) return BehResult.Continue;
         pKingdom.CheckEmpire();
@@ -77,8 +77,9 @@ public class EmpireCraftEmpireBehCheckCabinet : GameAIEmpireBase
             // 朝堂模式下施行速度由 CourtSystem.ProgressMultiplier 按阁臣支持度算
             empire.Additions.cabinet_acc = CourtSystem.Applies(empire) ? 0 : IsCabinetControlEmpire(pKingdom) ? 30 : 0;
         }
-        return base.execute(pKingdom);
+        return base.Execute(pKingdom);
     }
+#endif
 
     public static bool IsCabinetControlEmpire(Realm pKingdom)
     {
@@ -104,7 +105,7 @@ public class EmpireCraftEmpireBehCheckCabinet : GameAIEmpireBase
         int cabinetSize = 1 + (S * regime.cabinet_number-1) / 15;        // 线性映射到 1..5，最多 5 个
 
         Person cabinetLeader = dominateFaction.Members
-            .Select(id => world.units.get(id))
+            .Select(id => world.PersonByKey(id))
             .Where(actor => actor != null && !actor.IsGone() && actor.HasOfficeIdentity())
             .OrderByDescending(actor => OfficeSelector.IsPreferredOfficeCandidate(actor, empire.CoreKingdom))
             .ThenByDescending(actor => actor.GetIdentity()?.TotalPerformance ?? double.MinValue)
@@ -181,15 +182,14 @@ public class EmpireCraftEmpireBehCheckCabinet : GameAIEmpireBase
 
         foreach (long electorId in religionLeaderList.Where(id => id > 0 && !previousElectors.Contains(id)))
         {
-            world.units.get(electorId)?.RecordPersonalHistory(LM.Get("personal_history_became_elector"));
+            world.PersonByKey(electorId)?.RecordPersonalHistory(LM.Get("personal_history_became_elector"));
         }
 
         long chiefElector = religionLeaderList.FirstOrDefault(id => id > 0);
         if (chiefElector > 0 && chiefElector != previousChiefElector)
         {
-            world.units.get(chiefElector)?.RecordPersonalHistory(LM.Get("personal_history_became_chief_elector"));
+            world.PersonByKey(chiefElector)?.RecordPersonalHistory(LM.Get("personal_history_became_chief_elector"));
         }
     }
-#endif
 }
 }

@@ -21,14 +21,12 @@ public static partial class PapacySystem
     public const string SeatOk = "ok", SeatRomzug = "romzug", SeatSelf = "self";
 
     // 这一国的君主是哪个西方宗教的教宗(教廷所在国之君、教廷没受挟)；不是回 null
-#if EC_PENDING
     public static Religion PopeOf(Realm realm)
     {
         Religion religion = realm?.Religion;
         if (religion?.data == null || realm.Ruler == null) return null;
         return Papacy(religion) == realm && Pope(religion) == realm.Ruler && HolyCity(religion) != null ? religion : null;
     }
-#endif
 
     // 皇帝请冕
 #if EC_PENDING
@@ -77,7 +75,6 @@ public static partial class PapacySystem
 #endif
 
     // 皇帝悔罪
-#if EC_PENDING
     public static string SeatPenance(Empire empire)
     {
         if (empire?.data == null || !Applies(empire)) return "regime";
@@ -86,10 +83,8 @@ public static partial class PapacySystem
         Penance(empire, State(empire), religion, ObeyedSee(empire, religion));
         return SeatOk;
     }
-#endif
 
     // 教宗可以绝罚、赦免的皇帝：奉本宗、受教廷管的西方帝国(教廷就在自家的、脱离罗马的不算)
-#if EC_PENDING
     public static List<Empire> SeatBannable(Religion religion)
     {
         var list = new List<Empire>();
@@ -104,10 +99,8 @@ public static partial class PapacySystem
         }
         return list;
     }
-#endif
 
     // 教宗绝罚或赦免一位皇帝(在罚中就赦免，没罚就绝罚)
-#if EC_PENDING
     public static string SeatToggleBan(Religion religion, Empire empire)
     {
         if (religion?.data == null || !SeatBannable(religion).Contains(empire)) return "target";
@@ -123,10 +116,8 @@ public static partial class PapacySystem
         Excommunicate(empire, state, "papal_ban_reason_decree");
         return IsExcommunicated(empire) ? SeatOk : "refused";
     }
-#endif
 
     // 教宗号召圣战：眼下能不能(能就回 null)
-#if EC_PENDING
     public static string SeatCrusadeBlocker(Religion religion)
     {
         if (religion?.data == null || !CallsHolyWar(religion)) return "no_holy_war";
@@ -136,6 +127,7 @@ public static partial class PapacySystem
         return null;
     }
 
+#if EC_PENDING
     public static string SeatCrusade(Religion religion)
     {
         if (SeatCrusadeBlocker(religion) is { } blocked) return blocked;
@@ -147,6 +139,7 @@ public static partial class PapacySystem
         Declare(religion, papacy, target, kind);
         return ActiveCrusade(religion) != null ? SeatOk : "no_war";
     }
+#endif
 
     public static string SeatOrderBlocker(Religion religion) =>
         religion?.data == null || !ReligionFaith.FoundsOrders(religion) ? "no_orders"
@@ -178,6 +171,5 @@ public static partial class PapacySystem
         ReligionChronicle.Record(religion, ReligionChronicle.KindHolyWar, text);
         return Orders(religion).Count() > before ? SeatOk : "refused";
     }
-#endif
 }
 }

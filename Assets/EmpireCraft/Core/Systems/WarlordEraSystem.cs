@@ -65,11 +65,9 @@ public static partial class WarlordEraSystem
     private static (Dictionary<Realm, int> held, int total) RealmHolders(EmpireCore lead) => TianxiaSystem.Holdings(lead);
 
     // 天下的名号(临时政府以法统自居、诊断与史册)：华夏现代用天下之名，其余用主核心名
-#if EC_PENDING
     private static string RealmName(Empire empire, EmpireCore lead) =>
         RealmNamingSystem.ModernRealmName(empire, lead) ?? RealmNamingSystem.NationalName(lead) ??
         EmpireCoreNamingSystem.GetCoreBaseName(lead);
-#endif
 
     #region 国号
 
@@ -112,7 +110,6 @@ public static partial class WarlordEraSystem
     }
 
     // 已正式建政、仍与别家争夺中央的政府：天下名 + 本理念的国号后缀；后缀与中央相同的括注都城
-#if EC_PENDING
     private static string FormalName(Empire empire, EmpireCore core, string baseName)
     {
         string name = CentralStyleName(empire, core, baseName);
@@ -148,10 +145,8 @@ public static partial class WarlordEraSystem
         if (!ChildOfOpenContest(empire, out EmpireCore lead)) return baseName;
         return Formalized(empire) ? FormalName(empire, lead, baseName) : ProvisionalGovernmentName(empire, lead);
     }
-#endif
 
     // 所有尚未组建政府的现代独立势力统一走理念地方武装词表；有无法理只影响建政资格。
-#if EC_PENDING
     public static bool TryGetNonGovernmentKingdomName(Realm kingdom, out string name)
     {
         name = "";
@@ -170,12 +165,10 @@ public static partial class WarlordEraSystem
         name = ModernStateFormationSystem.FormatLabel(front, ModernStateFormationSystem.GetNonGovernmentLabel(kingdom));
         return true;
     }
-#endif
 
     // 废除君主制之后改用省份名的势力：本文化已废除君主制，且其理念倾向统一——
     // 主张单一制(见 ConstitutionTemplates.json)，也不是保守派、军阀(保守主义、保守自由主义、中间派、资本主义)。
     // 不倾向统一的(联邦派、军阀、保守派)照旧用王国称号
-#if EC_PENDING
     private static bool UsesProvinceName(Realm kingdom)
     {
         if (TechnologySystem.PremodernLocked) return false;
@@ -186,16 +179,13 @@ public static partial class WarlordEraSystem
             PartyIdeology.Centrism or PartyIdeology.Capitalism) return false;
         return ConstitutionSystem.IdeologyPrefersUnitary(ideology);
     }
-#endif
 
     // 主法理(或都城所在法理)的省份名
-#if EC_PENDING
     private static string ProvinceFront(Realm kingdom)
     {
         KingdomTitle title = kingdom.GetMainTitle() ?? kingdom.GetCapitalDeJureTitle();
         return title == null ? "" : title.GetTitleProvinceName()?.Trim() ?? "";
     }
-#endif
 
     // 都城所在的王国法理名；该法理已是别的政权的主法理时不用(免得两个政权同叫"蜀系军阀")
     private static string CapitalTitleName(Realm kingdom)
@@ -217,7 +207,6 @@ public static partial class WarlordEraSystem
     //   · 据有法统过半城市：以法统的国号自居，如 中华。
     //   · 称呼按立国理念(组建政府时定下，只有革命才会改)取，不随执政党轮替而变；
     //   · 华夏只有另立的第二个中央是临时政府，其他文化对峙时双方都是临时政府(见 DecorateName)。
-#if EC_PENDING
     private static string ProvisionalGovernmentName(Empire empire, EmpireCore core)
     {
         string seat = ProvisionalSeat(empire, core, out bool national);
@@ -235,12 +224,10 @@ public static partial class WarlordEraSystem
             ? string.Format(LM.Get("provisional_seat_suffix"), name, capital)
             : name;
     }
-#endif
 
     private const float NationalShare = 0.5f;
     private const float CentralRadius = 0.25f;
 
-#if EC_PENDING
     private static string ProvisionalSeat(Empire empire, EmpireCore core, out bool national)
     {
         national = false;
@@ -270,7 +257,6 @@ public static partial class WarlordEraSystem
         string region = RegionName(own, coreCities, coreName, CultureService.GetRealmCulture(empire.CoreKingdom));
         return string.IsNullOrWhiteSpace(region) ? province : region;
     }
-#endif
 
     // 方位名：所据城市重心相对法统疆域中心的方位(八方，离中心不到疆域半径 CentralRadius 算"中")。
     // 用词先查 provisional_region_<方位>_<文化>，没有就用通用的 provisional_region_<方位>；
@@ -315,7 +301,6 @@ public static partial class WarlordEraSystem
 
     // 中央的国号：华夏用天下名(不再依赖帝国法理，见 RealmNamingSystem.ModernRealmName)，其余用帝国核心名；
     // 后缀照旧按执政理念(强统一文化另见 DecorateName)
-#if EC_PENDING
     private static string CentralStyleName(Empire empire, EmpireCore core, string baseName)
     {
         string coreName = RealmNamingSystem.ModernRealmName(empire, core) ?? RealmNamingSystem.ModernBaseName(empire) ??
@@ -334,10 +319,8 @@ public static partial class WarlordEraSystem
             ? coreName + baseName.Substring(own.Length)
             : baseName;
     }
-#endif
 
     // 军阀用自己的名号；自己的名号就是核心名时改用都城名(免得和中央同名)
-#if EC_PENDING
     private static string WarlordBaseName(Empire empire, EmpireCore core)
     {
         string own = empire.EnsureEmpireCoreName();
@@ -348,7 +331,6 @@ public static partial class WarlordEraSystem
             own = empire.CoreKingdom.Capital?.GetCityName() ?? own;
         return own;
     }
-#endif
 
     #endregion
 
@@ -356,7 +338,6 @@ public static partial class WarlordEraSystem
 
     // 现代政权能否组建政府(所有文化)：都城不在任何天下里、天下已承认分治、控制天下 70% 以上(统一)，
     // 或者它是天下里同一理念的势力里实力最强的、且还没有别的政府代表这一理念。
-#if EC_PENDING
     public static bool CanFormGovernment(Realm kingdom)
     {
         if (kingdom == null) return true;
@@ -381,7 +362,6 @@ public static partial class WarlordEraSystem
                                                 CouldFormGovernment(holder) &&
                                                 HolderIdeology(holder) == ideology) == kingdom;
     }
-#endif
 
     // 组建政府的先决条件(见 ModernStateFormationSystem.TryUpdate、FormGovernment)
     private static bool CouldFormGovernment(Realm holder) =>
@@ -389,7 +369,6 @@ public static partial class WarlordEraSystem
         !AncientWarfareCompatibility.BlocksEmpireFormation(holder);
 
     // 政府代表的理念：宪法规定的立国理念 → 共和国的建国理念 → 执政理念
-#if EC_PENDING
     public static PartyIdeology GovernmentIdeology(Empire government)
     {
         ConstitutionClauses clauses = ConstitutionSystem.GetClauses(government);
@@ -397,15 +376,12 @@ public static partial class WarlordEraSystem
         ConstitutionalEconomyState state = government?.data?.constitutional_economy;
         return state != null && state.is_republic ? state.republic_ideology : IdeologyFamilies.StateIdeology(government);
     }
-#endif
 
     // 势力代表的理念：已组建政府的按政府，未组建的按它将来组建政府时的理念
-#if EC_PENDING
     private static PartyIdeology HolderIdeology(Realm holder) =>
         Government(holder) is Empire government
             ? GovernmentIdeology(government)
             : ModernStateFormationSystem.ResolveGovernmentIdeology(holder);
-#endif
 
 
     #endregion
@@ -632,7 +608,6 @@ public static partial class WarlordEraSystem
 #endif
 
     // 临时政府转正(见 Formalized 上的说明)
-#if EC_PENDING
     private static void Formalize(EmpireCore core, List<Empire> governments, Empire central, double now)
     {
         // 附庸政府等不在本轮名单里、但子核心挂在本天下的，一并看
@@ -667,10 +642,8 @@ public static partial class WarlordEraSystem
                 : string.Format(LM.Get("warlord_era_formalized_history"), before, after, TianxiaSystem.Name(core)));
         }
     }
-#endif
 
     // 相持成定局：各理念的代表政府都已正式建政，彼此 StandoffYears 年没有内战，互相承认
-#if EC_PENDING
     private static bool TryRecognizeStandoff(EmpireCore core, HashSet<Empire> representatives, Realm strongest, double now)
     {
         bool quiet = representatives.Count > 1 && representatives.All(Formalized) &&
@@ -694,7 +667,6 @@ public static partial class WarlordEraSystem
         foreach (long id in Roles.Where(pair => pair.Value.core == core).Select(pair => pair.Key).ToList()) Roles.Remove(id);
         return true;
     }
-#endif
 
     // 统一(控制七成)之后，核心里剩下的地方武装照样会易帜归附(同理念吸引、异理念吸引、大势所趋)。
     // 以前统一一完成就不再管，剩下的军阀永远割据。与中央交战的不收，大势所趋也不收正在造反的(叛乱照旧打出结果)
@@ -715,7 +687,6 @@ public static partial class WarlordEraSystem
     // 核心里还没有中央政府时不强令罢兵：这时只能靠地方武装互相兼并聚起来，四年一停战谁也吞不下谁
     private const float FeudYears = 4f;
 
-#if EC_PENDING
     private static void SettleWarlordFeuds(EmpireCore core, Empire central)
     {
         if (central == null) return;
@@ -731,10 +702,8 @@ public static partial class WarlordEraSystem
             EmpireWorld.Current.EndWar(war, WarOutcome.Peace);
         }
     }
-#endif
 
     // 诊断：每年每个军阀时期的核心记一行(中央占多少、几个政府、几个地方武装、几场内战)
-#if EC_PENDING
     private static void LogCore(EmpireCore core, Dictionary<Realm, int> held, int total, Empire central, int governments)
     {
         int centralHeld = central?.CoreKingdom != null && held.TryGetValue(central.CoreKingdom, out int count) ? count : 0;
@@ -744,7 +713,6 @@ public static partial class WarlordEraSystem
             $"[EmpireCraft][军阀] {TianxiaSystem.Name(core)}：中央{central?.GetBaseEmpireFullName() ?? "无"}占 " +
             $"{centralHeld}/{total} 城({(total > 0 ? centralHeld * 100 / total : 0)}%)，政府 {governments}，地方武装 {locals}，内战 {wars}");
     }
-#endif
 
     private static IOrderedEnumerable<KeyValuePair<Realm, int>> RankLocalHolders(
         EmpireCore core, Dictionary<Realm, int> held) => held
@@ -804,7 +772,6 @@ public static partial class WarlordEraSystem
 
     // 修复短期错误版本留下的存档：现代临时政府曾同时被写入父核心关系和伪核心标记。
     // 真正的僭越者会带有正统对手记录，绝不能在这里被洗成普通临时政府。
-#if EC_PENDING
     private static void RepairMisclassifiedModernProvisional(EmpireCore core)
     {
         if (core?.false_core_against_empire_id <= 0) return;
@@ -817,6 +784,7 @@ public static partial class WarlordEraSystem
         core.false_core_against_empire_id = -1L;
     }
 
+#if EC_PENDING
     private static void CompleteUnification(EmpireCore core, Dictionary<Realm, int> held, Realm winner,
         Empire government, double now, bool strongUnification)
     {
@@ -890,6 +858,7 @@ public static partial class WarlordEraSystem
             if (!member.IsGone() && !member.IsInEmpire() && FeudalVassalService.GetOverlord(member) == null)
                 FeudalVassalService.ForceBind(head, member);
     }
+#endif
 
     private static void ReleaseProvisionalCores(EmpireCore parent)
     {
@@ -900,7 +869,6 @@ public static partial class WarlordEraSystem
             child.warlord_parent_core_id = -1L;
         }
     }
-#endif
 
     // 军阀不是正常国家，只有各理念的代表政府(中央与其他理念的政府)和革命建立的政府才享有正常国家地位。
     // 已组建政府却只落得军阀身份的(同一理念里较弱的第二个政府、被超过的前中央)撤销政府，退回理念对应的地方武装。
@@ -1126,10 +1094,8 @@ public static partial class WarlordEraSystem
 
     #endregion
 
-#if EC_PENDING
     private static string HolderName(Realm holder) =>
         Government(holder)?.GetBaseEmpireFullName() ?? holder.GetKingdomFullName();
-#endif
 
     private static Empire GetLiving(long id)
     {

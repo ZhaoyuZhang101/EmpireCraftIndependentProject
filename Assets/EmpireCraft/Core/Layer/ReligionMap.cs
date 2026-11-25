@@ -29,7 +29,7 @@ public static class ReligionMap
 #if EC_PENDING
     public static void Configure()
     {
-        MetaTypeAsset asset = MetaType.Religion.getAsset();
+        MetaTypeAsset asset = EntityKind.Religion.getAsset();
         if (asset == null) return;
         asset.check_cursor_tooltip = (zone, meta, option) =>
         {

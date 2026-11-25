@@ -22,7 +22,6 @@ public static class GuoyeSystem
     private const float RiotGrievance = 70f, RiotMobilization = 40f, RiotChance = 0.25f, RiotRelief = 40f;
     private const int RiotCooldownYears = 30, RiotMandateLoss = 10;
 
-#if EC_PENDING
     public static bool Practices(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || kingdom.IsWild) return false;
@@ -30,32 +29,24 @@ public static class GuoyeSystem
         string culture = CultureService.GetInstitutionCulture(kingdom);
         return CultureService.IsValidCulture(culture) && InstitutionSystem.GetFeature(culture, Feature) > 0f;
     }
-#endif
 
     // 国都为"国"
     public static bool IsGuo(City city) => city?.Realm != null && city.Realm.Capital == city;
 
     // 本城的庶民算哪个阶层
-#if EC_PENDING
     public static SocialClass CommonerOf(City city) =>
         !Practices(city?.Realm) ? SocialClass.Peasant : IsGuo(city) ? SocialClass.Guoren : SocialClass.Yeren;
-#endif
 
     // 赋税轻重(乘在税率上)
-#if EC_PENDING
     public static float TaxFactor(City city) =>
         !Practices(city?.Realm) ? 1f : IsGuo(city) ? GuorenTax : YerenTax;
-#endif
 
     // 不征为兵的野人
-#if EC_PENDING
     public static float Exempt(City city) =>
         Practices(city?.Realm) && !IsGuo(city)
             ? CityPopulationSystem.BackgroundOfClass(city, SocialClass.Yeren) * (1f - YerenLevy) : 0f;
-#endif
 
     // 每年(背景人口自然增减时)：庶民改记为本城该有的国人、野人或农民(迁都、城换了主、废除国野之制都跟着变)
-#if EC_PENDING
     public static void Settle(City city, CityPopulationData data)
     {
         if (data?.groups == null) return;
@@ -63,7 +54,6 @@ public static class GuoyeSystem
         foreach (SocialClass from in new[] { SocialClass.Peasant, SocialClass.Guoren, SocialClass.Yeren })
             if (from != commoner) SlaverySystem.Convert(city, data, from, commoner, float.MaxValue);
     }
-#endif
 
     // 每年(帝国例行检查，见 EmpireCraftEmpireBehCheckMandate)：国人暴动
 #if EC_PENDING

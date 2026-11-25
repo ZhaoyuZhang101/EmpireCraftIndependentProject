@@ -27,20 +27,16 @@ public static partial class HolyRomanSystem
     public const int ReformLegitimacy = 3;
 
     // 本帝国已颁行(帝国级)；旧档还没起算权威时按文化节点算(第一次年结即迁移成颁行，见 EnsureAuthority)
-#if EC_PENDING
     public static bool ReformEnacted(Empire empire)
     {
         HolyRomanState state = State(empire);
         if (state == null) return false;
         return state.reform_at >= 0d || state.authority == LegacyAuthority && ReformNodeEnacted(empire);
     }
-#endif
 
     // 文化制度节点(颁行的前提)
-#if EC_PENDING
     public static bool ReformNodeEnacted(Empire empire) =>
         empire?.data != null && InstitutionSystem.IsEnacted(empire, NodeImperialReform);
-#endif
 
     // AI 选改革的加分(见 InstitutionSystem.TryStartAiReform)：有帝国议会的选帝制帝国偏向先推帝国改革、后推中央集权君主制
     // (两者同在第五档，中央集权所需的官僚、常备军技术先到)。两者已不再互斥，先推哪个都不锁死另一个；加分由选帝制 30、
@@ -48,14 +44,12 @@ public static partial class HolyRomanSystem
     // (用户 2026-10-21 选"西欧能整合、帝国能倒")
     public const string NodeCentralizedMonarchy = "western_centralized_monarchy";
 
-#if EC_PENDING
     public static float ReformBias(Empire empire, InstitutionNodeConfig node)
     {
         if (node == null || node.id != NodeImperialReform && node.id != NodeCentralizedMonarchy || !HasDiet(empire)) return 0f;
         float lean = IsElective(empire) ? 15f : 0f;
         return node.id == NodeImperialReform ? lean : -lean;
     }
-#endif
 
     public static int Circle(Empire empire, Realm kingdom)
     {
@@ -64,13 +58,10 @@ public static partial class HolyRomanSystem
     }
 
     // 大区诸侯：施行帝国改革后分了大区的成员国
-#if EC_PENDING
     private static bool InCircle(Empire empire, Realm member) => ReformEnacted(empire) && Circle(empire, member) >= 0;
-#endif
 
     public static int CircleCount(Empire empire) => State(empire)?.circles?.Values.Distinct().Count() ?? 0;
 
-#if EC_PENDING
     private static void ReformYearly(Empire empire, HolyRomanState state)
     {
         if (!ReformEnacted(empire))
@@ -85,7 +76,6 @@ public static partial class HolyRomanSystem
         if (changed || state.circles_at < 0d || GameClock.YearsSince(state.circles_at) >= CircleRefreshYears)
             AssignCircles(state, members);
     }
-#endif
 
     // 按都城位置分区(简单 k 均值，种子按国号顺序取，结果稳定)
     private static void AssignCircles(HolyRomanState state, List<Realm> members)
@@ -118,7 +108,6 @@ public static partial class HolyRomanSystem
     }
 
     // 分割继承(GraceEdictService.TryHandleVacancy 调用，每次出缺只掷一次)；掷中后还要有两个以上的儿子、都城外有城才分
-#if EC_PENDING
     public static bool RollPartible(Empire empire, Realm fief)
     {
         if (!HasDiet(empire) || fief?.Record == null) return false;
@@ -134,7 +123,6 @@ public static partial class HolyRomanSystem
             rolled ? tally.blocked : blocked ?? "没掷中(两成)");
         return rolled;
     }
-#endif
 
     // 分割继承的年度计数(诊断用，不存档)：帝国 → (诸侯出缺几次, 掷中几次, 最近一次没分的缘由)
     private static readonly Dictionary<long, (int vacant, int rolled, string blocked)> PartibleTally = new();

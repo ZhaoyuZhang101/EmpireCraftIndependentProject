@@ -120,7 +120,6 @@ public static class FrontLineCleanup
     }
 
     // 这片地断了后路：往外不穿敌控的地，走不到 side 一方的城池，PocketZones 块以内就走完了；走到的地方也没有 side 一方的军
-#if EC_PENDING
     private static bool Cut(Realm side, List<Cell> piece, Dictionary<int, List<Realm>> troops)
     {
         Seen.Clear();
@@ -155,7 +154,6 @@ public static class FrontLineCleanup
         }
         return enemy;
     }
-#endif
 
     // 围住这片地的敌方：四周挨着的敌控地块最多的那一国
     private static Realm Surrounder(List<Cell> piece, Realm owner)

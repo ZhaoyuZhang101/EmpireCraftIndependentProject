@@ -10,7 +10,7 @@ public class EmpireCraftKingdomBehCheckCentreArmy:GameAIKingdomBase
     public override Type OriginalBeh => GetType();
 
 #if EC_PENDING
-    public override BehResult execute(Realm pKingdom)
+    public override BehResult Execute(Realm pKingdom)
     {
         if (pKingdom.GetRegime() == null) return BehResult.Continue;
         if (pKingdom.GetRegime().IsAllowDiplomacy() && !pKingdom.GetRegime().IsAllowSupportCenterArmy())

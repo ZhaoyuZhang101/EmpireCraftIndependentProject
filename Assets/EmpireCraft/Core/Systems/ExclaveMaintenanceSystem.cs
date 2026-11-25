@@ -56,7 +56,6 @@ public static class ExclaveMaintenanceSystem
         // 人口统计来源变化不等于新财政年度，保留已付维护费和压力记录。
     }
 
-#if EC_PENDING
     public static string Status(Realm kingdom)
     {
         var state = kingdom == ModRealm(kingdom) ? kingdom?.GetOrCreate().exclave_maintenance : null;
@@ -80,6 +79,7 @@ public static class ExclaveMaintenanceSystem
         Pending.Enqueue(kingdom.Key);
     }
 
+#if EC_PENDING
     public static void Tick()
     {
         if (EmpireWorld.Current == null || ModClass.IS_CLEAR) { ResetWorldState(); return; }
@@ -105,7 +105,7 @@ public static class ExclaveMaintenanceSystem
             if (!Valid(city, work.realm)) { Audits.Remove(id); return; }
             if (work.zoneCursor >= city.Zones.Count) { work.cityCursor++; work.zoneCursor = 0; budget--; continue; }
             Cell zone = city.Zones[work.zoneCursor++];
-            if (zone?.City == city && zone.GroundTiles > 0) work.zones.Add(zone);
+            if (zone?.City == city && zone.GroundCount > 0) work.zones.Add(zone);
             budget--;
         }
         if (work.cityCursor < work.cities.Length) { Pending.Enqueue(id); return; }
@@ -151,7 +151,7 @@ public static class ExclaveMaintenanceSystem
         // 分帧期间版图发生变化就重做，不能按旧归属扣钱或割让。
         if (work.cities.Any(city => !Valid(city, work.realm)) ||
             work.zones.Any(zone => !Valid(zone.City, work.realm) || !zone.City.Zones.Contains(zone)) ||
-            work.cities.Sum(city => city.Zones.Count(zone => zone?.City == city && zone.GroundTiles > 0)) != work.zones.Count)
+            work.cities.Sum(city => city.Zones.Count(zone => zone?.City == city && zone.GroundCount > 0)) != work.zones.Count)
             return;
         List<Cell> home = work.components.FirstOrDefault(part => part.Contains(work.capital.SeatCell()?.Zone));
         if (home == null) return;
@@ -200,6 +200,7 @@ public static class ExclaveMaintenanceSystem
         foreach (var pair in fees)
             if (Secede(work, pair.part)) { state.weak_years = 0; break; }
     }
+#endif
 
     private static int Cost(Audit work, List<Cell> part)
     {
@@ -218,10 +219,8 @@ public static class ExclaveMaintenanceSystem
         }
         return ExclaveMaintenanceRules.AnnualCost(part.Count, households, distance, overseas);
     }
-#endif
 
     // 中央正在与外族(不同族的国家)打仗：外敌当前
-#if EC_PENDING
     private static bool AtWarWithForeigners(Realm core)
     {
         string own = CultureService.GetRealmCulture(core);
@@ -234,7 +233,6 @@ public static class ExclaveMaintenanceSystem
         }
         return false;
     }
-#endif
 
     // 正统崩坏：都城在本帝国法理之外、或远在中央控制范围之外的成员国一律自立(正在与中央交战、神力拉入保护期内的不算)
 #if EC_PENDING
@@ -289,7 +287,7 @@ public static class ExclaveMaintenanceSystem
         // 以前只要在打仗就不动，帝国常年有仗，远方的飞地就年年留着(用户 2026-10-27 截图拜占庭远在东方的行省)
         if (cities.Any(city => !Valid(city, work.realm) || city == work.realm.Capital || Front(city, work.realm) ||
                                city.GetOrCreate().OccupiedStatus.Count > 0 || MembershipCooldown.ManualJoinActive(city.Realm) ||
-                               city.Zones.Any(zone => zone.GroundTiles > 0 && !zones.Contains(zone)))) return false;
+                               city.Zones.Any(zone => zone.GroundCount > 0 && !zones.Contains(zone)))) return false;
         var gone = new List<string>();
         foreach (var group in cities.GroupBy(city => city.Realm).ToList())
         {

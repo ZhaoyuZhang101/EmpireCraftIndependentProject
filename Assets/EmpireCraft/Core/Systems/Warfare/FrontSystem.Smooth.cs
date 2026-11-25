@@ -83,7 +83,6 @@ public static partial class FrontSystem
 
     // 接着推的是谁：推进线现任这个月还在场、还挨着这块地就还是它——同阵营几家轮流领头时不换色、不换占领者，
     // 不相干的第三方领头也碰不到它的进度。现任的敌人领头、现任不在场时才轮到本月领头的一家
-#if EC_PENDING
     private static Realm PushActor(City city, Realm lead, List<(Realm kingdom, CorpsData corps)> present, bool retake)
     {
         if (!Pushes.TryGetValue(city.Key, out Push push) || push.Side == lead.Key || push.Retake != retake) return lead;
@@ -99,7 +98,6 @@ public static partial class FrontSystem
         if (zone?.City != city || !Valid(push, city, current, zone)) return lead;
         return Beside(present.Where(entry => entry.kingdom == current).Select(entry => entry.corps), zone) ? current : lead;
     }
-#endif
 
     // 记下这一仗同在场的友军(见 TryInherit)
     private static void NoteCamp(City city, List<(Realm kingdom, CorpsData corps)> present)
@@ -201,11 +199,9 @@ public static partial class FrontSystem
 #endif
 
     // 现任的军团还在这条战线上(还没到、在路上也算)
-#if EC_PENDING
     private static bool StillEngaged(Push push, Cell zone) =>
         CorpsOf(push).Any(corps => corps.strength >= 1f &&
                                    (corps.sector_city_id == push.City || CorpsSystem.ZoneDistance(CorpsSystem.Zone(corps), zone) <= 1f));
-#endif
 
     // 现任停战、亡国了，上一仗同在场的友军还在打这块地：进度交给它接着推，不回退
 #if EC_PENDING
@@ -293,14 +289,12 @@ public static partial class FrontSystem
 #endif
 
     // 收复的目标：本城被敌军占去、与己方相连、紧挨着己方军团的地块；没有攻方来争时，攻方军团看守着的地不收(见 Guarded)
-#if EC_PENDING
     private static Cell RetakeTarget(City city, Realm side, List<CorpsData> troops, bool free = false) =>
         city.Zones?.FirstOrDefault(candidate => candidate != null &&
                                                 city.GetTileZoneOccupier(candidate) is Realm occupier && Hostile(side, occupier) &&
                                                 Beside(troops, candidate) && (!free || !Guarded(side, candidate)) &&
                                                 (candidate.Neighbours ?? Array.Empty<Cell>())
                                                 .Any(neighbour => Friendly(side, Controller(neighbour))));
-#endif
 
     // 推进方向：从相邻的己方地块指向这块地；记下各格在这个方向上的投影范围(画进度用)
 #if EC_PENDING

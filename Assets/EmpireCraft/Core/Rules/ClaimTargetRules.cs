@@ -13,9 +13,7 @@ namespace EmpireCraft.Core
 // 决议自带的候选(TemporaryFaction.BuiltinCandidates)也用它：可以自带缘由、中间一列的数，也可以自带"不可选"与原因
 public sealed class ClaimTargetOption
 {
-#if EC_PENDING
-    public MetaType Type;
-#endif
+    public EntityKind Type;
     public Realm Realm;
     public City City;
     public Person Person;
@@ -30,32 +28,30 @@ public sealed class ClaimTargetOption
     // 朝廷自己挑时的分
     public float Score;
 
-#if EC_PENDING
-    public long Id => Type == MetaType.Kingdom ? Realm?.Key ?? -1L
-        : Type == MetaType.City ? City?.Key ?? -1L
-        : Type == MetaType.Unit ? Person?.Key ?? -1L
-        : Type == MetaType.Religion ? Religion?.Key ?? -1L
+    public long Id => Type == EntityKind.Realm ? Realm?.Key ?? -1L
+        : Type == EntityKind.City ? City?.Key ?? -1L
+        : Type == EntityKind.Person ? Person?.Key ?? -1L
+        : Type == EntityKind.Religion ? Religion?.Key ?? -1L
         : Title?.Key ?? -1L;
 
-    public string Name => Type == MetaType.Kingdom ? Realm?.GetKingdomName()
-        : Type == MetaType.City ? City?.GetCityName()
-        : Type == MetaType.Unit ? Person?.FullName()
-        : Type == MetaType.Religion ? Religion?.data?.name
+    public string Name => Type == EntityKind.Realm ? Realm?.GetKingdomName()
+        : Type == EntityKind.City ? City?.GetCityName()
+        : Type == EntityKind.Person ? Person?.FullName()
+        : Type == EntityKind.Religion ? Religion?.data?.name
         : Title?.data?.name;
 
     public static ClaimTargetOption Of(Realm kingdom, string why = "") =>
-        new() { Type = MetaType.Kingdom, Realm = kingdom, Why = why ?? "" };
+        new() { Type = EntityKind.Realm, Realm = kingdom, Why = why ?? "" };
 
-    public static ClaimTargetOption Of(City city, string why = "") => new() { Type = MetaType.City, City = city, Why = why ?? "" };
+    public static ClaimTargetOption Of(City city, string why = "") => new() { Type = EntityKind.City, City = city, Why = why ?? "" };
 
-    public static ClaimTargetOption Of(Person actor, string why = "") => new() { Type = MetaType.Unit, Person = actor, Why = why ?? "" };
+    public static ClaimTargetOption Of(Person actor, string why = "") => new() { Type = EntityKind.Person, Person = actor, Why = why ?? "" };
 
     public static ClaimTargetOption Of(KingdomTitle title, string why = "") =>
         new() { Type = MetaTypeExtension.KingdomTitle, Title = title, Why = why ?? "" };
 
     public static ClaimTargetOption Of(Religion religion, string why = "") =>
-        new() { Type = MetaType.Religion, Religion = religion, Why = why ?? "" };
-#endif
+        new() { Type = EntityKind.Religion, Religion = religion, Why = why ?? "" };
 }
 
 // 诉求的目标规则(数据在模组根目录 ClaimRules.json 各决议的 target；用户 2026-11-11 "这里在发起诉求时应该给个目标"
@@ -85,9 +81,7 @@ public static class ClaimTargetRules
 {
     private sealed class Spec
     {
-#if EC_PENDING
-        public MetaType Kind = MetaType.Kingdom;
-#endif
+        public EntityKind Kind = EntityKind.Realm;
         public string Pool = "";
         public List<string> Rules = new(), AutoRules = new();
         public float OurPowerMin, TheirPowerMin, ArmyShareMin, ArmyShareMax;
@@ -98,9 +92,7 @@ public static class ClaimTargetRules
 
     private sealed class Context
     {
-#if EC_PENDING
         public TemporaryFaction Claim;
-#endif
         public Empire Empire;
         public Realm Core;
         public FixedFaction Faction;
@@ -117,16 +109,13 @@ public static class ClaimTargetRules
         public HashSet<Realm> Near => _near ??= WarReach.WalkableNeighbourKingdoms(Core);
 #endif
         // 决议自带的候选(一轮只问一回)
-#if EC_PENDING
         public List<ClaimTargetOption> Builtin => _builtin ??= Claim.BuiltinCandidates() ?? new List<ClaimTargetOption>();
-#endif
     }
 
     private const string Green = "#65D66E", Gold = "#F3C34A", Red = "#FF6666";
     private static Dictionary<string, List<Spec>> _specs;
     private static readonly HashSet<string> Reported = new();
 
-#if EC_PENDING
     private static Dictionary<string, List<Spec>> Specs
     {
         get
@@ -165,11 +154,11 @@ public static class ClaimTargetRules
         {
             Kind = kind switch
             {
-                "city" => MetaType.City,
-                "actor" => MetaType.Unit,
-                "religion" => MetaType.Religion,
+                "city" => EntityKind.City,
+                "actor" => EntityKind.Person,
+                "religion" => EntityKind.Religion,
                 "title" => MetaTypeExtension.KingdomTitle,
-                _ => MetaType.Kingdom
+                _ => EntityKind.Realm
             },
             Pool = entry.Value<string>("pool") ?? "",
             Rules = Strings(entry["rules"]),
@@ -188,15 +177,12 @@ public static class ClaimTargetRules
                 if (item.Value.Type is JTokenType.Float or JTokenType.Integer) spec.Prefer.Add((item.Name, item.Value.Value<float>()));
         list.Add(spec);
     }
-#endif
 
     private static List<string> Strings(JToken token) =>
         token is JArray array ? array.Select(item => item.ToString()).Where(item => item.Length > 0).ToList() : new List<string>();
 
     // 这条决议的目标能不能由神力指定(ClaimRules.json 里写了 target)
-#if EC_PENDING
     public static bool Has(TemporaryFactionType type) => Specs.ContainsKey(type.ToString());
-#endif
 
     // 决议只照 target 挑目标(TemporaryFaction.PickRuleTarget)，数据里却没写或写坏了：这条决议永远提不出来，记一条日志
     public static void WarnMissing(TemporaryFactionType type)
@@ -207,10 +193,8 @@ public static class ClaimTargetRules
     }
 
     // 朝廷自己挑时走决议自带的写法
-#if EC_PENDING
     public static bool BuiltinAuto(TemporaryFactionType type) =>
         Specs.TryGetValue(type.ToString(), out List<Spec> specs) && specs.Any(spec => spec.BuiltinAuto);
-#endif
 
     // 全部候选(连同不可选的与原因)：选择窗口用
 #if EC_PENDING
@@ -258,6 +242,7 @@ public static class ClaimTargetRules
         }
         return null;
     }
+#endif
 
     private static Context Build(TemporaryFaction claim, out List<Spec> specs)
     {
@@ -272,7 +257,6 @@ public static class ClaimTargetRules
             Culture = CultureService.GetEmpireDefaultCulture(empire)
         };
     }
-#endif
 
     // ModeAll：全部候选连同不可选的；ModeAuto：只收过关的(连同 auto_rules)，没有加分项时收到第一个就停；
     // ModeProbe：只收过关的(不看 auto_rules)，收到第一个就停
@@ -283,9 +267,9 @@ public static class ClaimTargetRules
     {
         try
         {
-            if (spec.Kind == MetaType.Kingdom) CollectKingdoms(c, spec, mode, result);
-            else if (spec.Kind == MetaType.City) CollectCities(c, spec, mode, result);
-            else if (spec.Kind == MetaType.Unit) CollectActors(c, spec, mode, result);
+            if (spec.Kind == EntityKind.Realm) CollectKingdoms(c, spec, mode, result);
+            else if (spec.Kind == EntityKind.City) CollectCities(c, spec, mode, result);
+            else if (spec.Kind == EntityKind.Person) CollectActors(c, spec, mode, result);
             else CollectOthers(c, spec, mode, result);
         }
         catch (Exception exception)
@@ -297,10 +281,8 @@ public static class ClaimTargetRules
 #endif
 
     // 决议自带的候选里这一种类的(见 TemporaryFaction.BuiltinCandidates)
-#if EC_PENDING
-    private static IEnumerable<ClaimTargetOption> BuiltinOf(Context c, MetaType kind) =>
+    private static IEnumerable<ClaimTargetOption> BuiltinOf(Context c, EntityKind kind) =>
         c.Builtin.Where(option => option != null && option.Type == kind && option.Id >= 0);
-#endif
 
     // 决议自带的候选自己带的缘由、中间一列、不可选的原因并到算好的候选上
     private static void Inherit(ClaimTargetOption option, ClaimTargetOption source)
@@ -319,14 +301,13 @@ public static class ClaimTargetRules
 
     #region 国家
 
-#if EC_PENDING
     private static IEnumerable<(Realm subject, Realm target, ClaimTargetOption source)> KingdomPool(Context c, string pool)
     {
         switch (pool)
         {
             case "builtin":
-                foreach (ClaimTargetOption option in BuiltinOf(c, MetaType.Kingdom).ToList())
-                    if (option.Kingdom?.data != null && !option.Kingdom.IsGone()) yield return (option.Kingdom, option.Kingdom, option);
+                foreach (ClaimTargetOption option in BuiltinOf(c, EntityKind.Realm).ToList())
+                    if (option.Realm?.Record != null && !option.Realm.IsGone()) yield return (option.Realm, option.Realm, option);
                 break;
             case "enemies":
                 foreach (Realm enemy in c.Core.GetEnemies())
@@ -376,6 +357,7 @@ public static class ClaimTargetRules
         }
     }
 
+#if EC_PENDING
     private static void CollectKingdoms(Context c, Spec spec, int mode, List<ClaimTargetOption> result)
     {
         bool auto = mode != ModeAll, autoRules = mode == ModeAuto;
@@ -401,11 +383,11 @@ public static class ClaimTargetRules
             // 同一个目标(同一帝国的几个敌国记到同一个朝廷)只列一回：有过关的那个算数
             if (!seen.Add(target.Key))
             {
-                ClaimTargetOption listed = result.FirstOrDefault(option => option.Type == MetaType.Kingdom && option.Kingdom == target);
+                ClaimTargetOption listed = result.FirstOrDefault(option => option.Type == EntityKind.Realm && option.Realm == target);
                 if (failed != null || listed == null || listed.Selectable) continue;
                 result.Remove(listed);
             }
-            var option = new ClaimTargetOption { Type = MetaType.Kingdom, Realm = target, Selectable = failed == null };
+            var option = new ClaimTargetOption { Type = EntityKind.Realm, Realm = target, Selectable = failed == null };
             if (failed != null) option.Why = FailText(spec, failed);
             else
             {
@@ -430,10 +412,12 @@ public static class ClaimTargetRules
             if (mode == ModeProbe || autoRules && spec.Prefer.Count == 0) return;
         }
     }
+#endif
 
     private static bool IsMilitaryCommand(Realm k) =>
         k.GetKingdomType() is KingdomType.LvLing_jiedushi or KingdomType.LvLing_duhufu;
 
+#if EC_PENDING
     private static bool PassKingdom(Context c, string rule, Realm k)
     {
         switch (rule)
@@ -449,7 +433,7 @@ public static class ClaimTargetRules
             case "not_in_empire": return !k.IsInEmpire();
             case "not_tributary": return !c.Empire.taken_Kingdoms.Contains(k);
             case "not_overlord": return !c.Empire.given_Kingdoms.Contains(k);
-            case "other_species": return k.species_id != c.Core.species_id;
+            case "other_species": return k.SpeciesId != c.Core.SpeciesId;
             case "not_zhou_vassal": return !ZhouEraSystem.IsDetachedVassal(k);
             case "tribute_reach": return TributaryRelations.InReach(k, c.Empire);
             case "no_pact": return c.Empire.data?.diplomatic_pacts == null || !c.Empire.data.diplomatic_pacts.ContainsKey(k.Key);
@@ -595,7 +579,6 @@ public static class ClaimTargetRules
         .FirstOrDefault();
 
     // 两国作主战方、眼下谈得了的那场仗(罢兵议和)：议和台用得上，不是剧本定死的仗、总体战、统一战争、内战，打满了起码的年头
-#if EC_PENDING
     public static War NegotiableWarWith(Realm core, Realm other)
     {
         if (core == null || other == null) return null;
@@ -613,19 +596,17 @@ public static class ClaimTargetRules
         war != null && PeaceTable.Usable(war) && !war.GetOrCreate().scripted_war && !war.IsTotalWar() && !UnificationSystem.IsUnificationWar(war) &&
         !RulerTraitSystem.IsFounderUnificationWar(war) && !WarlordEraSystem.IsCivilWar(war) &&
         WarSituation.WarYears(war) >= WarPeaceRules.MinWarYears;
-#endif
 
     #endregion
 
     #region 城
 
-#if EC_PENDING
     private static void CollectCities(Context c, Spec spec, int mode, List<ClaimTargetOption> result)
     {
         bool auto = mode != ModeAll, autoRules = mode == ModeAuto;
         var pool = new List<(City city, ClaimTargetOption source)>();
         if (spec.Pool == "builtin")
-            pool.AddRange(BuiltinOf(c, MetaType.City).Select(option => (option.City, option)));
+            pool.AddRange(BuiltinOf(c, EntityKind.City).Select(option => (option.City, option)));
         else
         {
             if (spec.Pool != "core_cities" && Reported.Add("pool:" + spec.Pool))
@@ -638,7 +619,7 @@ public static class ClaimTargetRules
             if (city?.Record == null || city.IsGone()) continue;
             string failed = source != null && !source.Selectable ? "builtin" : FirstFailed(spec, autoRules, rule => PassCity(c, rule, city));
             if (auto && failed != null) continue;
-            var option = new ClaimTargetOption { Type = MetaType.City, City = city, Selectable = failed == null };
+            var option = new ClaimTargetOption { Type = EntityKind.City, City = city, Selectable = failed == null };
             if (failed != null) option.Why = FailText(spec, failed);
             else
             {
@@ -673,10 +654,8 @@ public static class ClaimTargetRules
             default: return Unknown(rule);
         }
     }
-#endif
 
     // 与这座城接壤、与本朝同教的教宗国(划地给教廷)
-#if EC_PENDING
     public static Realm PapacyNear(Empire empire, City city)
     {
         if (empire?.Religion == null || empire.Religion.IsGone() || city?.NeighbourCities == null) return null;
@@ -688,7 +667,6 @@ public static class ClaimTargetRules
         }
         return null;
     }
-#endif
 
     #endregion
 
@@ -700,7 +678,7 @@ public static class ClaimTargetRules
         bool auto = mode != ModeAll, autoRules = mode == ModeAuto;
         var pool = new List<(Person actor, ClaimTargetOption source)>();
         if (spec.Pool == "builtin")
-            pool.AddRange(BuiltinOf(c, MetaType.Unit).Select(option => (option.Actor, option)));
+            pool.AddRange(BuiltinOf(c, EntityKind.Person).Select(option => (option.Person, option)));
         else if (spec.Pool == "emperor_siblings")
         {
             PersonalClanIdentity emperor = c.Empire.Emperor?.GetPersonalIdentity();
@@ -728,7 +706,7 @@ public static class ClaimTargetRules
             if (actor?.Record == null || actor.IsGone() || !actor.Alive || !seen.Add(actor.Key)) continue;
             string failed = source != null && !source.Selectable ? "builtin" : FirstFailed(spec, autoRules, rule => PassActor(c, rule, actor));
             if (auto && failed != null) continue;
-            var option = new ClaimTargetOption { Type = MetaType.Unit, Person = actor, Selectable = failed == null };
+            var option = new ClaimTargetOption { Type = EntityKind.Person, Person = actor, Selectable = failed == null };
             if (failed != null) option.Why = FailText(spec, failed);
             else
             {
@@ -758,6 +736,7 @@ public static class ClaimTargetRules
             if (mode == ModeProbe || autoRules && spec.Prefer.Count == 0) return;
         }
     }
+#endif
 
     private static bool PassActor(Context c, string rule, Person actor)
     {
@@ -775,13 +754,11 @@ public static class ClaimTargetRules
             default: return Unknown(rule);
         }
     }
-#endif
 
     #endregion
 
     #region 法理头衔、宗教(只有决议自带的候选)
 
-#if EC_PENDING
     private static void CollectOthers(Context c, Spec spec, int mode, List<ClaimTargetOption> result)
     {
         if (spec.Pool != "builtin" && Reported.Add("pool:" + spec.Pool))
@@ -794,7 +771,6 @@ public static class ClaimTargetRules
             if (mode != ModeAll) return;
         }
     }
-#endif
 
     #endregion
 

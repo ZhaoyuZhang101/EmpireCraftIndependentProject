@@ -33,7 +33,6 @@ public static class FallenEmpireRecords
     public static List<FallenEmpireRecord> Save() => Records;
 
     // 解散之前调用(核心国还在，取得到文化、国号)
-#if EC_PENDING
     public static void Record(Empire empire, bool known = true)
     {
         if (empire?.data == null || Records.Any(record => record?.id == empire.data.id)) return;
@@ -72,16 +71,15 @@ public static class FallenEmpireRecords
             last_ruler = ruler
         });
     }
-#endif
 
     // 旧档：以前解散不从管理器移除，已亡帝国还留在管理器里，补进名录
-#if EC_PENDING
     public static void AdoptArchived(IEnumerable<Empire> empires)
     {
         foreach (Empire empire in empires?.ToList() ?? new List<Empire>())
             if (empire?.data != null && empire.IsArchived()) Record(empire, known: false);
     }
 
+#if EC_PENDING
     public static List<EmpireCraftHistory> Histories(FallenEmpireRecord record)
     {
         if (record == null || ModClass.ALL_HISTORY_DATA == null ||

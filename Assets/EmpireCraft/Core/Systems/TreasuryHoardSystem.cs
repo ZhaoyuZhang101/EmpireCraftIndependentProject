@@ -57,7 +57,6 @@ public static class TreasuryHoardSystem
         SubsidyByCore[core.Key] = sum + amount;
     }
 
-#if EC_PENDING
     public static void Tick()
     {
         if (EmpireWorld.Current == null) return;
@@ -99,10 +98,8 @@ public static class TreasuryHoardSystem
         _kingdomCount++;
         if (loss > _largest.loss) _largest = (kingdom.GetKingdomName(), loss, kingdom.GetTreasuryBalance(), reserve);
     }
-#endif
 
     // 荒淫、昏聩之君多损，明君少损；积弊(0~100)深的再多损至五成
-#if EC_PENDING
     private static float Waste(Realm kingdom)
     {
         float factor = RulerQualitySystem.Of(kingdom.Ruler) switch
@@ -118,7 +115,6 @@ public static class TreasuryHoardSystem
         if (empire?.data != null) factor *= 1f + MaladySystem.Average(empire) / 200f;
         return factor;
     }
-#endif
 
     private static void DecayCity(City city)
     {
@@ -132,7 +128,6 @@ public static class TreasuryHoardSystem
         _cityCount++;
     }
 
-#if EC_PENDING
     private static void LogYear()
     {
         if (_kingdomCount > 0 || _cityCount > 0 || _subsidy > 0)
@@ -152,7 +147,6 @@ public static class TreasuryHoardSystem
         }
         ResetTally();
     }
-#endif
 
     private static void ResetTally()
     {

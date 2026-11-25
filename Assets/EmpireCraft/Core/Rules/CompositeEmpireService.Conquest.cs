@@ -31,7 +31,6 @@ public static partial class CompositeEmpireService
         GameClock.YearsSince(empire.data.nativist_revival_at) < NativistYears;
 
     // 统治族群游牧、尚未融完的征服王朝：攘夷、同化派挂着国语骑射这项诉求
-#if EC_PENDING
     public static bool NativistClaimApplies(Empire empire)
     {
         if (!IsComposite(empire)) return false;
@@ -42,13 +41,12 @@ public static partial class CompositeEmpireService
     public static bool CanProclaimNativism(Empire empire) =>
         NativistClaimApplies(empire) && !NativistActive(empire) &&
         (empire.data.composite_integration >= NativistIntegration || GetRoute(empire) == RouteAdopt);
-#endif
 
     // 紧迫度：融得越深越急，已在从俗更急
-#if EC_PENDING
     public static float NativismUrgency(Empire empire) => !CanProclaimNativism(empire) ? 0f
         : Math.Max(0f, (empire.data.composite_integration - 40) * 0.6f) + (GetRoute(empire) == RouteAdopt ? 10f : 0f);
 
+#if EC_PENDING
     public static string ProclaimNativism(Empire empire)
     {
         if (!CanProclaimNativism(empire) || EmpireWorld.Current == null) return null;
@@ -176,7 +174,6 @@ public static partial class CompositeEmpireService
 #endif
 
     // 复合帝国作罢(一键易俗把整个帝国改成一个文化时，见 RealmCultureSystem)：不改政体，只清掉双重身份
-#if EC_PENDING
     public static void Dissolve(Empire empire)
     {
         if (empire?.data == null) return;
@@ -189,10 +186,8 @@ public static partial class CompositeEmpireService
         empire.data.nativist_revival_at = -1d;
         SynchronizeMilitaryTraditionClaims(empire);
     }
-#endif
 
     // 本族旧地最大的城：先找朝廷自己的，再找成员的(成员的都城不拿)；离草思归的只回旱地上的旧地(见 ShuiTuSystem.IsDryCity)
-#if EC_PENDING
     private static City HomelandSeat(Empire empire, string ruling, bool dryOnly = false)
     {
         bool Home(City city) => city?.Record != null && !city.IsGone() &&
@@ -207,7 +202,6 @@ public static partial class CompositeEmpireService
             .Where(city => Home(city) && city.Realm?.Capital != city)
             .OrderByDescending(city => city.CountLivingPopulation()).FirstOrDefault();
     }
-#endif
 
     private static string Direction(City from, City to)
     {

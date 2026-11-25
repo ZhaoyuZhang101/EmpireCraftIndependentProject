@@ -44,7 +44,6 @@ public static class CorpsVeterancy
     };
 
     // 一月交战后；performance：本方这一仗打得如何(0 惨败 ~ 1 大胜)
-#if EC_PENDING
     public static void Gain(Realm kingdom, CorpsData corps, float performance)
     {
         if (corps == null) return;
@@ -56,7 +55,6 @@ public static class CorpsVeterancy
         FrontSystem.Log(kingdom, text);
         WarChronicle.RecordFor(kingdom, WarChronicle.Commander, text);
     }
-#endif
 
     // 补进 added 个新兵：经验按人头摊薄
     public static void Dilute(CorpsData corps, float before, float added)
@@ -68,7 +66,6 @@ public static class CorpsVeterancy
     }
 
     // 太平时每月回落(见 CorpsSystem.Recover)；手上在打仗的不落
-#if EC_PENDING
     public static void Monthly(Realm kingdom, List<CorpsData> list)
     {
         if (list == null || CorpsSystem.IsAtWar(kingdom)) return;
@@ -76,6 +73,5 @@ public static class CorpsVeterancy
         foreach (CorpsData corps in list)
             if (corps.veterancy > 0f) corps.veterancy = Mathf.Max(0f, corps.veterancy - decay);
     }
-#endif
 }
 }

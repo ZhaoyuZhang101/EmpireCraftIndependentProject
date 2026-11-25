@@ -20,7 +20,6 @@ public static class InterregnumSystem
 {
     private const int MinClaimantCities = 3, MaxClaimants = 3, SealMandate = 15, DescentMandate = 10;
 
-#if EC_PENDING
     private static bool Applies(Empire empire)
     {
         Realm core = empire?.CoreKingdom;
@@ -31,6 +30,7 @@ public static class InterregnumSystem
         return !EmpirePartitionSystem.CanUnite(empire, out _);
     }
 
+#if EC_PENDING
     private static double Might(Realm kingdom)
     {
         try
@@ -46,14 +46,12 @@ public static class InterregnumSystem
 
     // 据地称帝的新帝国承接旧朝廷的积弊与王朝积弊，开国之君不得开国气象(见 Empire.FounderGrace)；
     // 王朝年岁也接着算(改朝换代三档之"保留"，用户 2026-10-26：以前称帝时归零，按新朝慢速滋生)
-#if EC_PENDING
     private static void InheritDecline(Empire from, Empire to)
     {
         if (from?.data == null || to?.data == null) return;
         to.data.inherited_decline = true;
         DynasticCycleSystem.Inherit(to, DynasticCycleSystem.Capture(from), DynasticCycleSystem.Transition.Keep);
     }
-#endif
 
     // 议立开列不出宗室时调用(SuccessionCouncilSystem.Open)，或权臣废帝而宗室无人可立(EmpirePartitionSystem)：
     // 裂土成了返回真(京城已立新君，议立作罢)；opening 为空时史册开头写"某崩，皇族绝嗣"

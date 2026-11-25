@@ -51,7 +51,6 @@ public static class UpheavalGuard
 
     // 真走掉了成员、或分裂进程以争位收场：记下时间。occasion 为空时不记日志(土崩瓦解各省响应时刷新时间用)；
     // detail 代替上限说明(分裂进程收场时给，见 SchismSystem)
-#if EC_PENDING
     public static void Mark(Empire empire, string occasion = null, Budget budget = null, string detail = null)
     {
         if (empire?.data == null || EmpireWorld.Current == null) return;
@@ -60,7 +59,6 @@ public static class UpheavalGuard
         string cap = detail ?? (budget == null ? "不设上限" : $"带走 {budget.Taken} 城，上限 {budget.Cap}/{budget.Total} 城{(budget.Capped ? "，已到上限" : "")}");
         LogService.LogInfo($"[EmpireCraft][大分裂冷却] {empire.GetEmpireName()} {occasion}({cap})，此后 {CooldownYears} 年不再判大分裂");
     }
-#endif
 
     // 单次上限：事件开始时数一次帝国总城数
     public sealed class Budget

@@ -69,7 +69,6 @@ public static class PartyBanSystem
     public const int ConsultationLegitimacy = 5;
     public const float ConsultationDissent = 0.05f;
 
-#if EC_PENDING
     public static List<FixedFaction> GetConsultativeParties(Empire empire)
     {
         ConstitutionalEconomyState state = State(empire);
@@ -77,7 +76,6 @@ public static class PartyBanSystem
         return PartySystem.GetParties(empire).Where(party => party.GetID() != state.one_party_id &&
                                                              state.allied_party_ids.Contains(party.GetID())).ToList();
     }
-#endif
 
     // 政协友党在中央的占比上限：友党只参与协商，不能压过领导党、更不能成为主导派系
     public const int ConsultativeRatioCap = 5;
@@ -117,7 +115,6 @@ public static class PartyBanSystem
 
     // 政党被并入、解散后：从友党名单中移除；若它是一党制的领导党，由并入的目标党接任，
     // 没有目标党时由实力最强的友党(没有友党则最强的政党)接任；一个政党都不剩就重开党禁
-#if EC_PENDING
     public static void OnPartyRemoved(Empire empire, FixedFaction removed, FixedFaction successor)
     {
         if (removed != null) HandOver(empire, removed.GetID(), successor);
@@ -145,10 +142,8 @@ public static class PartyBanSystem
         heir.Ban = false;
         state.last_parliament_election = -1d;
     }
-#endif
 
     // 旧存档修复：领导党早已不在(并入、解散时没有交接)，或领导党同时挂在友党名单里
-#if EC_PENDING
     private static void RepairLeadingParty(Empire empire, ConstitutionalEconomyState state)
     {
         if (!IsClosed(empire)) return;
@@ -161,7 +156,6 @@ public static class PartyBanSystem
     }
 
     public static bool HasConsultation(Empire empire) => GetConsultativeParties(empire).Count > 0;
-#endif
 
     public static bool IsAllowedParty(Empire empire, FixedFaction party)
     {
@@ -172,25 +166,20 @@ public static class PartyBanSystem
     }
 
     // 民主集中制只在本文化推行过普选(有全民选举的制度基础)后才能选；没有普选制度时照旧是限制选举
-#if EC_PENDING
     public static bool CanChooseElectoralSystem(Empire empire) =>
         PartySystem.IsActive(empire) && PartySystem.HasUniversalSuffragePolicy(empire);
-#endif
 
     // 宪法手定了权力中心时按宪法(代表大会制即民主集中制)，否则按党禁时定下的选举制度
-#if EC_PENDING
     public static bool UsesDemocraticCentralism(Empire empire) =>
         CanChooseElectoralSystem(empire) &&
         (ConstitutionSystem.TryGetLockedPowerCenter(empire, out ConstitutionPowerCenter powerCenter) &&
          RepublicSystem.IsRepublic(empire)
             ? powerCenter == ConstitutionPowerCenter.Congress
             : State(empire)?.democratic_centralism == true);
-#endif
 
     public static float GetReopenPressure(Empire empire) => State(empire)?.party_ban_reopen_pressure ?? 0f;
 
     // 党禁关着的国家到了危局没有：人民推动重开党禁(TempFac_开放党禁)只在危局里立得起来，见上面 OnePartyCrisisLegitimacy
-#if EC_PENDING
     public static bool OnePartyCrisis(Empire empire)
     {
         ConstitutionalEconomyState state = State(empire);
@@ -200,11 +189,9 @@ public static class PartyBanSystem
         float years = state.party_ban_since >= 0d ? GameClock.YearsSince(state.party_ban_since) : OnePartyMinYears;
         return years >= OnePartyMinYears ? legitimacy || core : legitimacy && core;
     }
-#endif
 
     // 独裁度(0~100)：
     //   执政党议席(无议会看中央占比) 40 + 执政理念的威权程度 25 + 元首兼执政党领袖 15 + 连续执政年数(每年 1，最多 20)
-#if EC_PENDING
     public static float GetAutocracy(Empire empire)
     {
         ConstitutionalEconomyState state = State(empire);
@@ -222,11 +209,9 @@ public static class PartyBanSystem
             : 0f;
         return Mathf.Clamp(40f * share + 25f * authority + (personalRule ? 15f : 0f) + years, 0f, 100f);
     }
-#endif
 
     // 帝国核心的民心：核心法理内、仍归本帝国的城市里，信奉执政理念(统一战线含友党理念)的人口比例；
     // 以及核心城市中已不归本帝国的比例。没有帝国核心时退回全帝国统计。
-#if EC_PENDING
     public static (float support, float lost) GetCoreSupport(Empire empire)
     {
         ConstitutionalEconomyState state = State(empire);
@@ -257,7 +242,6 @@ public static class PartyBanSystem
         }
         return (population == 0 ? 1f : (float)supporters / population, lost);
     }
-#endif
 
     // 自主现代化(开放党禁)的硬发展门槛(用户 2026-11-10："贫瘠穷地方不该自己革命现代化")：
     // 核心繁荣低于此值的穷/贫瘠国家守封建、一党，自主的两条路(人民革命、君主妥协)都开不了党禁，
@@ -269,7 +253,6 @@ public static class PartyBanSystem
     public const float ModernizationProsperityFloor = 0.35f;
 
     // 帝国核心的繁荣度(0~1)：核心法理内仍归本帝国的城市繁荣度均值；没有核心城市时退回核心王国自己的城。
-#if EC_PENDING
     public static float CoreProsperity(Empire empire)
     {
         if (empire?.CoreKingdom == null) return 0f;
@@ -279,14 +262,11 @@ public static class PartyBanSystem
             cities = empire.CoreKingdom.Cities?.Where(city => city != null && !city.IsGone()).ToList() ?? new List<City>();
         return cities.Count == 0 ? 0f : cities.Average(IdeologyPopulationSystem.CityProsperity);
     }
-#endif
 
     // 能否走自主路(人民革命 / 君主妥协)开放党禁：核心繁荣须过发展门槛。
     // 只拦"新的自主开放"，已经开放/现代化的国家不经过这里，不会被打回封建。
-#if EC_PENDING
     public static bool PassesModernizationGate(Empire empire) =>
         CoreProsperity(empire) >= ModernizationProsperityFloor;
-#endif
 
     #endregion
 
@@ -297,7 +277,6 @@ public static class PartyBanSystem
     // 没有政治协商的(纯一党制)其余政党一律解散。返回参加政治协商的友党
     private const float HostileDistance = 120f;
 
-#if EC_PENDING
     private static List<FixedFaction> SettleOtherParties(Empire empire, FixedFaction leader, List<FixedFaction> allies)
     {
         bool consultative = allies.Count > 0;
@@ -363,7 +342,6 @@ public static class PartyBanSystem
         ConstitutionSystem.ReleaseLock(empire, ConstitutionSystem.ClausePartySystem);
         EventRecorder.Record(empire, string.Format(LM.Get(historyKey), empire.GetEmpireFullName(), rulingName), null);
     }
-#endif
 
     // 宪法页修改政党制度：多党 → 开放党禁；一党/统一战线 → 由执政党关闭党禁(统一战线保留友党)。
     // 已经关闭时在一党与统一战线之间切换，只改友党名单，不走重开再关闭
@@ -401,6 +379,7 @@ public static class PartyBanSystem
         ParliamentSystem.Update(empire);
         return true;
     }
+#endif
 
     public static bool CanUnitedFront(Empire empire)
     {
@@ -410,10 +389,8 @@ public static class PartyBanSystem
             : PartySystem.GetGovernmentParty(empire) ?? empire?.CoreKingdom?.GetRegime()?.GetDominateFaction();
         return leader != null && leader.IsParty && UnitedFrontAllies(empire, leader).Count > 0;
     }
-#endif
 
     // 统一战线的友党：社会主义党领导时照旧(中间派与社会主义各党)，否则取理念相近(光谱距离 < 50)的合法政党
-#if EC_PENDING
     private static List<FixedFaction> UnitedFrontAllies(Empire empire, FixedFaction leader)
     {
         List<FixedFaction> allies = DefaultAllies(empire, leader);
@@ -423,10 +400,8 @@ public static class PartyBanSystem
                             PartySystem.IdeologyDistance(party.Ideology, leader.Ideology) < 50f).ToList()
                ?? new List<FixedFaction>();
     }
-#endif
 
     // 玩家手动关闭：执政党掌握三分之二以上(修宪门槛)或满足任一自动关闭条件
-#if EC_PENDING
     public static bool CanCloseManually(Empire empire, out FixedFaction leader, out List<FixedFaction> allies)
     {
         allies = new List<FixedFaction>();
@@ -440,10 +415,8 @@ public static class PartyBanSystem
         allies = DefaultAllies(empire, governing);
         return true;
     }
-#endif
 
     // 禁党诉求(TempFac_禁党)：本派是执政党、议席过半(无议会按势力)，开放党禁且宪法没手定政党制度时才能推
-#if EC_PENDING
     public static bool CanBanByClaim(Empire empire, FixedFaction faction)
     {
         if (faction == null || !faction.IsParty || faction.Ban || !PartySystem.IsActive(empire) || IsClosed(empire) ||
@@ -455,6 +428,7 @@ public static class PartyBanSystem
     public static void CloseByClaim(Empire empire, FixedFaction faction) =>
         Close(empire, faction, DefaultAllies(empire, faction), "party_ban_claim_history");
 
+#if EC_PENDING
     public static bool CloseManually(Empire empire)
     {
         if (!CanCloseManually(empire, out FixedFaction leader, out List<FixedFaction> allies)) return false;
@@ -488,13 +462,11 @@ public static class PartyBanSystem
 #endif
 
     // 社会主义党领导时，中间派作为友党保留
-#if EC_PENDING
     private static List<FixedFaction> DefaultAllies(Empire empire, FixedFaction leader) =>
         IdeologyFamilies.IsSocialist(leader.Ideology)
             ? PartySystem.GetParties(empire).Where(party => party != leader &&
                 (party.Ideology == PartyIdeology.Centrism || IdeologyFamilies.IsSocialist(party.Ideology))).ToList()
             : new List<FixedFaction>();
-#endif
 
     #endregion
 
@@ -532,6 +504,7 @@ public static class PartyBanSystem
         }
         TrySocialistCoup(empire);
     }
+#endif
 
     private static void TrackRulingStreak(Empire empire, ConstitutionalEconomyState state)
     {
@@ -586,7 +559,6 @@ public static class PartyBanSystem
         }
         return false;
     }
-#endif
 
     // 社会主义政党掌握军队(过半士兵信奉其理念、理念已完成第三阶段)时，在动荡中发动政变并修改宪法
 #if EC_PENDING
@@ -614,7 +586,6 @@ public static class PartyBanSystem
     // 暴君强压到底；中主、荒淫之君守成恋权，只有正统低(自身难保)时才被迫让步。
     private const float ConcedeLegitimacyFloor = 35f;
 
-#if EC_PENDING
     private static bool MonarchWouldConcede(Empire empire)
     {
         Person ruler = empire?.Emperor;
@@ -632,7 +603,6 @@ public static class PartyBanSystem
                 return empire.Legitimacy < ConcedeLegitimacyFloor;
         }
     }
-#endif
 
     // 用户 2026-11-10：压力满了不再无声 Open()，只导进三条路之一(见本文件头注释)。
 #if EC_PENDING
@@ -670,7 +640,6 @@ public static class PartyBanSystem
     #region 民主集中制选举(由 ParliamentSystem 调用)
 
     // 代表大会逐级推选：各行政区按人口分代表名额，区内按党组织实力(党员数)分；党禁关闭时领导党保有三分之二
-#if EC_PENDING
     public static List<(FixedFaction party, long district)> AllocateCongressSeats(Empire empire,
         List<FixedFaction> parties, int seats)
     {
@@ -710,14 +679,12 @@ public static class PartyBanSystem
             }
         return result;
     }
-#endif
 
     #endregion
 
     private static int Seats(ConstitutionalEconomyState state, FixedFaction party) =>
         state?.parliament_seats?.Count(seat => seat.faction_id == party.GetID()) ?? 0;
 
-#if EC_PENDING
     private static float SeatShare(Empire empire, Func<FixedFaction, bool> filter)
     {
         ConstitutionalEconomyState state = State(empire);
@@ -730,7 +697,6 @@ public static class PartyBanSystem
         }
         return parties.Where(filter).Sum(party => party.CentralRatio) / 100f;
     }
-#endif
 
 }
 }

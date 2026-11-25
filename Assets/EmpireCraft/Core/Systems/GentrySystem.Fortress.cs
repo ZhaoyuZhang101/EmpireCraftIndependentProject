@@ -52,7 +52,6 @@ public static partial class GentrySystem
     }
 
     // 自然稳定度加成(见 CityStabilitySystem.LocalPressures)：坞堡 +3~+5，世家赈济过的两年里再 +6
-#if EC_PENDING
     public static float StabilityBonus(City city, out string detail)
     {
         detail = null;
@@ -70,6 +69,5 @@ public static partial class GentrySystem
         }
         return bonus;
     }
-#endif
 }
 }

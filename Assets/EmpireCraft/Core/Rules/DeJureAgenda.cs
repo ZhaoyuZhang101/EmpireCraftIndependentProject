@@ -17,11 +17,9 @@ public static class DeJureAgenda
     public static bool Enabled => WorldLaws.DejureFirst?.IsEnabled() == true;
 
     // target 占着 initiator 一方法理的城
-#if EC_PENDING
     public static bool HasClaimOn(Realm initiator, Realm target) =>
         Enabled && initiator?.Record != null && target?.Record != null && initiator != target &&
         WarGoalSystem.Claimed(initiator, target.Cities).Count > 0;
-#endif
 
     // target 占着 initiator 所在帝国法理里的城(在帝国里的按本帝国的帝国法理，不在的按本国都城所在的帝国法理，兼属的也算)
     public static bool HoldsCoreOf(Realm initiator, Realm target)

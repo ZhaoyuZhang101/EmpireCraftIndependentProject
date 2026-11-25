@@ -24,7 +24,7 @@ namespace EmpireCraft.Core
 //   · 效果：战力 × (0.35 + 0.65×补给)(见 FrontSystem)，补给线被切断战力只剩三成五；补给不到五成组织度不恢复反而下降，
 //     也补不上兵(见 CorpsSystem)；补给线被切断、恢复时记入纪事；
 //     交战时补给不到三成或口粮不足就减员，每月 3%~8%(越缺越多)；太平时缺粮只掉组织度；
-//   · 就地征粮是统帅的决议(见 PlotAsset war_forage)：交战中缺粮、或三分之一以上的军在敌境时，统帅发起，为期半年。
+//   · 就地征粮是统帅的决议(见 PlotKind war_forage)：交战中缺粮、或三分之一以上的军在敌境时，统帅发起，为期半年。
 public static class LogisticsSystem
 {
     private const float RationPerHouseholdYear = 1.25f;
@@ -164,7 +164,6 @@ public static class LogisticsSystem
     // 返回沿途剩下的几成，找不到为 0(被切断)。按每块折损取对数做最短路。
     // 海外(sea 不为空：本国的船能到的海区 → 航线经过几个海区)：卸粮的岸边要是己方控制、无主地，或军脚下的那片海滩，
     // 外面的海区本国的船到得了；航线在舰种航程内七成五，超出只剩四成
-#if EC_PENDING
     private static float SupplyLine(Realm kingdom, Cell start, Dictionary<int, int> sea, int range)
     {
         float Source(Cell zone)
@@ -229,10 +228,8 @@ public static class LogisticsSystem
         Open.Clear();
         return best;
     }
-#endif
 
     // 运粮经过这块地折损几成；敌占的地块只有阵地前沿几块能穿过(否则返回 1，走不通)
-#if EC_PENDING
     private static float Loss(Realm kingdom, Cell zone, int depth)
     {
         Realm controller = FrontSystem.Controller(zone);
@@ -259,6 +256,7 @@ public static class LogisticsSystem
         return Mathf.Max(0f, corps.strength) / Mathf.Max(1, perSlot) * RationPerHouseholdYear / 12f;
     }
 
+#if EC_PENDING
     private static void Feed(Realm kingdom, List<CorpsData> list, bool foraging)
     {
         float saving = WarCommandSystem.QuartermasterSaving(kingdom);
@@ -379,10 +377,11 @@ public static class LogisticsSystem
         Person commander = WarCommandSystem.Commander(realm);
         if (commander == null || commander.plot != null) return;
         if (!ForageWanted(realm)) return;
-        PlotAsset asset = AssetManager.plots_library.get(ForagePlot);
-        if (asset == null || EmpireWorld.Current?.plots == null) return;
-        EmpireWorld.Current.plots.newPlot(commander, asset, false);
+        PlotKind asset = AssetManager.plots_library.get(ForagePlot);
+        if (asset == null || EmpireWorld.Current?.Plots == null) return;
+        EmpireWorld.Current.Plots.newPlot(commander, asset, false);
     }
+#endif
 
     private static bool ForageWanted(Realm realm)
     {
@@ -393,10 +392,8 @@ public static class LogisticsSystem
                                          FrontSystem.Controller(zone) is Realm controller && FrontSystem.Hostile(realm, controller));
         return abroad * 3 >= list.Count;
     }
-#endif
 
     // 决议：发起人须是本国统帅，本国在打仗、还没在征粮
-#if EC_PENDING
     public static bool CanForage(Person actor, bool needy)
     {
         Realm realm = FrontSystem.ModRealm(actor?.Realm);
@@ -414,6 +411,5 @@ public static class LogisticsSystem
             WarCommandSystem.TitleOf(realm), actor.FullName()), realm);
         return true;
     }
-#endif
 }
 }

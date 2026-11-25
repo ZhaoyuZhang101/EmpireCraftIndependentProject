@@ -194,7 +194,6 @@ public static class FamousTalentSystem
         return record;
     }
 
-#if EC_PENDING
     private static void Credit(Person actor, TalentKind kind, float amount, string deed, string deedArg)
     {
         if (amount <= 0f || !IsRealActor(actor)) return;
@@ -211,10 +210,8 @@ public static class FamousTalentSystem
         }
         RefreshRealm(record, actor);
     }
-#endif
 
     // 战线上一场仗打完(FrontSystem.ResolveCity 调用)：赢的一方的军团统领、战争统帅记战功
-#if EC_PENDING
     public static void OnBattle(IEnumerable<(Realm kingdom, CorpsData corps)> winners, string cityName,
         float winnerStrength, float loserStrength, bool captured, bool defended)
     {
@@ -241,13 +238,11 @@ public static class FamousTalentSystem
             }
         }
     }
-#endif
 
     #endregion
 
     #region 势力
 
-#if EC_PENDING
     private static void RefreshRealm(TalentRecord record, Person actor)
     {
         Realm kingdom = actor?.Realm;
@@ -265,10 +260,8 @@ public static class FamousTalentSystem
         }
         record.post = PostOf(actor, kingdom);
     }
-#endif
 
     // 官职/职务：统领写军名，战争统帅写统帅官名，名臣取在任官职
-#if EC_PENDING
     private static string PostOf(Person actor, Realm kingdom)
     {
         if (CorpsSystem.IsGeneral(actor))
@@ -284,7 +277,6 @@ public static class FamousTalentSystem
         string office = actor.GetPersonalIdentity()?.officeName;
         return string.IsNullOrWhiteSpace(office) ? "" : office;
     }
-#endif
 
     private static string RealmKey(TalentRecord record, TalentKind kind) =>
         (record.empire_id >= 0 ? "e" + record.empire_id : "k" + record.kingdom_id) + "/" + (int)kind;
@@ -314,7 +306,6 @@ public static class FamousTalentSystem
 #endif
 
     // 名臣候选：各帝国中央官员(中枢、各部；不含后宫、地方官)
-#if EC_PENDING
     private static void ScanMinisters()
     {
         foreach (Empire empire in ModClass.EMPIRE_MANAGER.ToList())
@@ -351,6 +342,7 @@ public static class FamousTalentSystem
         record.performance_seen = performance;
     }
 
+#if EC_PENDING
     private static void Assess()
     {
         foreach (TalentRecord record in Records.ToList())
@@ -390,7 +382,6 @@ public static class FamousTalentSystem
         return rank;
     }
 
-#if EC_PENDING
     private static void Advance(TalentRecord record, Person actor)
     {
         TalentRank target = RankFor(record.fame);
@@ -409,10 +400,8 @@ public static class FamousTalentSystem
         if (EcRandom.value > FoundChance * Season(actor, record.kind)) return;
         Found(record, actor, target, key);
     }
-#endif
 
     // 时势：战时名将易出、治世少；开国、中兴期都旺；末世(积弊重)逼出贤臣，昏君手下的贤臣被埋没
-#if EC_PENDING
     private static float Season(Person actor, TalentKind kind)
     {
         Realm kingdom = actor.Realm;
@@ -431,13 +420,11 @@ public static class FamousTalentSystem
         }
         return season;
     }
-#endif
 
     #endregion
 
     #region 成名与晋档
 
-#if EC_PENDING
     private static void Found(TalentRecord record, Person actor, TalentRank rank, string realmKey)
     {
         record.rank = rank;
@@ -454,10 +441,8 @@ public static class FamousTalentSystem
         ApplyTrait(actor, record);
         Announce(record, actor, "talent_promoted_history");
     }
-#endif
 
     // 神力册封：不看功业门槛、数量上限、冷却与时势，直接成名；已成名的再封一次晋一档(国柱封顶)
-#if EC_PENDING
     public static bool Bestow(Person actor, TalentKind kind)
     {
         if (!IsRealActor(actor)) return false;
@@ -471,7 +456,6 @@ public static class FamousTalentSystem
         else Promote(record, actor, next);
         return true;
     }
-#endif
 
     private static void SetTitle(TalentRecord record)
     {
@@ -485,20 +469,17 @@ public static class FamousTalentSystem
     // 剧本开局成批册封时不逐个播报(见 WorldMapScenario.SeatFamous)
     public static bool Quiet { get; set; }
 
-#if EC_PENDING
     private static void Announce(TalentRecord record, Person actor, string key)
     {
         if (Quiet) return;
         string content = string.Format(LM.Get(key), record.name, TitleText(record), RankName(record.rank), record.realm_name);
         TranslateHelper.LogEventMessage(content, actor.Realm);
     }
-#endif
 
     #endregion
 
     #region 陨落
 
-#if EC_PENDING
     public static void OnActorDied(Person actor, DeathCause type)
     {
         if (actor?.Record == null || !ByActor.TryGetValue(actor.Key, out TalentRecord record) || !record.alive) return;
@@ -517,7 +498,6 @@ public static class FamousTalentSystem
         };
         Fall(record, actor, fall);
     }
-#endif
 
     private static void Fall(TalentRecord record, Person actor, TalentFall fall)
     {

@@ -123,6 +123,7 @@ public static class WarCommandSystem
         data.war_commander_title = TitleKey(kingdom, MainWar(kingdom));
         Announce(kingdom, pick, LM.Get(data.war_commander_title), "war_commander_appointed");
     }
+#endif
 
     private static void AppointQuartermaster(Realm kingdom)
     {
@@ -134,10 +135,8 @@ public static class WarCommandSystem
         data.war_quartermaster_title = QuartermasterKey(kingdom);
         Announce(kingdom, pick, LM.Get(data.war_quartermaster_title), "war_quartermaster_appointed");
     }
-#endif
 
     // 本国成年人里某项能力最好的(在任官员 +3、贵族 +2)，不选君主与 exclude
-#if EC_PENDING
     private static Person Best(Realm kingdom, global::System.Func<Person, int> skill, long exclude)
     {
         Person pick = null;
@@ -145,7 +144,7 @@ public static class WarCommandSystem
         foreach (Person actor in kingdom.People)
         {
             if (actor?.Record == null || actor.IsGone() || !actor.Alive || !actor.IsAdult() || actor.IsRuler() ||
-                actor.Key == exclude || actor.asset == null || !actor.asset.civ || CityPopulationSystem.IsVehicle(actor)) continue;
+                actor.Key == exclude || actor.Asset == null || !actor.Asset.Civ || CityPopulationSystem.IsVehicle(actor)) continue;
             float score = skill(actor) + (actor.IsOnOffice() ? 3f : 0f) + (EmpireCaftActorJudgeClass.IsNoble(actor) ? 2f : 0f);
             if (score <= best) continue;
             best = score;
@@ -153,12 +152,10 @@ public static class WarCommandSystem
         }
         return pick;
     }
-#endif
 
     // 同一个人再被拜同一职(战事停了又起、罢了又拜)不再报
     private static readonly Dictionary<(long, string), long> Announced = new();
 
-#if EC_PENDING
     private static void Announce(Realm kingdom, Person actor, string title, string logKey)
     {
         if (Announced.TryGetValue((kingdom.Key, logKey), out long last) && last == actor.Key) return;
@@ -183,7 +180,6 @@ public static class WarCommandSystem
         data.war_quartermaster_id = -1L;
         data.war_quartermaster_title = "";
     }
-#endif
 
     // 这国眼下主打的那场仗(主攻或主守优先)；只在谋划开战时为 null
     private static War MainWar(Realm kingdom)
@@ -198,7 +194,6 @@ public static class WarCommandSystem
         return fallback;
     }
 
-#if EC_PENDING
     private static string Kind(Realm kingdom, War war)
     {
         bool attacking = war == null || war.IsAttacker(kingdom);
@@ -218,7 +213,6 @@ public static class WarCommandSystem
             !CultureService.SameKin(ours, theirs)) return "barbarian";
         return goal == WarGoal.吞并 ? "annex" : "attack";
     }
-#endif
 
     // 凯旋受赏(群友 2026-11-22 "集结规模十万及以上主将为大元帅，获胜赐爵，可册封名将")：一场仗打赢了(议和不算)，
     // 胜方主战之国的统帅——
@@ -286,7 +280,6 @@ public static class WarCommandSystem
         return total;
     }
 
-#if EC_PENDING
     private static string TitleKey(Realm kingdom, War war)
     {
         string kind = Kind(kingdom, war);
@@ -304,10 +297,8 @@ public static class WarCommandSystem
     private static string QuartermasterKey(Realm kingdom) =>
         Resolve(kingdom, "war_quartermaster", new[] { ModernStability.IsModern(kingdom) ? "modern" : "ancient" }) ??
         "war_quartermaster_generic_ancient";
-#endif
 
     // 本文化 → 制度线 → 通用，找第一个配了的官名
-#if EC_PENDING
     private static string Resolve(Realm kingdom, string prefix, string[] kinds)
     {
         string culture = CultureService.GetRealmCulture(kingdom);
@@ -323,6 +314,5 @@ public static class WarCommandSystem
         }
         return null;
     }
-#endif
 }
 }

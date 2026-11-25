@@ -57,7 +57,6 @@ public static class IdeologyFamilies
         faction != null && (faction.IsParty || faction.IsClique || faction.IdeologyChosen);
 
     // culture 不给就按派系所在帝国的文化(派系库里的、不挂帝国的按华夏原名)
-#if EC_PENDING
     public static string FactionLeaning(FixedFaction faction, string culture = null)
     {
         if (faction == null) return LM.Get("faction_stance_无");
@@ -66,7 +65,6 @@ public static class IdeologyFamilies
         culture ??= CultureDoctrines.CultureOf(faction);
         return faction.IsParty ? PartySystem.GetIdeologyName(ideology) : FactionLeaning(ideology, culture);
     }
-#endif
 
     // 只在朝堂里的立场(外戚、宦官、宗亲、军功)：不在民间流传
     public static bool IsCourtOnly(PartyIdeology ideology) =>
@@ -86,7 +84,6 @@ public static class IdeologyFamilies
         ideology is PartyIdeology.Authoritarianism or PartyIdeology.Fascism;
 
     // 政权信奉的理念，回退顺序：执政党 → 共和国建国理念 → 元首本人的信念 → 首都主流理念 → 中间派
-#if EC_PENDING
     public static PartyIdeology StateIdeology(Realm kingdom)
     {
         if (kingdom == null || kingdom.IsGone()) return PartyIdeology.Centrism;
@@ -102,6 +99,5 @@ public static class IdeologyFamilies
     }
 
     public static PartyIdeology StateIdeology(Empire empire) => StateIdeology(empire?.CoreKingdom);
-#endif
 }
 }

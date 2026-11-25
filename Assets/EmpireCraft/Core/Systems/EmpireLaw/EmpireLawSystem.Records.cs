@@ -55,10 +55,9 @@ public static partial class EmpireLawSystem
     #region 结案
 
     // 判了什么先写进生平(施刑前写：伏诛的人死后不再记经历)
-#if EC_PENDING
     private static void RecordSentenceHistory(LawEnforcementContext context)
     {
-        Person actor = context?.Actor;
+        Person actor = context?.Person;
         if (actor == null || actor.IsGone()) return;
         string punishments = context.Sentence != null && context.Sentence.Count > 0
             ? GetPunishmentsText(context.Sentence)
@@ -69,13 +68,11 @@ public static partial class EmpireLawSystem
         actor.RecordPersonalHistory(string.Format(LM.Get("personal_history_law_convicted"), context.LawName, punishments),
             relatedActorId: context.Accuser?.Key ?? -1L, major: major);
     }
-#endif
 
     // 定下结果，记卷宗与前科(同一案只记一次)。揭发罪行的计谋自己施刑，在写日志时补记(见 TranslateHelper.LogLawEnforcement)
-#if EC_PENDING
     public static void FinishCase(LawEnforcementContext context)
     {
-        if (context == null || context.CaseRecorded || context.Kingdom == null) return;
+        if (context == null || context.CaseRecorded || context.Realm == null) return;
         context.CaseRecorded = true;
         List<PunishmentLevel> applied = (context.AppliedPunishments ?? new List<PunishmentLevel>())
             .Where(p => p != PunishmentLevel.无罪).Distinct().ToList();
@@ -87,18 +84,18 @@ public static partial class EmpireLawSystem
 
         double now = EmpireWorld.Current != null ? GameClock.Now : 0d;
         string date = EmpireWorld.Current != null ? GameClock.DateText(now) : "";
-        PersonalClanIdentity identity = context.Identity ?? context.Actor?.GetPersonalIdentity();
+        PersonalClanIdentity identity = context.Identity ?? context.Person?.GetPersonalIdentity();
         var notes = new List<string>(context.Notes ?? new List<string>());
         if (context.FinePaid > 0) notes.Add("law_note_fine|" + context.FinePaid);
         if (context.PrisonYears > 0 && applied.Contains(PunishmentLevel.监禁))
             notes.Add((context.LifeTerm ? "law_note_life_term|" : "law_note_prison_term|") + context.PrisonYears);
-        AddCase(context.Kingdom, new LawCaseRecord
+        AddCase(context.Realm, new LawCaseRecord
         {
             timestamp = now,
             date = date,
-            actor_id = context.Actor?.data != null ? context.Actor.id : -1L,
+            actor_id = context.Person?.Record != null ? context.Person.Key : -1L,
             identity_id = identity?.id ?? -1L,
-            actor_name = context.ActorName ?? context.Actor?.getName() ?? identity?.name ?? "",
+            actor_name = context.ActorName ?? context.Person?.FullName() ?? identity?.name ?? "",
             law_type = (int)context.LawType,
             punishments = new List<PunishmentLevel>(applied),
             outcome = context.Outcome,
@@ -121,8 +118,8 @@ public static partial class EmpireLawSystem
         {
             timestamp = now,
             date = date,
-            kingdom_id = context.Kingdom.Key,
-            kingdom_name = context.Kingdom.data?.name ?? "",
+            kingdom_id = context.Realm.Key,
+            kingdom_name = context.Realm.Name ?? "",
             law_type = (int)context.LawType,
             punishments = new List<PunishmentLevel>(applied),
             outcome = context.Outcome
@@ -130,7 +127,6 @@ public static partial class EmpireLawSystem
         if (identity.law_convictions.Count > MaxConvictions)
             identity.law_convictions.RemoveRange(0, identity.law_convictions.Count - MaxConvictions);
     }
-#endif
 
     // 天平砝码存成"键|倍数|参数"(参数是人名、赃额，存下时的文字)
     private static List<string> ScaleEntries(List<LawFactor> factors) =>
@@ -168,8 +164,8 @@ public static partial class EmpireLawSystem
 #if EC_PENDING
     private static void Imprison(LawEnforcementContext context)
     {
-        Person actor = context?.Actor;
-        if (actor == null || actor.IsGone() || actor.IsRuler() || context.Kingdom == null || EmpireWorld.Current == null) return;
+        Person actor = context?.Person;
+        if (actor == null || actor.IsGone() || actor.IsRuler() || context.Realm == null || EmpireWorld.Current == null) return;
         PersonalClanIdentity identity = context.Identity ?? actor.GetPersonalIdentity();
         if (identity == null)
         {
@@ -183,12 +179,12 @@ public static partial class EmpireLawSystem
         {
             since = GameClock.Now,
             years = Math.Max(1, years),
-            kingdom_id = context.Kingdom.Key,
+            kingdom_id = context.Realm.Key,
             law_type = (int)context.LawType,
             grave = context.Grave,
             notable = context.Broadcast
         };
-        LawRealmState state = GetRealmState(context.Kingdom, true);
+        LawRealmState state = GetRealmState(context.Realm, true);
         if (state != null && !state.prisoners.Contains(identity.id)) state.prisoners.Add(identity.id);
     }
 #endif
@@ -252,7 +248,6 @@ public static partial class EmpireLawSystem
     }
 
     // 释放本国在押者：amnesty 为大赦(十恶不赦)，否则只放刑满的。返回放了几人
-#if EC_PENDING
     private static int ReleasePrisoners(Realm kingdom, LawRealmState state, bool amnesty)
     {
         if (kingdom == null || state?.prisoners == null || state.prisoners.Count == 0) return 0;
@@ -278,14 +273,12 @@ public static partial class EmpireLawSystem
         }
         return released;
     }
-#endif
 
     #endregion
 
     #region 狱政与大赦
 
     // 一年一次(国家 AI、首都查案时调)：刑满释放、清理处决记录；宽仁之国距上次大赦满十年后有机会恩赦
-#if EC_PENDING
     public static void TickRealm(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || EmpireWorld.Current == null) return;
@@ -305,11 +298,9 @@ public static partial class EmpireLawSystem
         if (state.last_amnesty >= 0d && now >= state.last_amnesty && GameClock.YearsSince(state.last_amnesty) < GraceAmnestyYears) return;
         if (EcRandom.value < stance.AmnestyChance) GrantAmnesty(kingdom, "law_amnesty_reason_grace");
     }
-#endif
 
     // 大赦：赦免此前犯下而未发觉的寻常罪行(查案时按大赦的时间作废，见 PardonedByAmnesty)，释放在押的寻常罪犯。
     // 帝国之内赦遍全帝国。一年内只赦一次(即位、改元同年只记一条)。返回赦了没有
-#if EC_PENDING
     public static bool GrantAmnesty(Realm kingdom, string reasonKey)
     {
         if (!Enabled || EmpireWorld.Current == null) return false;
@@ -351,11 +342,9 @@ public static partial class EmpireLawSystem
                 GetReasonText(reasonKey), released), realm);
         return true;
     }
-#endif
 
     // 新君即位大赦(帝国由 Empire.NewEmperor 调，不在帝国里的王国由 KingdomPatch 调)：只限君主制，
     // 帝国之内封国换君不赦，共和国、现代政体换元首不赦
-#if EC_PENDING
     public static void OnRulerAccession(Realm kingdom, Person ruler)
     {
         try
@@ -372,10 +361,8 @@ public static partial class EmpireLawSystem
             LogService.LogWarning($"[律法] 即位大赦失败：{exception.Message}");
         }
     }
-#endif
 
     // 改元大赦(由改元的计谋调)
-#if EC_PENDING
     public static void OnEraNameChanged(Empire empire)
     {
         try
@@ -389,7 +376,6 @@ public static partial class EmpireLawSystem
             LogService.LogWarning($"[律法] 改元大赦失败：{exception.Message}");
         }
     }
-#endif
 
     // 未发之罪是不是已在大赦之列(十恶不赦)
     private static bool PardonedByAmnesty(CrimeRecord record)
@@ -420,10 +406,9 @@ public static partial class EmpireLawSystem
     // 由 ApplyDeathPenalty 调(killed 含连坐的亲属)：
     //   · 严苛之国：每处决一案，官僚怨气 +1、农民 +0.5(夷三族加倍)，君主暴君值 +2(夷三族 +4)；
     //   · 不论宽严：五年内处决满 MassExecutionCount 人为滥刑，帝国正统 -3(独立王国官僚、农民怨气 +3)，五年至多一次
-#if EC_PENDING
     private static void OnExecutions(LawEnforcementContext context, int killed, bool kin)
     {
-        Realm realm = RealmKingdom(context?.Kingdom);
+        Realm realm = RealmKingdom(context?.Realm);
         if (realm == null || killed <= 0 || EmpireWorld.Current == null) return;
         if (GetLawStance(realm).Tier == LawStanceTier.严苛)
         {
@@ -431,7 +416,7 @@ public static partial class EmpireLawSystem
             AddRealmGrievance(realm, SocialClass.Officer, 1f * weight);
             AddRealmGrievance(realm, SocialClass.Peasant, 0.5f * weight);
             Person ruler = RealmRuler(realm);
-            if (ruler != null && ruler != context.Actor) ruler.AddTyrantValue(kin ? 4 : 2);
+            if (ruler != null && ruler != context.Person) ruler.AddTyrantValue(kin ? 4 : 2);
         }
 
         LawRealmState state = GetRealmState(realm, true);
@@ -453,7 +438,6 @@ public static partial class EmpireLawSystem
         TranslateHelper.LogEventMessage(string.Format(LM.Get("law_mass_execution_log"), RealmName(realm),
             state.executions.Count), realm);
     }
-#endif
 
     // 阶层怨气(民怨的来源之一，见 PopularGrievance)：帝国按帝国，独立王国按本国(本国还没有阶层怨气的不加)
     private static void AddRealmGrievance(Realm realm, SocialClass socialClass, float delta)
@@ -564,14 +548,12 @@ public static partial class EmpireLawSystem
         return string.Join(LM.Has("law_list_separator") ? LM.Get("law_list_separator") : ", ", parts);
     }
 
-#if EC_PENDING
     private static string RealmName(Realm realm)
     {
         Empire empire = RealmEmpire(realm);
         if (empire != null) return empire.GetEmpireName() ?? realm.Name;
         return realm.GetKingdomName() ?? realm.Name;
     }
-#endif
 
     #endregion
 

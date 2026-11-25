@@ -19,12 +19,9 @@ public static class WarReparationsSystem
     private static double _lastScan = -1d;
 
     // 败方(loser)向胜方(victor)赔款
-#if EC_PENDING
     public static void Impose(Realm loser, Realm victor) => Impose(loser, victor, ImmediateShare, true);
-#endif
 
     // 议和台上的赔款档(见 PeaceTermRules.IndemnityTiers)：当场付国库的 immediateShare，installments 另按月分付三年
-#if EC_PENDING
     public static void Impose(Realm loser, Realm victor, double immediateShare, bool installments)
     {
         try
@@ -58,7 +55,6 @@ public static class WarReparationsSystem
             LogService.LogWarning($"[EmpireCraft][赔款] 和约结算失败: {exception.Message}");
         }
     }
-#endif
 
     // 每月一次(挂 CityPatch 的世界扫描轮转)
 #if EC_PENDING

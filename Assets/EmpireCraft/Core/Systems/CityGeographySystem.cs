@@ -26,7 +26,6 @@ public static class CityGeographySystem
     private static readonly Dictionary<long, Geo> Cache = new();
     private static object _world;
 
-#if EC_PENDING
     public static float Factor(City city) => Get(city).factor;
     public static float Industry(City city) => Get(city).industry;
     public static float Commerce(City city) => Get(city).commerce;
@@ -72,7 +71,7 @@ public static class CityGeographySystem
                     wet++;
                     break;
             }
-            if (zone.LiquidTiles > 4 && !SeaRegionSystem.IsSea(zone)) wet++;
+            if (zone.LiquidCount > 4 && !SeaRegionSystem.IsSea(zone)) wet++;
         }
         float n = zones.Count;
         float coast = SeaRegionSystem.RegionsAround(city).Count > 0 ? 1f : 0f;
@@ -85,7 +84,6 @@ public static class CityGeographySystem
         geo.commerce = Clamp(1f + 0.4f * coast + 0.3f * river - 0.3f * roughShare - 0.4f * aridShare + Mathf.Min(0.4f, 0.08f * roads));
         return geo;
     }
-#endif
 
     private static float Clamp(float value) => Mathf.Clamp(value, 0.3f, 1.8f);
 }

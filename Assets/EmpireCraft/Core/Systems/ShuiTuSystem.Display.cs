@@ -24,7 +24,6 @@ public static partial class ShuiTuSystem
     });
 
     // 城：line 写地与境况，effect 写到档的折损(没到档为空)；color 按境况(相宜、在计未到档、到档)
-#if EC_PENDING
     public static bool DescribeCity(City city, out string line, out string effect, out string color)
     {
         line = effect = null;
@@ -58,10 +57,8 @@ public static partial class ShuiTuSystem
         line = string.Format(LM.Get("shuitu_line"), land, state);
         return true;
     }
-#endif
 
     // 王国(按所属政权)：line 写生活方式与直辖城数，state 写境况，effect 写到档的折损(没到档为空)
-#if EC_PENDING
     public static bool DescribeKingdom(Realm kingdom, out string line, out string state, out string effect, out string color)
     {
         line = state = effect = null;
@@ -92,6 +89,5 @@ public static partial class ShuiTuSystem
         else state = LM.Get(unit.Fit == Fit.None ? "shuitu_state_exempt" : "shuitu_state_fit");
         return true;
     }
-#endif
 }
 }

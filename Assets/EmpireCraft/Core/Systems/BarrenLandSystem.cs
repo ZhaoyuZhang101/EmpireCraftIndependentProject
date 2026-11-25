@@ -27,7 +27,6 @@ public static class BarrenLandSystem
     public static void ResetWorldState() => _lastScan = -1d;
 
     // 这块地是纯沙漠(1)、纯冻土(2)还是都不是(0)；城心那一块不算
-#if EC_PENDING
     public static int KindOf(Cell zone)
     {
         if (zone == null) return None;
@@ -41,6 +40,7 @@ public static class BarrenLandSystem
 
     public static bool BarrenAt(int x, int y) => Barren(EmpireWorld.Current?.CellAt(x, y)?.Zone);
 
+#if EC_PENDING
     public static void TryMonthlyScan()
     {
         if (EmpireWorld.Current?.Cities == null || ModClass.IS_CLEAR || !GameClock.Running || GameClock.Loading) return;
@@ -76,12 +76,12 @@ public static class BarrenLandSystem
         {
             if (budget <= 0) break;
             if (city?.Record == null || city.IsGone() || AncientWarfareCompatibility.OwnsObject(city)) continue;
-            foreach (Building building in city.buildings.ToList())
+            foreach (Building building in city.Buildings.ToList())
             {
                 if (budget <= 0) break;
                 // 城心的公所不拆(城心那块本来就不算，这里再挡一下)
-                if (building?.asset == null || building.IsGone() || building.current_tile == null ||
-                    building.asset.type == "type_hall" || !Barren(building.current_tile.zone)) continue;
+                if (building?.Asset == null || building.IsGone() || building.Cell == null ||
+                    building.Asset.Type == "type_hall" || !Barren(building.Cell.Zone)) continue;
                 building.startDestroyBuilding();
                 budget--;
             }

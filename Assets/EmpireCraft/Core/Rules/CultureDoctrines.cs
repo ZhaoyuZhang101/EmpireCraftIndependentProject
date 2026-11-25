@@ -100,7 +100,6 @@ public static class CultureDoctrines
     #region 取文化
 
     // 帝国：制度文化(同制度树)
-#if EC_PENDING
     public static string CultureOf(Empire empire)
     {
         if (empire?.data == null || empire.IsGone() || empire.CoreKingdom == null) return null;
@@ -113,27 +112,22 @@ public static class CultureDoctrines
             return null;
         }
     }
-#endif
 
     // 国家：帝国核心按帝国的制度文化，其余按本国文化(同 FactionEditor 的朝堂)
-#if EC_PENDING
     public static string CultureOf(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone()) return null;
         Empire empire = FactionEditor.EmpireOf(kingdom);
         return empire != null ? CultureOf(empire) : CultureService.GetRealmCulture(kingdom);
     }
-#endif
 
     // 派系：所在帝国(不挂帝国的取不到，按原名)
-#if EC_PENDING
     public static string CultureOf(FixedFaction faction)
     {
         if (faction == null || faction.EmpireId < 0) return null;
         Empire empire = faction.Empire;
         return empire == null || empire.IsArchived() ? null : CultureOf(empire);
     }
-#endif
 
     #endregion
 
@@ -154,9 +148,7 @@ public static class CultureDoctrines
     }
 
     // 文字按帝国的文化线(诉求结果等，见 TranslateHelper、ClaimTuning)：同 Key 的查法
-#if EC_PENDING
     public static string Text(string baseKey, Empire empire) => LM.Get(Key(baseKey, CultureOf(empire)));
-#endif
 
     // 学说名：古代理念按文化换说法，近代理念照旧
     public static string Name(PartyIdeology ideology, string culture) =>
@@ -226,7 +218,6 @@ public static class CultureDoctrines
     // 手选了理念的派系记着本谱系没有的古代理念(旧档里西方派系选了宦官、派系库里存的派系加进林地部族……)：按阶层坐标就近
     // 换成本谱系有的，优先同类(学说换学说、身份立场换身份立场)。只换派系记的理念，成员、占比、诉求不动。返回是否换了。
     // 华夏朋党由 CliqueSystem 按它自己的规矩管(阉党、后党是常设的阶级派系)，这里不碰
-#if EC_PENDING
     public static bool Normalize(FixedFaction faction)
     {
         if (faction == null || faction.IsParty || faction.IsClique || !faction.IdeologyChosen ||
@@ -246,7 +237,6 @@ public static class CultureDoctrines
         faction.Ideology = candidates.OrderBy(ideology => Vector2.Distance(PartySystem.GetPosition(ideology), position)).First();
         return true;
     }
-#endif
 
     #endregion
 }

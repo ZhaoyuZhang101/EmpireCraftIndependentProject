@@ -83,7 +83,6 @@ public static class MilitaryAccessSystem
         Find(host, guest) is { } grant && Now() < grant.until && !host.IsAtWarWith(guest);
 
     // 签约或续约(续约不改起始时间)
-#if EC_PENDING
     public static void Sign(Realm host, Realm guest, bool longTerm, bool byGod)
     {
         double now = Now();
@@ -102,10 +101,8 @@ public static class MilitaryAccessSystem
         Version++;
         Log(renew ? "military_access_renewed" : "military_access_signed", host, guest, !renew, years);
     }
-#endif
 
     // 作废 host 许 guest 的借道；没有返回假
-#if EC_PENDING
     public static bool Revoke(Realm host, Realm guest, string key, bool history = true)
     {
         MilitaryAccessGrant grant = Find(host, guest);
@@ -114,7 +111,6 @@ public static class MilitaryAccessSystem
         Log(key, host, guest, history);
         return true;
     }
-#endif
 
     private static void Remove(MilitaryAccessGrant grant)
     {
@@ -126,7 +122,6 @@ public static class MilitaryAccessSystem
     // ───────── AI 的需求 ─────────
     // 军团这一趟行军要穿过的第三国(不是本方也不是敌方的地，见 CorpsSystem 行军)：记下，年底向它借道。
     // 已经许了借道的也记：快到期时看还用不用得着(见 Ask，还早的不重签)
-#if EC_PENDING
     public static void NoteCrossing(Realm side, List<int> path)
     {
         if (side?.Record == null || path == null || path.Count < 3 || Demand.Count >= MaxDemand) return;
@@ -140,7 +135,6 @@ public static class MilitaryAccessSystem
             AddDemand(guest, FrontSystem.ModRealm(owner));
         }
     }
-#endif
 
     // 交战时近处的敌城走陆路到不了(见 FrontSystem.LandRoute)：年底看是不是被第三国隔着
     public static void NoteBlocked(Realm side, City target)
@@ -310,13 +304,11 @@ public static class MilitaryAccessSystem
         return kingdom?.Record != null && !kingdom.IsGone() ? kingdom : null;
     }
 
-#if EC_PENDING
     private static void Log(string key, Realm host, Realm guest, bool history, int years = 0)
     {
         string text = string.Format(LM.Get(key), host.GetKingdomName(), guest.GetKingdomName(), years);
         if (history) TranslateHelper.LogEventMessage(text, host);
         else TranslateHelper.LogEventOnly(text, host);
     }
-#endif
 }
 }

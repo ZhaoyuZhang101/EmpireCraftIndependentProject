@@ -813,8 +813,8 @@ public static class ScenarioEditing
         get
         {
             if (_speciesKeys is { Count: > 0 }) return _speciesKeys;
-            List<string> civ = EmpireCraft.Core.ConfigData.AllCivSpecies.Where(asset => !string.IsNullOrEmpty(asset?.id))
-                .Select(asset => asset.id).Distinct().ToList();
+            List<string> civ = EmpireCraft.Core.ConfigData.AllCivSpecies.Where(asset => !string.IsNullOrEmpty(asset?.Id))
+                .Select(asset => asset.Id).Distinct().ToList();
             _speciesKeys = MainSpecies.Where(civ.Contains).Concat(civ.Where(id => !MainSpecies.Contains(id))).ToList();
             return _speciesKeys;
         }

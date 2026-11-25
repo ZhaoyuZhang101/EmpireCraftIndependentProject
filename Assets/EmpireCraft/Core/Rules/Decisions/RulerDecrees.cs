@@ -86,7 +86,6 @@ public static class RulerDecrees
 #endif
 
     // ───────── 可选的城 ─────────
-#if EC_PENDING
     public static List<City> Candidates(string id, Person actor)
     {
         if (!Ruler(actor)) return new List<City>();
@@ -100,7 +99,6 @@ public static class RulerDecrees
             default: return new List<City>();
         }
     }
-#endif
 
     // 迁都可去的城：本国直辖的城，不是眼下的都城，没被占着、不在代管里；人口多的在前
     private static List<City> CapitalCandidates(Realm realm)
@@ -129,20 +127,20 @@ public static class RulerDecrees
 
     // ───────── 立项：把点的那座城记到决议上 ─────────
 #if EC_PENDING
-    private static bool StartWithCity(Person actor, PlotAsset asset, bool forced)
+    private static bool StartWithCity(Person actor, PlotKind asset, bool forced)
     {
         City target = DecisionSystem.PendingTarget;
-        if (target?.Record == null || actor == null || actor.IsGone() || EmpireWorld.Current?.plots == null || actor.plot?.isActive() == true) return false;
-        Plot plot = EmpireWorld.Current.plots.newPlot(actor, asset, forced);
+        if (target?.Record == null || actor == null || actor.IsGone() || EmpireWorld.Current?.Plots == null || actor.plot?.isActive() == true) return false;
+        Plot plot = EmpireWorld.Current.Plots.newPlot(actor, asset, forced);
         if (plot == null) return false;
         plot.target_city = target;
         return true;
     }
 
-    private static bool StartPlain(Person actor, PlotAsset asset, bool forced)
+    private static bool StartPlain(Person actor, PlotKind asset, bool forced)
     {
-        if (actor == null || actor.IsGone() || EmpireWorld.Current?.plots == null || actor.plot?.isActive() == true) return false;
-        return EmpireWorld.Current.plots.newPlot(actor, asset, forced) != null;
+        if (actor == null || actor.IsGone() || EmpireWorld.Current?.Plots == null || actor.plot?.isActive() == true) return false;
+        return EmpireWorld.Current.Plots.newPlot(actor, asset, forced) != null;
     }
 
     private static City TargetOf(Person actor) => actor?.plot?.target_city;
@@ -183,8 +181,8 @@ public static class RulerDecrees
             MultiCapitalSystem.Yearly(court);
         }
         AdministrativeControlSystem.Refresh(realm);
-        PureMapPatch.Redraw(target);
-        if (old != null) PureMapPatch.Redraw(old);
+        GameView.Redraw(target);
+        if (old != null) GameView.Redraw(old);
         // 迁都营建宫室、官署，征发民力：记工役，算大兴土木(见 CorveeSystem)
         CorveeSystem.Add(realm, CorveeSystem.CapitalMove, true);
         if (court != null)
@@ -274,9 +272,9 @@ public static class RulerDecrees
     private static void Add(string id, string icon, float progress, Func<Person, bool> possible, Func<Person, bool> proceed, Func<Person, bool> act)
     {
         bool targets = HasTargets(id);
-        var asset = new PlotAsset
+        var asset = new PlotKind
         {
-            id = id, path_icon = "ui/icons/plots/" + icon, group_id = "empirecraft_diplomacy", is_basic_plot = true, min_level = 1,
+            Id = id, path_icon = "ui/icons/plots/" + icon, group_id = "empirecraft_diplomacy", is_basic_plot = true, min_level = 1,
             progress_needed = progress, can_be_done_by_king = true, money_cost = Rules[id].cost,
             check_is_possible = actor => Guard(id, "条件", actor, possible),
             check_should_continue = actor => Guard(id, "复核", actor, proceed),

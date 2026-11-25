@@ -224,13 +224,12 @@ public static class FactorySystem
     public static string TypeName(string type) => LM.Get("factory_type_" + type);
 
     // 本城能建的门类(本文化研究到了；船厂要有码头)
-#if EC_PENDING
     public static List<string> Unlocked(City city)
     {
         var result = new List<string>();
         string culture = city == null ? null : TechnologySystem.GetCultureOf(city);
         if (string.IsNullOrEmpty(culture)) return result;
-        bool docks = city.hasBuildingType("type_docks");
+        bool docks = city.HasBuildingType("type_docks");
         foreach ((string id, string tech, _) in Types)
         {
             if (!TechnologySystem.HasTech(culture, tech)) continue;
@@ -239,7 +238,6 @@ public static class FactorySystem
         }
         return result;
     }
-#endif
 
     // 全部门类(手动放、手动添厂用：不看科技)
     public static List<string> AllTypes() => Types.Select(type => type.id).ToList();
@@ -255,7 +253,6 @@ public static class FactorySystem
         unit == null ? 0 : Math.Max(1, unit.level) * TechnologySystem.Config.industry.jobs_per_factory;
 
     // 本城厂区里的厂按等级折成几座工厂(见 VirtualIndustrySystem.Factories)：本文化还没解锁的门类不算
-#if EC_PENDING
     public static int Units(City city)
     {
         if (All.Count == 0 || city == null) return 0;
@@ -270,10 +267,8 @@ public static class FactorySystem
             }
         return total;
     }
-#endif
 
     // 每年产值进本城(见 PopulationEconomySystem)
-#if EC_PENDING
     public static void Produce(City city, CityPopulationData data, float years)
     {
         if (All.Count == 0 || city == null || data == null || years <= 0f) return;
@@ -298,7 +293,6 @@ public static class FactorySystem
         sectors.TryGetValue(key, out float previous);
         sectors[key] = previous + made;
     }
-#endif
 
     // AI 营建的花费(神力手动的不花钱)：添一座厂按门类年产值，升级按年产值乘新等级的一半，扩建每级 100，新建一片小厂区 80 加里面的厂
     private const int ExpandCostPerSize = 100, SiteCost = 80;
@@ -344,9 +338,7 @@ public static class FactorySystem
 
     // 营地(游牧、林地)不建古代工场(用户 2026-10-22 "游牧哪里来的作坊"，问答选"古代不建，近代才建")：
     // 有了近代厂才建、只建近代厂；之前 AI 建下的古代工场、火药坊拆掉(神力手动放的厂区不动，见 FactorySite.manual)
-#if EC_PENDING
     private static bool Camp(City city) => CityStyleSystem.Camp(CityStyleSystem.Established(city));
-#endif
 
     // 分量低于这个的门类，AI 宁可不建(产品跌到底价四分之一附近，或原料奇缺)
     private const float GlutAppeal = 0.3f;
@@ -465,14 +457,12 @@ public static class FactorySystem
 
     #region 营建
 
-#if EC_PENDING
     private static void Changed(FactorySite site)
     {
         Revision++;
         City city = CityOf(site);
-        if (city != null) PureMapPatch.Redraw(city);
+        if (city != null) GameView.Redraw(city);
     }
-#endif
 
     // 外国公司来设厂(见 CompanySystem.BuildAbroad)：城区边上新建一片民营的小厂区，厂都是那家公司的门类；放不下返回 null
 #if EC_PENDING
@@ -597,7 +587,6 @@ public static class FactorySystem
         return null;
     }
 
-#if EC_PENDING
     public static string Remove(FactorySite site)
     {
         if (site == null || !All.Remove(site.id)) return null;
@@ -606,12 +595,10 @@ public static class FactorySystem
         Changed(site);
         return string.Format(LM.Get("factory_removed"), Label(site));
     }
-#endif
 
     public static string Label(FactorySite site) =>
         !string.IsNullOrEmpty(site?.name) ? site.name : LM.Get("factory_size_" + (site?.size ?? 1));
 
-#if EC_PENDING
     public static void Rename(FactorySite site, string name)
     {
         string value = (name ?? "").Trim();
@@ -629,7 +616,6 @@ public static class FactorySystem
         site.seed = seed;
         Changed(site);
     }
-#endif
 
     // 扩建、缩建：缩到放不下的厂从末尾拆掉；扩建要四周放得下(manual：小窗口里手动扩建，只看不出地图)
 #if EC_PENDING
@@ -651,6 +637,7 @@ public static class FactorySystem
         Changed(site);
         return null;
     }
+#endif
 
     public static string AddUnit(FactorySite site, string type)
     {
@@ -667,10 +654,8 @@ public static class FactorySystem
         site.units.RemoveAt(index);
         Changed(site);
     }
-#endif
 
     // 改建：这一座拆了原地另建一座别的门类(从一级起)
-#if EC_PENDING
     public static void Rebuild(FactorySite site, int index, string type)
     {
         if (site == null || index < 0 || index >= site.units.Count || TypeIndex(type) < 0) return;
@@ -686,7 +671,6 @@ public static class FactorySystem
         site.units[index].level = level;
         Changed(site);
     }
-#endif
 
     #endregion
 }

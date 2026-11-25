@@ -159,14 +159,14 @@ public static class DeJureShareSystem
     }
 
     // 王国法理的城连同兼属它的城
-#if EC_PENDING
     public static IEnumerable<City> AllCities(KingdomTitle title)
     {
         if (title == null) yield break;
-        foreach (City city in title.getCities()) yield return city;
+        foreach (City city in title.GetCities()) yield return city;
         foreach (City city in SharedCities(title)) yield return city;
     }
 
+#if EC_PENDING
     public static bool ShareTitle(City city, KingdomTitle title, bool manual, double since = -1d)
     {
         if (!Valid(city) || title == null || title.IsGone() || city.GetTitleID() == title.Key) return false;
@@ -469,15 +469,13 @@ public static class DeJureShareSystem
     }
 
     // 王国法理有城挨着这个帝国法理(城本来记的核心)
-#if EC_PENDING
     private static bool Borders(KingdomTitle title, EmpireCore core)
     {
-        foreach (City city in title.getCities())
+        foreach (City city in title.GetCities())
             foreach (City other in Neighbours(city))
                 if (other.GetEmpireCoreID() == core.id) return true;
         return false;
     }
-#endif
 
     private static IEnumerable<City> Neighbours(City city)
     {
@@ -532,7 +530,7 @@ public static class DeJureShareSystem
 
     private static void Touch(KingdomTitle title)
     {
-        foreach (City city in title?.getCities() ?? Enumerable.Empty<City>()) Touch(city);
+        foreach (City city in title?.GetCities() ?? Enumerable.Empty<City>()) Touch(city);
         foreach (City city in SharedCities(title)) Touch(city);
     }
 

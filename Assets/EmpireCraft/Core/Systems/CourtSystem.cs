@@ -39,7 +39,6 @@ public static partial class CourtSystem
 
     #region 查询
 
-#if EC_PENDING
     public static bool Applies(Empire empire)
     {
         Regime regime = empire?.CoreKingdom?.GetRegime();
@@ -94,20 +93,16 @@ public static partial class CourtSystem
             }
         };
     }
-#endif
 
     // 议事会：内阁 / 选帝侯 / 元老；周、汉、唐是中央各官职的长官
-#if EC_PENDING
     public static List<Person> Council(Empire empire) => CouncilKind(empire) switch
     {
         CourtCouncilKind.None => new List<Person>(),
         CourtCouncilKind.Zhou or CourtCouncilKind.Han or CourtCouncilKind.ThreeDepartments => CentralHolders(empire),
         _ => empire.GetCabinetMembers()
     };
-#endif
 
     // 议程官：首辅 / 中书令 / 丞相 / 首席选帝侯 / 首席元老；周天子临朝，诸臣直陈，没有议程官
-#if EC_PENDING
     public static Person AgendaSetter(Empire empire) => CouncilKind(empire) switch
     {
         CourtCouncilKind.Zhou => null,
@@ -115,12 +110,10 @@ public static partial class CourtSystem
         CourtCouncilKind.ThreeDepartments => DepartmentHead(empire, ZhongshuOffice),
         _ => Council(empire).FirstOrDefault()
     };
-#endif
 
     public static bool IsBoycotting(CourtFactionState state) => state != null && state.grievance >= 60f;
 
     // 廷议权重：派系势力；有议事会时一半看议事会席位
-#if EC_PENDING
     public static Dictionary<FixedFaction, float> Weights(Empire empire, List<FixedFaction> factions)
     {
         List<Person> council = Council(empire);
@@ -148,7 +141,6 @@ public static partial class CourtSystem
         return memorial != null && claim != null && claim.factionID == memorial.proposer &&
                claim.type.ToString() == memorial.claim;
     }
-#endif
 
     public static string IssueName(string claim) =>
         Enum.TryParse(claim, out TemporaryFactionType type) ? IssueName(type) : claim;
@@ -165,12 +157,9 @@ public static partial class CourtSystem
 #endif
 
     // 施行速度：议事会里支持的比例越高越快，反对派掣肘拖慢
-#if EC_PENDING
     public static float ProgressMultiplier(Empire empire, TemporaryFaction claim) => ProgressMultiplier(empire, claim, null);
-#endif
 
     // factors 不为空时把各项倍数记下来，诉求天平页逐项列出(用户 2026-11-10 "推动诉求也要加天平页面""这样才能知道成功还是没成功")
-#if EC_PENDING
     public static float ProgressMultiplier(Empire empire, TemporaryFaction claim, List<CourtScaleFactor> factors)
     {
         if (!Applies(empire) || !IsMemorialClaim(empire, claim)) return 1f;
@@ -206,7 +195,6 @@ public static partial class CourtSystem
         }
         return multiplier;
     }
-#endif
 
     private static bool Supports(CourtMemorial memorial, FixedFaction faction) =>
         faction != null && memorial.stances.TryGetValue(faction.GetID(), out int stance) && stance > 0;
@@ -342,10 +330,8 @@ public static partial class CourtSystem
 #endif
 
     // 上奏一派与最大派系的占比相差不超过 ContestGap：廷议不当场否决，交皇帝裁决
-#if EC_PENDING
     private static bool Contender(Empire empire, FixedFaction faction) =>
         faction != null && faction.CentralRatio >= Factions(empire).Select(other => other.CentralRatio).DefaultIfEmpty(0).Max() - ContestGap;
-#endif
 
     // ② 票拟
 #if EC_PENDING
@@ -392,7 +378,6 @@ public static partial class CourtSystem
 
     // 廷议各派表态与权重：上奏一派赞成；盟友、学说朋党的靠山观望时转赞成；罢朝的一律反对；廷议前谈成的交换照换来的表态
     // (见 CourtSystem.Bargain)。廷议与诉求天平页的预估共用(用户 2026-11-10 "推动诉求也要加天平页面""这样才能知道成功还是没成功")
-#if EC_PENDING
     public static List<(FixedFaction faction, int stance, float weight)> DebateStances(Empire empire, TemporaryFaction claim,
         FixedFaction proposer, CourtMemorial memorial = null)
     {
@@ -411,7 +396,6 @@ public static partial class CourtSystem
         }
         return result;
     }
-#endif
 
     // 赞成率：赞成的权重 ÷(赞成 + 反对)，观望的不算；都观望按五成
     public static float SupportShare(IEnumerable<(FixedFaction faction, int stance, float weight)> stances)
@@ -426,9 +410,7 @@ public static partial class CourtSystem
     }
 
     // 廷议不足三成五也不当场否决(势均可争奏，交皇帝裁决)
-#if EC_PENDING
     public static bool CanContest(Empire empire, FixedFaction proposer) => Contender(empire, proposer);
-#endif
 
     // ③ 廷议
 #if EC_PENDING
@@ -511,7 +493,7 @@ public static partial class CourtSystem
                     memorial.decision = decision;
                     return;
                 }
-                claim.pusherType = MetaType.None;
+                claim.pusherType = EntityKind.None;
                 // 准奏了但国库拿不出施行经费：先留中待国库充裕，再拿不出就作罢
                 if (!claim.CanAffordBudget())
                 {
@@ -682,7 +664,6 @@ public static partial class CourtSystem
 
     // 票拟这一步的预估(诉求天平页)：各项是过关的概率，乘起来是上达廷议的把握。不在议事会又没有盟友坐席的只有六成上达；
     // 议程官所属派系反对的，资本够疏通也只有一半能过，不够就压下
-#if EC_PENDING
     public static List<CourtScaleFactor> DraftOutlook(Empire empire, CourtMemorial memorial, TemporaryFaction claim,
         FixedFaction proposer)
     {
@@ -712,13 +693,11 @@ public static partial class CourtSystem
         }
         return lines;
     }
-#endif
 
     // 争奏时投入的影响力与打点：至多加三成
     private static float Lobbying(CourtMemorial memorial) => Mathf.Min(0.3f, Mathf.Max(0f, memorial?.bid ?? 0f) / 100f);
 
     // 皇帝本人的立场：所属派系的立场，加上性格(好大喜功、贪财、多疑……)
-#if EC_PENDING
     public static float EmperorStance(Person emperor, TemporaryFactionType issue)
     {
         if (emperor?.Record == null) return 0f;
@@ -762,7 +741,6 @@ public static partial class CourtSystem
     }
 
     private static bool FactionExists(Empire empire, string id) => FindFaction(empire, id) != null;
-#endif
 
     // ⑤ 施行：诉求结束后结算
 #if EC_PENDING
@@ -802,6 +780,7 @@ public static partial class CourtSystem
         args.AddRange(extra);
         Close(empire, state, logKey, args.ToArray());
     }
+#endif
 
     private static void Close(Empire empire, CourtState state, string logKey, params object[] args)
     {
@@ -813,10 +792,8 @@ public static partial class CourtSystem
         state.memorial = null;
         ClearDraft(empire);
     }
-#endif
 
     // 奏议收场时记入往期：走到哪一步、怎么收场、廷议与批红的读数(用户 2026-11-10 "推动诉求也要加天平页面""这样才能知道成功还是没成功")
-#if EC_PENDING
     private static void Archive(Empire empire, CourtState state, string logKey, string text)
     {
         CourtMemorial memorial = state?.memorial;
@@ -837,7 +814,6 @@ public static partial class CourtSystem
         state.history.Insert(0, record);
         if (state.history.Count > HistorySize) state.history.RemoveRange(HistorySize, state.history.Count - HistorySize);
     }
-#endif
 
     public static string Log(CourtState state, string key, params object[] args)
     {

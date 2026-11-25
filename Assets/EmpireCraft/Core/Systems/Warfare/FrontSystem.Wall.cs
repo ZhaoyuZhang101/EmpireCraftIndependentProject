@@ -68,7 +68,6 @@ public static partial class FrontSystem
 #endif
 
     // 诊断：隔城墙攻坚的交战(每 2 秒最多一行)
-#if EC_PENDING
     private static void LogWall(City city, Realm attacker, Realm owner, bool breach, float fort, float ratio)
     {
         float now = Time.unscaledTime;
@@ -79,6 +78,5 @@ public static partial class FrontSystem
         LogService.LogInfo($"[EmpireCraft][隔墙攻坚] {city.GetCityName()}：{attacker.GetKingdomName()} 隔城墙攻 {owner.GetKingdomName()}，" +
                            $"攻方战力 ×{WallAttackFactor(breach):0.##}，推进速度 ×{WallPaceFactor(breach):0.##}{extra}，攻方胜算 {ratio:0.00}");
     }
-#endif
 }
 }

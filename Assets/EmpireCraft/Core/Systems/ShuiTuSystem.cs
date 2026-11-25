@@ -148,39 +148,33 @@ public static partial class ShuiTuSystem
     public static float SettledCombatFor(int tier) => SettledCombat[Clamp(tier)];
 
     // 离草游牧的农地城征兵打几折：军制的征兵比例(十户制 army_mobilization 一成五)按档往一成回落；本就不过一成的不折
-#if EC_PENDING
     public static float NomadLevy(Realm kingdom, int tier)
     {
         if (tier <= 0 || kingdom == null) return 1f;
         float share = CityPopulationSystem.DoctrineOf(kingdom).LevyShare;
         return share > BaseLevyShare ? (share - (share - BaseLevyShare) * Clamp(tier) / MaxTier) / share : 1f;
     }
-#endif
 
     #endregion
 
     #region 效果
 
     // 这座城眼下所属政权的结算(换了主人、新主人还没结算的不算)
-#if EC_PENDING
     private static bool Lookup(City city, out CityInfo info, out UnitInfo unit)
     {
         info = default;
         unit = null;
         return city?.Record != null && city.Realm != null && CityInfos.TryGetValue(city.Key, out info) &&
-               info.Kingdom == city.Realm.Key && Units.TryGetValue(info.Unit, out unit);
+               info.Realm == city.Realm.Key && Units.TryGetValue(info.Unit, out unit);
     }
-#endif
 
     private static UnitInfo UnitInfoOf(Realm kingdom) =>
         kingdom?.Record != null && KingdomUnits.TryGetValue(kingdom.Key, out long id) && Units.TryGetValue(id, out UnitInfo info)
             ? info : null;
 
     // 离草游牧治下的农地城：离草档位；别的城 0
-#if EC_PENDING
     public static int OffGrassTier(City city) =>
         !CompositeEmpireService.FixedCourt(city?.Realm) && Lookup(city, out CityInfo info, out UnitInfo unit) && unit.Fit == Fit.Nomad && unit.OffGrass && !info.Dry ? unit.OffTier : 0;
-#endif
 
     // 政权(按所属政权)的离草档位；不在离草 0
     public static int OffGrassTier(Realm kingdom)
@@ -192,10 +186,8 @@ public static partial class ShuiTuSystem
     }
 
     // 只宜农地的政权直辖的旱地城：不服水土的档位；别的城 0
-#if EC_PENDING
     public static int UnfitTier(City city) =>
         Lookup(city, out CityInfo info, out UnitInfo unit) && unit.Fit == Fit.Farm && info.Dry ? info.Tier : 0;
-#endif
 
     // 政权不服水土的旱地城里最高的档(旱地交战按它打折)
     public static int UnfitTop(Realm kingdom)
@@ -205,25 +197,19 @@ public static partial class ShuiTuSystem
     }
 
     // 兵源打几折(见 CorpsSystem.Mobilize 逐城累加兵源)：离草游牧的农地城征兵比例回落；不服水土的旱地城兵源打折
-#if EC_PENDING
     public static float LevyFactor(City city)
     {
         int off = OffGrassTier(city);
         return off > 0 ? NomadLevy(city.Realm, off) : SettledLevyFor(UnfitTier(city));
     }
-#endif
 
     // 自然稳定度扣多少(见 CityStabilitySystem.LocalPressures)：离草游牧的农地城、不服水土的旱地城
-#if EC_PENDING
     public static float StabilityLoss(City city) => StabilityFor(Math.Max(OffGrassTier(city), UnfitTier(city)));
 
     public static string DescribeStability(City city) => string.Format(LM.Get("shuitu_stability_detail"), StabilityLoss(city));
-#endif
 
     // 赋税收几成(见 TreasurySystem.CollectResidentTax，与鞭长莫及的系数相乘)：不服水土的旱地城少收
-#if EC_PENDING
     public static float TaxFactor(City city) => SettledTaxFor(UnfitTier(city));
-#endif
 
     // 交战攻守打几折(见 FrontSystem.ResolveCity)：dryGround 是交战的那块地是不是旱地(TerrainSystem.IsDry)；
     // 离草的游牧在非旱地上打折，不服水土的定居政权在旱地上按它最高的档打折
@@ -241,9 +227,7 @@ public static partial class ShuiTuSystem
     #region 地
 
     // 旱地城(按城缓存)
-#if EC_PENDING
     public static bool IsDryCity(City city) => Dry(city).Dry;
-#endif
 
     // 本朝故土：城在统治它的帝国自己的帝国法理里(本来的或兼属的，见 DeJureShareSystem.CoresOf)
     public static bool Homeland(Realm unit, City city)
@@ -292,7 +276,6 @@ public static partial class ShuiTuSystem
 #endif
 
     // 城领土陆地里旱地占几成(显示用)
-#if EC_PENDING
     public static float DryShare(City city) => Dry(city).Share;
 
     private static DryEntry Dry(City city)
@@ -314,14 +297,12 @@ public static partial class ShuiTuSystem
         DryCache[city.Key] = entry;
         return entry;
     }
-#endif
 
     #endregion
 
     #region 生活方式
 
     // 政权：帝国核心连同它直辖的成员；间接统治的成员(羁縻、兀鲁思、封建诸侯……)、定居帝国里的游牧成员自成一体
-#if EC_PENDING
     public static Realm UnitOf(Realm kingdom)
     {
         if (!Valid(kingdom)) return null;
@@ -347,7 +328,6 @@ public static partial class ShuiTuSystem
         if (RegimeManager.IsPrimitive(regime)) return CompositeEmpireService.IsNomadicCulture(culture) ? Fit.Nomad : Fit.None;
         return DryNative(culture) ? Fit.Both : Fit.Farm;
     }
-#endif
 
     // 本族故地多在旱地的文化：游牧文化(改行定居的)、带 dry_native 的，或以它为主流的城里旱地城过半
     public static bool DryNative(string culture)
@@ -405,7 +385,6 @@ public static partial class ShuiTuSystem
         GameClock.YearsSince(info.At) >= 1;
 
     // 一次排进最多 16 个政权，轮着来
-#if EC_PENDING
     private static void Refill()
     {
         UpdateCultures();
@@ -419,10 +398,8 @@ public static partial class ShuiTuSystem
             if (Valid(kingdom) && kingdom.HasCities() && UnitOf(kingdom) == kingdom && Due(kingdom)) Pending.Enqueue(kingdom.Key);
         }
     }
-#endif
 
     // 政权直辖的城(连同记下直辖的成员国)
-#if EC_PENDING
     private static List<City> DirectCities(Realm unit, List<Realm> kingdoms)
     {
         kingdoms.Add(unit);
@@ -437,6 +414,7 @@ public static partial class ShuiTuSystem
         return cities;
     }
 
+#if EC_PENDING
     private static void Pass(Realm unit)
     {
         double now = GameClock.Now;
@@ -518,7 +496,6 @@ public static partial class ShuiTuSystem
 #endif
 
     // 离草结束(回到旱地，或改了政体)：到过档的记入史书
-#if EC_PENDING
     private static void EndOffGrass(Realm unit, KingdomExtension.KingdomExtraData extra, bool steppe)
     {
         if (extra.shuitu_offgrass_tier > 0)
@@ -534,10 +511,8 @@ public static partial class ShuiTuSystem
         extra.shuitu_offgrass_since = -1d;
         extra.shuitu_offgrass_tier = 0;
     }
-#endif
 
     // 走档记入史书(只记加深)
-#if EC_PENDING
     private static void RecordTiers(Realm unit, UnitInfo info, KingdomExtension.KingdomExtraData extra)
     {
         if (info.OffTier > extra.shuitu_offgrass_tier)
@@ -549,14 +524,12 @@ public static partial class ShuiTuSystem
                 info.UnfitYears, info.Unfit, info.UnfitTop));
         extra.shuitu_unfit_tier = info.UnfitTop;
     }
-#endif
 
     #endregion
 
     #region 诊断
 
     // [水土]：到档的政权每年一行(每个政权一年只结算一次)，没到档的只在状态变了时记一行
-#if EC_PENDING
     private static void Diagnose(Realm unit, UnitInfo info)
     {
         bool offGrass = info.Fit == Fit.Nomad && info.OffGrass;
@@ -583,7 +556,6 @@ public static partial class ShuiTuSystem
                                $"最久{info.UnfitYears}年 最高第{info.UnfitTop}档 旱地城兵源×{SettledLevyFor(info.UnfitTop):0.0} " +
                                $"赋税×{SettledTaxFor(info.UnfitTop):0.0} 旱地交战×{SettledCombatFor(info.UnfitTop):0.00}");
     }
-#endif
 
     private static string FitName(Fit fit) => fit switch
     {

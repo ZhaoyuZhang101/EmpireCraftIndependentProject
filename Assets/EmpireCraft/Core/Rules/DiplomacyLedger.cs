@@ -95,6 +95,7 @@ public static class DiplomacyLedger
 #if EC_PENDING
     public static bool Allied(Realm a, Realm b) =>
         a != null && b != null && a.hasAlliance() && b.hasAlliance() && Alliance.isSame(a.getAlliance(), b.getAlliance());
+#endif
 
     public static string Standing(Realm kingdom)
     {
@@ -102,7 +103,6 @@ public static class DiplomacyLedger
         Realm top = TopOf(kingdom);
         return top != null && top != kingdom ? $"{type} · {RoleOf(kingdom, top)}" : type;
     }
-#endif
 
     // ───────── 附属 ─────────
     // 直接附属：封建附庸、殖民地、帝国成员(帝国之主)、朝贡国(帝国之主)、关税同盟成员不算
@@ -166,7 +166,6 @@ public static class DiplomacyLedger
     // 宗主一系的树：根在前，附属按 RoleOf 写身份(key 是 RoleKey 的种类，根为 self)，至多 MaxDepth 层
     private const int MaxDepth = 4;
 
-#if EC_PENDING
     public static IEnumerable<(Realm kingdom, int depth, string role, string key)> Tree(Realm root)
     {
         if (root?.Record == null) yield break;
@@ -184,7 +183,6 @@ public static class DiplomacyLedger
             foreach (Realm child in children) stack.Push((child, depth + 1, kingdom));
         }
     }
-#endif
 
     // ───────── 关系 ─────────
 #if EC_PENDING

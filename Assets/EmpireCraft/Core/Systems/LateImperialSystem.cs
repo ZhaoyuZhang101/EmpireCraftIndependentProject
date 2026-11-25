@@ -26,7 +26,6 @@ public static class LateImperialSystem
     #region 秘密立储
 
     // 帝国核心、世袭(不是强者继承)、文化施行了秘密立储
-#if EC_PENDING
     public static bool SecretSuccession(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || !kingdom.IsEmpire()) return false;
@@ -37,7 +36,6 @@ public static class LateImperialSystem
                regime.GetSuccessionLaw() != SuccessionLawType.强者继承法 &&
                InstitutionSystem.HasFeature(empire, SecretSuccessionFeature);
     }
-#endif
 
     // 皇子的才具：四项本事，明君加、昏庸减，声望略算
     public static float Ability(Person actor) =>
@@ -69,21 +67,17 @@ public static class LateImperialSystem
     #region 军机处
 
     // 权臣每月坐大多少(见 Empire.UpdatePowerfulMinister)：军机处下成年皇帝亲裁，慢到三分之一
-#if EC_PENDING
     public static int MinisterGrowth(Empire empire, int monthlyChange, bool regency)
     {
         if (monthlyChange <= 0 || regency || !InstitutionSystem.HasFeature(empire, GrandCouncilFeature)) return monthlyChange;
         return monthlyChange / MinisterSlowdown;
     }
-#endif
 
     #endregion
 
     #region 摊丁入亩
 
-#if EC_PENDING
     public static bool LandPollMerged(Empire empire) => empire?.data != null && InstitutionSystem.HasFeature(empire, LandPollFeature);
-#endif
 
     #endregion
 
@@ -108,7 +102,6 @@ public static class LateImperialSystem
 #endif
 
     // 羁縻州与直辖之地(本帝国里不是羁縻的成员或核心)接壤
-#if EC_PENDING
     private static bool BordersDirectRule(Empire empire, Realm member)
     {
         foreach (City city in member.Cities ?? new List<City>())
@@ -121,6 +114,7 @@ public static class LateImperialSystem
         return false;
     }
 
+#if EC_PENDING
     private static void Reform(Empire empire, Realm core, KingdomExtension.KingdomExtraData extra, Realm member)
     {
         double now = GameClock.Now;

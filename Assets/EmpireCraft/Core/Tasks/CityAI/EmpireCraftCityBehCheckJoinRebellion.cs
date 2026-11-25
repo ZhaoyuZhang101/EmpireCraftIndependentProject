@@ -14,7 +14,7 @@ public class EmpireCraftCityBehCheckJoinRebellion: GameAICityBase
     // 只有已毁、无主的城整座不跑模组城市 AI 才用 Stop。帝国都城只是不投叛军，后面的律令、城主、官职、收税、法理首都、
     // 合并民居照常(以前这里也返回 Stop，帝国都城这些步一直轮不到)
 #if EC_PENDING
-    public override BehResult execute(City pCity)
+    public override BehResult Execute(City pCity)
     {
         if (pCity.IsGone()) return BehResult.Stop;
         if (pCity.isNeutral()) return BehResult.Stop;
@@ -30,7 +30,7 @@ public class EmpireCraftCityBehCheckJoinRebellion: GameAICityBase
         {
             if (c.IsGone()) return false;
             if (c.isNeutral()) return false;
-            if (!c.hasKingdom()) return false;
+            if (!c.HasRealm()) return false;
             var targetKingdom = c.Realm;
             if (initKingdom == targetKingdom) return false;
             var targetWar = targetKingdom.GetWars().ToList().Find(w =>

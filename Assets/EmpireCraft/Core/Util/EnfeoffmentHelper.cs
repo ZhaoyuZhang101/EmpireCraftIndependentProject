@@ -20,20 +20,14 @@ public static class EnfeoffmentHelper
     // 建立时会把当时控制的全部法理都登记为核心，结果一般帝国一座可封的城都找不到，分封从不发生。
     // 城多的头衔排在前面，年长的兄弟先挑。
     // 原始政体没有封爵分土的制度，一律不分封(玩家反馈：原始体制能分封)
-#if EC_PENDING
     public static bool RegimeForbids(Empire empire) => RegimeManager.IsPrimitive(empire?.CoreKingdom?.GetRegime()?.type);
-#endif
 
     // 游牧几乎年年在打仗，等停战再分就永远分不了：游牧打仗时也分，只是前线的地不分(见 AtFront)
-#if EC_PENDING
     public static bool Nomadic(Empire empire) => empire?.CoreKingdom?.GetRegime()?.type == RegimeType.YouMu;
-#endif
 
     // 兄弟分封(新君即位分封、分封诉求)仍只有游牧战时照分，别的政体等停战：打仗时找不到不在前线的法理，
     // 即位分封会改发正统补偿、不再挂起，别的政体也放开就成了战时兄弟分不到地，所以不跟领土划分(见 DeferCity)一起改
-#if EC_PENDING
     public static bool WarBlocks(Empire empire) => empire != null && empire.HasTerritorialWar() && !Nomadic(empire);
-#endif
 
     // 前线：城里有敌军占着的地块，或挨着与帝国核心(或本城所属成员国)交战之国的城
     public static bool IsFrontCity(City city, Realm core)
@@ -63,21 +57,19 @@ public static class EnfeoffmentHelper
         (kingdom.IsFactionRebelling() || kingdom.IsLocalRebelling() || kingdom.IsAtWarWith(core));
 
     // 法理里归本帝国的城有一座在前线就算前线(别国手里的城不算)
-#if EC_PENDING
     public static bool AtFront(KingdomTitle title, Realm core)
     {
-        foreach (City city in title?.getCities() ?? Enumerable.Empty<City>())
+        foreach (City city in title?.GetCities() ?? Enumerable.Empty<City>())
             if (InRealm(city, core) && IsFrontCity(city, core)) return true;
         return false;
     }
 
     public static bool TitleDeferred(KingdomTitle title, Realm core, bool atWar)
     {
-        foreach (City city in title?.getCities() ?? Enumerable.Empty<City>())
+        foreach (City city in title?.GetCities() ?? Enumerable.Empty<City>())
             if (InRealm(city, core) && DeferCity(city, core, atWar)) return true;
         return false;
     }
-#endif
 
     // 成员国有一座城在前线就算前线(周制战时改封皇子用，见 FeudalConquestService)
     public static bool KingdomAtFront(Realm kingdom, Realm core)
@@ -94,7 +86,6 @@ public static class EnfeoffmentHelper
         return owner != null && !city.IsGone() && (owner == core || owner.GetEmpire()?.CoreKingdom == core);
     }
 
-#if EC_PENDING
     public static List<KingdomTitle> FindEnfeoffableTitles(Empire empire)
     {
         Realm coreKingdom = empire?.CoreKingdom;
@@ -111,23 +102,22 @@ public static class EnfeoffmentHelper
                             !IsRealmCapital(title.title_capital) &&
                             // 战时代管的城等战后分配完再说
                             !EmpireCraft.Core.WartimeCustodySystem.InCustody(title.title_capital))
-            .Where(title => !title.getCities().Any(city => city == coreKingdom.Capital ||
+            .Where(title => !title.GetCities().Any(city => city == coreKingdom.Capital ||
                 city?.Key == coreKingdom.Capital.Key))
             .Where(title => !atWar || !AtFront(title, coreKingdom))
-            .OrderByDescending(title => title.getCities().Count(city => city != null && !city.IsGone() &&
+            .OrderByDescending(title => title.GetCities().Count(city => city != null && !city.IsGone() &&
                                                                        city.Realm == coreKingdom))
             .ThenBy(title => title.Key)
             .ToList();
     }
 
     public static KingdomTitle FindEnfeoffableTitle(Empire empire) => FindEnfeoffableTitles(empire).FirstOrDefault();
-#endif
 
     // 兼容"分封"诉求等旧调用：返回下一块可封法理的法理首府
-#if EC_PENDING
     public static City FindEnfeoffableCity(Empire empire, EmpireCore empireCore) =>
         FindEnfeoffableTitle(empire)?.title_capital;
 
+#if EC_PENDING
     public static Person FindEnfeoffmentCandidate(Empire empire)
     {
         PersonalClanIdentity emperorIdentity = empire?.Emperor?.GetPersonalIdentity();
@@ -195,7 +185,7 @@ public static class EnfeoffmentHelper
         }
 
         City retainedCapital = coreKingdom.Capital;
-        List<City> grantedCities = fief.getCities().ToList();
+        List<City> grantedCities = fief.GetCities().ToList();
         if (grantedCities.Any(other => other == retainedCapital || other?.Key == retainedCapital?.Key)) return false;
         // 分封：受命立国，不许自立的闸放行(见 SecessionGate)
         Realm kingdom = SecessionGate.Sanctioned(() => city.MakeOwnRealm(actor));
@@ -259,12 +249,10 @@ public static class EnfeoffmentHelper
 
     // 要游牧政体、且是真游牧(本国文化带 nomad 特性或水土整国游牧化，见 KingdomExtension.IsTrueNomad；用户 2026-10-21 选)：
     // 以前只看政体，阿兹特克、奥吉布瓦这类挂在游牧线、并不游牧的文化也分兀鲁思；征服王朝从俗改了政体的照旧不算
-#if EC_PENDING
     public static bool UlusPartition(Empire empire) =>
         empire?.CoreKingdom?.GetRegime()?.type == RegimeType.YouMu &&
         EmpireCraft.Core.KingdomExtension.IsTrueNomad(empire.CoreKingdom) &&
         empire.CoreKingdom.CountCities() >= UlusMinCities;
-#endif
 
     // 新皇帝即位(不论是立储继承、选举还是拥立)时由 KingdomPatch 的 setKing 补丁调用：
     //   · 分割继承法、游牧兀鲁思：诸子分封；

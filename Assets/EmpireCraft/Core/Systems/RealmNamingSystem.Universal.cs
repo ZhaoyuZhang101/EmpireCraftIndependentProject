@@ -53,7 +53,6 @@ public static partial class RealmNamingSystem
     }
 
     // 持名的仍算天下之主：受着天命、护着教廷，或据有那个天下 KeepShare 以上的城(大空位时代的神罗也还是大国)
-#if EC_PENDING
     public static bool StillPrimate(Empire empire, EmpireCore lead)
     {
         Realm core = empire?.CoreKingdom;
@@ -63,7 +62,6 @@ public static partial class RealmNamingSystem
         (Dictionary<Realm, int> held, int total) = TianxiaSystem.Holdings(lead);
         return total > 0 && held.TryGetValue(core, out int mine) && mine >= total * KeepShare;
     }
-#endif
 
     private static PapalRelationState Papal(Empire empire) => empire?.data == null ? null : PapacySystem.State(empire);
 
@@ -84,7 +82,6 @@ public static partial class RealmNamingSystem
     // 教廷所在的天下：这个宗教的圣地所属的天下，天下之名只有它能授、也只授它这一个。
     // 按圣地所在算，不看圣地眼下归谁——圣地一时失陷，已授的名不因此作废(失陷期间没有教廷，也就没人加冕、授名)
     // 教派没有自己的教廷，取本宗的(号召力所在，见 ReligionSphere"教派与圣地")
-#if EC_PENDING
     public static EmpireCore SeeLead(Religion religion)
     {
         City see = PapacySystem.HolyCity(ReligionSphere.Root(religion));
@@ -92,7 +89,6 @@ public static partial class RealmNamingSystem
     }
 
     public static EmpireCore SeeLead(Empire empire) => SeeLead(PapacySystem.ReligionOf(empire));
-#endif
 
     // 国号取自的天下：普世之名记的那个，现代唯一合法政府记的那个
     public static EmpireCore NamedTianxia(Empire empire)
@@ -104,17 +100,14 @@ public static partial class RealmNamingSystem
     }
 
     // "某某人的皇帝"里的某某(神圣之名的史书用，见 PapacySystem.GrantHoly)：教廷所在天下的基名，取不到用本帝国国号
-#if EC_PENDING
     public static string PeopleName(Empire empire)
     {
         EmpireCore lead = SeeLead(empire);
         string baseName = lead == null ? null : TianxiaBaseName(lead);
         return string.IsNullOrWhiteSpace(baseName) ? empire.GetEmpireName() : baseName;
     }
-#endif
 
     // 收回后改回的名：取得前的本名；那本名若也是某个天下之名(旧规则下授过别的天下之名、又换过的)，改用本帝国法理名
-#if EC_PENDING
     private static string NameBeforeUniversal(Empire empire)
     {
         string own = CoreName(EmpireCoreManager.Get(empire));
@@ -123,7 +116,6 @@ public static partial class RealmNamingSystem
         if (string.IsNullOrWhiteSpace(own) || string.Equals(before, own, StringComparison.Ordinal)) return before;
         return TianxiaSystem.Leads().Any(lead => string.Equals(TianxiaBaseName(lead), before, StringComparison.Ordinal)) ? own : before;
     }
-#endif
 
     // 同一天下里另一位未失格的普世皇帝
     public static Empire OtherUniversal(EmpireCore lead, Empire except)
@@ -135,28 +127,23 @@ public static partial class RealmNamingSystem
     }
 
     // 控制教宗国：教廷是本帝国的成员(含教廷之囚落在本帝国)或附庸(圣座帝国不算)
-#if EC_PENDING
     public static bool ControlsPapacy(Empire empire, Realm papacy)
     {
         if (empire?.CoreKingdom == null || papacy == null || PapacySystem.IsHolySee(empire)) return false;
         return papacy == empire.CoreKingdom || papacy.GetEmpire() == empire ||
                EmpireCoreControl.Sovereign(papacy) == empire.CoreKingdom;
     }
-#endif
 
     // 教宗加冕时取得普世之名的途径(PapacySystem.Coronation 调用；不够格返回 ViaNone)：只有护教的(教廷在本帝国手里)才承统，
     // 好感请冕、兵临施压不再算(见文件头①)；皇帝就是教宗的自授(④)
-#if EC_PENDING
     public static int CoronationVia(Empire empire, Realm papacy, bool romzugArrived)
     {
         if (!Enabled || !IsWestern(empire) || papacy == null) return ViaNone;
         if (PapacySystem.PopeIsEmperor(empire)) return ViaSelf;
         return ControlsPapacy(empire, papacy) ? ViaControl : ViaNone;
     }
-#endif
 
     // 教宗为这位皇帝加冕之后(不含自行加冕)：已有普世之名的记下新君；没有的按途径承统。神圣不再随加冕授(见文件头)
-#if EC_PENDING
     public static void OnPapalCoronation(Empire empire, int via)
     {
         if (!Enabled || empire?.data == null || empire.Emperor == null) return;
@@ -165,10 +152,8 @@ public static partial class RealmNamingSystem
         if (state.universal_lead_id >= 0) state.universal_emperor_id = empire.Emperor.Key;
         else TryGrantUniversal(empire, via);
     }
-#endif
 
     // 授普世之名；quiet = 读档追授，只记史册不上公告。只有护教承统(ViaControl)、教宗自授(ViaSelf)与天授(ViaDecree)三途
-#if EC_PENDING
     public static bool TryGrantUniversal(Empire empire, int via, bool quiet = false)
     {
         if (via != ViaControl && via != ViaDecree && via != ViaSelf || !Enabled || empire?.data == null || empire.CoreKingdom == null ||
@@ -207,10 +192,8 @@ public static partial class RealmNamingSystem
         LogService.LogInfo($"[EmpireCraft][普世之名] {before} 经{via}得 {baseName}，称 {empire.GetEmpireFullName()}");
         return true;
     }
-#endif
 
     // 剧本开局即持某个天下的普世之名(世界地图：十字军、临高两档的神圣罗马)：不经教宗加冕，按天授记，不上公告
-#if EC_PENDING
     public static void GrantUniversalAtStart(Empire empire, EmpireCore lead)
     {
         PapalRelationState state = Papal(empire);
@@ -226,10 +209,8 @@ public static partial class RealmNamingSystem
         empire.SetEmpireName(baseName, preserveEmpireType: true);
         state.universal_name = empire.data.core_name ?? "";
     }
-#endif
 
     // 收回(suspend = 绝罚暂停，悔罪后恢复)
-#if EC_PENDING
     public static void RevokeUniversal(Empire empire, string reasonKey, bool suspend = false)
     {
         PapalRelationState state = Papal(empire);
@@ -257,10 +238,8 @@ public static partial class RealmNamingSystem
         if (PapacySystem.HasHolyName(empire)) PapacySystem.RevokeHoly(empire);
         LogService.LogInfo($"[EmpireCraft][普世之名] {before} 失普世之名({reasonKey}{(suspend ? "，暂停" : "")})，称 {empire.GetEmpireFullName()}");
     }
-#endif
 
     // 绝罚解除后恢复
-#if EC_PENDING
     private static void ResumeUniversal(Empire empire)
     {
         PapalRelationState state = Papal(empire);
@@ -280,7 +259,6 @@ public static partial class RealmNamingSystem
         state.universal_name = empire.data.core_name ?? "";
         EventRecorder.Record(empire, string.Format(LM.Get("realm_universal_resumed_history"), before, empire.GetEmpireFullName()));
     }
-#endif
 
     // 读档后头一次年度结算之前加的冕(旧档)：按新规追授一次
     private static object _session;
@@ -360,7 +338,6 @@ public static partial class RealmNamingSystem
 #endif
 
     // 帝位空缺(见文件头③)：连续 LapseYears 年不复为天下之主(StillPrimate)才收回；不再由教宗年年收回、转授更强的一家
-#if EC_PENDING
     private static void CheckLapse(Empire empire, PapalRelationState state)
     {
         if (StillPrimate(empire, SeeLead(empire)))
@@ -376,11 +353,9 @@ public static partial class RealmNamingSystem
         }
         if (GameClock.YearsSince(state.universal_unfit_since) >= LapseYears) RevokeUniversal(empire, "realm_universal_reason_lapsed");
     }
-#endif
 
     // 普世之名记的天下不是教廷所在的天下：旧档里按本帝国所在天下授的(以前的规则)，或天下分合、圣地改换了天下。
     // 没被绝罚、教廷所在天下之名没归别家的，改授教廷所在天下之名(取得途径照旧)；做不到的由调用方收回
-#if EC_PENDING
     private static bool Rehome(Empire empire, PapalRelationState state, EmpireCore see)
     {
         if (see == null || PapacySystem.IsExcommunicated(empire) || OtherUniversal(see, empire) != null) return false;
@@ -398,21 +373,17 @@ public static partial class RealmNamingSystem
         LogService.LogInfo($"[EmpireCraft][普世之名] {before} 改授教廷所在的 {TianxiaSystem.Name(see)} 之名，称 {empire.GetEmpireFullName()}");
         return true;
     }
-#endif
 
     // 得、失、改授普世之名：国号变了，记进当朝史册，不论帝国大小都上屏(用户 2026-10-27 "怎么突然就变成罗马帝国了"：
     // 以前按帝国大小上屏，同一种提示两秒只上一条、屏上至多五条，加速时被别的提示顶掉，改了国号却没看到)
-#if EC_PENDING
     private static void RecordRename(Empire empire, string text)
     {
         if (empire?.data == null || empire.IsGone()) return;
         empire.RecordHistory(directContent: text, actorId: empire.Emperor?.Key ?? -1L, kingdomId: empire.CoreKingdom?.Key ?? -1L);
         if (empire.CoreKingdom != null) EmpireCraft.Core.TranslateHelper.LogMajor(text, empire.CoreKingdom);
     }
-#endif
 
     // 好感修正 opinion_coerced_coronation：教廷对逼冕(施压、开战)的帝国核心王国好感下降，二十年回复
-#if EC_PENDING
     public static int CoercionOpinion(Realm from, Realm to)
     {
         Empire empire = to?.GetEmpire();
@@ -423,7 +394,6 @@ public static partial class RealmNamingSystem
         float years = GameClock.YearsSince(state.coerced_at);
         return years >= CoercionGrudgeYears ? 0 : -(int)(CoercionGrudge * (1f - years / CoercionGrudgeYears));
     }
-#endif
 
     // 诉求「逼冕」(TempFac_逼冕)已取消(用户 2026-11-08 按史实重做：天下之名不是谁兵强谁逼来的，见文件头①)，不再提；
     // 旧档里还没发动的由 SyncCoercionClaim 清掉，已开打的照旧打完
@@ -434,16 +404,13 @@ public static partial class RealmNamingSystem
     }
 
     // 旧档里的逼冕之战得手：解绝罚、教宗加冕(只加冕，不再因此授名)
-#if EC_PENDING
     public static void CoerceVictory(Empire empire)
     {
         if (!Enabled || empire?.data == null || HoldsUniversal(empire)) return;
         PapacySystem.CrownByForce(empire);
     }
-#endif
 
     // 逼冕之战结束(WarPatch 战争结束时调用)
-#if EC_PENDING
     public static void ResolveCoerceWar(War war, WarOutcome winner)
     {
         Empire empire = war?.GetMainAttacker()?.GetEmpire();
@@ -461,10 +428,8 @@ public static partial class RealmNamingSystem
         EventRecorder.Record(empire, string.Format(LM.Get("realm_coerce_failed_history"), empire.GetEmpireFullName(),
             war.GetMainDefender()?.GetKingdomName() ?? ""));
     }
-#endif
 
     // 逼冕之战攻下城时(CityPatch)：教廷都城或圣城到手即算得手
-#if EC_PENDING
     public static bool IsCoercionPrize(City city, Empire attacker)
     {
         if (city?.Realm == null || attacker?.data == null) return false;
@@ -472,7 +437,6 @@ public static partial class RealmNamingSystem
         Realm papacy = PapacySystem.Papacy(religion);
         return papacy != null && city.Realm == papacy && (papacy.Capital == city || PapacySystem.HolyCity(religion) == city);
     }
-#endif
 
     // 逼冕诉求的紧迫度(ClaimAgendaSystem)
     public static float CoercionUrgency(Empire empire) => WantsCoercion(empire, out _) ? 12f : 0f;
@@ -480,7 +444,6 @@ public static partial class RealmNamingSystem
     // 逼冕诉求挂在中央、攘夷派上(没有就挂当权派)，只给还没有普世之名、得了会改名的西方帝国
     private static readonly FactionType[] CoercionHosts = { FactionType.中央, FactionType.攘夷 };
 
-#if EC_PENDING
     private static void SyncCoercionClaim(Empire empire)
     {
         List<FixedFaction> factions = empire?.CoreKingdom?.GetRegime()?.GetPlayerFactions();
@@ -517,11 +480,9 @@ public static partial class RealmNamingSystem
             }
         }
     }
-#endif
 
     // 上帝视角：直接授、收回(教廷页按钮)
     // 教廷页"授普世之名"：天下已有别的普世皇帝时转授(从那家收回、授给本帝国)
-#if EC_PENDING
     public static bool DecreeUniversal(Empire empire)
     {
         Empire holder = Holder(empire);
@@ -530,17 +491,13 @@ public static partial class RealmNamingSystem
         if (holder != null) RevokeUniversal(holder, "realm_universal_reason_transferred");
         return TryGrantUniversal(empire, ViaDecree);
     }
-#endif
 
     // 教廷所在天下眼下的另一位普世皇帝(没有为空)
-#if EC_PENDING
     public static Empire Holder(Empire empire) => empire?.data == null ? null : OtherUniversal(SeeLead(empire), empire);
 
     public static void DecreeRevoke(Empire empire) => RevokeUniversal(empire, "realm_universal_reason_decree");
-#endif
 
     // 界面一行：普世之名的状况
-#if EC_PENDING
     public static string UniversalStatus(Empire empire)
     {
         PapalRelationState state = Papal(empire);
@@ -554,6 +511,5 @@ public static partial class RealmNamingSystem
         if (other != null) return string.Format(LM.Get("realm_universal_status_other"), other.GetEmpireFullName());
         return string.Format(LM.Get("realm_universal_status_none"), realm);
     }
-#endif
 }
 }

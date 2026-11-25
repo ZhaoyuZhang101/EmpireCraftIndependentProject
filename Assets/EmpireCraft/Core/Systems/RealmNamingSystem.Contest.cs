@@ -24,7 +24,6 @@ public static partial class RealmNamingSystem
     private static readonly Dictionary<long, double> LastConflictCheck = new();
     private static object _contestWorld;
 
-#if EC_PENDING
     private static bool InContest(Empire empire)
     {
         if (empire?.data == null || empire.IsGone() || empire.IsArchived() || empire.CoreKingdom == null ||
@@ -34,10 +33,8 @@ public static partial class RealmNamingSystem
         if (PapacySystem.PopeIsEmperor(empire) && !HoldsUniversal(empire)) return false;
         return !IsModernGovernment(empire) || NamedAfterTianxia(empire);
     }
-#endif
 
     // 受约束的名：某个正式帝国法理的名(城最多的那个)，或某个天下的基名
-#if EC_PENDING
     private static bool RestrictedName(string name, out EmpireCore core, out EmpireCore lead)
     {
         core = null;
@@ -60,7 +57,6 @@ public static partial class RealmNamingSystem
         }
         return core != null || lead != null;
     }
-#endif
 
     private static bool CanSwitch(Empire empire)
     {
@@ -189,7 +185,6 @@ public static partial class RealmNamingSystem
 #endif
 
     // 据有其一半以上城的那家：争天下之名看整个天下，争帝国法理名看那个帝国法理；恰好各半看天命；没人过半为 null
-#if EC_PENDING
     private static Empire Legitimate(List<Empire> claimants, EmpireCore core, EmpireCore lead)
     {
         // 天下之名只有教宗授得(见 Universal)：受着这个天下之名的普世皇帝就是正统，不看占了多少城
@@ -217,7 +212,6 @@ public static partial class RealmNamingSystem
         List<Empire> mandated = halves.Where(empire => lead != null && TianxiaSystem.MandateOf(empire.CoreKingdom) == lead).ToList();
         return mandated.Count == 1 ? mandated[0] : null;
     }
-#endif
 
     // 天下的正统：据有整个天下一半以上城(多京那条线用)
     public static bool HoldsHalfOfRealm(Empire empire, EmpireCore lead)
@@ -260,7 +254,6 @@ public static partial class RealmNamingSystem
 #endif
 
     // 复称：据有其一半以上，或别家都不用了
-#if EC_PENDING
     private static void Take(Empire empire, string name, bool stamp, bool alone)
     {
         EmpireData data = empire.data;
@@ -275,7 +268,6 @@ public static partial class RealmNamingSystem
             before, empire.GetEmpireFullName()));
         LogService.LogInfo($"[EmpireCraft][同名相争] {before} {(alone ? "别家已不用" : "据有其半")}，复称 {empire.GetEmpireFullName()}");
     }
-#endif
 
     // grandPrefix：用了美号时带回美号前缀，否则 null
 #if EC_PENDING

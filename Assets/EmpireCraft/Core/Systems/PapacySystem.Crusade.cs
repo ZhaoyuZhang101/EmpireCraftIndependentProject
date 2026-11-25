@@ -39,7 +39,6 @@ public static partial class PapacySystem
 
     // 圣战要收复的城：本宗另记了一处的取那处(真实地图天主教会是耶路撒冷，圣地仍是罗马——用户 2026-11-08 选
     // "罗马是圣地，耶城作圣战目标")，没记就是圣地。教派随本宗
-#if EC_PENDING
     public static City CrusadeCity(Religion religion)
     {
         Religion root = ReligionSphere.Root(religion);
@@ -48,10 +47,8 @@ public static partial class PapacySystem
         City city = id >= 0 ? EmpireWorld.Current.CityByKey(id) : null;
         return city?.Record != null && !city.IsGone() ? city : root.GetCity();
     }
-#endif
 
     // 圣战目标被异教占着：圣地被本宗以外的人占着就算(教派占着圣地也要收复)；另记的那处(耶路撒冷)被同出一宗的教派占着不算
-#if EC_PENDING
     private static bool HolyLandLost(Religion religion, City city)
     {
         Realm holder = city?.Realm;
@@ -59,6 +56,7 @@ public static partial class PapacySystem
         return city == religion.GetCity() || ReligionSphere.Root(holder.Religion) != ReligionSphere.Root(religion);
     }
 
+#if EC_PENDING
     private static void TryCrusade(Religion religion)
     {
         if (!CallsHolyWar(religion)) return;
@@ -73,6 +71,7 @@ public static partial class PapacySystem
         if (target == null || target == caller || EcRandom.value >= CrusadeChance) return;
         Declare(religion, caller, target, kind);
     }
+#endif
 
     private static (Realm target, int kind) FindTarget(Religion religion, Realm caller, float authority)
     {
@@ -107,7 +106,6 @@ public static partial class PapacySystem
         }
         return (best, CrusadeInfidel);
     }
-#endif
 
     private static Realm ModRealm(Realm kingdom) => kingdom?.GetEmpire()?.CoreKingdom ?? kingdom;
 
@@ -264,7 +262,6 @@ public static partial class PapacySystem
 #endif
 
     // 攻方里奉本宗教、城最多的(教廷除外)
-#if EC_PENDING
     private static Realm LeadingCrusader(War war, Religion religion)
     {
         Realm papacy = Papacy(religion), best = null;
@@ -281,6 +278,5 @@ public static partial class PapacySystem
         Empire empire = kingdom?.GetEmpire();
         if (empire != null) empire.RecordHistory(directContent: text, actorId: kingdom.Ruler?.Key ?? -1L, kingdomId: kingdom.Key);
     }
-#endif
 }
 }

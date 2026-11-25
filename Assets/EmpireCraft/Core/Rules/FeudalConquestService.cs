@@ -21,13 +21,10 @@ namespace EmpireCraft.Core
 //     分封之后优先改封皇子，没有合适的皇子才立本地贵族。
 public static class FeudalConquestService
 {
-#if EC_PENDING
     public static bool AppliesTo(Empire empire) =>
         empire?.CoreKingdom?.GetRegime()?.type == RegimeType.ZhouFeudalism;
-#endif
 
     // 本文化是否施行过开启"迫使朝贡"诉求的制度(华夏朝贡体系、阿拉伯吉兹亚税、游牧驿站网络)；没有就不能收朝贡国
-#if EC_PENDING
     public static bool HasTributeInstitution(Empire empire)
     {
         CultureInstitutionState state =
@@ -37,10 +34,8 @@ public static class FeudalConquestService
             node != null && node.effects_on_complete.Any(effect =>
                 effect.type == "enable_claim" && effect.value == "迫使朝贡"));
     }
-#endif
 
     // 本文化是否施行过开启"分封"诉求的制度(华夏分封建国、游牧兀鲁思分封等)
-#if EC_PENDING
     public static bool HasEnfeoffmentInstitution(Empire empire)
     {
         CultureInstitutionState state =
@@ -50,7 +45,6 @@ public static class FeudalConquestService
             node != null && node.effects_on_complete.Any(effect =>
                 effect.type == "enable_claim" && effect.value == "分封"));
     }
-#endif
 
     // 中央集权后攻下都城整国并入的上限：三城 → 五城(用户 2026-10-21 选"攻下都城只退都城那一片法理")
     private const int CentralizedAnnexMaxCities = 5;
@@ -262,13 +256,11 @@ public static class FeudalConquestService
         or EmpireWarType.地方叛乱 or EmpireWarType.地方独立 or EmpireWarType.民族叛乱 or EmpireWarType.宗教叛乱
         or EmpireWarType.不奉诏;
 
-#if EC_PENDING
     private static void Record(Empire empire, Realm kingdom, string key, params object[] args)
     {
         string content = string.Format(LM.Get(key), args);
         empire?.RecordHistory(directContent: content, kingdomId: kingdom?.Key ?? -1L);
         EmpireCraft.Core.TranslateHelper.LogEventMessage(content, kingdom ?? empire?.CoreKingdom);
     }
-#endif
 }
 }

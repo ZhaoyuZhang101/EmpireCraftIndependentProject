@@ -185,13 +185,13 @@ public static class ExileGovernmentSystem
     {
         Person king = exile.Ruler, heir = exile.GetHeir();
         return exile.People.ToList()
-            .Where(actor => actor?.Record != null && !actor.IsGone() && actor.Alive && actor.asset?.civ == true && !actor.asset.is_boat &&
+            .Where(actor => actor?.Record != null && !actor.IsGone() && actor.Alive && actor.Asset?.Civ == true && !actor.Asset.IsBoat &&
                             actor.Realm == exile)
             .Select(actor => (actor, rank: actor == king ? 0 : actor == heir ? 1 :
-                king?.Clan != null && actor.clan == king.Clan ? 2 : actor == king?.Spouse ? 2 :
+                king?.Clan != null && actor.Clan == king.Clan ? 2 : actor == king?.Spouse ? 2 :
                 CityPopulationSystem.IsNotable(actor) ? 3 : 9))
             .Where(entry => entry.rank < 9)
-            .OrderBy(entry => entry.rank).ThenByDescending(entry => entry.actor.renown)
+            .OrderBy(entry => entry.rank).ThenByDescending(entry => entry.actor.Renown)
             .Take(ExileRules.MaxEntourage).Select(entry => entry.actor).ToList();
     }
 
@@ -332,22 +332,20 @@ public static class ExileGovernmentSystem
 #endif
 
     // 元首死了：随员里的储君、年长的要人接任
-#if EC_PENDING
     private static bool Succeed(Realm exile)
     {
         SpecificClan royal = SpecificClanManager.getPerson(exile.GetOrCreate().last_ruler_identity_id)?._specificClan;
         Person heir = exile.GetHeir();
         Person next = heir != null && heir.Alive && heir.Realm == exile && heir.IsAdult() ? heir
             : exile.People.Where(actor => actor?.Record != null && !actor.IsGone() && actor.Alive && actor.IsAdult() &&
-                                         actor.asset?.civ == true && !actor.asset.is_boat && actor.Realm == exile)
+                                         actor.Asset?.Civ == true && !actor.Asset.IsBoat && actor.Realm == exile)
                 // 宗室在先(随行的近亲，见 BringRoyalKin)，以前只按声望，元首一死常由外人接任
                 .OrderByDescending(actor => royal != null && SpecificClanManager.SameLineage(actor.GetSpecificClan(), royal))
-                .ThenByDescending(actor => actor.renown).FirstOrDefault();
+                .ThenByDescending(actor => actor.Renown).FirstOrDefault();
         if (next == null) return false;
         exile.SetRuler(next);
         return exile.HasRuler();
     }
-#endif
 
     // 待收复的旧城落在东道国、盟国、与占领者交战的国家手里：交还
 #if EC_PENDING
@@ -391,7 +389,6 @@ public static class ExileGovernmentSystem
 #endif
 
     // 还都：第一座交还的城作都城，随员入城
-#if EC_PENDING
     private static void Return(Realm exile, KingdomExtension.KingdomExtraData data, City seat)
     {
         data.exile_since = -1d;
@@ -402,17 +399,15 @@ public static class ExileGovernmentSystem
             exile.SetCapital(seat);
             foreach (Person actor in exile.People.ToList())
                 if (actor?.Record != null && !actor.IsGone() && actor.Alive && actor.City == null && actor.Realm == exile &&
-                    actor.asset?.civ == true && !actor.asset.is_boat)
+                    actor.Asset?.Civ == true && !actor.Asset.IsBoat)
                     actor.JoinCity(seat);
         }
         string text = string.Format(LM.Get("exile_return_history"), exile.GetKingdomName(), seat?.GetCityName() ?? "");
         EventRecorder.Record(exile, text, exile.Ruler);
         TranslateHelper.LogEventMessage(text, exile);
     }
-#endif
 
     // 解散：随员入籍东道国(进东道国都城)，本国随之无人而亡
-#if EC_PENDING
     private static void Dissolve(Realm exile, KingdomExtension.KingdomExtraData data, string historyKey)
     {
         Realm host = Host(exile);
@@ -425,10 +420,9 @@ public static class ExileGovernmentSystem
         City refuge = host?.Capital;
         if (refuge == null || refuge.IsGone()) return;
         foreach (Person actor in exile.People.ToList())
-            if (actor?.Record != null && !actor.IsGone() && actor.Alive && actor.City == null && actor.asset?.civ == true && !actor.asset.is_boat)
+            if (actor?.Record != null && !actor.IsGone() && actor.Alive && actor.City == null && actor.Asset?.Civ == true && !actor.Asset.IsBoat)
                 actor.JoinCity(refuge);
     }
-#endif
 
     #endregion
 }

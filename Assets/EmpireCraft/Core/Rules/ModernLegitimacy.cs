@@ -37,7 +37,6 @@ public static class ModernLegitimacy
     private static readonly Dictionary<long, (bool applies, int value, float at)> Cache = new();
     private static object _cacheWorld;
 
-#if EC_PENDING
     private static (bool applies, int value) Cached(Empire empire)
     {
         if (!ReferenceEquals(_cacheWorld, EmpireWorld.Current))
@@ -58,7 +57,6 @@ public static class ModernLegitimacy
         Cache[empire.Key] = (applies, value, now);
         return (applies, value);
     }
-#endif
 
     // 立即作废某个帝国(或全部)的缓存，供需要马上看到新数值的地方调用
     public static void Invalidate(Empire empire = null)
@@ -67,7 +65,6 @@ public static class ModernLegitimacy
         else Cache.Remove(empire.Key);
     }
 
-#if EC_PENDING
     public static bool Applies(Empire empire) =>
         empire?.CoreKingdom != null && empire.data != null && Cached(empire).applies;
 
@@ -80,10 +77,8 @@ public static class ModernLegitimacy
         // 穿越政权使用自己的元老院与共和国状态，不能依赖普通议会/共和国标记来摆脱王朝周期。
         return TransmigrantSystem.Governs(empire) || ModernStability.IsModern(empire.CoreKingdom) || ParliamentSystem.HasParliament(empire);
     }
-#endif
 
     // 各项构成(界面悬停说明用)：(本地化 key, 数值)
-#if EC_PENDING
     public static List<(string key, int value)> Breakdown(Empire empire)
     {
         var items = new List<(string key, int value)> { ("legitimacy_base", Base) };
@@ -126,6 +121,5 @@ public static class ModernLegitimacy
         if (mandate != 0) items.Add(("legitimacy_mandate", mandate));
         return items;
     }
-#endif
 }
 }
