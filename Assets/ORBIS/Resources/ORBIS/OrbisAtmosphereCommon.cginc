@@ -225,9 +225,10 @@ void OrbisIntegrateSample(float3 p,float3 rd,float ds,float2 cloudLayers,float3 
  {
   [branch] if(_GodRays>.5&&_Clouds>.5&&any(sunT>1e-5)&&(!fastDense||maxT>.055))
   {
-   // Sub-step dither strictly on clear-air smooth 2D shaft lookup (never on 3D cloud density!)
-   // melts discrete air-step bullseyes on the ocean/haze into smooth continuous volumetric god-rays.
-   float3 pShaft=(cloudDensity<.0005)?(p+rd*(ds*(shaftJitter-.5)*.85)):p;
+   // Sub-step dither strictly on clear-air smooth 2D shaft lookup; fade out on long horizon steps (ds > 0.0035)
+   // to eliminate diagonal IGN cross-hatch mesh along the sky/horizon while keeping near-cloud shafts silky smooth.
+   float shaftStep=min(ds,.0018)*(1.0-smoothstep(.0035,.0095,ds));
+   float3 pShaft=(cloudDensity<.0005)?(p+rd*(shaftStep*(shaftJitter-.5)*.75)):p;
    float2 paths=ScrollCloudSunTransmission(pShaft,sun);
    shadowT=paths.x;
    // Volumetric cloud-gap opening: crisp golden beams piercing broken clouds, zero glare in open clear sky,
@@ -389,7 +390,7 @@ OrbisVolumeResult OrbisMarchRayFootprint(float3 ro,float3 rd,float endDistance,f
  float phaseMoonCloud=min(2.0,.85*HG(moonMu,.45)+.15*HG(moonMu,-.15));
  float3 light=0,transmission=1;
  int nextInterval=0,sampleIndex=0,sampleCount=0;
- float segmentBegin=0,segmentEnd=0,cursor=0,ds=0,crustStart=0,grazing=0,nearCam=0;
+ float segmentBegin=0,segmentEnd=0,cursor=0,ds=0,crustStart=0,grazing=0,nearCam=0,insideShell=0;
  bool segmentHasCloud=false,prevHit=false;
  float actualSlab=max(.012,13500.0*max(1e-7,_CloudHeightScale));
  // Smooth coherent raymarching (single probe + single full-density call site, ZERO cloud-density IGN stipple):
@@ -419,6 +420,9 @@ OrbisVolumeResult OrbisMarchRayFootprint(float3 ro,float3 rd,float endDistance,f
    float camR=length(ro);
    float lowOrbit=1.0-smoothstep(1.38,1.72,camR);
    nearCam=cloud?(1.0-smoothstep(1.08,1.44,camR)):0.0;
+   // Strictly inside/adjacent to the cloud shell (0.0 for all orbital/low-orbit views R >= 1.12):
+   // prevents long tangent-chord minStep from snapping inside typhoon eyes & near-cloud views into horizontal layer rings.
+   insideShell=cloud?(1.0-smoothstep(1.04,1.12,camR)):0.0;
    grazing=cloud?max(smoothstep(.058,.088,len)*lowOrbit,nearCam):0.0;
   }
   float stepSize=min(ds,segmentEnd-cursor);float2 density=0;
@@ -434,7 +438,8 @@ OrbisVolumeResult OrbisMarchRayFootprint(float3 ro,float3 rd,float endDistance,f
    bool highEmpty=!prevHit&&rProbe>1.026;
    float emptyCap=highEmpty?max(ds*1.5,minStep):((grazing>.01&&!prevHit)?min(ds,actualSlab*lerp(.22,.11,grazing)):ds);
    if(!prevHit&&nearCam>.10&&_GodRays>.5&&rProbe<1.015)emptyCap=min(emptyCap,actualSlab*.08);
-   float large=min(segmentEnd-cursor,max(highEmpty?emptyCap:min(emptyCap,cap),minStep));
+   float emptyFloor=(sampleIndex<sampleCount-10)?lerp(minStep,min(minStep,actualSlab*.12),insideShell):minStep;
+   float large=min(segmentEnd-cursor,max(highEmpty?emptyCap:min(emptyCap,cap),emptyFloor));
    // Use far-edge probe on orbital/nadir rays (nearCam < 0.25) so thin 2 km marine Sc decks are never skipped,
    // and centered midpoint probe near/inside the cloud layer (nearCam >= 0.25) for smooth cloud passage & crisp shafts!
    float probeOffset=(!prevHit&&nearCam<.25&&large<=.0028)?large:(large*.5);
@@ -450,7 +455,7 @@ OrbisVolumeResult OrbisMarchRayFootprint(float3 ro,float3 rd,float endDistance,f
     float crustBoost=grazing*smoothstep(.22,.82,maxTrans);
     float crustCap=lerp(actualSlab/24.0,actualSlab/4.0,pow(saturate((cursor-crustStart)/.034),1.4));
     float fineStep=min(baseFine,lerp(baseFine,crustCap,crustBoost));
-    float safeMinStep=(crustBoost>.05&&sampleIndex<sampleCount-8)?0.0:minStep;
+    float safeMinStep=((crustBoost>.05||insideShell>.5)&&sampleIndex<sampleCount-8)?0.0:minStep;
     stepSize=min(segmentEnd-cursor,max(fineStep,safeMinStep));
     bool skipDetail=_CloudLightSimple>.5&&maxTrans<.16;
     float sampleDistance=cursor+stepSize*.5;

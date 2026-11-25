@@ -234,7 +234,7 @@ Shader "ORBIS/FlatWorld/SkyBake"
    };
    EraMorphology SampleEraMorphology(
     float eraId,float age,float3 radial,float longitude,float latitude,
-    float3 east,float3 north,float advRadPerEra,float zonalFlow,float3 windAxis,float windSpd,float polarLatRad,float rossbyK,float3 jetAxis,float3 upperDir,float upperRadPerEra,float radialPhase)
+    float3 east,float3 north,float advRadPerEra,float zonalFlow,float3 windAxis,float windSpd,float polarLatRad,float rossbyK,float3 jetAxis,float3 upperDir,float upperRadPerEra,float3 wander,float3 uWander)
    {
     EraMorphology o;
     // Exact spherical great-circle upstream advection: 1 simulated day = 86,400 s physical transport
@@ -242,8 +242,6 @@ Shader "ORBIS/FlatWorld/SkyBake"
     float advTheta=advRadPerEra*age;
     float advS,advC;sincos(advTheta,advS,advC);
     float3 p=radial*advC-windAxis*advS;
-    // Surface-normal (radial) phase evolution boils and dissipates clouds strictly in-place when wind == 0.
-    float3 wander=p*radialPhase;
     float3 seed=float3(Hash3(float3(eraId,4,7)),Hash3(float3(eraId,11,3)),Hash3(float3(eraId,5,19)))*15.0;
 
     // Two-stage divergence-free spherical curl-streamfunction advection ("cream-in-coffee" geophysical fluid swirl!):
@@ -313,11 +311,11 @@ Shader "ORBIS/FlatWorld/SkyBake"
     float streetEnv=smoothstep(.24,.64,planetary*.42+synoptic*.30+bandField1*.28);
     o.tradeStreets=saturate(planetary*.23+synoptic*.19+streetRipple*.24+smoothstep(.35,.72,mesoFoam)*.42*streetEnv);
 
-    // Coherent eastern-boundary marine Sc sheets with organic mesoscale Pockets of Open Cells (POCs)
-    float scDeckMacro=smoothstep(.24,.64,synCluster*.26+planetary*.44+synoptic*.30);
+    // Advect the open-cell pattern at mesoscale wavelengths within each marine deck.
     float scPocRift=smoothstep(.28,.72,Noise3(Turn(pFlow)*14.0+seed+29.0)*.62+mesoCells*.38);
     float scBreak=smoothstep(.30,.72,mesoFoam*.55+streetRipple*.45);
-    o.honeycomb=saturate(scDeckMacro*(.52+.28*scPocRift+.22*scBreak));
+    float scMesoEnv=smoothstep(.22,.74,scPocRift*.48+flowBands*.32+synoptic*.20);
+    o.honeycomb=saturate((.34+.66*scMesoEnv)*(.46+.32*scPocRift+.22*scBreak));
 
     o.planetary=planetary;
     o.synCluster=synCluster;
@@ -434,7 +432,6 @@ Shader "ORBIS/FlatWorld/SkyBake"
     float uTheta=upperRadPerEra*age;
     float uS,uC;sincos(uTheta,uS,uC);
     float3 upper=radial*uC-upperDir*uS;
-    float3 uWander=upper*radialPhase;
     float3 crossJet=normalize(cross(upper,jetAxis)+float3(1e-5,0,0));
     float3 jetShear=normalize(upper+uWander*.035);
     float jetStreak=(Noise3(Turn(jetShear)*15.0+seed*.35+float3(9,4,2))+
@@ -507,12 +504,15 @@ Shader "ORBIS/FlatWorld/SkyBake"
 
     float era=floor(_VisualTime*.0125),phase=frac(_VisualTime*.0125);
     float blend=phase*phase*(3-2*phase);
-    float radialPhase=sin(_VisualTime*.007)*.42+cos(_VisualTime*.011)*.28;
-    float3 wander=float3(sin(_VisualTime*.007),cos(_VisualTime*.009),sin(_VisualTime*.004))*.62;
+    float windActive=smoothstep(.002,.06,windMag);
+    float upperActive=smoothstep(.002,.06,upperMag);
+    float3 baseWander=float3(sin(_VisualTime*.007),cos(_VisualTime*.009),sin(_VisualTime*.004))*.62;
+    float3 wander=baseWander*windActive;
+    float3 uWander=baseWander*upperActive;
     EraMorphology m0=(EraMorphology)0,m1=(EraMorphology)0;
     [loop] for(int ei=0;ei<2;ei++)
     {
-     EraMorphology me=SampleEraMorphology(era+ei,phase-ei,radial,longitude,latitude,east,north,advRadPerEra,steerZonal,windAxis,windSpd,polarLatRad,rossbyK,jetAxis,upperDir,upperRadPerEra,radialPhase);
+     EraMorphology me=SampleEraMorphology(era+ei,phase-ei,radial,longitude,latitude,east,north,advRadPerEra,steerZonal,windAxis,windSpd,polarLatRad,rossbyK,jetAxis,upperDir,upperRadPerEra,wander,uWander);
      if(ei==0)m0=me;else m1=me;
     }
 
@@ -556,6 +556,9 @@ Shader "ORBIS/FlatWorld/SkyBake"
      // Protect ONLY true cold eastern-boundary upwelling marine Sc decks (Peru/Chile, California/Baja, Namibia: marineSc > 0.38!)
      // Never boost open warm subtropical oceans (marineSc ~0.15-0.30), keeping vast natural clear subtropical gyres with ZERO zonal banding!
      float scProtect=smoothstep(.38,.74,marineSc);
+     // Keep the cold-core upwelling gradient above the deck's onset threshold.
+     float scRamp=smoothstep(.38,.98,marineSc);
+     float scStrength=scRamp*(.34+.66*smoothstep(.64,.98,marineSc));
      float lowLee=leeShadow*(1.0-.82*scProtect);
 
      // ISCCP joint optical-depth partition matching 79e6fa2 natural clear/veil/core balance:
@@ -570,7 +573,7 @@ Shader "ORBIS/FlatWorld/SkyBake"
      float zBase=(baseTex-.496)*5.4+clusterBias;
      float zRibbon=(baseTex-.498)*3.4+clusterBias*.45+3.80*(curvedBand-.275)+1.08*(curvedWisp-.235);
      float zStreets=(tradeStreets-.496)*5.6+clusterBias*.35+2.25*(curvedBand-.26);
-     float zHoney=(honeycomb-.46)*5.4+clusterBias*.30+1.15*(curvedBand-.26)+.75*scProtect;
+     float zHoney=(honeycomb-.54)*4.6+lerp(-1.25,.58,scStrength)+.22*(curvedBand-.30)*(1.0-.75*scProtect);
      float zMcs=.45*zRibbon+.21*zStreets+2.60*(mcsCluster-.185)+clusterBias*.25;
      // Sweeping curved comma spirals + coiled dark-blue spiral dry slots + bold 5,500 km curved frontal banners
      float zFront=.24*zRibbon+5.45*(frontalLow-.15)-5.30*frontalDry-1.15*polarCarve;
@@ -586,7 +589,7 @@ Shader "ORBIS/FlatWorld/SkyBake"
      float zLow=lerp(zBase,zRibbon,.74);
      zLow=lerp(zLow,zStreets,.38*tropBelt);
      zLow=lerp(zLow,zMcs,saturate(tropBelt*(.30+.70*itczConv)));
-     zLow=lerp(zLow,zHoney,saturate(scProtect*.92));
+     zLow=lerp(zLow,zHoney,saturate(scProtect*.98));
      zLow=lerp(zLow,zFront,stormWeight);
      float orogMoist=smoothstep(.16,.48,moistEnv);
      zLow+=.82*orogCrest*(.30+.70*smoothstep(.22,.78,baseTex))*orogMoist;
@@ -597,10 +600,14 @@ Shader "ORBIS/FlatWorld/SkyBake"
      //   2. coherentBody: unbroken curved fronts, ITCZ/SPCZ ribbons & eastern-boundary marine Sc decks
      //   3. brightCore: snow-white convective knots, comma heads & windward orographic cap clouds
      float sharpOrg=saturate(max(stormWeight*frontalLow*1.06,itczConv*mcsCluster));
-     float dryGuard=smoothstep(.10,.35,climTarget+.16*scProtect)*(1.0-.84*lowLee);
+     float dryGuard=smoothstep(.10,.35,climTarget+.16*scStrength)*(1.0-.84*lowLee);
      float polarDryCarve=saturate(stormWeight*frontalDry*smoothstep(midSin0,midSin1,abs(radial.y))+polarCarve*.38);
      float blanketRelief=smoothstep(.68,.92,lowTarget)*(1.0-smoothstep(.26,.66,synCluster*.35+planetary*.65))*(1.0-.90*sharpOrg);
-     float effLowTarget=saturate(min(.86,lowTarget*(1.0-.58*polarDryCarve-.08*blanketRelief)+.14*scProtect*smoothstep(.24,.64,synCluster*.30+planetary*.70)+.18*orogCrest*orogMoist*(1.0-.70*leeShadow))+.045*smoothstep(.24,.60,climTarget)*(1.0-lowLee));
+     float scCapWeight=scProtect*(1.0-stormWeight)*(1.0-saturate(itczConv*1.5))*(1.0-saturate(orogCrest*1.5));
+     float baseLowTarget=lerp(lowTarget,lerp(.12,.40,scStrength),scCapWeight);
+     float scTargetTerm=.12*scStrength*smoothstep(.24,.70,honeycomb);
+     float effLowTarget=saturate(min(.86,baseLowTarget*(1.0-.58*polarDryCarve-.08*blanketRelief)+scTargetTerm+
+                           .18*orogCrest*orogMoist*(1.0-.70*leeShadow))+.045*smoothstep(.24,.60,climTarget)*(1.0-lowLee));
      float veilTarget=saturate(min(.86,effLowTarget*1.28+.102*dryGuard)*(1.0-.62*polarDryCarve));
      float wVeil=max(1e-4,min(.44,min(veilTarget,1.0-veilTarget)+.09));
      float rawVeil=smoothstep(1.0-veilTarget-wVeil,1.0-veilTarget+wVeil,uLow);
@@ -616,11 +623,12 @@ Shader "ORBIS/FlatWorld/SkyBake"
      float frontDirect=stormWeight*smoothstep(.24,.72,frontalLow)*(1.0-.85*frontalDry)*smoothstep(.10,.38,climTarget+.12*midLatBoost)*.84;
      float postWakeLace=stormWeight*postFrontCells*smoothstep(.08,.40,climTarget+.12*midLatBoost)*.82;
      // Localized eastern-boundary marine stratocumulus sheet (closed-cell cobbles nearshore -> open-cell POCs seaward!)
-     float scDeckDirect=scProtect*smoothstep(.20,.62,honeycomb)*smoothstep(.18,.52,moistEnv+.28*scProtect)*(1.0-.72*leeShadow*(1.0-.55*scProtect))*.80;
+     float scDeckDirect=scProtect*lerp(.16,.68,scStrength)*smoothstep(.24,.70,honeycomb)*
+                        smoothstep(.18,.52,moistEnv+.28*scStrength)*(1.0-.72*leeShadow*(1.0-.55*scStrength));
      float oceanTradeGate=smoothstep(.16,.42,climTarget)*smoothstep(.28,.58,moistEnv)*(1.0-.88*lowLee);
      float tradePatchEnv=smoothstep(.34,.67,planetary*.48+curvedBand*.52);
      float tradeFineField=smoothstep(.40,.68,tradeStreets*.64+honeycomb*.36);
-     float marineTapestry=oceanTradeGate*tradePatchEnv*tradeFineField*lerp(.40,.64,saturate(marineSc+.38*tropBelt));
+     float marineTapestry=oceanTradeGate*tradePatchEnv*tradeFineField*lerp(.40,.64,saturate(marineSc+.38*tropBelt))*(1.0-.85*scCapWeight);
      float itczDirectLift=smoothstep(.12,.50,itczConv)*smoothstep(.36,.80,mcsCluster)*(1.0-.82*leeShadow)*.82;
      float orogDirectCap=orogCrest*smoothstep(.16,.52,moistEnv)*(1.0-.78*leeShadow)*(.44+.56*smoothstep(.20,.78,flowBands*.55+mesoCells*.45))*.76;
      low=saturate(max(max(veilLayer,bodyLayer),max(max(max(denseCore,frontDirect),max(postWakeLace,orogDirectCap)),max(max(marineTapestry,scDeckDirect),itczDirectLift)))+

@@ -21,15 +21,16 @@ float ScrollCloudGround(float2 uv)
 {
  if(_ScrollHeightScale<=0)return 1;
  float2 pixel=uv*_ScrollSourceSize.xy-.5,base=floor(pixel),fraction=frac(pixel);
+ float2 smoothFrac=fraction*fraction*(3.0-2.0*fraction);
  float2 texel=1/max(float2(1,1),_ScrollSourceSize.xy);
  float2 centre=(base+.5)*texel,dx=float2(texel.x,0),dy=float2(0,texel.y);
- return ScrollInterpolatedRadius(ScrollHeightAt(centre),ScrollHeightAt(centre+dx),
-                                 ScrollHeightAt(centre+dy),ScrollHeightAt(centre+dx+dy),fraction,uv,_ScrollSourceSize.y);
+ return max(1.0,ScrollInterpolatedRadius(ScrollHeightAt(centre),ScrollHeightAt(centre+dx),
+                                         ScrollHeightAt(centre+dy),ScrollHeightAt(centre+dx+dy),smoothFrac,uv,_ScrollSourceSize.y));
 }
 float ScrollCloudGroundFast(float2 uv)
 {
  if(_ScrollHeightScale<=0)return 1;
- return ScrollRadius(ScrollSurfaceHeight(ScrollHeightAt(uv)),uv,_ScrollSourceSize.y);
+ return max(1.0,ScrollRadius(ScrollSurfaceHeight(ScrollHeightAt(uv)),uv,_ScrollSourceSize.y));
 }
 
 // 3D Volumetric Tropical Cyclone (Typhoon / Hurricane) "Stadium Effect" Eyewall & Vortex Swirl:
@@ -125,10 +126,14 @@ float2 ScrollClimateDensitiesMip(float3 p,bool simpleMode,float pixelFootprint,f
 
  if(coverage+highWeather<.006)return 0;
  // Physically matched trilinear 3D mip levels from view-ray pixel footprint (prevents Nyquist grain & moving moire).
+ // Incoming rayFootprint from f5a5f5d's march includes a ~3.56x vertical pancake factor; rescale cleanly to our
+ // isotropic ~1.2:1 3D spherical billow noise so close-up cumulus stays plump while grazing stays Nyquist-clean!
  float fp=max(0.0,pixelFootprint);
- float filteredFoot=max(fp,rayFootprint);
  float macroMip=clamp(log2(max(1.0,fp*6.4*128.0))-.45,0.0,4.5);
  float angularBodyMip=clamp(log2(max(1.0,fp*30.0*128.0))-.45,0.0,5.0);
+ float closeUp=1.0-smoothstep(.25,1.45,angularBodyMip);
+ float isoRayFoot=rayFootprint*lerp(.32,.07,closeUp);
+ float filteredFoot=max(fp,isoRayFoot);
  float bodyMip=clamp(log2(max(1.0,filteredFoot*30.0*128.0))-.45,0.0,5.0);
  float detailMip=clamp(log2(max(1.0,filteredFoot*112.0*64.0)),0.0,5.5);
  float cirrusMip=clamp(log2(max(1.0,filteredFoot*17.5*64.0))-.30,0.0,4.5);
@@ -143,76 +148,82 @@ float2 ScrollClimateDensitiesMip(float3 p,bool simpleMode,float pixelFootprint,f
    float altitude=z/7000;
    const float3x3 frame=float3x3(.36,.48,-.80,-.80,.60,0,.48,.64,.60);
    float3 radAxis=mul(frame,up);
-   // Gentle downwind anvil shear (clamped so strong cyclone winds never smear 3D cauliflower tops into broom streaks!)
-   float anvilShear=.80+1.15*smoothstep(.58,.96,convection)*smoothstep(1.05,1.65,altitude);
+   // Scale downwind anvil shear proportionally to isotropic vertical scale so cyclone billows stay plump, never smeared
+   float anvilShear=(.80+1.15*smoothstep(.58,.96,convection)*smoothstep(1.05,1.65,altitude))*.45;
    float3 windShear=mul(frame,localWind)*(altitude*anvilShear);
    float3 q0=mul(frame,a);
 
    float shape=0,worleyMeso=.5,effCov=coverage,scCobbleGain=1.0;
    float4 erosion=float4(.68,.68,.42,.42);
    bool evalLow=false;
+   float cdoEff=cdoSmooth*(1.0-.52*closeUp);
    if(simpleMode)
    {
-    // Phase-locked single-fetch simpleMode with trilinear mip filtering (matches primary advection without extra 3D fetch cost).
+    // Phase-locked single-fetch simpleMode with isotropic 3D billow scale matching primary pass & LightField.
     float3 qS=mul(frame,normalize(up-advWind*(phase-.5)*4.0));
-    float3 bPos=(cycFlowKeep<.05?q0:qS)*30.0+radAxis*(altitude*1.12)+windShear+float3(.41,.19,.83);
-    float4 body=tex3Dlod(_CloudNoise,float4(bPos,min(5.5,bodyMip+.65)));
-    worleyMeso=body.g*.56+body.b*.34+body.a*.10;
-    float baseS=body.r*.68+worleyMeso*.32;
-    baseS=lerp(baseS,.68+.32*baseS,cdoSmooth*.44);
-    worleyMeso=lerp(worleyMeso,.66+.34*worleyMeso,cdoSmooth*.42);
+    float3 bPos=(cycFlowKeep<.05?q0:qS)*30.0+radAxis*(altitude*.42)+windShear+float3(.41,.19,.83);
+    float4 body=tex3Dlod(_CloudNoise,float4(bPos,min(4.5,bodyMip+.30)));
+    worleyMeso=body.g*lerp(.62,.46,closeUp)+body.b*lerp(.30,.46,closeUp)+body.a*.08;
+    float baseS=body.r*.62+worleyMeso*.38;
+    baseS=lerp(baseS,.68+.32*baseS,cdoEff*.28);
+    worleyMeso=lerp(worleyMeso,.66+.34*worleyMeso,cdoEff*.26);
+    float scOvercastS=(1.0-smoothstep(.08,.18,convection))*smoothstep(.48,.78,coverage)*(1.0-cdoSmooth);
+    baseS=max(baseS,.64*scOvercastS);
+    worleyMeso=max(worleyMeso,.66*scOvercastS);
     erosion=float4(.68,.68,.44,.44);
-    shape=saturate((baseS-(1.0-worleyMeso)*.16*(1.0-.40*cdoSmooth))/.84+coverage*.06+.10*smoothstep(.06,.52,coverage));
-    effCov=saturate(coverage+.06);
+    float covActive=smoothstep(.04,.20,coverage);
+    shape=saturate((baseS-(1.0-worleyMeso)*.16*(1.0-.36*cdoEff))/.84+coverage*.06+.12*smoothstep(.06,.52,coverage)+.07*covActive);
+    effCov=saturate(coverage+.10*covActive);
     evalLow=true;
    }
    else
    {
-    // Variance-preserving dual-phase flow blend: keeps crisp cauliflower tops & unbroken slender curved bands!
+    // Variance-preserving dual-phase flow blend with isotropic 1:1 spherical 3D cumulus billows (HPVolumeCloud style):
+    // eliminates 3.56x pancake squashing & oblique Nyquist fingerprint moire while preserving full-disk horizontal frequency.
     float invStd=lerp(1.0,rsqrt(max(.5,phase*phase+(1.0-phase)*(1.0-phase))),cycFlowKeep);
     float3 q1=mul(frame,b);
 
-    float3 mPos0=q0*6.4+radAxis*(altitude*.34)+windShear*.40+float3(.13,.71,.37);
+    float3 mPos0=q0*6.4+radAxis*(altitude*.14)+windShear*.40+float3(.13,.71,.37);
     float4 macroRaw=tex3Dlod(_CloudNoise,float4(mPos0,macroMip));
     [branch] if(cycFlowKeep>.01)
     {
-     float3 mPos1=q1*6.4+radAxis*(altitude*.34)+windShear*.40+float3(.13,.71,.37);
+     float3 mPos1=q1*6.4+radAxis*(altitude*.14)+windShear*.40+float3(.13,.71,.37);
      macroRaw=lerp(macroRaw,tex3Dlod(_CloudNoise,float4(mPos1,macroMip)),phase);
     }
     float4 macroBody=saturate(.5+(macroRaw-.5)*lerp(1.0,invStd,.65));
 
     float3 mesoWarp=(macroBody.gba-.5)*.06;
-    float3 bPos0=q0*30.0+radAxis*(altitude*1.12)+windShear+mesoWarp+float3(.41,.19,.83);
+    float3 bPos0=q0*30.0+radAxis*(altitude*.42)+windShear+mesoWarp+float3(.41,.19,.83);
     float4 bodyRaw=tex3Dlod(_CloudNoise,float4(bPos0,bodyMip));
     [branch] if(cycFlowKeep>.01)
     {
-     float3 bPos1=q1*30.0+radAxis*(altitude*1.12)+windShear+mesoWarp+float3(.41,.19,.83);
+     float3 bPos1=q1*30.0+radAxis*(altitude*.42)+windShear+mesoWarp+float3(.41,.19,.83);
      bodyRaw=lerp(bodyRaw,tex3Dlod(_CloudNoise,float4(bPos1,bodyMip)),phase);
     }
     float4 body=saturate(.5+(bodyRaw-.5)*lerp(1.0,invStd,.78));
 
-    worleyMeso=body.g*.56+body.b*.34+body.a*.10;
-    float basePW=macroBody.r*.28+body.r*.44+worleyMeso*.28;
-    // Keep inner eyewall smooth and creamy while letting outer eyewall & rainbands express puffy 3D billows
-    basePW=lerp(basePW,.68+.32*basePW,cdoSmooth*.44);
-    worleyMeso=lerp(worleyMeso,.66+.34*worleyMeso,cdoSmooth*.42);
+    worleyMeso=body.g*lerp(.62,.46,closeUp)+body.b*lerp(.30,.46,closeUp)+body.a*.08;
+    float basePW=macroBody.r*.22+body.r*.44+worleyMeso*.34;
+    // Keep inner eyewall smooth from orbit while letting near-eye turrets & rainbands express plump 3D cauliflower billows
+    basePW=lerp(basePW,.68+.32*basePW,cdoEff*.28);
+    worleyMeso=lerp(worleyMeso,.66+.34*worleyMeso,cdoEff*.26);
     // Keep soft synoptic mist envelopes connected while 3D fine detail sculpts lacy micro-structure
     float mistCohesion=.12*smoothstep(.06,.52,coverage);
-    shape=saturate((basePW-(1.0-worleyMeso)*.16*(1.0-.40*cdoSmooth))/.84+coverage*.06+mistCohesion);
+    shape=saturate((basePW-(1.0-worleyMeso)*.18*(1.0-.36*cdoEff))/.82+coverage*.06+mistCohesion);
 
     float covBound=.16+.84*saturate(coverage+.16);
-    if(pow(shape,.68)>.86-covBound||coverage>.52||inMidBand)
+    if(pow(shape,.58)>.86-covBound||coverage>.52||inMidBand)
     {
      float detailFade=1.0-smoothstep(2.2,3.8,detailMip);
      float4 eroNeutral=float4(.60,.60,.50,.50);
      if(detailFade>.02)
      {
       float3 curl=(body.gba-.5)*.22;
-      float3 dPos0=q0*112.0+radAxis*(altitude*2.60)+windShear*.62+curl;
+      float3 dPos0=q0*112.0+radAxis*(altitude*1.24)+windShear*.62+curl;
       float4 eroRaw=tex3Dlod(_CloudDetailNoise,float4(dPos0,detailMip));
       [branch] if(cycFlowKeep>.01&&detailMip<2.6)
       {
-       float3 dPos1=q1*112.0+radAxis*(altitude*2.60)+windShear*.62+curl;
+       float3 dPos1=q1*112.0+radAxis*(altitude*1.24)+windShear*.62+curl;
        eroRaw=lerp(eroRaw,tex3Dlod(_CloudDetailNoise,float4(dPos1,detailMip)),phase);
       }
       // Damp contrast amplification as mip rises so sub-pixel erosion never aliases into grain/moire
@@ -224,8 +235,9 @@ float2 ScrollClimateDensitiesMip(float3 p,bool simpleMode,float pixelFootprint,f
       erosion=eroNeutral;
      }
 
-     // True 3D Voronoi Marine Stratocumulus (Closed-Cell Cobblestone Sheets + Lacy Open-Cell Actiniform Rings!):
-     // Smooth C1 weighted blend across marine Sc, post-frontal cold-air open cells, and trade cumulus (ZERO seams!)
+     // True 3D Voronoi Marine Stratocumulus (Closed-Cell Cobblestone Sheets + Lacy Open-Cell Actiniform Rings):
+     // Gate open-cell POC cutouts cleanly off high-coverage overcast decks (>0.52) so thick Sc sheets form
+     // continuous plump cobblestone pillows instead of Swiss-cheese pinholes, while preserving natural open-cell Sc!
      float marineScMask=1.0-smoothstep(.08,.18,convection);
      float openWakeMask=smoothstep(.10,.17,convection)*(1.0-smoothstep(.20,.30,convection));
      float tradeCuMask=smoothstep(.17,.26,convection)*(1.0-smoothstep(.35,.52,convection));
@@ -233,27 +245,38 @@ float2 ScrollClimateDensitiesMip(float3 p,bool simpleMode,float pixelFootprint,f
      float cellActive=saturate(cellSum)*(1.0-cdoSmooth);
      if(cellActive>.01)
      {
-      float wClosed=body.b+(erosion.r-.5)*.20;
-      float closedCobble=smoothstep(.34,.66,wClosed)*(.76+.24*smoothstep(.18,.72,erosion.g));
+      float scOvercast=smoothstep(.48,.78,coverage);
+      float wClosed=body.b+(erosion.r-.5)*.18;
+      float cobbleFloor=lerp(.08,.58,scOvercast);
+      float closedCobble=lerp(cobbleFloor,1.0,smoothstep(.28,.66,wClosed))*(.80+.20*smoothstep(.18,.72,erosion.g));
       float cellWall=1.0-(body.b*.76+body.g*.24);
       float openRing=smoothstep(.36,.72,cellWall*.73+erosion.g*.41)*(.54+.46*smoothstep(.18,.68,erosion.r*.58+erosion.g*.42));
-      float finePopcorn=saturate(.12+.88*smoothstep(.26,.74,erosion.r*.52+erosion.g*.48));
+      float finePopcorn=saturate(.16+.84*smoothstep(.26,.74,erosion.r*.52+erosion.g*.48));
 
-      float pocOpen=saturate(smoothstep(.24,.70,(1.0-coverage*.80)+(macroBody.g-.46)*1.22));
+      float pocOpen=saturate(smoothstep(.28,.74,(1.0-coverage*.92)+(macroBody.g-.48)*.95))*(1.0-scOvercast);
       float scPattern=lerp(closedCobble,openRing,pocOpen);
-      float wakePattern=lerp(openRing,finePopcorn,.40);
-      float tradePattern=lerp(finePopcorn,openRing,.36);
+      float wakePattern=lerp(lerp(openRing,closedCobble,scOvercast*.85),finePopcorn,.40);
+      float tradePattern=lerp(finePopcorn,lerp(openRing,closedCobble,scOvercast*.80),.32);
       float targetPattern=(marineScMask*scPattern+openWakeMask*.90*wakePattern+tradeCuMask*.55*tradePattern)/max(1e-4,cellSum);
 
       float scDominance=marineScMask/max(1e-4,cellSum);
-      float sculptW=saturate(marineScMask*.94+openWakeMask*.80+tradeCuMask*.54)*(1.0-smoothstep(.72,.96,coverage)*(1.0-marineScMask*.82));
-      float baseKeep=lerp(.40,.22,scDominance);
-      float patGain=lerp(.72,.88,scDominance);
-      shape=lerp(shape,saturate(shape*baseKeep+targetPattern*patGain),sculptW*lerp(.76,1.0,scDominance));
-      worleyMeso=lerp(worleyMeso,targetPattern,sculptW*lerp(.72,.92,scDominance));
-      scCobbleGain=lerp(1.0,1.52,marineScMask*(1.0-pocOpen*.55)*closedCobble);
+      float sculptW=saturate(marineScMask*.92+openWakeMask*.78+tradeCuMask*.50)*(1.0-smoothstep(.60,.90,coverage)*(1.0-marineScMask*.60));
+      float baseKeep=lerp(.44,lerp(.26,.56,scOvercast),scDominance);
+      float patGain=lerp(.68,lerp(.84,.58,scOvercast),scDominance);
+      shape=lerp(shape,saturate(shape*baseKeep+targetPattern*patGain),sculptW*lerp(.74,.96,scDominance));
+      worleyMeso=lerp(worleyMeso,targetPattern,sculptW*lerp(.70,.88,scDominance));
+      scCobbleGain=lerp(1.0,1.46,marineScMask*(1.0-pocOpen*.55)*closedCobble);
      }
-     erosion=lerp(erosion,float4(.68,.68,.52,.52),cdoSmooth*.28);
+     // Resolved close-up 1.5 km / 750 m spherical Worley cauliflower silhouettes (HPVolumeCloud plump billowing)
+     // weighted conservatively so high-frequency detail trims outer rims without breaking weather-driven cloud cover!
+     float puffSculpt=closeUp*detailFade*(1.0-marineScMask*.75);
+     if(puffSculpt>.01)
+     {
+      float microPuff=erosion.r*.62+erosion.g*.38;
+      worleyMeso=lerp(worleyMeso,saturate(worleyMeso*.62+microPuff*.52),puffSculpt*.58);
+      shape=lerp(shape,saturate(shape*.80+microPuff*.28),puffSculpt*.38);
+     }
+     erosion=lerp(erosion,float4(.68,.68,.52,.52),cdoEff*.26);
 
      float edgeInvW=1.0-(erosion.r*.62+erosion.g*.38);
      // Mean-preserving mip attenuation: removes sub-pixel noise at orbit without inflating cloud area into clear gyres!
@@ -267,10 +290,9 @@ float2 ScrollClimateDensitiesMip(float3 p,bool simpleMode,float pixelFootprint,f
    {
     float tower=smoothstep(.45,.96,convection);
     // Volumetric optical depth curve + Cahalan sub-pixel clumping curve for orbital mipmaps:
-    // close-up (bodyMip < 0.55) stays 100% untouched; at orbital distances where 3D mipmaps smooth
-    // broken cumulus puffs into their mean, Jensen's inequality (E[exp(-tau)] > exp(-E[tau])) requires
-    // delaying denseCore saturation on mid-coverage broken clouds (effCov 0.34..0.72) while keeping
-    // clear gyres open and thin-cloud veils luminous (dense storm cores protected via stormProtect).
+    // at orbital distances (angularBodyMip > 1.45) preserves 79e6fa2 full-disk albedo & thin veils;
+    // up close (closeUp > 0) restores physical cumulus liquid-water optical depth inside resolved puffs
+    // (leaving weather-driven clear gaps 100% open!) so cumulus & eyewall domes have real volumetric body!
     float mipBlur=smoothstep(.55,2.35,angularBodyMip);
     float stormProtect=saturate(cdoSmooth*1.4);
     float orbitM=mipBlur*(1.0-.90*stormProtect);
@@ -278,7 +300,9 @@ float2 ScrollClimateDensitiesMip(float3 p,bool simpleMode,float pixelFootprint,f
     float coreExp=lerp(1.40,2.95,orbitM);
     float coreScale=lerp(1.24,.84,orbitM*(1.0-smoothstep(.45,.88,effCov)));
     float denseCore=coreScale*pow(smoothstep(.34,.94,effCov),coreExp);
-    float opticalGain=(thinMist+denseCore)*lerp(.87,1.22,tower)*scCobbleGain;
+    float scLow=1.0-smoothstep(.08,.20,convection);
+    float cuLwcBoost=lerp(1.0,lerp(3.4,1.60,tower)*(1.0-.55*scLow),closeUp*smoothstep(.16,.62,effCov));
+    float opticalGain=(thinMist+denseCore)*lerp(.87,1.22,tower)*scCobbleGain*cuLwcBoost;
     low=OrbisHPLowDensityDetailed(z,.14+.86*effCov,convection,shape,erosion,.42+.58*worleyMeso)*opticalGain;
    }
   }
@@ -298,15 +322,17 @@ float2 ScrollClimateDensitiesMip(float3 p,bool simpleMode,float pixelFootprint,f
    float3 axisAlong=normalize(lerp(float3(.84,.25,.48),dynAlong,wActive));
    float3 axisCross=normalize(lerp(float3(-.50,.05,.86),dynCross,wActive));
    float curve=(ice.b-.5)*.85+(ice.a-.5)*.55;
-   float fallHook=(z-8400)*.00020;
+   // Physically realistic cirrus virga fallstreak (~15 km horizontal hook across 4 km altitude, NOT 0.92 rad / 53 deg!):
+   // eliminates 8.9 m vertical Nyquist thread-striping in oblique grazing, upward views, and typhoon canopy rims!
+   float fallHook=(z-8400)*.0000025;
    float altZ=(z-7200.0)/5600.0;
    float3 uSwirl=normalize(upper+axisCross*(curve*.032)+axisAlong*fallHook);
    float3 uLic=normalize(uSwirl+axisAlong*.016);
    const float3x3 cFrame=float3x3(.48,.64,.60,-.80,.60,0,.36,.48,-.80);
    float3 cRot0=mul(cFrame,uSwirl);
    float3 cRot1=mul(cFrame,uLic);
-   float4 tapA=tex3Dlod(_CloudDetailNoise,float4(cRot0*17.5+float3(0,0,altZ*.92)+(ice.b-.5)*.28,cirrusMip));
-   float4 tapB=tex3Dlod(_CloudDetailNoise,float4(cRot1*17.5+float3(0,0,altZ*.92)+(ice.b-.5)*.28,cirrusMip));
+   float4 tapA=tex3Dlod(_CloudDetailNoise,float4(cRot0*17.5+float3(0,0,altZ*.24)+(ice.b-.5)*.28,cirrusMip));
+   float4 tapB=tex3Dlod(_CloudDetailNoise,float4(cRot1*17.5+float3(0,0,altZ*.24)+(ice.b-.5)*.28,cirrusMip));
    float streakFine=(tapA.a+tapB.a)*.5;
    float streakA=(tapA.b+tapB.b)*.5;
    float streakB=(tapA.g+tapB.g)*.5;

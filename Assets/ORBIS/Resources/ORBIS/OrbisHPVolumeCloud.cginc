@@ -78,14 +78,15 @@ float OrbisHPLowDensityDetailed(float metres,float coverage,float type,float sha
     float localTop=min(12950.0,lerp(span.y,span.x+(span.y-span.x)*topVar,1.0-sc*.25));
 
     float density=0;
-    float baseShape=pow(saturate(shape),.68);
+    // HPVolumeCloud pow(0.58) creates fuller, rounder, plumper cumulus domes before silhouette erosion
+    float baseShape=pow(saturate(shape),.58);
 
-    // 1. Primary cloud body (Marine Sc 420-1450m | Trade Cu 1060-3050m | Towering Cb 510-12400m)
+    // 1. Primary cloud body (Marine Sc 560-2200m | Trade Cu 1020-3150m | Towering Cb 510-12400m)
     if(metres>span.x-80.0&&metres<localTop+350.0)
     {
         float localHeight=saturate((metres-span.x)/max(350.0,localTop-span.x));
-        float lclRamp=smoothstep(0,.18,localHeight);
-        float topCap=1.0-smoothstep(.62,.99,localHeight);
+        float lclRamp=smoothstep(0,.14,localHeight);
+        float topCap=1.0-smoothstep(.52,.99,localHeight);
         float profile=lclRamp*topCap;
 
         // Glaciated cumulonimbus & typhoon eyewall tropopause anvil overhang (incus, ~9.0-12.3 km):
@@ -94,49 +95,60 @@ float OrbisHPLowDensityDetailed(float metres,float coverage,float type,float sha
         float anvilRelief=anvilFlare*lerp(.56,.82,mesoDome);
         profile=max(profile,anvilRelief);
 
+        // HPVolumeCloud-style cloud-base smoothing: keeps cumulus undersides smooth & readable (LCL base)
+        // while letting mid/upper domes puff freely into round 3D cauliflower pillows!
+        float bottomSmooth=pow(saturate(localHeight/.18),1.25);
+        float baseCoherent=lerp(lerp(baseShape,max(baseShape,.76),.50*(1.0-sc)),baseShape,bottomSmooth);
+
         // Cohesive synoptic storm bases without flattening 3D cauliflower billow crowns!
         float overcastCore=smoothstep(.70,.96,coverage);
         float baseCohesion=overcastCore*(1.0-smoothstep(.32,.72,localHeight));
-        float shapedCore=lerp(baseShape,max(baseShape,.62+.38*baseShape),baseCohesion*.50);
+        float shapedCore=lerp(baseCoherent,max(baseCoherent,.62+.38*baseCoherent),baseCohesion*.48);
 
         // Gentle upper-crown relief zone on dense convective tops: recovers soft billowing dimples
         // while preserving fluffy volumetric vapor ramps on thin clouds, marine Sc, and cloud bases.
-        float crownZone=smoothstep(.40,.80,localHeight)*smoothstep(.46,.88,coverage)*(1.0-sc*.80);
+        float crownZone=smoothstep(.38,.78,localHeight)*smoothstep(.46,.88,coverage)*(1.0-sc*.80);
 
         // Dry-air entrainment tapers cumulus towers upward, while glaciated anvils flare outward
         float entrain=smoothstep(.14,.84,localHeight)*(1.0-.64*anvilFlare)*(1.0-.65*sc)*(1.0-.42*baseCohesion);
-        float effCov=saturate(lerp(coverage,coverage*(.36+.64*cell),sc)*(1.0-.46*entrain)+.12*anvilFlare*coverage);
-        effCov=saturate(effCov*(1.0-crownZone*(.05+.11*invWorley)));
+        // On high-coverage solid marine Sc decks (>0.52), keep a continuous cobblestone floor to prevent blue pinholes
+        // while keeping full lacy cellular separation on broken/open-cell Sc (coverage < 0.52)!
+        float scDense=sc*smoothstep(.52,.82,coverage);
+        float scCellFloor=lerp(.38,.80,scDense);
+        float effCov=saturate(lerp(coverage,coverage*(scCellFloor+(1.0-scCellFloor)*cell),sc)*(1.0-.44*entrain)+.12*anvilFlare*coverage);
+        effCov=saturate(effCov*(1.0-crownZone*(.05+.12*invWorley)));
 
-        float bottomFade=pow(saturate(localHeight/.16),1.15);
+        float bottomFade=pow(saturate(localHeight/.18),1.20);
         float upFactor=smoothstep(.08,.44,localHeight);
-        float strength=(lerp(.24,.42,saturate(type+.28*upFactor))+.035*crownZone)*lerp(.35,1.0,bottomFade);
-        float billowDetail=lerp(curlyWisp*.52,invWorley,upFactor)*strength;
-        float wispDetail=lerp(curlyWisp,invWorley*.46+curlyWisp*.54,anvilFlare)*strength*1.06;
+        // High-frequency detail trims outer silhouettes & upper crowns without punching holes through plump interior cores!
+        float silhouetteMask=lerp(1.0,.42,smoothstep(.58,.90,shapedCore*profile));
+        float strength=(lerp(.32,.50,saturate(type+.34*upFactor))+.04*crownZone)*lerp(.22,1.0,bottomFade)*silhouetteMask;
+        float billowDetail=lerp(curlyWisp*.46,invWorley,upFactor)*strength;
+        float wispDetail=lerp(curlyWisp,invWorley*.42+curlyWisp*.58,anvilFlare)*strength*1.06;
 
         float eroded=saturate((shapedCore-billowDetail)/max(.02,1-billowDetail))*profile;
         float erodedWispy=saturate((shapedCore-wispDetail)/max(.02,1-wispDetail))*profile;
         float threshold=1-effCov;
-        // Soft HanPi wispy-reach & translucent cottony vapor ramp: wide feathered rim + rounded puffy core
-        float coreWeight=smoothstep(.25,.76,coverage);
-        float crownSharpen=coreWeight*smoothstep(.36,.76,localHeight);
-        float billowWidth=lerp(.26,.20,crownSharpen);
+        // HPVolumeCloud soft wispy-reach & gradual optical-depth rim transition:
+        // outer rim feathers softly by optical thickness while plump cores retain full weather-driven cloud cover!
+        float coreWeight=smoothstep(.24,.76,coverage);
+        float crownSharpen=coreWeight*smoothstep(.36,.78,localHeight);
+        float billowWidth=lerp(.28,.20,crownSharpen);
         float billowy=smoothstep(threshold-.01,threshold+billowWidth,eroded);
-        // HPVolumeCloud-style wispy threshold skirt: feathers outer edges smoothly without bleeding haze into clear gyres
-        float wispyReach=lerp(.12,.08,sc);
-        float gauzeVeil=smoothstep(threshold-wispyReach,threshold+.27,erodedWispy)*lerp(1.0-.40*localHeight,.85,anvilFlare);
+        float wispyReach=lerp(.14,.08,sc);
+        float gauzeVeil=smoothstep(threshold-wispyReach,threshold+.28,erodedWispy)*lerp(pow(1.0-localHeight*.50,1.15),.86,anvilFlare);
         float cellLace=smoothstep(.12,.78,cell);
-        float clip=lerp(1,lerp(.20,1.0,pow(max(cellLace,.001),1.08)),sc);
-        float veilTerm=gauzeVeil*lerp(.28,.41,anvilFlare)*(1.0-.34*sc)*lerp(1.0,.82,crownSharpen);
-        float coreTerm=billowy*lerp(.58,1.0,coreWeight);
-        float vaporBody=saturate(veilTerm+coreTerm*(1.0-veilTerm*.48));
-        float crownTurret=lerp(1.0,lerp(.84,1.10,saturate(turretField*.55+mesoDome*.45)),crownZone*.38);
-        // Full volumetric upper-crown density feather applied AFTER billowy on tall dense convective towers:
-        // tapers smoothly toward 0 across upper crown so 3-5 volumetric steps resolve fluffy sunlit cloud depth
-        // with zero solid-clay shell or contour rings while preserving 79e6fa2 full-disk albedo & cloud shadows.
-        float denseTopMask=smoothstep(.38,.82,coverage)*smoothstep(.32,.74,type);
-        float topFeather=1.0-smoothstep(.58,.99,localHeight)*denseTopMask*.96;
-        density=lerp(vaporBody,billowy,coreWeight*.34*(1-.52*anvilFlare))*crownTurret*topFeather*clip*coverage*lerp(.92,1.38,type);
+        float clip=lerp(1,lerp(lerp(.22,.78,scDense),1.0,pow(max(cellLace,.001),1.04)),sc);
+        float veilTerm=gauzeVeil*lerp(.32,.42,anvilFlare)*(1.0-.30*sc)*lerp(1.0,.86,crownSharpen);
+        float billowyByShape=smoothstep(0.0,.38,billowy);
+        float coreTerm=billowy*lerp(.68,1.0,coreWeight);
+        float vaporBody=lerp(veilTerm,max(veilTerm*.76,coreTerm),billowyByShape);
+        vaporBody*=lerp(.68+.32*vaporBody,1.0,smoothstep(.15,.52,vaporBody));
+        float crownTurret=lerp(1.0,lerp(.84,1.12,saturate(turretField*.55+mesoDome*.45)),crownZone*.42);
+        // Upper-rim volumetric feather (top 26% only) keeps cumulus & typhoon eyewall sides plump and sculptural
+        float denseTopMask=smoothstep(.38,.82,coverage)*smoothstep(.30,.72,type);
+        float topFeather=1.0-smoothstep(.74,.99,localHeight)*denseTopMask*.72;
+        density=lerp(vaporBody,billowy,coreWeight*.28*(1-.55*anvilFlare))*crownTurret*topFeather*clip*coverage*lerp(.94,1.38,type);
     }
 
     // 2. Detached Mid-Tropospheric Altocumulus / Altostratus (Ac/As) Deck (3,850 - 6,050 m):
