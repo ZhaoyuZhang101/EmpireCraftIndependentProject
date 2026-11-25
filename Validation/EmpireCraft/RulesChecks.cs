@@ -335,6 +335,7 @@ public static class RulesChecks
     {
         checks = 0;
         var map = FlatGenerator.Generate(256, 128, "EMPIRE-ENTRY", TerrainPreset.Continents, default);
+        PortedSystems.Enabled = false;   // one entry point by hand: nothing else may touch the books
         var w = Start(map); w.Activate();
         var realm = w.LiveRealms[0]; var ruler = realm.Ruler;
         var empire = w.Empires.NewObject(); empire.CoreKingdom = realm;
@@ -353,6 +354,7 @@ public static class RulesChecks
         var report = TreasurySystem.Report(realm);
         Check(report != null && report.months > 0, "the spending is on the books");
         ReignRecordSystem.OnYear(empire);
+        PortedSystems.Enabled = true;
         EmpireWorld.Current = null;
         Console.WriteLine("PASS first live entry (" + checks + " checks): income " + income + ", palace " + cost);
     }
@@ -518,6 +520,40 @@ public static class RulesChecks
         pool.Dispose();
         EmpireWorld.Current = null;
         Console.WriteLine("PASS alliances (" + checks + " checks)");
+    }
+
+    // The ported systems in the running world: called from the month step, none of them failing, and the
+    // first of them doing visible work (standing earned and fading year by year).
+    public static void Running()
+    {
+        checks = 0;
+        var map = FlatGenerator.Generate(256, 128, "EMPIRE-RUNNING", TerrainPreset.Continents, default);
+        PortedSystems.Reset(); PortedSystems.Enabled = true;
+        var w = Start(map);
+        Run(w, 40, world => { var broken = EmpireInvariants.Check(world, 1); Check(broken.Count == 0, "invariants hold with the ported systems running" + (broken.Count > 0 ? ": " + broken[0] : "")); });
+        string faults = string.Join("; ", PortedSystems.Slots.Where(s => s.Faults > 0).Select(s => s.Name + " x" + s.Faults + " " + s.LastFault));
+        Check(PortedSystems.TotalFaults == 0, "no ported system fails: " + faults);
+        Check(PortedSystems.Slots.Count >= 13 && PortedSystems.Slots.All(s => !s.Off && s.Runs > 0) && PortedSystems.Slots.Where(s => s.Name == "ambition" || s.Name == "hostages").All(s => s.Runs == 40) &&
+              PortedSystems.Slots.First(s => s.Name == "renown").Runs == 480, "every system is called each month, the yearly ones each year");
+        var rulers = w.LiveRealms.Where(r => r.Ruler != null).Select(r => r.Ruler).ToList();
+        int withStanding = rulers.Count(p => p.Renown > 0); long total = w.Living.Sum(p => (long)p.Renown);
+        Check(withStanding >= rulers.Count * 3 / 4 && total > 0, "rulers earn standing year by year (" + withStanding + "/" + rulers.Count + ")");
+        var great = w.LiveRealms.OrderByDescending(r => r.Cities.Count).First().Ruler; var small = w.LiveRealms.OrderBy(r => r.Cities.Count).First().Ruler;
+        int income = RenownSystem.Income(great);
+        Check(income > 0 && income >= RenownSystem.Income(small) && great.Renown <= income * 12, "standing follows the size of the realm and levels off as it fades");
+        var commoner = w.Living.FirstOrDefault(p => p.Throne == null && p.IsAdult() && !p.IsCityLeader());
+        Check(commoner == null || commoner.Renown <= great.Renown, "a ruler outshines a subject");
+        string slow = string.Join(", ", PortedSystems.Slots.OrderByDescending(s => s.WorstMs).Take(4).Select(s => s.Name + " " + s.WorstMs.ToString("0.00") + " ms at month " + s.WorstMonth + " (" + (s.TotalMs / Math.Max(1, s.Runs)).ToString("0.000") + " avg)"));
+        Console.WriteLine("   slowest calls: " + slow + "; all systems " + PortedSystems.Slots.Sum(s => s.TotalMs).ToString("0") + " ms over 480 months");
+        // The same world again gives the same bytes: nothing the systems keep between calls leaks from one world into the next.
+        var bytes = EmpireSave.Encode(w);
+        PortedSystems.Reset();
+        var again = Start(map); Run(again, 40);
+        Check(EmpireSave.Encode(again).SequenceEqual(bytes), "the same seed gives the same world with the ported systems running");
+        PortedSystems.Enabled = false; var bare = Start(map); Run(bare, 40); PortedSystems.Enabled = true;
+        Check(EmpireSave.Encode(bare, 2).SequenceEqual(EmpireSave.Encode(w, 2)) && bare.Living.All(p => p.Renown == 0), "switched off, the world is the skeleton's alone; switched on, the skeleton's part is unchanged");
+        EmpireWorld.Current = null;
+        Console.WriteLine("PASS ported systems running 40 years (" + checks + " checks): " + PortedSystems.Slots.Count + " systems, standing " + total + " in all, the greatest ruler " + great.Renown + " (earns " + income + " a year)");
     }
 
     // The grid as the ported systems see it: cells, terrain, a city's territory and neighbours.

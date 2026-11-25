@@ -186,6 +186,8 @@ namespace EmpireCraft.Core
             using (FrameProfiler.Measure("empire.accounts.month")) RealmAccounts.Month(w);
             if (w.Month % 12 == 0)
                 using (FrameProfiler.Measure("empire.accounts.year")) RealmAccounts.Year(w);
+            // The systems brought over from the mod, in their fixed order (see PortedSystems).
+            PortedSystems.Month(w);
         }
     }
 

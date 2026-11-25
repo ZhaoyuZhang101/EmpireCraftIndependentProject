@@ -44,12 +44,15 @@ namespace EmpireCraft.EditorTools
 
                 FrameClock.Reset(); FrameJobs.Reset(); SimulationFrameBudget.Reset();
                 double day = map.Day; var runner = new EmpireRunner(world, day);
-                int frames = 0, worstBehind = 0; double worstFrame = 0d; var frame = new Stopwatch();
+                int frames = 0, worstBehind = 0, worstAt = -1; double worstFrame = 0d, worstLater = 0d; var frame = new Stopwatch();
+                PortedSystems.Reset();
                 // 120 days a second at 60 frames a second, as the map runs at full speed.
                 while (world.Month < years * 12)
                 {
                     FrameClock.Advance(1f / 60f); day += 2d; frames++;
-                    frame.Restart(); runner.Frame(day); worstFrame = Math.Max(worstFrame, frame.Elapsed.TotalMilliseconds);
+                    frame.Restart(); runner.Frame(day); double took = frame.Elapsed.TotalMilliseconds;
+                    if (took > worstFrame) { worstFrame = took; worstAt = world.Month; }
+                    if (world.Month > 12) worstLater = Math.Max(worstLater, took);   // past the first year: code is compiled, tables are loaded
                     worstBehind = Math.Max(worstBehind, runner.MonthsBehind(day));
                     if (world.Month % 12 == 0 && runner.LastFrameMonths > 0) Require(world, "year " + world.Year);
                 }
@@ -68,6 +71,11 @@ namespace EmpireCraft.EditorTools
                           " frames, worst frame " + worstFrame.ToString("F2") + " ms, never more than " + worstBehind + " month behind");
                 Debug.Log("[EmpireCoreCheck] after " + years + " years: " + realms + "/" + world.Realms.Count + " realms alive, " + cities + " cities, " + world.Living.Count + "/" + world.People.Count +
                           " people living, mean stability " + (stability / Math.Max(1, cities)).ToString("F1") + ", treasuries " + treasury + ", save " + bytes.Length / 1024 + " KiB");
+                var slots = PortedSystems.Slots.OrderByDescending(s => s.WorstMs).Take(4).Select(s => s.Name + " " + s.WorstMs.ToString("F2") + " ms at month " + s.WorstMonth);
+                double portedTotal = PortedSystems.Slots.Sum(s => s.TotalMs);
+                Debug.Log("[EmpireCoreCheck] slowest frame at month " + worstAt + "; after the first year the worst frame is " + worstLater.ToString("F2") + " ms. Ported systems: " + PortedSystems.Slots.Count +
+                          " running, " + PortedSystems.TotalFaults + " faults, " + portedTotal.ToString("F0") + " ms in all; slowest calls: " + string.Join(", ", slots));
+                if (PortedSystems.TotalFaults > 0) throw new Exception("ported systems failed: " + string.Join("; ", PortedSystems.Slots.Where(s => s.Faults > 0).Select(s => s.Name + " " + s.LastFault)));
                 Debug.Log("[EmpireCoreCheck] PASS");
             }
             catch (Exception e)
