@@ -13,31 +13,39 @@ namespace Orbis.Flat
         readonly WorldData world;
         readonly CancellationTokenSource lifetime = new CancellationTokenSource();
         readonly Color32[] pixels = new Color32[Width * Height];
+        readonly ushort[] precipHalf = new ushort[Width * Height * 4];
+        readonly ushort[] uploadedPrecipHalf = new ushort[Width * Height * 4];
+        float[] precipFallback;
+        float stagedSouthRain, stagedSouthSfc, stagedNorthRain, stagedNorthSfc;
         readonly FlatMoistureCloudBudget moistureBudget = new FlatMoistureCloudBudget();
         FlatClimateStatistics model;
         Task worker;
         long requested = long.MinValue;
         int revision;
         FlatMoistureState requestedMoisture;
-        bool requestedHadStorms;
+        bool requestedHadStorms, requestedSpinUpAtTick;
         FlatCycloneTrack requestedNorth, requestedSouth, requestedPrevNorth, requestedPrevSouth;
         bool available, hasUploadedTexture;
         long uploadedTick = long.MinValue;
         int uploadedRevision = -1;
         FlatMoistureState uploadedMoisture;
-        Texture2D texture;
-        Vector4 poles;
+        Texture2D texture, precipTexture;
+        Vector4 poles, precipPoles;
         internal long? Step => available ? requested : (long?)null;
         internal bool HasValidField => available || hasUploadedTexture;
+        internal Texture2D PrecipitationTexture => HasValidField ? precipTexture : null;
+        internal Vector4 PrecipitationPoles => HasValidField ? precipPoles : Vector4.zero;
 
         internal FlatRegionalCloudField(WorldData world) { this.world = world; }
 
         bool SameRequestedStorms(long tick)
         {
             var c = world.Cyclones;
-            bool hasStorms = c != null && c.StepIndex == tick;
-            if (hasStorms != requestedHadStorms) return false;
-            if (!hasStorms) return true;
+            if (c == null) return !requestedHadStorms;
+            if (!requestedHadStorms) return false;
+            if (c.StepIndex != tick)
+                return requestedSpinUpAtTick && requested == tick;
+            if (requestedSpinUpAtTick) return false;
             return FlatSkyForcingCache.SameCycloneTrack(c.North, requestedNorth) &&
                    FlatSkyForcingCache.SameCycloneTrack(c.South, requestedSouth) &&
                    FlatSkyForcingCache.SameCycloneTrack(c.PreviousNorth, requestedPrevNorth) &&
@@ -73,6 +81,32 @@ namespace Orbis.Flat
                         };
                         texture.SetPixels32(pixels);
                         texture.Apply(false, false);
+                        if (!precipTexture)
+                        {
+                            var fmt = SystemInfo.SupportsTextureFormat(TextureFormat.RGBAHalf) ? TextureFormat.RGBAHalf : TextureFormat.RGBAFloat;
+                            precipTexture = new Texture2D(Width, Height, fmt, false, true)
+                            {
+                                name = "Regional 6h cloud rain-out and surface fallout (kg/m2/6h)",
+                                filterMode = FilterMode.Bilinear,
+                                wrapModeU = TextureWrapMode.Repeat,
+                                wrapModeV = TextureWrapMode.Clamp
+                            };
+                        }
+                        if (precipTexture.format == TextureFormat.RGBAHalf)
+                        {
+                            precipTexture.SetPixelData(precipHalf, 0);
+                        }
+                        else
+                        {
+                            if (precipFallback == null || precipFallback.Length != precipHalf.Length)
+                                precipFallback = new float[precipHalf.Length];
+                            for (int k = 0; k < precipHalf.Length; k++)
+                                precipFallback[k] = FlatMoistureCloudBudget.HalfBitsToFloat(precipHalf[k]);
+                            precipTexture.SetPixelData(precipFallback, 0);
+                        }
+                        precipTexture.Apply(false, false);
+                        Buffer.BlockCopy(precipHalf, 0, uploadedPrecipHalf, 0, precipHalf.Length * sizeof(ushort));
+                        precipPoles = new Vector4(stagedSouthRain, stagedSouthSfc, stagedNorthRain, stagedNorthSfc);
                         var south = Pole(0);
                         var north = Pole(Height - 1);
                         poles = new Vector4(south.x, south.y, north.x, north.y);
@@ -98,8 +132,9 @@ namespace Orbis.Flat
             revision = world.TerrainRevision;
             requestedMoisture = world.Moisture;
             var storms = world.Cyclones?.Clone();
-            requestedHadStorms = storms != null && storms.StepIndex == tick;
-            if (requestedHadStorms)
+            requestedHadStorms = storms != null;
+            requestedSpinUpAtTick = storms != null && storms.StepIndex != tick;
+            if (storms != null && !requestedSpinUpAtTick)
             {
                 requestedNorth = storms.North; requestedSouth = storms.South;
                 requestedPrevNorth = storms.PreviousNorth; requestedPrevSouth = storms.PreviousSouth;
@@ -108,16 +143,20 @@ namespace Orbis.Flat
             {
                 requestedNorth = requestedSouth = requestedPrevNorth = requestedPrevSouth = default;
             }
+            bool spinUpAtTick = requestedSpinUpAtTick;
             var token = lifetime.Token;
-            worker = Task.Run(() => Calculate(tick * .25, storms, rebuildModel, token), token);
+            worker = Task.Run(() => Calculate(tick * .25, storms, spinUpAtTick, rebuildModel, token), token);
             return false;
         }
 
-        void Calculate(double day, FlatCycloneWeather storms, bool rebuildModel, CancellationToken cancel)
+        void Calculate(double day, FlatCycloneWeather storms, bool spinUpAtTick, bool rebuildModel, CancellationToken cancel)
         {
+            if (spinUpAtTick)
+                storms = FlatCycloneWeather.SpinUpAt(world, day);
             if (model == null || rebuildModel) model = new FlatClimateStatistics(world, cancel, Width, atmosphereOnly: true);
             model.Refresh(day, storms, cancel);
             moistureBudget.Solve(world, day, storms);
+            moistureBudget.PackPrecipitationHalf(precipHalf, out stagedSouthRain, out stagedSouthSfc, out stagedNorthRain, out stagedNorthSfc);
             for (int i = 0; i < pixels.Length; i++)
             {
                 var response = RegionalCloudResponse.FromSynoptic(model.Cells[i], i, moistureBudget, storms, day);
@@ -145,6 +184,26 @@ namespace Orbis.Flat
             bool valid = (available || hasUploadedTexture) && texture;
             bake.SetTexture("_RegionalCloudResponse", valid ? texture : Texture2D.blackTexture);
             bake.SetVector("_RegionalCloudPoles", valid ? poles : Vector4.zero);
+            BindPrecipitation(bake);
+        }
+
+        internal void BindPrecipitation(Material target)
+        {
+            if (!target) return;
+            bool valid = (available || hasUploadedTexture) && precipTexture;
+            target.SetTexture("_RegionalPrecipDiagTex", valid ? precipTexture : Texture2D.blackTexture);
+            target.SetVector("_RegionalPrecipPoles", valid ? precipPoles : Vector4.zero);
+        }
+
+        internal bool TrySampleUploadedPrecipitation(double u, double v, out RegionalPrecipitationDiagnostic diagnostic)
+        {
+            if (!HasValidField)
+            {
+                diagnostic = default;
+                return false;
+            }
+            diagnostic = FlatMoistureCloudBudget.SamplePackedPrecipitationHalf(uploadedPrecipHalf, u, v);
+            return true;
         }
 
         public void Dispose()
@@ -154,6 +213,7 @@ namespace Orbis.Flat
             else worker.ContinueWith(t => { if (t.IsFaulted) _ = t.Exception; lifetime.Dispose(); },
                 CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
             if (texture) UnityEngine.Object.Destroy(texture);
+            if (precipTexture) UnityEngine.Object.Destroy(precipTexture);
         }
     }
 }

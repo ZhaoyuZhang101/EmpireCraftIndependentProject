@@ -3677,7 +3677,7 @@ namespace Orbis.Flat
                     // moist uplift cools to saturation to condense clouds; dry-air advection, rain-out depletion, and
                     // subsidence adiabatic warming evaporate clouds (monsoon belts keep a wetter mean without a permanent floor).
                     float synMoistUplift = 0f, synPostRainClear = 0f, synSlpDelta = 0f;
-                    float budCloud = 0f, budVapAnom = 0f, budEvap = 0f, budW = 0f;
+                    float budCloud = 0f, budVapAnom = 0f, budEvap = 0f, budW = 0f, budRainOut = 0f;
                     if (!tidallyLocked)
                     {
                         double uNorm = (x + 0.5) / width;
@@ -3687,7 +3687,7 @@ namespace Orbis.Flat
                             oceanFrac, thermalGrad300, sthzRidge, baseHighP,
                             targetHadleyDeg, targetPolarDeg,
                             out synMoistUplift, out synPostRainClear, out synSlpDelta);
-                        ws.MoistureBudget.SampleBilinear(uNorm, v, out budCloud, out budVapAnom, out budEvap, out budW);
+                        ws.MoistureBudget.SampleBilinear(uNorm, v, out budCloud, out budVapAnom, out budEvap, out budW, out budRainOut);
                     }
                     float effSlp = slp + synSlpDelta - 2.5f * budW;
 
@@ -3872,13 +3872,19 @@ namespace Orbis.Flat
 
                     float fineLand = fineLandGrid[idx];
                     float fineSea = 1f - fineLand;
+                    // Allow genuine synoptic moist intrusions (advected vapor + uplift condensation & rain-out) to form clouds
+                    // even in low-monthly-rain belts without being crushed by static monthly dryness, while strictly respecting rh<=0.18 hyper-arid guards
+                    // and avoiding double-counting in already-wet storm tracks (preserving 30-year NOAA zonal calibration r >= 0.907).
+                    float lowClimRainGate = 1f - Smooth(32f, 88f, rainMm);
+                    float moistIntrusionRelease = lowClimRainGate * Smooth(0.24f, 0.54f, rh) * Smooth(0.18f, 0.68f, budCloud + 0.35f * FMath.Clamp(budRainOut / 1.6f, 0f, 1f) + 0.30f * eddyLowP);
                     float nonBlanketPart = FMath.Clamp(1f + 0.58f * (1f - 0.35f * highLatStormClear) * effCondGrowth + 0.14f * localSatOverride - (0.48f + 0.18f * highLatStormClear) * effEvap * (1f - 0.78f * scShield), 0.08f, 1.62f);
                     float transientPartition = nonBlanketPart * (1f - 0.92f * blanketDryShutoff);
-                    float effRainMm = (rainMm * (1f - 0.78f * fineSea * leeShadow) + 34f * fineLand * deepSoilVal * (1f - 0.55f * effEvap)) * transientPartition;
+                    float synRainEquivMm = 28f * lowClimRainGate * FMath.Clamp(budRainOut + 0.55f * budCloud, 0f, 2.8f) * Smooth(0.24f, 0.54f, rh);
+                    float effRainMm = (rainMm * (1f - 0.78f * fineSea * leeShadow) + 34f * fineLand * deepSoilVal * (1f - 0.55f * effEvap)) * transientPartition + synRainEquivMm;
                     float fRain = 1f - (float)Math.Exp(-effRainMm / 72f);
                     float fRh = Smooth(0.26f, 0.84f, rh * (1f + 0.18f * effCondGrowth - (0.24f + 0.24f * blanketWeight) * effEvap * (1f - 0.80f * scShield))) * (1f - 0.55f * leeShadow);
-                    float aridLandClear = fineLand * (1f - Smooth(0.12f, 0.62f, rh * Smooth(2f, 45f, rainMm + 25f * deepSoilVal))) * (1f - Smooth(1f, 32f, rainMm));
-                    float subtropDry = (1f - 0.72f * fineSea) * (0.55f * highP + 0.45f * negImpact) * (1f - Smooth(4f, 42f, rainMm));
+                    float aridLandClear = fineLand * (1f - Smooth(0.12f, 0.62f, rh * Smooth(2f, 45f, rainMm + 25f * deepSoilVal + synRainEquivMm))) * (1f - Smooth(1f, 32f, rainMm + synRainEquivMm));
+                    float subtropDry = (1f - 0.72f * fineSea) * (0.55f * highP + 0.45f * negImpact) * (1f - Smooth(4f, 42f, rainMm + synRainEquivMm)) * (1f - 0.68f * moistIntrusionRelease);
                     float winStratus = fineLand * (1f - Smooth(-18f, 2f, tempC)) * Smooth(0.34f, 0.75f, rh) * (1f - Smooth(1300f, 2600f, elevG[idx])) * (1f - 0.40f * effEvap);
                     float icePlateauClear = Smooth(1400f, 2900f, elevG[idx]) * (1f - Smooth(-32f, -10f, tempC));
 

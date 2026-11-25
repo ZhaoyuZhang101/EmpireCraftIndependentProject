@@ -31,6 +31,8 @@ namespace Orbis.Flat
         bool rendered, failed;
         double stagedClock, stagingCalendarDay = double.NaN, stagingWeatherTime;
         Vector4 pendingNorth, pendingSouth, pendingPhase, visibleNorth, visibleSouth, visiblePhase;
+        Texture2D pendingPrecipTex, visiblePrecipTex;
+        Vector4 pendingPrecipPoles, visiblePrecipPoles;
         FlatRegionalCloudField regionalClimate;
         FlatCycloneWeather rewindCycloneCache;
         int rewindCycloneRevision = -1;
@@ -39,6 +41,14 @@ namespace Orbis.Flat
         int stagingRevision;
         public long? RegionalClimateStep { get; private set; }
         public double PublishedCalendarDay { get; private set; } = double.NaN;
+        public Texture2D RegionalPrecipitationTexture { get { return Ready && visiblePrecipTex ? visiblePrecipTex : null; } }
+        public bool TrySampleRegionalPrecipitation(double u, double v, out RegionalPrecipitationDiagnostic diagnostic)
+        {
+            if (Ready && regionalClimate != null && regionalClimate.TrySampleUploadedPrecipitation(u, v, out diagnostic))
+                return true;
+            diagnostic = default;
+            return false;
+        }
 #if UNITY_EDITOR
         // A locked weather phase isolates climate inputs in the editor's paired captures.
         internal double? CaptureWeatherTimeOverride { get; set; }
@@ -58,6 +68,8 @@ namespace Orbis.Flat
             pendingForcingBake = false;
             regionalClimate?.Dispose();
             regionalClimate = null;
+            pendingPrecipTex = visiblePrecipTex = null;
+            pendingPrecipPoles = visiblePrecipPoles = Vector4.zero;
             rewindCycloneCache = null;
             rewindCycloneRevision = -1;
             rewindCycloneTargetStep = long.MinValue;
@@ -245,6 +257,8 @@ namespace Orbis.Flat
             visibleNorth = pendingNorth;
             visibleSouth = pendingSouth;
             visiblePhase = pendingPhase;
+            visiblePrecipTex = pendingPrecipTex;
+            visiblePrecipPoles = pendingPrecipPoles;
             Shader.SetGlobalVector("_OrbisCycloneNorth", visibleNorth);
             Shader.SetGlobalVector("_OrbisCycloneSouth", visibleSouth);
             Shader.SetGlobalVector("_OrbisCyclonePhase", visiblePhase);
@@ -506,6 +520,9 @@ namespace Orbis.Flat
                 debt = 0;
                 pendingForcingBake = false;
                 regionalClimate.Bind(bake);
+                regionalClimate.BindPrecipitation(hpColumn);
+                pendingPrecipTex = regionalClimate.PrecipitationTexture;
+                pendingPrecipPoles = regionalClimate.PrecipitationPoles;
                 stagingClimateStep = regionalClimate.Step ?? RegionalClimateStep;
                 if (!regionalClimate.HasValidField) stagingClimateStep = null;
                 stagingRevision = world.TerrainRevision;
@@ -549,6 +566,8 @@ namespace Orbis.Flat
             target.SetFloat("_VegetationWindBlend", windBlend);
             target.SetVector("_CycloneNorth", visibleNorth);
             target.SetVector("_CycloneSouth", visibleSouth);
+            target.SetTexture("_RegionalPrecipDiagTex", Ready && visiblePrecipTex ? visiblePrecipTex : Texture2D.blackTexture);
+            target.SetVector("_RegionalPrecipPoles", Ready && visiblePrecipTex ? visiblePrecipPoles : Vector4.zero);
             target.SetFloat("_FlatCloudShadows", shadows ? 1 : 0);
             target.SetFloat("_FlatAtmosphere", atmosphere ? 1 : 0);
             target.SetFloat("_FlatDayNight", dayNight ? 1 : 0);

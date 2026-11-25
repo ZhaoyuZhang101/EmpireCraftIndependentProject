@@ -913,10 +913,18 @@ public static class CloudForcingRegression
         int xEcs = LonToX(124.5f), yEcs = LatToY(29.5f);
         int xAzores = LonToX(-28f), yAzores = LatToY(31f);
         int xMonsoon = LonToX(88f), yMonsoon = LatToY(21f);
+        int cellEcs = FlatMoistureCloudBudget.CellIndexAtLonLat(125.0, 30.0);
+        int cellAzores = FlatMoistureCloudBudget.CellIndexAtLonLat(-27.0, 31.0);
+        int cellPeruSc = FlatMoistureCloudBudget.CellIndexAtLonLat(-80.5, -19.0);
         double minTransient = 1.0, maxTransient = 0.0;
         double minEcs = 1.0, maxEcs = 0.0, maxEcsEvap = 0.0;
+        double maxEcsRainOut = 0.0, minEcsRainOut = 999.0, maxAzoresRainOut = 0.0, sumAzoresRainOut = 0.0, sumAzoresQc = 0.0, maxPeruRainOut = 0.0, minPeruQc = 999.0;
         double sumAzores = 0.0, maxAzores = 0.0, sumMonsoon = 0.0;
+        int peruCloudyTicks = 0;
         var budget = new FlatMoistureCloudBudget();
+        var precipHalf = new ushort[FlatMoistureCloudBudget.Count * 4];
+        var snapPrecip1950 = new ushort[precipHalf.Length];
+        RegionalCloudResponse snapReg1950 = default;
 
         for (int step = 0; step <= 60; step++)
         {
@@ -924,7 +932,32 @@ public static class CloudForcingRegression
             GlebaGeographySupplement.BuildCloudSynopticFields(w, d, GridW, GridH, f, a, null);
             stats.Refresh(d, w.Cyclones, default);
             budget.Solve(w, d, w.Cyclones);
+            budget.PackPrecipitationHalf(precipHalf, out _, out _, out _, out _);
             Check(budget.WaterBudgetErrorKgM2 < 1e-4, $"Moisture cloud budget violated conservation: err={budget.WaterBudgetErrorKgM2:E3}");
+
+            var dEcs = budget.GetCellDiagnostics(cellEcs);
+            var dAz = budget.GetCellDiagnostics(cellAzores);
+            var dPe = budget.GetCellDiagnostics(cellPeruSc);
+            Check(dEcs.SurfacePrecipKgM2Per6h >= 0f && dEcs.SurfacePrecipKgM2Per6h <= dEcs.CloudRainOutKgM2Per6h + 1e-5f,
+                $"Surface precipitation exceeded in-cloud rain-out: sfc={dEcs.SurfacePrecipKgM2Per6h}, cloud={dEcs.CloudRainOutKgM2Per6h}");
+            var packedEcs = FlatMoistureCloudBudget.SamplePackedPrecipitationHalf(precipHalf, (cellEcs % 64 + 0.5) / 64.0, (cellEcs / 64 + 0.5) / 32.0);
+            Check(Math.Abs(packedEcs.CloudRainOutKgM2Per6h - dEcs.CloudRainOutKgM2Per6h) <= 0.02f * Math.Max(1f, dEcs.CloudRainOutKgM2Per6h),
+                $"RGBAHalf precipitation pack mismatch: packed={packedEcs.CloudRainOutKgM2Per6h:F4} vs raw={dEcs.CloudRainOutKgM2Per6h:F4}");
+
+            if (dEcs.CloudRainOutKgM2Per6h > maxEcsRainOut) maxEcsRainOut = dEcs.CloudRainOutKgM2Per6h;
+            if (dEcs.CloudRainOutKgM2Per6h < minEcsRainOut) minEcsRainOut = dEcs.CloudRainOutKgM2Per6h;
+            if (dAz.CloudRainOutKgM2Per6h > maxAzoresRainOut) maxAzoresRainOut = dAz.CloudRainOutKgM2Per6h;
+            sumAzoresRainOut += dAz.CloudRainOutKgM2Per6h;
+            sumAzoresQc += dAz.LowCloudKgM2 + dAz.HighCloudKgM2;
+            if (dPe.CloudRainOutKgM2Per6h > maxPeruRainOut) maxPeruRainOut = dPe.CloudRainOutKgM2Per6h;
+            if (dPe.LowCloudKgM2 < minPeruQc) minPeruQc = dPe.LowCloudKgM2;
+            if (dPe.LowCloudKgM2 > 0.25f) peruCloudyTicks++;
+
+            if (step == 60)
+            {
+                Array.Copy(precipHalf, snapPrecip1950, precipHalf.Length);
+                snapReg1950 = RegionalCloudResponse.FromSynoptic(stats.Cells[cellEcs], cellEcs, budget, w.Cyclones, d);
+            }
 
             double EvalSite(int sx, int sy, float lon, float lat, out float evapA)
             {
@@ -1007,11 +1040,86 @@ public static class CloudForcingRegression
             && wFast.Cyclones.South.Equals(liveDecoded.Cyclones.South),
             "Post-save/load future cyclone trajectories diverged from continuous simulation");
 
-        Console.WriteLine($"[9. Synoptic Weather Lifecycle & Budget] ECS=[{minEcs:F3}..{maxEcs:F3}] (maxEvapA={maxEcsEvap:F3}) | TransientSpan={maxTransient - minTransient:F3} [{minTransient:F3}..{maxTransient:F3}] | " +
-            $"AzoresMean={meanAzores:F3} (max {maxAzores:F3}) vs MonsoonMean={meanMonsoon:F3} | UpperWind=[{minTropU:F2}..{maxMidU:F2} m/s] | 1x/20x & LiveSave Exact=TRUE");
+        // 9c. Round-trip calendar rewind & return bit-exactness (195.0 -> 184.5 -> 188.5 -> 184.5 -> 195.0,
+        // and rewind invariance after advancing world further to Day 203.0):
+        (ushort[] p, RegionalCloudResponse r) EvalRegionalAt(WorldData worldRef, double targetDay)
+        {
+            long tick = FlatCycloneWeather.StepAt(targetDay);
+            var st = worldRef.Cyclones != null && worldRef.Cyclones.StepIndex == tick
+                ? worldRef.Cyclones.Clone()
+                : FlatCycloneWeather.SpinUpAt(worldRef, tick * 0.25);
+            stats.Refresh(tick * 0.25, st, default);
+            budget.Solve(worldRef, tick * 0.25, st);
+            var buf = new ushort[precipHalf.Length];
+            budget.PackPrecipitationHalf(buf, out _, out _, out _, out _);
+            var rr = RegionalCloudResponse.FromSynoptic(stats.Cells[cellEcs], cellEcs, budget, st, tick * 0.25);
+            return (buf, rr);
+        }
+
+        var rew1845A = EvalRegionalAt(w, 184.5);
+        var rew1885A = EvalRegionalAt(w, 188.5);
+        var rew1845B = EvalRegionalAt(w, 184.5);
+        var ret1950 = EvalRegionalAt(w, 195.0);
+        Check(rew1845A.p.AsSpan().SequenceEqual(rew1845B.p) &&
+              rew1845A.r.Cover == rew1845B.r.Cover && rew1845A.r.Convection == rew1845B.r.Convection && rew1845A.r.Evaporation == rew1845B.r.Evaporation,
+            "Round-trip rewind 195.0 -> 184.5 -> 188.5 -> 184.5 failed bit-exactness");
+        Check(ret1950.p.AsSpan().SequenceEqual(snapPrecip1950) &&
+              ret1950.r.Cover == snapReg1950.Cover && ret1950.r.Convection == snapReg1950.Convection && ret1950.r.Evaporation == snapReg1950.Evaporation,
+            "Returning from rewound date back to live Day 195.0 failed to restore bit-exact cloud/precipitation state");
+        var rew1845AfterLaterWorld = EvalRegionalAt(wFast, 184.5); // wFast was stepped to Day 203.0 above!
+        Check(rew1845A.p.AsSpan().SequenceEqual(rew1845AfterLaterWorld.p) &&
+              rew1845A.r.Cover == rew1845AfterLaterWorld.r.Cover && rew1845A.r.Evaporation == rew1845AfterLaterWorld.r.Evaporation,
+            "Rewind to Day 184.5 depended on current world.Day (195.0 vs 203.0)");
+
+        // 9d. Verify natural synoptic wet intrusion in a low-monthly-rain margin (rainMm=18mm, rh=0.56) is NOT crushed by climate layer,
+        // and verify physical separation of in-cloud rain-out vs surface precipitation (maritime humid boundary layer vs dry continental virga).
+        double seaRainSum = 0.0, seaSfcSum = 0.0, dryLandRainSum = 0.0, dryLandVirgaSum = 0.0;
+        budget.Solve(w, 195.0, w.Cyclones);
+        for (int ci = 0; ci < FlatMoistureCloudBudget.Count; ci++)
+        {
+            var cd = budget.GetCellDiagnostics(ci);
+            if (cd.CloudRainOutKgM2Per6h <= 0.02f) continue;
+            if (budget.OceanMask[ci] > 0.7f)
+            {
+                seaRainSum += cd.CloudRainOutKgM2Per6h;
+                seaSfcSum += cd.SurfacePrecipKgM2Per6h;
+            }
+            else if (budget.OceanMask[ci] < 0.2f)
+            {
+                dryLandRainSum += cd.CloudRainOutKgM2Per6h;
+                dryLandVirgaSum += cd.VirgaLossKgM2Per6h;
+            }
+        }
+        double seaSfcReachFrac = seaSfcSum / Math.Max(1e-6, seaRainSum);
+        double contVirgaRatio = dryLandVirgaSum / Math.Max(1e-6, dryLandRainSum);
+
+        (float r, float g, float b, float a) fWetIntrusion, fDryRidge;
+        using (var snap = new ClimateSnapshot(earthBase))
+        {
+            int sx = LonToX(116f), sy = LatToY(38f);
+            SetPatch(earthBase, sx, sy, 4, rainMm: 18f, tempC: 19f, rh: 0.56f, cond: 1.4f, deepSoil: 0.22f, shallowSoil: 0.20f);
+            SetSynopticPressureAndConvergence(earthBase, sx, sy, slpHpa: 992f, rainImpact: 0.25f, convSign: +0.8f);
+            BuildAndSample(earthBase, 195.0, sx, sy, 0f, 0f, out fWetIntrusion, out _);
+
+            snap.Restore();
+            SetPatch(earthBase, sx, sy, 4, rainMm: 18f, tempC: 19f, rh: 0.56f, cond: 0.2f, deepSoil: 0.22f, shallowSoil: 0.20f);
+            SetSynopticPressureAndConvergence(earthBase, sx, sy, slpHpa: 1028f, rainImpact: -0.25f, convSign: -0.8f);
+            BuildAndSample(earthBase, 195.0, sx, sy, 0f, 0f, out fDryRidge, out _);
+        }
+        double meanAzoresRainOut = sumAzoresRainOut / 61.0, meanAzoresQc = sumAzoresQc / 61.0;
+
+        Console.WriteLine($"[9. Synoptic Weather Lifecycle & Budget] ECS=[{minEcs:F3}..{maxEcs:F3}] (maxEvapA={maxEcsEvap:F3}, rainOut=[{minEcsRainOut:F2}..{maxEcsRainOut:F2}] kg/m2/6h) | " +
+            $"PeruMarineSc(cloudy={peruCloudyTicks}/61, minQc={minPeruQc:F2}, maxRain={maxPeruRainOut:F2}) | Azores(meanQc={meanAzoresQc:F2}, meanRain={meanAzoresRainOut:F3}, maxRain={maxAzoresRainOut:F2}) | " +
+            $"LowRainMoistIntrusion={fDryRidge.r:F3}->{fWetIntrusion.r:F3} | SeaReach={seaSfcReachFrac:F2} vs LandVirga={contVirgaRatio:F2} | UpperWind=[{minTropU:F2}..{maxMidU:F2} m/s] | Rewind/1x20x/Save Exact=TRUE");
 
         Check(minEcs < 0.52 && (maxEcs - minEcs) >= 0.22 && maxEcsEvap >= 0.25,
             $"East China Sea remained permanently overcast or lacked dry-intrusion/subsidence clearing: [{minEcs:F3}..{maxEcs:F3}], maxEvapA={maxEcsEvap:F3}");
+        Check(maxEcsRainOut >= 0.60 && minEcsRainOut <= 0.02 && meanAzoresQc <= 0.34 && meanAzoresRainOut <= 0.04 && maxAzoresRainOut <= 0.35,
+            $"Regional 6h in-cloud rain-out failed ECS storm/clear or Azores clear checks: ecs=[{minEcsRainOut:F3}..{maxEcsRainOut:F3}], azoresQc={meanAzoresQc:F3}, azoresMeanRain={meanAzoresRainOut:F3}, azoresMaxRain={maxAzoresRainOut:F3}");
+        Check(peruCloudyTicks >= 55 && maxPeruRainOut <= 0.25,
+            $"Peru marine stratocumulus failed multi-day non-precipitating persistence: ticks={peruCloudyTicks}/61, minQc={minPeruQc:F3}, maxRain={maxPeruRainOut:F3}");
+        Check(fWetIntrusion.r >= fDryRidge.r + 0.20f && fWetIntrusion.r >= 0.42f && seaSfcReachFrac >= 0.80 && contVirgaRatio >= 0.18 && seaSfcReachFrac > 1.0 - contVirgaRatio + 0.10,
+            $"Low-rain moist intrusion or maritime/continental virga separation failed: dryRidge={fDryRidge.r:F3}->{fWetIntrusion.r:F3}, seaReach={seaSfcReachFrac:F3}, landVirga={contVirgaRatio:F3}");
         Check(maxTransient - minTransient >= 0.16,
             $"Transient midlatitude storm track lacked moist-uplift/post-rain cloud lifecycle span: {maxTransient - minTransient:F3}");
         Check(meanAzores <= 0.18 && maxAzores <= 0.30 && meanMonsoon >= meanAzores + 0.35,

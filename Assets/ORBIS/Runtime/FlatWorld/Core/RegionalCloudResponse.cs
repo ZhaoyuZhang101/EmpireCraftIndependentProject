@@ -101,6 +101,74 @@ namespace Orbis.Flat
     }
 
     /// <summary>
+    /// Compact read-only 6-hour precipitation &amp; cloud-condensate diagnostic published to GPU/CPU consumers
+    /// (<c>_RegionalPrecipDiagTex</c> 64x32 RGBAHalf). Physical mass units (<c>kg/m^2/6h = mm/6h</c>), NOT statistical distances.
+    /// Explicitly distinguishes in-cloud rain-out (<see cref="CloudRainOutKgM2Per6h"/>) from surface-reaching fallout
+    /// (<see cref="SurfacePrecipKgM2Per6h"/>) after sub-cloud virga re-evaporation, without mutating long-term hydrology or saves.
+    /// </summary>
+    public readonly struct RegionalPrecipitationDiagnostic
+    {
+        public readonly float CloudRainOutKgM2Per6h;
+        public readonly float SurfacePrecipKgM2Per6h;
+        public readonly float HighIceFalloutShare;
+        public readonly float CondensateLoadKgM2;
+
+        public float VirgaLossKgM2Per6h => Math.Max(0f, CloudRainOutKgM2Per6h - SurfacePrecipKgM2Per6h);
+
+        public RegionalPrecipitationDiagnostic(float cloudRainOutKgM2Per6h, float surfacePrecipKgM2Per6h, float highIceFalloutShare, float condensateLoadKgM2)
+        {
+            CloudRainOutKgM2Per6h = Math.Max(0f, cloudRainOutKgM2Per6h);
+            SurfacePrecipKgM2Per6h = FMath.Clamp(surfacePrecipKgM2Per6h, 0f, CloudRainOutKgM2Per6h);
+            HighIceFalloutShare = FMath.Clamp(highIceFalloutShare, 0f, 1f);
+            CondensateLoadKgM2 = Math.Max(0f, condensateLoadKgM2);
+        }
+    }
+
+    /// <summary>
+    /// Complete single-cell 6h causal-chain snapshot from <see cref="FlatMoistureCloudBudget"/>:
+    /// low/upper winds -> vapor anomaly &amp; surface recharge -> uplift/subsidence adiabatic dT -> condensation/evaporation
+    /// -> cloud condensate -> in-cloud rain-out vs surface fallout -> post-rain drying.
+    /// </summary>
+    public readonly struct CloudBudgetCellDiagnostics
+    {
+        public readonly long StepIndex;
+        public readonly double CalendarDay;
+        public readonly int CellIndex;
+        public readonly float LowWindEastMs, LowWindNorthMs;
+        public readonly float UpperWindEastMs, UpperWindNorthMs;
+        public readonly float VaporKgM2, EquilibriumVaporKgM2, VaporAnomaly;
+        public readonly float VerticalMotion, AdiabaticDeltaTK;
+        public readonly float SurfaceEvapKgM2Per6h, CondensationKgM2Per6h, CloudEvapKgM2Per6h;
+        public readonly float LowCloudKgM2, HighCloudKgM2, CloudWaterNorm;
+        public readonly float CloudRainOutKgM2Per6h, SurfacePrecipKgM2Per6h, VirgaLossKgM2Per6h, HighIceFalloutShare;
+        public readonly float EvaporationAlpha;
+
+        public CloudBudgetCellDiagnostics(
+            long stepIndex, int cellIndex,
+            float uLow, float vLow, float uUp, float vUp,
+            float qv, float qvEq, float vapAnom,
+            float vertW, float dTAdiabK,
+            float sfcEvap, float condense, float cloudEvap,
+            float qcL, float qcH, float cloudNorm,
+            float rainOut, float sfcPrecip, float virgaLoss, float iceShare,
+            float evapAlpha)
+        {
+            StepIndex = stepIndex;
+            CalendarDay = stepIndex * 0.25;
+            CellIndex = cellIndex;
+            LowWindEastMs = uLow; LowWindNorthMs = vLow;
+            UpperWindEastMs = uUp; UpperWindNorthMs = vUp;
+            VaporKgM2 = qv; EquilibriumVaporKgM2 = qvEq; VaporAnomaly = vapAnom;
+            VerticalMotion = vertW; AdiabaticDeltaTK = dTAdiabK;
+            SurfaceEvapKgM2Per6h = sfcEvap; CondensationKgM2Per6h = condense; CloudEvapKgM2Per6h = cloudEvap;
+            LowCloudKgM2 = qcL; HighCloudKgM2 = qcH; CloudWaterNorm = cloudNorm;
+            CloudRainOutKgM2Per6h = rainOut; SurfacePrecipKgM2Per6h = sfcPrecip;
+            VirgaLossKgM2Per6h = virgaLoss; HighIceFalloutShare = iceShare;
+            EvaporationAlpha = evapAlpha;
+        }
+    }
+
+    /// <summary>
     /// Stateless, mass-conserving 2-layer (low/mid water vapor &amp; liquid cloud + upper ice/anvil cloud) synoptic
     /// moisture-saturation-condensation-fallout-evaporation solver on the 64x32 global spherical grid.
     /// Integrates deterministically over the trailing 5-day (20 x 6h) residence window using
@@ -184,6 +252,14 @@ namespace Orbis.Flat
         public readonly float[] TransientDrying = new float[Count];
         public readonly float[] VerticalMotion = new float[Count];
         public readonly float[] OceanMask = new float[Count];
+        public readonly float[] CloudRainOutKgM2Per6h = new float[Count];
+        public readonly float[] SurfacePrecipKgM2Per6h = new float[Count];
+        public readonly float[] VirgaLossKgM2Per6h = new float[Count];
+        public readonly float[] HighIceFalloutShare = new float[Count];
+        public readonly float[] SurfaceEvapKgM2Per6h = new float[Count];
+        public readonly float[] CondensationKgM2Per6h = new float[Count];
+        public readonly float[] CloudEvapKgM2Per6h = new float[Count];
+        public readonly float[] AdiabaticDeltaTK = new float[Count];
 
         public double WaterBudgetErrorKgM2 { get; private set; }
         public double InitialWaterKgM2 { get; private set; }
@@ -295,24 +371,32 @@ namespace Orbis.Flat
                         ? FMath.Clamp(1f + 0.14f * FMath.Clamp(sstAnom, -1.5f, 2.5f), 0.75f, 1.35f)
                         : FMath.Clamp(0.10f + 0.55f * (0.45f * shallowSoil + 0.55f * deepSoil) + 0.45f * FMath.Clamp(rMm / 160f, 0f, 1f), 0.02f, 0.95f) * FMath.Clamp(rh / 0.22f, 0f, 1f);
 
-                    // Cold eastern-boundary marine stratocumulus inversion shield
+                    // Cold eastern-boundary marine stratocumulus inversion shield (matches BuildCloudSynopticFields eastCoastal + cold SST;
+                    // protects Peru/Benguela/California coastal upwelling decks while keeping open Azores/Pacific gyres clear):
+                    int wxEast1 = FMath.Wrap(wx + world.Width / 48, world.Width);
+                    int wxEast2 = FMath.Wrap(wx + world.Width / 28, world.Width);
+                    float eastBoundary = (!FlatTerrainAnalysis.Ocean(world.Water[wy * world.Width + wxEast1]) ||
+                                          !FlatTerrainAnalysis.Ocean(world.Water[wy * world.Width + wxEast2])) ? 1f : 0.25f;
                     float scLat = FMath.Clamp((absLatDeg - 7f) / 8f, 0f, 1f) * (1f - FMath.Clamp((absLatDeg - 33f) / 10f, 0f, 1f));
-                    float coolSst = FMath.Clamp((0.25f - sstAnom) / 1.9f, 0f, 1f);
+                    float coolSst = Math.Max(eastBoundary * FMath.Clamp((-0.15f - sstAnom) / 1.65f, 0f, 1f), FMath.Clamp((-1.25f - sstAnom) / 1.10f, 0f, 1f));
                     float highLid = FMath.Clamp((slp - 1012f) / 12f, 0f, 1f);
                     scShield[i] = isSea * scLat * coolSst * (0.35f + 0.65f * highLid) * (1f - FMath.Clamp((rMm - 95f) / 90f, 0f, 1f));
 
                     double colTempK = sfcTempK[i] - 8.5;
                     float qSat0 = AirColumnMassKgM2 * (float)OrbisAtmosphereCore.Saturation(colTempK, MidLayerPressurePa);
                     qSatNeutralArr[i] = qSat0;
-                    // Map column-mean Humidity + rainfall moisture supply onto boundary-layer LCL saturation fraction:
+                    // Map column-mean Humidity + rainfall moisture supply onto boundary-layer LCL saturation fraction
+                    // (accounting for dry free-tropospheric trade-inversion air above persistent non-Sc subtropical highs):
+                    float anticycloneDry = FMath.Clamp((slp - 1016f) / 10f, 0f, 1f) * (1f - FMath.Clamp(rMm / 45f, 0f, 1f)) * (1f - scShield[i]);
                     float blSatFrac = rh <= 0.02f
                         ? 0f
-                        : FMath.Clamp(0.76f * FMath.Clamp(rh / 0.58f, 0f, 1.18f) + 0.18f * FMath.Clamp(rMm / 180f, 0f, 1f), 0.02f, 0.96f);
+                        : FMath.Clamp(0.76f * FMath.Clamp(rh / 0.58f, 0f, 1.18f) + 0.18f * FMath.Clamp(rMm / 180f, 0f, 1f) - 0.15f * anticycloneDry, 0.02f, 0.96f);
                     qvClimEquil[i] = qSat0 * blSatFrac;
-                    qv[i] = qvClimEquil[i];
-                    qcLow[i] = 0f;
+                    float initScLwp = scShield[i] > 0.38f ? Math.Min(qSat0 * blSatFrac * 0.08f, 1.05f * scShield[i]) : 0f;
+                    qv[i] = qvClimEquil[i] - initScLwp;
+                    qcLow[i] = initScLwp;
                     qcHigh[i] = 0f;
-                    initWaterSum += qv[i] * CellArea[i];
+                    initWaterSum += (qv[i] + qcLow[i]) * CellArea[i];
                 }
                 zonalSlp[y] = (float)(slpSum / Width);
             }
@@ -559,7 +643,7 @@ namespace Orbis.Flat
                     float qSatTrans = qSatNeutral * ccTrans;
                     float excessSubSat = Math.Max(0f, (qSatTrans - qSatNeutral) + 1.08f * Math.Max(0f, qvEquil - qv[i])) / Math.Max(0.35f, qSatNeutral);
 
-                    float evapSignal = 0f;
+                    float evapSignal = 0f, stepCondense = 0f, stepCloudEvap = 0f;
                     if (qv[i] > qSatParcel)
                     {
                         float condense = (qv[i] - qSatParcel) * 0.79f;
@@ -567,23 +651,37 @@ namespace Orbis.Flat
                         float highShare = FMath.Clamp(0.18f + 0.48f * FMath.Clamp((sfcTempK[i] - 285f) / 18f, 0f, 1f) * wSyn + 0.24f * frontGrad, 0.12f, 0.65f);
                         qcLow[i] += condense * (1f - highShare);
                         qcHigh[i] += condense * highShare;
+                        stepCondense = condense;
                     }
                     else
                     {
                         float protect = scShield[i];
                         float subDeficit = (qSatParcel - qv[i]) / Math.Max(0.25f, qSatParcel);
-                        float evapStrength = FMath.Clamp((0.18f + 1.95f * excessSubSat + 0.50f * subDeficit + 0.54f * Math.Max(0f, -wTransient)) * (1f - 0.78f * protect), 0f, 0.95f);
+                        float evapStrength = FMath.Clamp((0.18f + 1.95f * excessSubSat + 0.50f * subDeficit + 0.54f * Math.Max(0f, -wTransient)) * (1f - 0.88f * protect), 0f, 0.95f);
                         float dLow = qcLow[i] * evapStrength;
                         float dHigh = qcHigh[i] * FMath.Clamp(evapStrength * 0.85f, 0f, 0.93f);
                         qcLow[i] -= dLow;
                         qcHigh[i] -= dHigh;
                         qv[i] += dLow + dHigh;
+                        stepCloudEvap = dLow + dHigh;
+
+                        // Cold eastern-boundary marine stratocumulus inversion-trapped turbulent mixing (Wood 2012):
+                        // maintains a persistent non-precipitating liquid deck (LWP ~ 0.45-1.1 kg/m^2) by condensing MBL vapor
+                        // beneath the sharp cold-upwelling inversion lid while strictly conserving Qv + QcLow mass.
+                        if (protect > 0.38f && qv[i] > 0.5f)
+                        {
+                            float scTargetLwp = 1.35f * protect;
+                            float scMixCond = Math.Min(qv[i] * 0.12f, Math.Max(0f, scTargetLwp - qcLow[i]) * 0.52f);
+                            qv[i] -= scMixCond;
+                            qcLow[i] += scMixCond;
+                            stepCondense += scMixCond;
+                        }
 
                         // Extra evaporation / subsidence dissipation [0, 1] (0 = undisturbed equilibrium or saturated ascent):
                         evapSignal = FMath.Clamp(
                             (1.90f * FMath.Clamp((excessSubSat - 0.022f) / 0.22f, 0f, 1f)
                             + 0.58f * FMath.Clamp((-wTransient - 0.055f) / 0.39f, 0f, 1f))
-                            * (1f - 0.84f * protect),
+                            * (1f - 0.88f * protect),
                             0f, 1f);
                     }
 
@@ -596,7 +694,8 @@ namespace Orbis.Flat
                     float rainHigh = Math.Max(0f, qcHigh[i] - qCritHigh) * 0.55f;
                     qcLow[i] -= rainLow;
                     qcHigh[i] -= rainHigh;
-                    totalPrecipArea += (rainLow + rainHigh) * CellArea[i];
+                    float totRainOut = rainLow + rainHigh;
+                    totalPrecipArea += totRainOut * CellArea[i];
 
                     if (isFinalStep)
                     {
@@ -609,6 +708,25 @@ namespace Orbis.Flat
                         Evaporation[i] = CloudWaterNorm[i] > 0.58f && wTransient > 0.12f ? 0f : evapSignal;
                         TransientDrying[i] = FMath.Clamp(Evaporation[i] * (1f - 0.78f * CloudWaterNorm[i]), 0f, 1f);
                         VerticalMotion[i] = FMath.Clamp(wTransient, -1f, 1f);
+
+                        // Read-only 6h causal & fallout diagnostics (distinguishing in-cloud rain-out vs surface precipitation):
+                        SurfaceEvapKgM2Per6h[i] = evapKgM2;
+                        CondensationKgM2Per6h[i] = stepCondense;
+                        CloudEvapKgM2Per6h[i] = stepCloudEvap;
+                        AdiabaticDeltaTK[i] = dTAdiab;
+                        CloudRainOutKgM2Per6h[i] = totRainOut;
+                        HighIceFalloutShare[i] = totRainOut > 1e-5f ? FMath.Clamp(rainHigh / totRainOut, 0f, 1f) : 0f;
+
+                        float blSatRatio = FMath.Clamp(qv[i] / Math.Max(0.35f, qSatNeutral), 0f, 1f);
+                        float subCloudRh = OceanMask[i] > 0.5f
+                            ? FMath.Clamp(0.35f * rhClim[i] + 0.65f * blSatRatio, 0f, 1f)
+                            : FMath.Clamp(0.68f * rhClim[i] + 0.20f * soilAvail[i] + 0.12f * blSatRatio, 0f, 1f);
+                        float lclThresh = OceanMask[i] > 0.5f ? 0.76f : 0.85f;
+                        float subCloudDry = FMath.Clamp((lclThresh - subCloudRh) / 0.48f, 0f, 1f);
+                        float virgaFrac = FMath.Clamp(subCloudDry * (OceanMask[i] > 0.5f ? 0.34f : 0.88f) + 0.24f * Evaporation[i], 0f, 0.92f);
+                        float virgaLoss = totRainOut * virgaFrac;
+                        VirgaLossKgM2Per6h[i] = virgaLoss;
+                        SurfacePrecipKgM2Per6h[i] = Math.Max(0f, totRainOut - virgaLoss);
                     }
                 }
             }
@@ -650,6 +768,9 @@ namespace Orbis.Flat
         }
 
         public void SampleBilinear(double u, double v, out float cloudNorm, out float vaporAnom, out float evap, out float vertMotion)
+            => SampleBilinear(u, v, out cloudNorm, out vaporAnom, out evap, out vertMotion, out _);
+
+        public void SampleBilinear(double u, double v, out float cloudNorm, out float vaporAnom, out float evap, out float vertMotion, out float cloudRainOutKgM2Per6h)
         {
             double px = u * Width - 0.5;
             double py = FMath.Clamp((float)(v * Height - 0.5), 0f, Height - 1f);
@@ -663,6 +784,119 @@ namespace Orbis.Flat
             vaporAnom = Bilerp(VaporAnomaly, c00, c10, c01, c11, tx, ty);
             evap = Bilerp(TransientDrying, c00, c10, c01, c11, tx, ty);
             vertMotion = Bilerp(VerticalMotion, c00, c10, c01, c11, tx, ty);
+            cloudRainOutKgM2Per6h = Bilerp(CloudRainOutKgM2Per6h, c00, c10, c01, c11, tx, ty);
+        }
+
+        public RegionalPrecipitationDiagnostic SamplePrecipitation(double u, double v)
+        {
+            double px = u * Width - 0.5;
+            double py = FMath.Clamp((float)(v * Height - 0.5), 0f, Height - 1f);
+            int ix = (int)Math.Floor(px), iy = (int)py;
+            float tx = (float)(px - ix), ty = (float)(py - iy);
+            int x0 = FMath.Wrap(ix, Width), x1 = x0 + 1 == Width ? 0 : x0 + 1;
+            int y0 = iy * Width, y1 = Math.Min(iy + 1, Height - 1) * Width;
+            int c00 = y0 + x0, c10 = y0 + x1, c01 = y1 + x0, c11 = y1 + x1;
+
+            float rainOut = Bilerp(CloudRainOutKgM2Per6h, c00, c10, c01, c11, tx, ty);
+            float sfcRain = Bilerp(SurfacePrecipKgM2Per6h, c00, c10, c01, c11, tx, ty);
+            float iceShare = Bilerp(HighIceFalloutShare, c00, c10, c01, c11, tx, ty);
+            float condLoad = Bilerp(qcLow, c00, c10, c01, c11, tx, ty) + Bilerp(qcHigh, c00, c10, c01, c11, tx, ty);
+            return new RegionalPrecipitationDiagnostic(rainOut, sfcRain, iceShare, condLoad);
+        }
+
+        public CloudBudgetCellDiagnostics GetCellDiagnostics(int cellIndex)
+        {
+            if ((uint)cellIndex >= Count) return default;
+            return new CloudBudgetCellDiagnostics(
+                cachedTick == long.MinValue ? 0 : cachedTick, cellIndex,
+                uLowMs[cellIndex], vLowMs[cellIndex], uUpMs[cellIndex], vUpMs[cellIndex],
+                qv[cellIndex], qvClimEquil[cellIndex], VaporAnomaly[cellIndex],
+                VerticalMotion[cellIndex], AdiabaticDeltaTK[cellIndex],
+                SurfaceEvapKgM2Per6h[cellIndex], CondensationKgM2Per6h[cellIndex], CloudEvapKgM2Per6h[cellIndex],
+                qcLow[cellIndex], qcHigh[cellIndex], CloudWaterNorm[cellIndex],
+                CloudRainOutKgM2Per6h[cellIndex], SurfacePrecipKgM2Per6h[cellIndex],
+                VirgaLossKgM2Per6h[cellIndex], HighIceFalloutShare[cellIndex],
+                Evaporation[cellIndex]);
+        }
+
+        public static int CellIndexAtLonLat(double lonDeg, double latDeg)
+        {
+            int x = FMath.Wrap((int)Math.Floor((lonDeg / 360.0 + 0.5) * Width), Width);
+            int y = FMath.Clamp((int)Math.Floor((latDeg / 180.0 + 0.5) * Height), 0, Height - 1);
+            return y * Width + x;
+        }
+
+        /// <summary>
+        /// Packs the 64x32 read-only precipitation diagnostic texture (<c>RGBAHalf</c>: R=CloudRainOutKgM2Per6h,
+        /// G=SurfacePrecipKgM2Per6h, B=HighIceFalloutShare, A=CondensateLoadKgM2) and polar row means. Zero allocations.
+        /// </summary>
+        public void PackPrecipitationHalf(
+            ushort[] dstRgbaHalf,
+            out float southCloudRain, out float southSurfaceRain,
+            out float northCloudRain, out float northSurfaceRain)
+        {
+            southCloudRain = southSurfaceRain = northCloudRain = northSurfaceRain = 0f;
+            if (dstRgbaHalf == null || dstRgbaHalf.Length < Count * 4) return;
+            for (int i = 0; i < Count; i++)
+            {
+                int p4 = i * 4;
+                dstRgbaHalf[p4] = FloatToHalfBits(CloudRainOutKgM2Per6h[i]);
+                dstRgbaHalf[p4 + 1] = FloatToHalfBits(SurfacePrecipKgM2Per6h[i]);
+                dstRgbaHalf[p4 + 2] = FloatToHalfBits(HighIceFalloutShare[i]);
+                dstRgbaHalf[p4 + 3] = FloatToHalfBits(qcLow[i] + qcHigh[i]);
+            }
+            const float invW = 1f / Width;
+            int nRow = (Height - 1) * Width;
+            for (int x = 0; x < Width; x++)
+            {
+                southCloudRain += CloudRainOutKgM2Per6h[x];
+                southSurfaceRain += SurfacePrecipKgM2Per6h[x];
+                northCloudRain += CloudRainOutKgM2Per6h[nRow + x];
+                northSurfaceRain += SurfacePrecipKgM2Per6h[nRow + x];
+            }
+            southCloudRain *= invW;
+            southSurfaceRain *= invW;
+            northCloudRain *= invW;
+            northSurfaceRain *= invW;
+        }
+
+        public static RegionalPrecipitationDiagnostic SamplePackedPrecipitationHalf(ushort[] packedRgbaHalf, double u, double v)
+        {
+            if (packedRgbaHalf == null || packedRgbaHalf.Length < Count * 4) return default;
+            double px = u * Width - 0.5;
+            double py = FMath.Clamp((float)(v * Height - 0.5), 0f, Height - 1f);
+            int ix = (int)Math.Floor(px), iy = (int)py;
+            float tx = (float)(px - ix), ty = (float)(py - iy);
+            int x0 = FMath.Wrap(ix, Width), x1 = x0 + 1 == Width ? 0 : x0 + 1;
+            int y0 = iy * Width, y1 = Math.Min(iy + 1, Height - 1) * Width;
+            int c00 = (y0 + x0) * 4, c10 = (y0 + x1) * 4, c01 = (y1 + x0) * 4, c11 = (y1 + x1) * 4;
+
+            float SampleCh(int ch) => FMath.Lerp(
+                FMath.Lerp(HalfBitsToFloat(packedRgbaHalf[c00 + ch]), HalfBitsToFloat(packedRgbaHalf[c10 + ch]), tx),
+                FMath.Lerp(HalfBitsToFloat(packedRgbaHalf[c01 + ch]), HalfBitsToFloat(packedRgbaHalf[c11 + ch]), tx), ty);
+            return new RegionalPrecipitationDiagnostic(SampleCh(0), SampleCh(1), SampleCh(2), SampleCh(3));
+        }
+
+        public static ushort FloatToHalfBits(float val)
+        {
+            if (float.IsNaN(val)) return 0x7e00;
+            int sign = val < 0f ? 0x8000 : 0;
+            float abs = Math.Abs(val);
+            if (abs >= 65504f) return (ushort)(sign | 0x7bff);
+            if (abs < 6.103515625e-5f) return (ushort)(sign | (int)Math.Round(abs * 16777216.0));
+            int exp = (int)Math.Floor(Math.Log(abs) * 1.4426950408889634);
+            double scaled = abs * Math.Pow(2.0, -exp) - 1.0;
+            int mant = (int)Math.Round(scaled * 1024.0);
+            if (mant >= 1024) { mant = 0; exp++; }
+            if (exp > 15) return (ushort)(sign | 0x7bff);
+            return (ushort)(sign | ((exp + 15) << 10) | (mant & 0x3ff));
+        }
+
+        public static float HalfBitsToFloat(ushort h)
+        {
+            int s = (h >> 15) & 1, e = (h >> 10) & 31, m = h & 1023;
+            float val = e == 0 ? (float)(m * 5.9604644775390625e-8) : (float)((1.0 + m * 0.0009765625) * Math.Pow(2.0, e - 15));
+            return s != 0 ? -val : val;
         }
 
         static float Bilerp(float[] a, int c00, int c10, int c01, int c11, float tx, float ty)
