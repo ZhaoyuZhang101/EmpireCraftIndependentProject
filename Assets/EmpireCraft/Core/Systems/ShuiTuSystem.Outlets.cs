@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/ShuiTuSystem.Outlets.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/ShuiTuSystem.Outlets.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -52,7 +52,7 @@ public static partial class ShuiTuSystem
         bool nomad = info.Fit == Fit.Nomad && info.OffGrass && info.OffTier > 0;
         bool settled = info.Fit == Fit.Farm && info.UnfitTop > 0;
         // 政权包含直辖成员；中央和平、直辖行省仍在打仗时也不能拆地改制。
-        if (!nomad && !settled || unit.hasEnemies() || kingdoms.Any(member => member != unit && member.hasEnemies())) return;
+        if (!nomad && !settled || unit.HasEnemies() || kingdoms.Any(member => member != unit && member.HasEnemies())) return;
         var extra = unit.GetOrCreate();
         double now = GameClock.Now;
         if (extra.shuitu_outlet_at >= 0d && now >= extra.shuitu_outlet_at && GameClock.YearsSince(extra.shuitu_outlet_at) < OutletCooldownYears)
@@ -106,14 +106,12 @@ public static partial class ShuiTuSystem
     #region 改政体
 
     // 出路能不能改这国的政体：共和锁定的、玩家手选的不改(出路自己改的不算手选)
-#if EC_PENDING
     private static bool RegimeFree(Realm kingdom)
     {
         if (kingdom?.Record == null || RepublicSystem.IsRegimeLocked(kingdom)) return false;
         var extra = kingdom.GetOrCreate();
         return !extra.regime_manually_selected || extra.shuitu_regime >= 0 && extra.shuitu_regime == (int)extra.regimeType;
     }
-#endif
 
     // 改政体：帝国核心连同同一制度线的成员一起改(同制度改革，见 InstitutionSystem.ChangeRegimeForTransition)；
     // 改了的各国记下(制度同步不再按文化改回去)。返回改了的成员数(不含本国)，没改成返回 -1
@@ -577,9 +575,9 @@ public static partial class ShuiTuSystem
             foreach (Realm vassal in FeudalVassalService.GetDirectVassals(lord).ToList())
             {
                 if (!Valid(vassal) || vassal.GetOrCreate().shuitu_nomadized_at < 0d ||
-                    vassal.GetRegime()?.type != RegimeType.YouMu || !vassal.HasRuler() || vassal.hasEnemies() ||
+                    vassal.GetRegime()?.type != RegimeType.YouMu || !vassal.HasRuler() || vassal.HasEnemies() ||
                     EcRandom.value >= VassalSplit) continue;
-                War war = EmpireWorld.Current.diplomacy.startWar(vassal, lord, WarTypeLibrary.normal);
+                War war = EmpireWorld.Current.StartWar(vassal, lord, WarKinds.Normal);
                 if (war == null) continue;
                 war.SetEmpireWarType(EmpireWarType.附庸独立);
                 LogService.LogInfo($"[EmpireCraft][水土] {lord.GetKingdomName()} 换了君主，改从游牧的附庸 {vassal.GetKingdomName()} 起兵独立");

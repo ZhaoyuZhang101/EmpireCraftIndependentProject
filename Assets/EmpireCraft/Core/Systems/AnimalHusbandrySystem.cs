@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/AnimalHusbandrySystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/AnimalHusbandrySystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -237,7 +237,7 @@ public static class AnimalHusbandrySystem
     public static void Tick()
     {
         EmpireWorld world = EmpireWorld.Current;
-        if (world?.Cities == null || Config.paused || !Config.game_loaded || SmoothLoader.isLoading()) return;
+        if (world?.Cities == null || GameClock.Paused || !GameClock.Running || SmoothLoader.isLoading()) return;
         if (!ReferenceEquals(_world, world)) ResetWorldState();
         double now = world.Now();
         if (Pending.Count == 0 && _groupCities == null)

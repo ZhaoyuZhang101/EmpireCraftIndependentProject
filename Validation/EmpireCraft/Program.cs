@@ -22,7 +22,7 @@ public static class Program
             }
             else if(args.Length>0&&args[0]=="--fingerprint")
                 Fingerprint(args.Length>1?int.Parse(args[1]):256,args.Length>2?int.Parse(args[2]):75);
-            else{Operations();Skeleton();RulesChecks.Rules();RulesChecks.MoreRules();RulesChecks.Generated();RulesChecks.Scheduling();RulesChecks.Data();RulesChecks.Accounts();RulesChecks.Runner();}
+            else{Operations();Skeleton();RulesChecks.Rules();RulesChecks.MoreRules();RulesChecks.Generated();RulesChecks.Wars();RulesChecks.Scheduling();RulesChecks.Data();RulesChecks.Accounts();RulesChecks.Runner();}
             return 0;
         }
         catch(Exception e){Console.Error.WriteLine(e);return 1;}
@@ -35,7 +35,7 @@ public static class Program
         var map=FlatGenerator.Generate(width,width/2,"EMPIRE-FINGERPRINT",TerrainPreset.Continents,default);
         var w=EmpireRunner.Open(map,FMath.Seed(map.Seed));
         for(int m=0;m<years*12;m++)EmpireSimulation.Month(w);
-        var bytes=EmpireSave.Encode(w);
+        var bytes=EmpireSave.Encode(w,2);   // the layout the first fingerprints were taken on
         string hash=BitConverter.ToString(System.Security.Cryptography.SHA256.HashData(bytes)).Replace("-","");
         Console.WriteLine($"fingerprint {width}x{width/2} {years}y: {hash} ({bytes.Length} bytes, {w.Realms.Count} realms, {w.Cities.Count} cities, {w.People.Count} people, {w.Annals.Entries.Count} annals)");
     }

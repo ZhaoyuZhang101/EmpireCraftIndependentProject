@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/PapacySystem.Caliphate.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/PapacySystem.Caliphate.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 
@@ -53,7 +53,7 @@ public static partial class PapacySystem
         // 所奉的哈里发：对立哈里发(见 IslamicSchismSystem)或圣地之主
         RivalCaliphateData rival = IslamicSchismSystem.ObedienceOf(empire, religion);
         Realm seat = rival != null ? IslamicSchismSystem.SeatFor(empire, religion) : Papacy(religion);
-        if (ruler != null && ruler.Alive && !IsCrowned(empire) && seat != null && !seat.isInWarWith(core))
+        if (ruler != null && ruler.Alive && !IsCrowned(empire) && seat != null && !seat.IsAtWarWith(core))
         {
             bool home = seat == core || seat.GetEmpire() == empire;
             if (home || EcRandom.value < CoronationChance)
@@ -73,7 +73,7 @@ public static partial class PapacySystem
         if (state.last_tithe_at >= 0d && now >= state.last_tithe_at && GameClock.YearsSince(state.last_tithe_at) < 1) return;
         state.last_tithe_at = now;
         state.tithe_paid = 0;
-        if (seat == null || seat == core || seat.GetEmpire() == empire || seat.isInWarWith(core)) return;
+        if (seat == null || seat == core || seat.GetEmpire() == empire || seat.IsAtWarWith(core)) return;
         long amount = (long)(StateDebtSystem.AnnualStableIncome(core) * TitheRate);
         amount = Math.Min(amount, Math.Max(0L, (long)core.GetMoney()));
         if (amount <= 0) return;

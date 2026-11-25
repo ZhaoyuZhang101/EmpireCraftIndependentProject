@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/RoadTreatySystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/RoadTreatySystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System.Collections.Generic;
 using System.Linq;
@@ -51,7 +51,6 @@ public static class RoadTreatySystem
 #endif
 
     // 两国的城之间规划了路的国对(不同国、不在同一帝国)
-#if EC_PENDING
     private static List<(Realm a, Realm b)> Neighbours()
     {
         var seen = new HashSet<string>();
@@ -65,7 +64,6 @@ public static class RoadTreatySystem
         }
         return result;
     }
-#endif
 
     // 每年(RoadBuildingSystem 的年结)：记交好的年数；开战的作废通路之约
 #if EC_PENDING
@@ -86,7 +84,7 @@ public static class RoadTreatySystem
         foreach ((Realm a, Realm b) in _neighbours)
         {
             string key = Key(a, b);
-            if (a.isInWarWith(b))
+            if (a.IsAtWarWith(b))
             {
                 if (_data.treaties.Remove(key))
                     TranslateHelper.LogEventMessage(string.Format(LM.Get("road_treaty_void"), a.GetKingdomName(), b.GetKingdomName()), a);
@@ -109,7 +107,7 @@ public static class RoadTreatySystem
         foreach ((Realm a, Realm b) in _neighbours)
         {
             Realm other = a == kingdom ? b : b == kingdom ? a : null;
-            if (other == null || Has(kingdom, other) || !WereFriendly(kingdom, other) || kingdom.isInWarWith(other) ||
+            if (other == null || Has(kingdom, other) || !WereFriendly(kingdom, other) || kingdom.IsAtWarWith(other) ||
                 Opinion(other, kingdom) < 0f) continue;
             return other;
         }

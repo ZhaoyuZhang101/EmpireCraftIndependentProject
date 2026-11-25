@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/CultureRadiation.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/CultureRadiation.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -167,9 +167,11 @@ public static class CultureRadiation
 
     private static bool Valid(City city) => city?.Record != null && !city.IsGone() && city.Realm != null && !city.Realm.IsWild &&
                                            city.zones != null && city.zones.Count > 0 && !AncientWarfareCompatibility.OwnsObject(city);
+#endif
 
     private static Realm ModRealm(Realm kingdom) => kingdom?.GetEmpire()?.CoreKingdom ?? kingdom;
 
+#if EC_PENDING
     private static void Begin()
     {
         Cities.Clear();

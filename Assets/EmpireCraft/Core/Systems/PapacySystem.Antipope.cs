@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/PapacySystem.Antipope.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/PapacySystem.Antipope.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -174,7 +174,6 @@ public static partial class PapacySystem
 #endif
 
     // 庇护或控制教廷的国(帝国按中央)：教廷在帝国之内的是帝国中央；保护约期内的保护人(见 HolyRomanSystem.ProtectedBy)；宗主
-#if EC_PENDING
     public static Realm PapalPatron(Realm papacy)
     {
         if (papacy?.Record == null || papacy.IsGone()) return null;
@@ -186,7 +185,6 @@ public static partial class PapacySystem
         Realm sovereign = EmpireCoreControl.Sovereign(papacy);
         return sovereign != null && sovereign != papacy && SchismAlive(sovereign) ? ModRealm(sovereign) : null;
     }
-#endif
 
     private static bool SchismAlive(Realm kingdom) => kingdom?.Record != null && !kingdom.IsGone() && !kingdom.IsWild;
 
@@ -199,13 +197,13 @@ public static partial class PapacySystem
 
     private static bool SchismAllied(Realm a, Realm b) =>
         a != null && b != null && a != b && a.hasAlliance() && b.hasAlliance() && a.getAlliance() == b.getAlliance();
+#endif
 
     private static bool MajorRealm(Realm realm)
     {
         Empire empire = realm.GetEmpire();
         return empire != null && empire.CoreKingdom == realm || realm.Cities.Count >= MajorCities;
     }
-#endif
 
     #endregion
 
@@ -269,7 +267,7 @@ public static partial class PapacySystem
             int cities = SchismCities(kingdom);
             if (cities < RivalMinCities) continue;
             float grievance = 1f;
-            if (see != null && kingdom.isInWarWith(see)) grievance += 1.5f;
+            if (see != null && kingdom.IsAtWarWith(see)) grievance += 1.5f;
             Empire empire = kingdom.GetEmpire();
             if (empire != null && empire.CoreKingdom == kingdom && IsExcommunicated(empire)) grievance += 1f;
             if (see != null && DiplomacyLedger.Opinion(kingdom, see) < 0) grievance += 0.5f;
@@ -505,8 +503,8 @@ public static partial class PapacySystem
     private static float ObedienceScore(Realm kingdom, Religion religion, Realm rome, Realm patron, City holy, City rivalSee)
     {
         float score = 0f;
-        if (rome != null && kingdom.isInWarWith(rome)) score += 2f;
-        if (patron != null && kingdom.isInWarWith(patron)) score -= 2f;
+        if (rome != null && kingdom.IsAtWarWith(rome)) score += 2f;
+        if (patron != null && kingdom.IsAtWarWith(patron)) score -= 2f;
         Empire empire = kingdom.GetEmpire();
         bool core = empire != null && empire.CoreKingdom == kingdom;
         PapalRelationState state = core ? State(empire) : null;
@@ -665,7 +663,7 @@ public static partial class PapacySystem
         if (see == null || Antipope(religion) == null) return;
         if (see != core && see.GetEmpire() != empire)
         {
-            if (EcRandom.value >= CoronationChance || see.isInWarWith(core)) return;
+            if (EcRandom.value >= CoronationChance || see.IsAtWarWith(core)) return;
             int gift = (int)Math.Min(Math.Max(0L, core.GetMoney()), (long)(StateDebtSystem.AnnualStableIncome(core) * CoronationGift));
             if (gift > 0)
             {

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/TradeRouteSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/TradeRouteSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -55,7 +55,7 @@ public static class TradeRouteSystem
     {
         City partner = EmpireWorld.Current?.cities?.get(PartnerOf(city));
         if (partner?.Record == null || partner.IsGone() || city?.Realm == null || partner.Realm == null) return null;
-        if (city.Realm.isInWarWith(partner.Realm))
+        if (city.Realm.IsAtWarWith(partner.Realm))
             return string.Format(LM.Get("trade_route_embargo"), partner.GetCityName());
         if (NavySystem.IsBlockaded(city) || NavySystem.IsBlockaded(partner))
             return string.Format(LM.Get("trade_route_blockaded"), partner.GetCityName());
@@ -238,7 +238,7 @@ public static class TradeRouteSystem
                     continue;
                 }
                 // 交战禁运；任一港口被敌方舰队封锁也断航(见 NavySystem)
-                if (city.Realm.isInWarWith(partner.Realm) || NavySystem.IsBlockaded(city) ||
+                if (city.Realm.IsAtWarWith(partner.Realm) || NavySystem.IsBlockaded(city) ||
                     NavySystem.IsBlockaded(partner)) continue;
                 // 利得扣掉运费(见类头)；和约商路两边按发起港口的运费算
                 float keep = Keep(city);

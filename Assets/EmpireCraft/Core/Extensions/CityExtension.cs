@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GameClassExtensions/CityExtension.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GameClassExtensions/CityExtension.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -318,7 +318,7 @@ public static class CityExtension
         foreach (KeyValuePair<long, List<int>> pair in data.OccupiedStatus.ToList())
         {
             Realm occupier = EmpireWorld.Current.RealmByKey(pair.Key);
-            if (occupier == null || occupier.IsGone() || !occupier.isInWarWith(owner) || pair.Value == null) continue;
+            if (occupier == null || occupier.IsGone() || !occupier.IsAtWarWith(owner) || pair.Value == null) continue;
             List<TileZone> held = pair.Value.Select(GetZoneById).Where(zone => zone != null).ToList();
             foreach (TileZone zone in held)
             {
@@ -402,7 +402,7 @@ public static class CityExtension
         Realm defender = city.Realm;
         bool defenderKingDead = city.IsOccupationKingDeathAdvantage(defender);
 
-        if (!occupier.isInWarWith(defender))
+        if (!occupier.IsAtWarWith(defender))
         {
             return;
         }
@@ -656,7 +656,7 @@ public static class CityExtension
             return false;
         }
 
-        if (!occupier.isInWarWith(city.Realm))
+        if (!occupier.IsAtWarWith(city.Realm))
         {
             return false;
         }
@@ -670,7 +670,7 @@ public static class CityExtension
         }
 
         // 友军已经占领，不抢友军占领区
-        if (currentOccupier != null && occupier.isInWarOnSameSide(currentOccupier))
+        if (currentOccupier != null && occupier.IsOnSameSide(currentOccupier))
         {
             return false;
         }
@@ -757,7 +757,7 @@ public static class CityExtension
                 return false;
             }
 
-            if (occupier.isInWarOnSameSide(currentOccupier))
+            if (occupier.IsOnSameSide(currentOccupier))
             {
                 return false;
             }
@@ -834,7 +834,7 @@ public static class CityExtension
             }
 
             // 原版已有判断：如果双方在同一场战争中属于同一边，不转移
-            if (occupier.isInWarOnSameSide(currentOccupier))
+            if (occupier.IsOnSameSide(currentOccupier))
             {
                 return false;
             }
@@ -956,7 +956,7 @@ public static class CityExtension
             return false;
         }
 
-        if (toKingdom.isInWarOnSameSide(currentOccupier))
+        if (toKingdom.IsOnSameSide(currentOccupier))
         {
             return false;
         }
@@ -1201,7 +1201,7 @@ public static class CityExtension
             }
 
             // 两国可能在另一场仗里同阵营，眼下彼此交战时仍算敌对占领。
-            if (occupier.isInWarOnSameSide(originKingdom) && !FrontSystem.Hostile(occupier, originKingdom))
+            if (occupier.IsOnSameSide(originKingdom) && !FrontSystem.Hostile(occupier, originKingdom))
             {
                 continue;
             }
@@ -1422,6 +1422,7 @@ public static class CityExtension
 
         return true;
     }
+#endif
     private static float GetOccupationCaptureChance(this Person victim)
     {
         if (victim == null) return 0f;
@@ -1431,6 +1432,7 @@ public static class CityExtension
         return 0f;
     }
 
+#if EC_PENDING
     private static Person FindOccupationCaptureTarget(this City city, TileZone zone, bool zoneOccupationMode)
     {
         if (city == null || city.Realm == null)
@@ -1617,15 +1619,15 @@ public static class CityExtension
             if (victimKingdom == null || victimKingdom.IsGone()) return false;
             War activeWar = null;
             War typedWar = null;
-            foreach (War war in occupier.getWars())
+            foreach (War war in occupier.GetWars())
             {
                 if (war == null || !war.Alive)
                 {
                     continue;
                 }
 
-                bool occupierParticipates = war._list_attackers.Contains(occupier) || war._list_defenders.Contains(occupier);
-                bool victimParticipates = war._list_attackers.Contains(victimKingdom) || war._list_defenders.Contains(victimKingdom);
+                bool occupierParticipates = war.Attackers.Contains(occupier) || war.Defenders.Contains(occupier);
+                bool victimParticipates = war.Attackers.Contains(victimKingdom) || war.Defenders.Contains(victimKingdom);
                 if (!occupierParticipates || !victimParticipates)
                 {
                     continue;
@@ -1759,7 +1761,7 @@ public static class CityExtension
             }
 
             // 如果和原城市国家在同一战争阵营，不算敌对占领
-            if (candidate.isInWarOnSameSide(originKingdom))
+            if (candidate.IsOnSameSide(originKingdom))
             {
                 continue;
             }
@@ -1881,7 +1883,7 @@ public static class CityExtension
             return;
         }
 
-        if (!occupier.isInWarWith(kingdom))
+        if (!occupier.IsAtWarWith(kingdom))
         {
             return;
         }
@@ -1935,22 +1937,22 @@ public static class CityExtension
             return;
         }
 
-        if (!occupier.isInWarWith(kingdom))
+        if (!occupier.IsAtWarWith(kingdom))
         {
             return;
         }
 
         War typedWar = null;
         War activeWar = null;
-        foreach (War war in occupier.getWars())
+        foreach (War war in occupier.GetWars())
         {
             if (war == null || !war.Alive)
             {
                 continue;
             }
 
-            bool occupierParticipates = war._list_attackers.Contains(occupier) || war._list_defenders.Contains(occupier);
-            bool kingdomParticipates = war._list_attackers.Contains(kingdom) || war._list_defenders.Contains(kingdom);
+            bool occupierParticipates = war.Attackers.Contains(occupier) || war.Defenders.Contains(occupier);
+            bool kingdomParticipates = war.Attackers.Contains(kingdom) || war.Defenders.Contains(kingdom);
             if (!occupierParticipates || !kingdomParticipates)
             {
                 continue;
@@ -1989,7 +1991,7 @@ public static class CityExtension
             }
 
             if (otherCity.TryFindDominantHostileOccupier(out Realm otherOccupier, out float _) &&
-                otherOccupier.isInWarWith(kingdom))
+                otherOccupier.IsAtWarWith(kingdom))
             {
                 occupiedCityWinners[otherCity] = otherOccupier;
             }
@@ -2362,6 +2364,7 @@ public static class CityExtension
     {
         return city?.getTile()?.posV ?? Vector2.zero;
     }
+#endif
 
     public static void AddMoney(this City c, int money)
         => AddMoney(c, money, TreasuryCategory.Other);
@@ -2378,7 +2381,6 @@ public static class CityExtension
         long change = TreasuryRules.ChangeBalance(ref c.GetOrCreate().Money, -(long)money);
         TreasurySystem.Record(c, change, category);
     }
-#endif
 
     public static CityType GetCityType(this City c)
     {
@@ -2606,13 +2608,11 @@ public static class CityExtension
         GetOrCreate(a).empire_core_id = core?.id ?? -1L;
     }
 
-#if EC_PENDING
     public static bool hasTitle(this City c)
     {
         if (c == null) return false;
         return c.GetTitle() != null;
     }
-#endif
     
     public static void Clear()
     {
@@ -2630,16 +2630,14 @@ public static class CityExtension
         GetOrCreate(c).title_id = id;
     }
 
-#if EC_PENDING
     public static KingdomTitle GetTitle(this City c)
     {
         var ed = GetOrCreate(c);
         if (ed == null) return null;
         // 查不到法理时只返回 null，不清掉城市记的法理编号：读档过程中法理管理器还没载入完，
         // 此时清掉会被存进存档，下次读档这座城就被移出法理。法理真正解散时由 Dissolve 统一清除
-        return ed.title_id == -1L ? null : ModClass.KINGDOM_TITLE_MANAGER?.get(ed.title_id);
+        return ed.title_id == -1L ? null : ModClass.KINGDOM_TITLE_MANAGER?.Get(ed.title_id);
     }
-#endif
     
 
     public static void SetTitle(this City c, KingdomTitle title)
@@ -2812,14 +2810,12 @@ public static class CityExtension
         GetOrCreate(city).kingdom_names = value;
     }
 
-#if EC_PENDING
     public static Empire GetEmpire(this City city)
     {
         if (city == null) return null;
         if (city.Realm == null) return null;
-        return ModClass.EMPIRE_MANAGER.get(city.Realm.GetEmpireID());
+        return ModClass.EMPIRE_MANAGER.Get(city.Realm.GetEmpireID());
     }
-#endif
     
     public static void AddKingdomName(this City city, string kingdomName)
     {

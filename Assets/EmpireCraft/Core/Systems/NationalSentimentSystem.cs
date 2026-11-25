@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/NationalSentimentSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/NationalSentimentSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -45,13 +45,11 @@ public static class NationalSentimentSystem
     public static bool InUnitedFront(EmpireCore core) => core != null && core.united_front_since >= 0d;
 
     // 两个政权是否同在一个民族统一战线里(统一战线期间互不宣战)
-#if EC_PENDING
     public static bool InSameUnitedFront(Realm a, Realm b)
     {
         EmpireCore coreA = FrontCore(a?.GetEmpire());
         return coreA != null && InUnitedFront(coreA) && coreA == FrontCore(b?.GetEmpire());
     }
-#endif
 
     // 政党的民族主义色彩 0~100：国家民族情绪 × 0.8 + 理念倾向 + 宪法民族政策
     public static float PartyColor(Empire empire, PartyIdeology ideology)
@@ -187,8 +185,8 @@ public static class NationalSentimentSystem
     // 本国正被异族国家进攻(本国是守方，进攻方的文化与本城不同)
 #if EC_PENDING
     private static bool IsInvaded(Realm kingdom, string cityCulture) =>
-        kingdom.getWars().Any(war => war != null && !war.hasEnded() && war.isDefender(kingdom) &&
-                                     war._list_attackers.Any(attacker => attacker != null && !attacker.IsGone() &&
+        kingdom.GetWars().Any(war => war != null && !war.HasEnded() && war.IsDefender(kingdom) &&
+                                     war.Attackers.Any(attacker => attacker != null && !attacker.IsGone() &&
                                          !CultureService.SameKin(CultureService.GetRealmCulture(attacker), cityCulture)));
 #endif
 
@@ -222,11 +220,11 @@ public static class NationalSentimentSystem
                     "rebellion_reason_national", string.Format(LM.Get("rebellion_national_detail"),
                         memberCulture.GetCultureTranslate(), sentiment));
                 // 先退出随中央打的仗(与中央同一边的)
-                foreach (War joined in member.getWars().ToList())
-                    if (joined != null && !joined.hasEnded() &&
-                        (joined.isAttacker(member) && joined.isAttacker(core) || joined.isDefender(member) && joined.isDefender(core)))
-                        joined.leaveWar(member);
-                War war = DiplomacyHelpers.wars.newWar(member, core, WarTypeLibrary.normal);
+                foreach (War joined in member.GetWars().ToList())
+                    if (joined != null && !joined.HasEnded() &&
+                        (joined.IsAttacker(member) && joined.IsAttacker(core) || joined.IsDefender(member) && joined.IsDefender(core)))
+                        joined.Leave(member);
+                War war = DiplomacyHelpers.wars.newWar(member, core, WarKinds.Normal);
                 if (war == null) continue;
                 empire.leave(member, true, true);
                 war.SetEmpireWarType(EmpireWarType.地方独立);
@@ -244,7 +242,7 @@ public static class NationalSentimentSystem
     // 自己是一场仗的主攻或主守(自家的仗打完再说)；随中央参战的不算
 #if EC_PENDING
     private static bool FightsOwnWar(Realm member) =>
-        member.getWars().Any(war => war != null && !war.hasEnded() && (war.isMainAttacker(member) || war.isMainDefender(member)));
+        member.GetWars().Any(war => war != null && !war.HasEnded() && (war.isMainAttacker(member) || war.isMainDefender(member)));
 #endif
 
     #endregion
@@ -255,11 +253,11 @@ public static class NationalSentimentSystem
     private static EmpireCore FrontCore(Empire empire) =>
         empire == null ? null : TianxiaSystem.Lead(EmpireCoreManager.Get(empire));
 
-#if EC_PENDING
     private static List<Empire> CoreGovernments(EmpireCore core) =>
         ModClass.EMPIRE_MANAGER.Where(empire => empire?.CoreKingdom != null && !empire.IsGone() && !empire.IsArchived() &&
                                                 FrontCore(empire) == core).ToList();
 
+#if EC_PENDING
     private static void UpdateUnitedFronts(double now)
     {
         foreach (EmpireCore core in EmpireCoreManager.EmpireCores.Values.ToList())
@@ -272,8 +270,8 @@ public static class NationalSentimentSystem
                 continue;
             }
             HashSet<Realm> camp = governments.Select(government => government.CoreKingdom).ToHashSet();
-            List<War> foreignWars = governments.SelectMany(government => government.CoreKingdom.getWars())
-                .Where(war => war != null && !war.hasEnded() && IsForeignWar(war, camp, core.default_culture))
+            List<War> foreignWars = governments.SelectMany(government => government.CoreKingdom.GetWars())
+                .Where(war => war != null && !war.HasEnded() && IsForeignWar(war, camp, core.default_culture))
                 .Distinct().ToList();
             float sentiment = governments.Average(GetEmpire);
             float threshold = governments.Any(government =>
@@ -297,11 +295,11 @@ public static class NationalSentimentSystem
             // 组成统一战线：停止内战，共同抗敌
             foreach (Empire a in governments)
             foreach (Empire b in governments)
-                if (a != b && a.CoreKingdom.isInWarWith(b.CoreKingdom)) a.CoreKingdom.EndWarWith(b.CoreKingdom);
+                if (a != b && a.CoreKingdom.IsAtWarWith(b.CoreKingdom)) a.CoreKingdom.EndWarWith(b.CoreKingdom);
             core.united_front_since = now;
             core.united_front_last_threat = now;
             JoinForeignWars(governments, foreignWars);
-            string enemy = foreignWars[0]._list_attackers.Concat(foreignWars[0]._list_defenders)
+            string enemy = foreignWars[0].Attackers.Concat(foreignWars[0].Defenders)
                 .FirstOrDefault(kingdom => kingdom != null && !camp.Contains(kingdom))?.GetKingdomFullName() ?? "";
             EventRecorder.Record(governments[0], string.Format(LM.Get("nation_front_formed_history"),
                 string.Join("、", governments.Select(government => government.GetEmpireFullName())), enemy));
@@ -312,29 +310,27 @@ public static class NationalSentimentSystem
     // 与核心文化不同的外族交战(对方不在本核心的政府里)
 #if EC_PENDING
     private static bool IsForeignWar(War war, HashSet<Realm> camp, string coreCulture) =>
-        war._list_attackers.Concat(war._list_defenders).Any(kingdom => kingdom != null && !kingdom.IsGone() &&
+        war.Attackers.Concat(war.Defenders).Any(kingdom => kingdom != null && !kingdom.IsGone() &&
             !camp.Contains(kingdom) && !kingdom.IsInSameEmpire(camp.First()) &&
             !CultureService.SameKin(CultureService.GetRealmCulture(kingdom), coreCulture)) &&
-        war._list_attackers.Concat(war._list_defenders).Any(camp.Contains);
+        war.Attackers.Concat(war.Defenders).Any(camp.Contains);
 #endif
 
     // 统一战线的各政府加入同一阵营抗敌
-#if EC_PENDING
     private static void JoinForeignWars(List<Empire> governments, List<War> wars)
     {
         foreach (War war in wars)
         {
-            bool defenders = governments.Any(government => war.isDefender(government.CoreKingdom));
+            bool defenders = governments.Any(government => war.IsDefender(government.CoreKingdom));
             foreach (Empire government in governments)
             {
                 Realm kingdom = government.CoreKingdom;
-                if (war.hasKingdom(kingdom)) continue;
-                if (defenders) war.joinDefenders(kingdom);
-                else war.joinAttackers(kingdom);
+                if (war.HasRealm(kingdom)) continue;
+                if (defenders) war.JoinDefenders(kingdom);
+                else war.JoinAttackers(kingdom);
             }
         }
     }
-#endif
 
     // 统一战线破裂(外敌消失满三年)：内战重启——中央与最强的另一理念政府重新开战
 #if EC_PENDING
@@ -348,8 +344,8 @@ public static class NationalSentimentSystem
         Empire rival = governments.Where(government => government != central)
             .OrderByDescending(government => government.countCities()).First();
         // 仗真开起来了(或本来就在打)才记"内战重启"(开战可能被拦下，见 WarReach)
-        bool fighting = central.CoreKingdom.isInWarWith(rival.CoreKingdom) ||
-                        EmpireWorld.Current.diplomacy.startWar(rival.CoreKingdom, central.CoreKingdom, WarTypeLibrary.normal) != null;
+        bool fighting = central.CoreKingdom.IsAtWarWith(rival.CoreKingdom) ||
+                        EmpireWorld.Current.StartWar(rival.CoreKingdom, central.CoreKingdom, WarKinds.Normal) != null;
         if (!fighting) return;
         EventRecorder.Record(central, string.Format(LM.Get("nation_front_broken_history"),
             central.GetEmpireFullName(), rival.GetEmpireFullName()));

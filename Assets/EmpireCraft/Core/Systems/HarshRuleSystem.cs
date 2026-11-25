@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/HarshRuleSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/HarshRuleSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -110,7 +110,7 @@ public static class HarshRuleSystem
         Add("harsh_land", Mathf.Min(30f, LandEconomySystem.GetRealmLandlessRatio(core) * 80f));
         // 按户计(无小人模式下真实人数可达几百万，和士兵数、存粮不是一个量级)
         int population = realms.Sum(kingdom => CityPopulationSystem.Households(kingdom));
-        if (core.getWars().Any() && population > 0)
+        if (core.GetWars().Any() && population > 0)
         {
             float soldiers = realms.Sum(kingdom => kingdom.countTotalWarriors()) / (float)population;
             Add("harsh_war", Mathf.Clamp(5f + Mathf.Max(0f, soldiers - 0.1f) * 150f, 0f, 25f));
@@ -132,14 +132,12 @@ public static class HarshRuleSystem
 #endif
 
     // 一座城所在政权的苛政：帝国成员按帝国，独立王国按本国
-#if EC_PENDING
     public static float GetRealmBurden(Realm kingdom)
     {
         if (kingdom == null || kingdom.IsGone()) return 0f;
         Empire empire = kingdom.IsInEmpire() ? kingdom.GetEmpire() : null;
         return empire != null ? GetBurden(empire) : GetBurden(kingdom);
     }
-#endif
 
     // 腐败和王朝积弊已经有独立正统来源，不能再通过苛政把同一项重复扣一次。
 #if EC_PENDING
@@ -155,10 +153,8 @@ public static class HarshRuleSystem
 #endif
 
     // 独立王国的苛政(帝国成员返回 0，按帝国看 GetBurden(Empire))
-#if EC_PENDING
     public static float GetBurden(Realm kingdom) =>
         kingdom != null && !kingdom.IsInEmpire() ? kingdom.GetOrCreate().harsh_burden : 0f;
-#endif
 
     #region 年度结算(由 ConstitutionalEconomySystem 年度结算调用)
 
@@ -309,11 +305,11 @@ public static class HarshRuleSystem
         int waves = crisis ? DynasticCycleRules.UprisingWaves(DynasticCycleSystem.GetPressure(empire), burden,
             DynasticCycleSystem.SaturatedYears(empire), PopularGrievance.Index(empire?.CoreKingdom)) : 1;
         List<City> cities = (realms ?? Enumerable.Empty<Realm>())
-            .Where(kingdom => RebellionSystem.CanAttempt(kingdom) && (crisis || !kingdom.getWars().Any()))
+            .Where(kingdom => RebellionSystem.CanAttempt(kingdom) && (crisis || !kingdom.GetWars().Any()))
             // 都城不起事；积弊满额、正统崩坏时成员国的都城照样起事(见 DynasticCycleRules.CapitalMayRise)，只护着中央的京城
-            .SelectMany(kingdom => kingdom.cities.Where(c => c != null && !c.IsGone() &&
-                                                             (c != kingdom.capital || DynasticCycleRules.CapitalMayRise(unbound,
-                                                                 kingdom == empire?.CoreKingdom, kingdom.cities.Count))))
+            .SelectMany(kingdom => kingdom.Cities.Where(c => c != null && !c.IsGone() &&
+                                                             (c != kingdom.Capital || DynasticCycleRules.CapitalMayRise(unbound,
+                                                                 kingdom == empire?.CoreKingdom, kingdom.Cities.Count))))
             .Where(c => DynasticCycleRules.MayRise(unbound, crisis, c.getLoyalty(), CityStabilitySystem.CanRise(c), CanRiseAgain(c)))
             .OrderBy(c => c.getLoyalty()).Take(waves).ToList();
         int risen = 0;
@@ -370,7 +366,7 @@ public static class HarshRuleSystem
         }
         string cityName = city.GetCityName();
         rebel.Name = string.Format(LM.Get("harsh_uprising_kingdom_name"), cityName);
-        War war = EmpireWorld.Current.diplomacy.startWar(rebel, origin, WarTypeLibrary.rebellion);
+        War war = EmpireWorld.Current.StartWar(rebel, origin, WarKinds.Rebellion);
         if (war == null)
         {
             RebellionStartupService.RollbackCitySplit(city, origin, rebel);
@@ -378,7 +374,7 @@ public static class HarshRuleSystem
         }
         war.SetEmpireWarType(EmpireWarType.地方叛乱);
         RebellionSystem.Record(rebel, war, cause);
-        war.data.name = string.Format(LM.Get("harsh_uprising_war_name"), cityName);
+        war.Name = string.Format(LM.Get("harsh_uprising_war_name"), cityName);
         RebellionStartupService.RaiseUprisingMilitia(rebel, burden / 100f);
         city.GetOrCreate().last_harsh_uprising = GameClock.Now;
         string history = string.Format(LM.Get("harsh_uprising_history"), cityName, Cause(causeKey),

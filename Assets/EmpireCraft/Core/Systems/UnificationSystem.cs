@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/UnificationSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/UnificationSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
@@ -136,20 +136,16 @@ public static class UnificationSystem
 
     #region 查询
 
-#if EC_PENDING
     private static Realm Sovereign(Realm kingdom) => EmpireCoreControl.Sovereign(kingdom);
-#endif
 
     private static bool Alive(Realm kingdom) => kingdom?.Record != null && !kingdom.IsGone() && !kingdom.IsWild;
 
     // 正在统一天下
-#if EC_PENDING
     public static bool Unifying(Realm kingdom)
     {
         Realm sovereign = Sovereign(kingdom);
         return Alive(sovereign) && sovereign.GetOrCreate().unify_since >= 0d;
     }
-#endif
 
     // 统一战争打了几年
     private static int UnifyYears(Realm sovereign)
@@ -199,19 +195,16 @@ public static class UnificationSystem
     // 统一者与天下里别家的仗，不论谁先动手(不受三十年强制停战、攻方议和；把对方正规军打光就举国吞并)。
     // 共主兴师平定天下里别家的仗也算(用户 2026-11-07 选「平定之战算统一战争」：Pacify 开的、记作统一的仗，见 Pacifies)。
     // 统一者跟天下以外的国家(别的文化、别处)打的是寻常战争
-#if EC_PENDING
     public static bool IsUnificationWar(War war)
     {
-        if (war?.data == null || war.hasEnded()) return false;
-        Realm attacker = war.getMainAttacker(), defender = war.getMainDefender();
+        if (war?.Record == null || war.HasEnded()) return false;
+        Realm attacker = war.GetMainAttacker(), defender = war.GetMainDefender();
         return Contends(attacker, defender) || Contends(defender, attacker) ||
                war.GetEmpireWarType() == EmpireWarType.统一 && Pacifies(attacker, defender);
     }
-#endif
 
     // holder 是天下共主，它收拾残局的天下里有 rival 这一家(年度结算记下，见 Pacify；失了天命、天下散了就不算，
     // 年底照统一中辍的规矩改名，见 RetagStaleWars)
-#if EC_PENDING
     private static bool Pacifies(Realm holder, Realm rival)
     {
         Realm sovereign = Sovereign(holder), foe = Sovereign(rival);
@@ -220,17 +213,14 @@ public static class UnificationSystem
             if (realm.lead.mandate_kingdom_id == sovereign.Key && realm.members.Contains(foe)) return true;
         return false;
     }
-#endif
 
     // unifier 正在统一的天下里有 rival 这一家
-#if EC_PENDING
     public static bool Contends(Realm unifier, Realm rival)
     {
         Realm sovereign = Sovereign(unifier), foe = Sovereign(rival);
         return Alive(sovereign) && Alive(foe) && sovereign != foe && sovereign.GetOrCreate().unify_since >= 0d &&
                Rivals.TryGetValue(sovereign.Key, out List<Realm> rivals) && rivals.Contains(foe);
     }
-#endif
 
     // 同一个天下(用户 2026-10-19 选"统一按帝国核心")：都城都在帝国核心的天下里就比天下；都不在就照旧按文化圈；
     // 外族据有这个天下四分之一以上的城也算天下一家(都城在草原也算，用户选"可受天命、本族可光复"，见 Tally)
@@ -248,7 +238,6 @@ public static class UnificationSystem
     // 外族算天下一家要据有几成
     private const float ForeignMemberShare = 0.25f;
 
-#if EC_PENDING
     private static bool HoldsShare(Realm kingdom, EmpireCore lead)
     {
         List<City> cities = TianxiaSystem.Cities(lead);
@@ -257,7 +246,6 @@ public static class UnificationSystem
         int held = cities.Count(city => city?.Realm != null && Sovereign(city.Realm) == sovereign);
         return held >= cities.Count * ForeignMemberShare;
     }
-#endif
 
     // 同一文化圈(本国文化的天下标识相同，见 LineOf)
 #if EC_PENDING
@@ -401,13 +389,11 @@ public static class UnificationSystem
 #endif
 
     // 记雄主的地方：统一者是帝国(核心)时它的帝国数据；不是帝国就没有雄主可记
-#if EC_PENDING
     private static EmpireData HeroState(Realm sovereign)
     {
         Empire empire = sovereign?.GetEmpire();
         return empire?.data != null && !empire.IsGone() && empire.CoreKingdom == sovereign ? empire.data : null;
     }
-#endif
 
     // 记下的雄主还在位：仍是这个帝国的君主，仍是开国雄主或中兴雄主
 #if EC_PENDING
@@ -422,7 +408,6 @@ public static class UnificationSystem
 
     // 发动统一战争时记下在位的雄主；袭掠成名的雄主也记(见 NomadRaidSystem.Hero，用户 2026-10-21 选"游牧雄主死后真分裂")。
     // 开国的大汗同日也记过，玩家随即反馈"帝国容易突然碎一地"，用户选回调后不再记(见 NomadCycleSystem.RememberHero)
-#if EC_PENDING
     internal static void RememberHero(Realm sovereign)
     {
         EmpireData state = HeroState(sovereign);
@@ -431,7 +416,6 @@ public static class UnificationSystem
         state.nomad_hero_id = hero.Key;
         state.nomad_hero_name = hero.FullName() ?? "";
     }
-#endif
 
     // 记下的雄主不在位了：统一没打完的当场中辍，统一后还在开国气象里的气象就此散了；
     // 留下"雄主之后第一次换汗必乱"(见 TakeHeroTurmoil)
@@ -474,10 +458,10 @@ public static class UnificationSystem
         Stalled.Remove(unifier.Key);
         Rivals.Remove(unifier.Key);
         FrontCollapse.Release(unifier);
-        foreach (War war in unifier.getWars().ToList())
+        foreach (War war in unifier.GetWars().ToList())
         {
-            if (war?.data == null || war.hasEnded() || war.GetEmpireWarType() != EmpireWarType.统一 ||
-                Sovereign(war.getMainAttacker()) != unifier) continue;
+            if (war?.Record == null || war.HasEnded() || war.GetEmpireWarType() != EmpireWarType.统一 ||
+                Sovereign(war.GetMainAttacker()) != unifier) continue;
             Retag(war);
         }
     }
@@ -782,6 +766,7 @@ public static class UnificationSystem
         if (OrphanOf.Count > 0) LogService.LogInfo($"[EmpireCraft][天下大势] {OrphanOf.Count} 座零星城并入相邻天下");
         return realms;
     }
+#endif
 
     private static void Tally(ModRealm realm)
     {
@@ -801,7 +786,6 @@ public static class UnificationSystem
             if (pair.Key.Capital != null && realm.cities.Contains(pair.Key.Capital) ||
                 realm.lead != null && pair.Value >= realm.total * ForeignMemberShare) realm.members.Add(pair.Key);
     }
-#endif
 
     // 两座城连成一片：领地接壤，或同一块陆地上城心相距不远
 #if EC_PENDING
@@ -958,7 +942,7 @@ public static class UnificationSystem
                 }
                 Rivals[unifier.Key] = Opponents(unifier, realm);
                 // 够不着天下里的别家、也没在打(中间隔着别的文化的国家)：连着三年就算统一了能统一的
-                bool engaged = Rivals[unifier.Key].Any(rival => unifier.isInWarWith(rival) || Borders(unifier, rival));
+                bool engaged = Rivals[unifier.Key].Any(rival => unifier.IsAtWarWith(rival) || Borders(unifier, rival));
                 Stalled.TryGetValue(unifier.Key, out int stalled);
                 Stalled[unifier.Key] = stalled = engaged ? 0 : stalled + 1;
                 if (stalled >= StallYears)
@@ -1147,9 +1131,9 @@ public static class UnificationSystem
 #if EC_PENDING
     private static void RetagStaleWars()
     {
-        foreach (War war in EmpireWorld.Current.wars.list.ToList())
+        foreach (War war in EmpireWorld.Current.LiveWars.ToList())
         {
-            if (war?.data == null || war.hasEnded() || war.GetEmpireWarType() != EmpireWarType.统一 || IsUnificationWar(war))
+            if (war?.Record == null || war.HasEnded() || war.GetEmpireWarType() != EmpireWarType.统一 || IsUnificationWar(war))
                 continue;
             Retag(war);
         }
@@ -1157,7 +1141,7 @@ public static class UnificationSystem
 
     private static void Retag(War war)
     {
-        Realm attacker = war.getMainAttacker();
+        Realm attacker = war.GetMainAttacker();
         if (attacker == null) return;
         bool nomad = attacker.GetRegime()?.type == EmpireCraft.Core.RegimeType.YouMu;
         war.SetEmpireWarType(nomad ? EmpireWarType.游牧扩张 : EmpireWarType.帝国扩张);
@@ -1190,7 +1174,7 @@ public static class UnificationSystem
         foreach (Realm rival in rivals.ToList())
         {
             if (!Alive(rival) || Sovereign(rival) != rival || rival.IsEmpire() || (rival.Cities?.Count ?? 0) > SubmitMaxCities) continue;
-            bool atWar = unifier.isInWarWith(rival);
+            bool atWar = unifier.IsAtWarWith(rival);
             if (!atWar && (!sweeping || !Borders(unifier, rival) ||
                            EmpireCraft.Core.AncientWarfareCompatibility.Owns(rival))) continue;
             (float strength, float full) = Army(rival);
@@ -1285,12 +1269,12 @@ public static class UnificationSystem
         double ours = WarSituation.Power(holder);
         List<Realm> targets = realm.members
             .Where(member => member != holder && Alive(member) && Sovereign(member) == member && !Exempt(member) &&
-                             !holder.isInWarWith(member) && Borders(holder, member) &&
+                             !holder.IsAtWarWith(member) && Borders(holder, member) &&
                              !EmpireCraft.Core.AncientWarfareCompatibility.Owns(member) &&
                              WarGate.CanDeclare(holder, member, ownTributary: true) && WarReach.Reachable(holder, member) &&
                              TributaryBlock(holder, member, empire) == null)
-            .OrderBy(member => home == null || member.capital?.getTile() == null ? float.MaxValue
-                : Toolbox.SquaredDistTile(home, member.capital.getTile()))
+            .OrderBy(member => home == null || member.Capital?.getTile() == null ? float.MaxValue
+                : Toolbox.SquaredDistTile(home, member.Capital.getTile()))
             .ToList();
         string mode = monthly ? "，动荡期按月" : "";
         foreach (Realm target in targets)
@@ -1308,8 +1292,8 @@ public static class UnificationSystem
                 Record(holder, "unify_pacify_tribute_history", name, dynasty);
                 return;
             }
-            War war = EmpireWorld.Current.diplomacy.startWar(holder, target, WarTypeLibrary.normal);
-            if (war?.data == null) continue;
+            War war = EmpireWorld.Current.StartWar(holder, target, WarKinds.Normal);
+            if (war?.Record == null) continue;
             // 平定之战算统一战争(B)：不受代际侵占上限、不因过度扩张改称臣，打下的城记作统一所得
             war.SetEmpireWarType(EmpireWarType.统一);
             if (tributary)
@@ -1351,7 +1335,7 @@ public static class UnificationSystem
         {
             if (member == holder || !Alive(member) || Sovereign(member) != member || Exempt(member)) continue;
             // 正与天下里的一家交战(平定之战还在打)：不算无从下手
-            if (holder.isInWarWith(member)) return;
+            if (holder.IsAtWarWith(member)) return;
             string why = !Borders(holder, member) ? "不接壤或走不通"
                 : TributaryBlock(holder, member, empire) is string tributary ? tributary
                 : !WarGate.CanDeclare(holder, member, ownTributary: true) ? "开战闸(停战、姻亲、盟约、国力不足两倍……)"
@@ -1433,11 +1417,11 @@ public static class UnificationSystem
         {
             if (HeroLost(unifier)) continue;
             // 正规军打垮、又丢了都城或三分之一的城：兵败如山倒(见 FrontCollapse)
-            foreach (War war in unifier.getWars().ToList())
+            foreach (War war in unifier.GetWars().ToList())
             {
-                if (war?.data == null || war.hasEnded() || !IsUnificationWar(war)) continue;
-                Realm attacker = Sovereign(war.getMainAttacker());
-                Realm foe = attacker == unifier ? Sovereign(war.getMainDefender()) : attacker;
+                if (war?.Record == null || war.HasEnded() || !IsUnificationWar(war)) continue;
+                Realm attacker = Sovereign(war.GetMainAttacker());
+                Realm foe = attacker == unifier ? Sovereign(war.GetMainDefender()) : attacker;
                 if (!Alive(foe) || foe == unifier) continue;
                 FrontCollapse.Check(unifier, foe, war);
             }
@@ -1460,18 +1444,18 @@ public static class UnificationSystem
     private static void Declare(Realm unifier)
     {
         if (!Rivals.TryGetValue(unifier.Key, out List<Realm> rivals) || rivals.Count == 0) return;
-        int wars = unifier.getWars().Count(war => IsUnificationWar(war));
+        int wars = unifier.GetWars().Count(war => IsUnificationWar(war));
         if (wars >= MaxWarsOf(unifier) || CorpsSystem.CannotFundWar(unifier) || WarGoalSystem.FightingForSurvival(unifier)) return;
         // 共事本部落联盟的部落不打(见 TribalFissionService.Bound)
-        List<Realm> open = rivals.Where(rival => Alive(rival) && Sovereign(rival) == rival && !unifier.isInWarWith(rival) &&
+        List<Realm> open = rivals.Where(rival => Alive(rival) && Sovereign(rival) == rival && !unifier.IsAtWarWith(rival) &&
                                                    !TribalFissionService.Bound(unifier, rival)).ToList();
         // 一家开不了仗(开战那一下被别的规矩挡回来)就试下一家，不每月卡在同一家上
         Empire own = unifier.GetEmpire();
         foreach (Realm target in open.Where(rival => Borders(unifier, rival)))
         {
             bool tributary = own != null && target.GetTakenAllianceEmpire() == own;
-            War war = EmpireWorld.Current.diplomacy.startWar(unifier, target, WarTypeLibrary.normal);
-            if (war?.data == null) continue;
+            War war = EmpireWorld.Current.StartWar(unifier, target, WarKinds.Normal);
+            if (war?.Record == null) continue;
             war.SetEmpireWarType(EmpireWarType.统一);
             WarGoalSystem.Preset(war, WarGoal.吞并);
             if (tributary) TributaryRelations.Renounce(target, own);
@@ -1485,12 +1469,12 @@ public static class UnificationSystem
     private static void Annex(Realm unifier, Realm foe, War war, string historyKey)
     {
         string name = foe.GetKingdomName();
-        foreach (War between in foe.getWars().ToList())
+        foreach (War between in foe.GetWars().ToList())
         {
-            if (between?.data == null || between.hasEnded()) continue;
-            bool against = between.isAttacker(unifier) && between.isDefender(foe) || between.isAttacker(foe) && between.isDefender(unifier);
+            if (between?.Record == null || between.HasEnded()) continue;
+            bool against = between.IsAttacker(unifier) && between.IsDefender(foe) || between.IsAttacker(foe) && between.IsDefender(unifier);
             if (!against) continue;
-            EmpireWorld.Current.wars.endWar(between, between.isAttacker(unifier) ? WarWinner.Attackers : WarWinner.Defenders);
+            EmpireWorld.Current.EndWar(between, between.IsAttacker(unifier) ? WarOutcome.Attackers : WarOutcome.Defenders);
         }
         // 部落之间不吞并：赔款，施行了部落联合的纳为共事部落(见 TribalWarSystem)
         if (TribalFissionService.IsTribal(foe) && TribalFissionService.IsTribal(unifier))

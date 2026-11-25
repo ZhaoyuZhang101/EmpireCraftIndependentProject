@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/FeudalVassalService.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/FeudalVassalService.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
@@ -358,8 +358,8 @@ public static class FeudalVassalService
     public static bool CanAnnex(Realm lord, Realm subject)
     {
         if (lord?.Ruler == null || !lord.Ruler.Alive || GetOverlord(subject) != lord ||
-            lord.getWars().Any(war => war != null && !war.hasEnded()) ||
-            subject.getWars().Any(war => war != null && !war.hasEnded())) return false;
+            lord.GetWars().Any(war => war != null && !war.HasEnded()) ||
+            subject.GetWars().Any(war => war != null && !war.HasEnded())) return false;
         var data = subject.GetOrCreate();
         if (data.feudal_vassal_level == 3 && data.feudal_vassal_progress >= ProgressPerLevel) return true;
         if (data.feudal_vassal_since < 0d) data.feudal_vassal_since = GameClock.Now;
@@ -398,7 +398,7 @@ public static class FeudalVassalService
             TranslateHelper.LogEventMessage(failed, lord);
             if (EcRandom.value < 0.35f)
             {
-                War war = EmpireWorld.Current.diplomacy.startWar(subject, lord, WarTypeLibrary.normal);
+                War war = EmpireWorld.Current.StartWar(subject, lord, WarKinds.Normal);
                 war?.SetEmpireWarType(EmpireWarType.附庸独立);
             }
             return false;
@@ -501,6 +501,7 @@ public static class FeudalVassalService
         else PersonalUnionService.JoinAlliance(lord, subject);
         return true;
     }
+#endif
 
     private static void CollectPower(Realm kingdom, HashSet<long> visited, Realm excluded)
     {
@@ -515,7 +516,6 @@ public static class FeudalVassalService
                 if (realm != kingdom) CollectPower(realm, visited, excluded);
         foreach (Realm child in GetDirectVassals(kingdom)) CollectPower(child, visited, excluded);
     }
-#endif
 
     private static readonly Dictionary<(long, bool, long), (double power, float at)> WarPowerCache = new();
     private const float WarPowerCacheSeconds = 2f;
@@ -671,7 +671,7 @@ public static class FeudalVassalService
         // 开国气象(统一战争期间、统一后三十年)附庸不独立(见 UnificationSystem)
         if (lord != null && UnificationSystem.InGrace(lord)) return false;
         return lord != null && subject.Ruler != null && subject.Ruler.Alive &&
-               !subject.getWars().Any(war => war != null && !war.hasEnded()) &&
+               !subject.GetWars().Any(war => war != null && !war.HasEnded()) &&
                GetWarPower(subject, false) > GetWarPower(lord, false, subject);
     }
 
@@ -679,32 +679,32 @@ public static class FeudalVassalService
     {
         if (!CanSeekIndependence(subject)) return false;
         Realm lord = GetOverlord(subject);
-        War war = EmpireWorld.Current.diplomacy.startWar(subject, lord, WarTypeLibrary.normal);
+        War war = EmpireWorld.Current.StartWar(subject, lord, WarKinds.Normal);
         if (war == null) return false;
         war.SetEmpireWarType(EmpireWarType.附庸独立);
         return true;
     }
 
-    public static void ResolveIndependenceWar(War war, WarWinner winner)
+    public static void ResolveIndependenceWar(War war, WarOutcome winner)
     {
         // 殖民地起兵独立(见 ColonySystem)
         ColonySystem.ResolveIndependenceWar(war, winner);
-        if (war?.GetEmpireWarType() != EmpireWarType.附庸独立 || winner != WarWinner.Attackers) return;
-        Realm subject = war.getMainAttacker();
-        if (GetOverlord(subject) == war.getMainDefender()) Break(subject);
+        if (war?.GetEmpireWarType() != EmpireWarType.附庸独立 || winner != WarOutcome.Attackers) return;
+        Realm subject = war.GetMainAttacker();
+        if (GetOverlord(subject) == war.GetMainDefender()) Break(subject);
     }
 
     public static void ExpandWar(War war)
     {
-        if (war == null || war.hasEnded()) return;
+        if (war == null || war.HasEnded()) return;
         ExpandSide(war, true);
         ExpandSide(war, false);
     }
 
     private static void ExpandSide(War war, bool attackers)
     {
-        var side = attackers ? war._list_attackers : war._list_defenders;
-        var opposite = attackers ? war._list_defenders : war._list_attackers;
+        var side = attackers ? war.Attackers : war.Defenders;
+        var opposite = attackers ? war.Defenders : war.Attackers;
         var visited = new HashSet<long>();
         var queue = new Queue<Realm>(side.Where(kingdom => kingdom != null));
         while (queue.Count > 0)
@@ -718,12 +718,12 @@ public static class FeudalVassalService
             // 有自主外交的诸侯、藩镇看好感自己决定(见 CheckJoinWar)；战国周室不再号令诸侯。
             // 封建帝国别国打上门、中央是主守方时，诸侯也随征(用户 2026-10-21 选"称帝后动员不变差"，见 EmpirePeacePatch.FollowsIntoWar)
             Empire empire = current.GetEmpire();
-            if (empire != null && current == empire.CoreKingdom && war.getMainAttacker() != null &&
-                war.getMainDefender() != null && !war.getMainAttacker().IsInSameEmpire(war.getMainDefender()) &&
+            if (empire != null && current == empire.CoreKingdom && war.GetMainAttacker() != null &&
+                war.GetMainDefender() != null && !war.GetMainAttacker().IsInSameEmpire(war.GetMainDefender()) &&
                 !MemberWarAid.IsMemberWar(war, empire, attackers) && ZhouEraSystem.Era(empire) < ZhouEraSystem.Warring)
                 followers.AddRange(empire.kingdoms_list.Where(member => member != null && member != current &&
                     EmpirePeacePatch.FollowsIntoWar(empire, member, war) && !EmpirePeacePatch.HasLeft(member, war, attackers)));
-            bool directIndependence = GetOverlord(war.getMainAttacker()) == war.getMainDefender() ||
+            bool directIndependence = GetOverlord(war.GetMainAttacker()) == war.GetMainDefender() ||
                                       ColonySystem.IsIndependenceWar(war);
             if (!attackers && !directIndependence && GetOverlord(current) is Realm protector)
                 followers.Add(protector);
@@ -736,8 +736,8 @@ public static class FeudalVassalService
                 if (follower == null || follower.IsGone() || opposite.Contains(follower)) continue;
                 if (!side.Contains(follower))
                 {
-                    if (attackers) war.joinAttackers(follower);
-                    else war.joinDefenders(follower);
+                    if (attackers) war.JoinAttackers(follower);
+                    else war.JoinDefenders(follower);
                 }
                 queue.Enqueue(follower);
             }

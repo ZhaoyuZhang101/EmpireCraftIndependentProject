@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/DynasticCycleSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/DynasticCycleSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -111,7 +111,7 @@ public static class DynasticCycleSystem
         if (state.last_dynastic_update >= 0d && now >= state.last_dynastic_update &&
             GameClock.YearsSince(state.last_dynastic_update) < 1) return;
         bool bankrupt = empire.CurrentMoney < 0;
-        bool atWar = empire.CoreKingdom.getWars().Any();
+        bool atWar = empire.CoreKingdom.GetWars().Any();
         bool interregnum = empire.Emperor == null || empire.Emperor.IsGone() || !empire.Emperor.Alive;
         double corruption = CorruptionSystem.GetRate(empire);
         if (state.dynastic_since < 0d)
@@ -451,7 +451,6 @@ public static class DynasticCycleSystem
 
     // 本朝(王朝起点以来，after 给了就从那时起)民变、起义立的国：还在、没回归本帝国的有几家、占了几座城，
     // 其中起事最早的一场过了几年(没有返回 0)
-#if EC_PENDING
     public static (int count, int cities, int years) PopularRebellions(Empire empire, double after = -1d)
     {
         if (empire?.data == null || EmpireWorld.Current?.LiveRealms == null) return (0, 0, 0);
@@ -471,7 +470,6 @@ public static class DynasticCycleSystem
         }
         return (count, cities, earliest >= 0d ? Math.Max(0, GameClock.YearsSince(earliest)) : 0);
     }
-#endif
 
     #endregion
 

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/ShogunateDramaSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/ShogunateDramaSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -53,12 +53,12 @@ public static class ShogunateDramaSystem
             if (faction != null && faction.Type == type) return faction;
         return null;
     }
+#endif
 
     private static void Boost(Empire empire, FixedFaction faction, int amount)
     {
         if (faction != null && amount > 0) empire.CoreKingdom.TryIncreaseFactionRatio(faction, amount);
     }
-#endif
 
     private static bool Chance(float chance) => EcRandom.value < chance;
 
@@ -105,7 +105,6 @@ public static class ShogunateDramaSystem
 #endif
 
     // ① 开幕：这一家将军头一回就任，幕府派添势(已经最大的不再添；旧档里早已开幕的头一年也照此补一次)
-#if EC_PENDING
     private static void Opening(Empire empire, FixedFaction shogunal)
     {
         EmpireData data = empire.data;
@@ -113,7 +112,6 @@ public static class ShogunateDramaSystem
         data.shogunate_opened_clan_id = data.regent_clan_id;
         if (empire.CoreKingdom.GetHighestFactionRatio() != shogunal) Boost(empire, shogunal, OpeningBoost);
     }
-#endif
 
     // ② 天皇起兵倒幕
 #if EC_PENDING
@@ -240,20 +238,20 @@ public static class ShogunateDramaSystem
                 foreach (City next in city.neighbours_cities)
                 {
                     Realm other = next?.Realm;
-                    if (other == null || other == realm || !set.Contains(other) || other.IsGone() || realm.isInWarWith(other)) continue;
+                    if (other == null || other == realm || !set.Contains(other) || other.IsGone() || realm.IsAtWarWith(other)) continue;
                     count.TryGetValue(realm, out int mine);
                     count.TryGetValue(other, out int theirs);
                     if (mine >= SengokuWarsEach || theirs >= SengokuWarsEach) continue;
                     try
                     {
-                        EmpireWorld.Current.diplomacy.startWar(realm, other, WarTypeLibrary.normal);
+                        EmpireWorld.Current.StartWar(realm, other, WarKinds.Normal);
                     }
                     catch (Exception exception)
                     {
                         LogService.LogWarning($"{Tag} 战国开战失败: {exception.Message}");
                         continue;
                     }
-                    if (!realm.isInWarWith(other)) continue;
+                    if (!realm.IsAtWarWith(other)) continue;
                     count[realm] = mine + 1;
                     count[other] = theirs + 1;
                     wars++;

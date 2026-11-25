@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/PapacySystem.Actions.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/PapacySystem.Actions.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System.Linq;
 
@@ -126,7 +126,6 @@ public static partial class PapacySystem
 #endif
 
     // 别家称着神圣的帝国
-#if EC_PENDING
     private static Empire OtherHolyEmpire(Empire empire)
     {
         if (ModClass.EMPIRE_MANAGER == null) return null;
@@ -134,7 +133,6 @@ public static partial class PapacySystem
             if (other != empire && other?.data != null && !other.IsGone() && !other.IsArchived() && HasHolyName(other)) return other;
         return null;
     }
-#endif
 
     // 已经称神圣的还算不算数(每年核对，见 RealmNamingSystem.YearlyUniversal)：不是那个教会的去掉；两家以上的留国力大的。
     // 教廷一时不在不收回

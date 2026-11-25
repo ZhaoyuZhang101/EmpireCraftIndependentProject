@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/LabourSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/LabourSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -30,9 +30,9 @@ public static class LabourSystem
     public const string Concede = "concede", Repress = "repress", Fade = "fade";
 
     private static ConstitutionalEconomyState State(Empire empire) => empire?.data?.constitutional_economy;
-#if EC_PENDING
     private static ConstitutionalEconomyState State(Realm kingdom) => kingdom?.GetEmpire()?.data?.constitutional_economy;
 
+#if EC_PENDING
     public static bool Applies(Empire empire)
     {
         if (empire?.CoreKingdom == null || empire.IsGone() || empire.IsArchived() || State(empire) == null) return false;
@@ -235,7 +235,6 @@ public static class LabourSystem
     #region 效果
 
     // 工厂产值(见 FactorySystem.Produce)：工钱、劳动法每档少一点，闹工潮的年份减产
-#if EC_PENDING
     public static float OutputFactor(City city)
     {
         ConstitutionalEconomyState state = State(city?.Realm);
@@ -245,12 +244,9 @@ public static class LabourSystem
         else if (state.strike_stage == StrikeWave) factor *= 0.85f;
         return Mathf.Max(0.3f, factor);
     }
-#endif
 
     // 内需(见 CommodityMarketSystem.Book)：工钱高了，消费品好卖
-#if EC_PENDING
     public static float DemandFactor(Realm kingdom) => 1f + 0.05f * (State(kingdom)?.wage_level ?? 0);
-#endif
 
     // 阶层怨气的目标值加减(见 InstitutionSystem)
     public static float GrievanceShift(Empire empire, SocialClass socialClass)

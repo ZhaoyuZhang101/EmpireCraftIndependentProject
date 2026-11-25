@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/StateDebtSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/StateDebtSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -50,13 +50,10 @@ public static class StateDebtSystem
     // 年经常收入(近十二个月的税款、央地拨款、贡金、公共贸易、官营产业)。账目不满一年时按月账保守折年(见 StateDebtRules.Annualize)：
     // 以前 合计 × 12 / 月数，新立的国家头一两个月城库余钱上缴之类的大笔进账被放大成十几倍的年收，凭它借满两年收入的债，
     // 几个月后年收回落，又月月废债重组(玩家日志 2026-10-20 自由城市年收 29→7→2→0)。满一年的照旧按合计
-#if EC_PENDING
     public static long AnnualStableIncome(Realm kingdom) => AnnualIncome(kingdom, recurringOnly: false);
-#endif
 
     // 举债看的年收：再去掉一次性划拨——央地拨款里只算记明是税款分成的，城库余钱上缴、城毁交回国库这类不算
     // (官营产业利润经城库分成上来的那份没有记明来源，也不算，宁可少借)
-#if EC_PENDING
     public static long BorrowingIncome(Realm kingdom) => AnnualIncome(kingdom, recurringOnly: true);
 
     private static long AnnualIncome(Realm kingdom, bool recurringOnly)
@@ -72,7 +69,6 @@ public static class StateDebtSystem
                 if (period != null) monthly.Add(StableIncomeOf(period, recurringOnly));
         return StateDebtRules.Annualize(monthly, report.months);
     }
-#endif
 
     private static long StableIncomeOf(TreasuryPeriod period, bool recurringOnly)
     {
@@ -242,6 +238,7 @@ public static class StateDebtSystem
         }
         bonds.RemoveAll(bond => bond.principal <= 0L);
     }
+#endif
 
     private static bool Restructure(Realm kingdom, List<StateBond> bonds)
     {
@@ -271,6 +268,5 @@ public static class StateDebtSystem
             amount -= chunk;
         }
     }
-#endif
 }
 }

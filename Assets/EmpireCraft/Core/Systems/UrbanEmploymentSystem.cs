@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/UrbanEmploymentSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/UrbanEmploymentSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -180,6 +180,7 @@ public static class UrbanEmploymentSystem
         (city.buildings?.Count(building => building != null && !building.isUnderConstruction() &&
                                            TechnologySystem.IsFactory(building.asset)) ?? 0) +
         VirtualIndustrySystem.Factories(city) + FactorySystem.Units(city);
+#endif
 
     private static int GetRecentVoyages(City city)
     {
@@ -189,6 +190,7 @@ public static class UrbanEmploymentSystem
             (voyage.origin_city_id == city.Key || voyage.destination_city_id == city.Key)) ?? 0;
     }
 
+#if EC_PENDING
     private static List<Person> GetAdults(City city) => city.units?
         .Where(actor => actor != null && !actor.IsGone() && actor.Alive && actor.isAdult() &&
                         actor.city == city).ToList() ?? new List<Person>();

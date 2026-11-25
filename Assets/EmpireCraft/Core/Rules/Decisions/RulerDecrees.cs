@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/Decisions/RulerDecrees.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/Decisions/RulerDecrees.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -67,7 +67,6 @@ public static class RulerDecrees
         actor?.Record != null && actor.Alive && actor.IsRuler() && actor.Realm?.Record != null && !actor.Realm.IsGone();
 
     // 皇帝本人坐镇的帝国(不是帝国中央的君主返回空)
-#if EC_PENDING
     private static Empire Court(Person actor)
     {
         if (!Ruler(actor)) return null;
@@ -75,6 +74,7 @@ public static class RulerDecrees
         return empire?.data != null && !empire.IsGone() && !empire.IsArchived() && empire.CoreKingdom == actor.Realm ? empire : null;
     }
 
+#if EC_PENDING
     private static bool Enough(Person actor, string id) =>
         Ruler(actor) && (ProbeIgnoresAuthority || Authority(actor.Realm) >= MinAuthority(id));
 #endif

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/PersonalTieSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/PersonalTieSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -95,7 +95,6 @@ public static class PersonalTieSystem
         TieOf(a?.GetPersonalIdentity(), b?.GetPersonalIdentity()?.id ?? -1L)?.kind == Rival;
 
     // 在朝为官、在世的门生人数
-#if EC_PENDING
     public static int ProtegesInOffice(Person patron)
     {
         PersonalClanIdentity identity = patron?.GetPersonalIdentity();
@@ -110,7 +109,6 @@ public static class PersonalTieSystem
         }
         return count;
     }
-#endif
 
     #endregion
 
@@ -246,9 +244,9 @@ public static class PersonalTieSystem
     private static bool Defect(Person actor, Person ruler)
     {
         Realm home = actor.Realm;
-        Realm enemy = home?.getWars().Where(war => war?.data != null && !war.hasEnded())
-            .SelectMany(war => war.isAttacker(home) ? war._list_defenders : war._list_attackers)
-            .Where(kingdom => kingdom?.data != null && !kingdom.IsGone() && kingdom.capital?.data != null && !kingdom.capital.IsGone())
+        Realm enemy = home?.GetWars().Where(war => war?.Record != null && !war.HasEnded())
+            .SelectMany(war => war.IsAttacker(home) ? war.Defenders : war.Attackers)
+            .Where(kingdom => kingdom?.Record != null && !kingdom.IsGone() && kingdom.Capital?.Record != null && !kingdom.Capital.IsGone())
             .OrderByDescending(kingdom => kingdom.countCities()).FirstOrDefault();
         if (enemy == null) return false;
         CorpsSystem.LoseGeneral(actor);

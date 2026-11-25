@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/LandmarkBookSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/LandmarkBookSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -427,7 +427,7 @@ public static class LandmarkBookSystem
         }
         bool unrest = industrial && (grievance >= 25f ||
             LandEconomySystem.GetReport(city).LandlessPopulationRatio >= LandEconomySystem.RebellionLandlessThreshold);
-        bool militarized = city.Realm.hasEnemies() ||
+        bool militarized = city.Realm.HasEnemies() ||
             adults.Count(actor => actor.isWarrior()) >= Math.Max(3, (int)Math.Ceiling(adults.Count * 0.12f));
         bool massPolitics = adults.Count >= 40 && InstitutionSystem.GetFeature(
             CultureService.GetMainCulture(city), PartySystem.FeaturePartyPolitics) > 0f;

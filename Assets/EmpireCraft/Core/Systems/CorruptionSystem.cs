@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/CorruptionSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/CorruptionSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -87,6 +87,7 @@ public static class CorruptionSystem
 #if EC_PENDING
     private static double Integrity(Person actor) =>
         Math.Max(0d, EmpireCraft.Core.PerformanceEvents.GetPersonalPerformance(actor) - 0.5d) / 0.5d;
+#endif
 
     private static IEnumerable<Realm> CampaignRealms(Empire empire, Realm target) =>
         target == empire.CoreKingdom
@@ -106,6 +107,7 @@ public static class CorruptionSystem
             k.Cities.Any(c => c != null && !c.IsGone() && c.Realm == k && c.GetCorruptionRate() >= 0.25d));
     }
 
+#if EC_PENDING
     public static bool TryCampaign(Empire empire, Realm target)
     {
         if (!CanCampaign(empire, target)) return false;

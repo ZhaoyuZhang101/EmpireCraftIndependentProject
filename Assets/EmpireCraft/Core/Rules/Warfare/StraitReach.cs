@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/StraitReach.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/StraitReach.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Time = EmpireCraft.Core.FrameClock;
 using System.Collections.Generic;
@@ -96,6 +96,7 @@ public static class StraitReach
         }
         return false;
     }
+#endif
 
     private static List<Realm> Members(Realm kingdom)
     {
@@ -105,7 +106,6 @@ public static class StraitReach
         if (!members.Contains(kingdom)) members.Add(kingdom);
         return members;
     }
-#endif
 
     // 接壤或隔海相望(帝国按全体成员算)
 #if EC_PENDING

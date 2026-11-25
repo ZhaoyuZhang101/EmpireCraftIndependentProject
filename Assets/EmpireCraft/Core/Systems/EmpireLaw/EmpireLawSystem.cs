@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/EmpireLaw/EmpireLawSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/EmpireLaw/EmpireLawSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Color = EmpireCraft.Core.EcColor;
@@ -324,7 +324,6 @@ public static partial class EmpireLawSystem
 #endif
 
     // 这桩未发的罪归不归 kingdom 管：帝国之内按帝国(独立时犯下的按国)，不在帝国里的按本国
-#if EC_PENDING
     private static bool InJurisdiction(CrimeRecord record, Realm kingdom)
     {
         if (record == null || kingdom == null) return false;
@@ -336,6 +335,7 @@ public static partial class EmpireLawSystem
         return record.kingdom_id == kingdom.Key;
     }
 
+#if EC_PENDING
     public static LawEnforcementContext TryEnforceLaw(this Person actor, LawType type, Realm kingdom)
     {
         return TryEnforceLaw(actor, type, kingdom, null, null);
@@ -732,7 +732,6 @@ public static partial class EmpireLawSystem
 #endif
 
     // 赃款记到这人本国尚未发觉的同一罪名的旧案上(没有旧案返回 false，由调用方另行立案)
-#if EC_PENDING
     public static bool AddCrimeAmount(Person actor, LawType lawType, int amount)
     {
         if (amount <= 0 || actor == null || actor.IsGone() || actor.IsRuler()) return false;
@@ -748,6 +747,7 @@ public static partial class EmpireLawSystem
         return false;
     }
 
+#if EC_PENDING
     public static CrimeRecord GetResolvableCrimeRecord(Person actor, Realm kingdom)
     {
         if (actor == null || actor.IsGone() || kingdom == null)
@@ -868,6 +868,7 @@ public static partial class EmpireLawSystem
         CleanupCrimeRecords(identity);
         return false;
     }
+#endif
 
     private static bool ShouldAutoCheckCrimeActor(Person actor)
     {
@@ -907,6 +908,7 @@ public static partial class EmpireLawSystem
         });
     }
 
+#if EC_PENDING
     private static bool CanResolveCrimeRecord(Person actor, Realm kingdom, CrimeRecord record)
     {
         if (actor == null || kingdom == null || record == null) return false;
@@ -1190,6 +1192,7 @@ public static partial class EmpireLawSystem
         actor.addMoney(-actor.money);
         return true;
     }
+#endif
 
     private static bool ApplyStripPeerage(Person actor)
     {
@@ -1210,7 +1213,6 @@ public static partial class EmpireLawSystem
 
         return changed;
     }
-#endif
 
     // 降爵：爵位降一等(无爵的不动)
     private static bool ApplyDemotePeerage(Person actor)

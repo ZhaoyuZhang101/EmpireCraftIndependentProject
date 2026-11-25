@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/WorldMap/SilkRoadSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/WorldMap/SilkRoadSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -90,7 +90,6 @@ public static class SilkRoadSystem
 #endif
 
     // 市场互市：各条丝路相邻两站的城所属的国家(不同国、不交战)
-#if EC_PENDING
     public static IEnumerable<(Realm a, Realm b)> Links()
     {
         if (EmpireWorld.Current?.Cities == null) yield break;
@@ -102,12 +101,13 @@ public static class SilkRoadSystem
                 City city = EmpireWorld.Current.CityByKey(id);
                 Realm kingdom = city?.Record != null && city.Alive ? city.Realm : null;
                 if (kingdom?.Record == null || kingdom.IsGone() || kingdom.IsWild) continue;
-                if (previous != null && previous != kingdom && !previous.IsGone() && !previous.isEnemy(kingdom)) yield return (previous, kingdom);
+                if (previous != null && previous != kingdom && !previous.IsGone() && !previous.IsEnemy(kingdom)) yield return (previous, kingdom);
                 previous = kingdom;
             }
         }
     }
 
+#if EC_PENDING
     private static bool Inside(Vector2Int tile) => tile.x >= 1 && tile.y >= 1 && tile.x < EmpireWorld.width - 1 && tile.y < EmpireWorld.height - 1;
 
     private static City NearestCity(Vector2Int tile)

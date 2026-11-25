@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/RevolutionSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/RevolutionSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -438,7 +438,7 @@ public static class RevolutionSystem
         state.revolution_stage = Uprising;
         state.revolution_interventions = 0;
         War war = RevolutionWar(empire);
-        Realm rebel = war?.getMainAttacker();
+        Realm rebel = war?.GetMainAttacker();
         if (rebel == null) return;
         EventRecorder.Record(empire, string.Format(LM.Get("revolution_government_history"), MovementName(empire),
             rebel.Capital?.GetCityName() ?? rebel.GetKingdomName(), empire.GetEmpireFullName()));
@@ -464,11 +464,11 @@ public static class RevolutionSystem
             return;
         }
         Intervene(empire, state, war);
-        if (war.getAge() < StalemateYears) return;
-        Realm rebel = war.getMainAttacker();
+        if (war.AgeYears() < StalemateYears) return;
+        Realm rebel = war.GetMainAttacker();
         if (rebel == null || rebel.IsGone() || (rebel.Cities?.Count ?? 0) == 0) return;
         // 僵局：结果在停战结算里定(见 OnPeace)
-        EmpireWorld.Current.wars.endWar(war, WarWinner.Peace);
+        EmpireWorld.Current.EndWar(war, WarOutcome.Peace);
     }
 #endif
 
@@ -477,7 +477,7 @@ public static class RevolutionSystem
 #if EC_PENDING
     private static void Intervene(Empire empire, ConstitutionalEconomyState state, War war)
     {
-        if (state.revolution_interventions >= MaxInterventions || war == null || war.hasEnded()) return;
+        if (state.revolution_interventions >= MaxInterventions || war == null || war.HasEnded()) return;
         Realm core = empire.CoreKingdom;
         WarExtension.WarExtraData snapshot = war.GetOrCreate();
         PartyIdeology cause = snapshot.republic_revolution_ideology;
@@ -491,24 +491,24 @@ public static class RevolutionSystem
             if (other?.Record == null || other.IsGone() || !other.HasRuler() || other.IsWild || other == core ||
                 empire.kingdoms_hashset.Contains(other) || other.IsInEmpire() && !other.IsEmpire() ||
                 WarlordEraSystem.Dependent(other) || FeudalVassalService.GetOverlord(other) != null ||
-                (other.Cities?.Count ?? 0) < weight || other.getWars().Any(active => active != null && !active.hasEnded()) ||
-                war.hasKingdom(other)) continue;
+                (other.Cities?.Count ?? 0) < weight || other.GetWars().Any(active => active != null && !active.HasEnded()) ||
+                war.HasRealm(other)) continue;
             bool near = empire.IsNeighbourWith(other);
-            if (!near && !WarReach.MayDeclare(other, core, WarTypeLibrary.normal)) continue;
+            if (!near && !WarReach.MayDeclare(other, core, WarKinds.Normal)) continue;
             RegimeType? regime = other.GetRegime()?.type;
             bool otherMonarchy = RegimeManager.IsMonarchy(regime);
             PartyIdeology theirs = IdeologyFamilies.StateIdeology(other);
             bool sympathizer = !otherMonarchy && regime == RegimeType.Modern &&
                                PartySystem.IdeologyDistance(theirs, cause) <= CloseIdeology;
             bool guardian = !sympathizer && (monarchyRevolution
-                ? otherMonarchy && !other.isEnemy(core)
+                ? otherMonarchy && !other.IsEnemy(core)
                 : PartySystem.IdeologyDistance(theirs, ruling) <= CloseIdeology &&
                   PartySystem.IdeologyDistance(theirs, cause) >= FarIdeology);
             float reach = near ? 1f : 0.5f;
             if (sympathizer && !helped && EcRandom.value < SympathizerChance * reach)
             {
-                war.joinAttackers(other);
-                if (!war.hasKingdom(other)) continue;
+                war.JoinAttackers(other);
+                if (!war.HasRealm(other)) continue;
                 helped = true;
                 state.revolution_interventions++;
                 EventRecorder.Record(empire, string.Format(LM.Get("revolution_foreign_support_history"),
@@ -516,8 +516,8 @@ public static class RevolutionSystem
             }
             else if (guardian && !opposed && EcRandom.value < GuardianChance * reach)
             {
-                war.joinDefenders(other);
-                if (!war.hasKingdom(other)) continue;
+                war.JoinDefenders(other);
+                if (!war.HasRealm(other)) continue;
                 opposed = true;
                 state.revolution_interventions++;
                 EventRecorder.Record(empire, string.Format(LM.Get("revolution_foreign_intervention_history"),
@@ -532,7 +532,7 @@ public static class RevolutionSystem
     public static void OnPeace(Empire empire, War war, FixedFaction party, PartyIdeology ideology, bool splitRealm)
     {
         ConstitutionalEconomyState state = State(empire);
-        Realm rebel = war?.getMainAttacker();
+        Realm rebel = war?.GetMainAttacker();
         if (state == null || rebel == null || rebel.IsGone()) return;
         string country = empire.GetEmpireFullName();
         string movement = party?.Name ?? MovementName(empire);
@@ -637,12 +637,11 @@ public static class RevolutionSystem
     #region 革命之后
 
     // 革命成功(RepublicSystem.ResolveRevolutionWar)
-#if EC_PENDING
     public static void OnVictory(Empire empire, PartyIdeology ideology, Person leader, War war)
     {
         ConstitutionalEconomyState state = State(empire);
         if (state == null) return;
-        float radical = 25f + state.revolution_tension * 0.3f + (war?.getAge() ?? 0f) * 6f +
+        float radical = 25f + state.revolution_tension * 0.3f + (war?.AgeYears() ?? 0f) * 6f +
                         state.revolution_interventions * 8f + (RadicalIdeologies.Contains(ideology) ? 20f : 0f);
         state.post_revolution_since = GameClock.Now;
         state.post_revolution_phase = 1;
@@ -657,7 +656,6 @@ public static class RevolutionSystem
         state.revolution_spark = "";
         state.revolution_interventions = 0;
     }
-#endif
 
     public static string AftermathPhaseName(Empire empire) =>
         LM.Get("post_revolution_phase_" + Mathf.Clamp(State(empire)?.post_revolution_phase ?? 0, 0, 4));
@@ -685,9 +683,9 @@ public static class RevolutionSystem
         PartyIdeology founding = state.republic_ideology;
         string country = empire.GetEmpireFullName();
         float radical = state.post_revolution_radical;
-        if (core.hasEnemies()) radical += 6f;
+        if (core.HasEnemies()) radical += 6f;
         if (RadicalIdeologies.Contains(founding)) radical += 2f;
-        if (!core.hasEnemies() && empire.Legitimacy >= 50) radical -= 5f;
+        if (!core.HasEnemies() && empire.Legitimacy >= 50) radical -= 5f;
         if (years >= 3) radical -= 3f;
         if (state.post_revolution_phase == 2) radical = Mathf.Min(radical, 45f);
         state.post_revolution_radical = radical = Mathf.Clamp(radical, 0f, 100f);

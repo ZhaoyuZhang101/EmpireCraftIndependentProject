@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/TechnologySystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/TechnologySystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
@@ -1546,7 +1546,7 @@ public static partial class TechnologySystem
                 if (!CultureService.IsValidCulture(other)) continue;
                 Link(Contacts, pair.Key, other);
                 Link(Contacts, other, pair.Key);
-                if (city.Realm != null && neighbour.Realm != null && city.Realm.isEnemy(neighbour.Realm))
+                if (city.Realm != null && neighbour.Realm != null && city.Realm.IsEnemy(neighbour.Realm))
                 {
                     Link(WarContacts, pair.Key, other);
                     Link(WarContacts, other, pair.Key);
@@ -1989,7 +1989,7 @@ public static partial class TechnologySystem
                                 city.countBuildingsType("type_temple") * perTemple +
                                 city.countBuildingsType("type_university") * research.per_university +
                                 city.buildings.Count(b => b != null && IsFactory(b.asset)) * research.per_factory;
-            if (city.Realm != null && city.Realm.hasEnemies())
+            if (city.Realm != null && city.Realm.HasEnemies())
             {
                 // 兵荒马乱读书少，但打仗本身逼出新技术
                 cityBasis *= 1f - research.war_penalty;
@@ -2058,11 +2058,11 @@ public static partial class TechnologySystem
 
     #region 研究经费
 
-#if EC_PENDING
     private static List<Realm> KingdomsOf(List<City> cities) =>
         cities.Select(city => city.Realm).Where(kingdom => kingdom != null && !kingdom.IsGone() &&
             !EmpireCraft.Core.AncientWarfareCompatibility.Owns(kingdom)).Distinct().ToList();
 
+#if EC_PENDING
     public static int GetCultureTreasury(string culture) =>
         (int)Math.Min(int.MaxValue, KingdomsOf(CitiesOf(culture)).Sum(kingdom => (long)Math.Max(0, kingdom.GetMoney())));
 #endif

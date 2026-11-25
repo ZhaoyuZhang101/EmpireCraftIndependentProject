@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/NomadAppanageSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/NomadAppanageSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -69,7 +69,7 @@ public static class NomadAppanageSystem
         if (!Alive(kingdom) || khan?.Record == null || EmpireWorld.Current == null || kingdom.IsInEmpire() || kingdom.Capital == null ||
             !KingdomExtension.IsTrueNomad(kingdom) || AncientWarfareCompatibility.Owns(kingdom)) return false;
         int cities = kingdom.Cities?.Count ?? 0;
-        if (cities < MinCities || kingdom.getWars().Any(war => war != null && !war.hasEnded()) ||
+        if (cities < MinCities || kingdom.GetWars().Any(war => war != null && !war.HasEnded()) ||
             RulerTraitSystem.FounderShield(kingdom)) return false;
         double last = kingdom.GetOrCreate().nomad_split_at;
         if (last >= 0d && GameClock.Now >= last && GameClock.YearsSince(last) < CooldownYears) return false;

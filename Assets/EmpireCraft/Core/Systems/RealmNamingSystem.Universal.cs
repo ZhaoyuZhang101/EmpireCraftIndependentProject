@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/RealmNamingSystem.Universal.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/RealmNamingSystem.Universal.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -42,7 +42,6 @@ public static partial class RealmNamingSystem
     public const int LapseYears = 30;
 
     // 堪当普世皇帝：受着这个天下的天命，或是天下里据城最多的一家、且据有 CapableShare 以上(像那个天下的共主)
-#if EC_PENDING
     public static bool Capable(Empire empire, EmpireCore lead)
     {
         Realm core = empire?.CoreKingdom;
@@ -52,7 +51,6 @@ public static partial class RealmNamingSystem
         if (total <= 0 || !held.TryGetValue(core, out int mine)) return false;
         return mine >= total * CapableShare && held.Values.All(count => count <= mine);
     }
-#endif
 
     // 持名的仍算天下之主：受着天命、护着教廷，或据有那个天下 KeepShare 以上的城(大空位时代的神罗也还是大国)
 #if EC_PENDING
@@ -128,7 +126,6 @@ public static partial class RealmNamingSystem
 #endif
 
     // 同一天下里另一位未失格的普世皇帝
-#if EC_PENDING
     public static Empire OtherUniversal(EmpireCore lead, Empire except)
     {
         if (lead == null || ModClass.EMPIRE_MANAGER == null) return null;
@@ -136,7 +133,6 @@ public static partial class RealmNamingSystem
                                                                !other.IsArchived() && HoldsUniversal(other) &&
                                                                Papal(other).universal_lead_id == lead.id);
     }
-#endif
 
     // 控制教宗国：教廷是本帝国的成员(含教廷之囚落在本帝国)或附庸(圣座帝国不算)
 #if EC_PENDING
@@ -448,11 +444,11 @@ public static partial class RealmNamingSystem
 
     // 逼冕之战结束(WarPatch 战争结束时调用)
 #if EC_PENDING
-    public static void ResolveCoerceWar(War war, WarWinner winner)
+    public static void ResolveCoerceWar(War war, WarOutcome winner)
     {
         Empire empire = war?.getMainAttacker()?.GetEmpire();
         if (empire?.data == null || empire.IsGone() || empire.IsArchived()) return;
-        if (winner == WarWinner.Attackers)
+        if (winner == WarOutcome.Attackers)
         {
             CoerceVictory(empire);
             return;
@@ -463,7 +459,7 @@ public static partial class RealmNamingSystem
         state.coerce_failed_at = GameClock.Now;
         empire.AddMandate(CoerceFailedLegitimacy);
         EventRecorder.Record(empire, string.Format(LM.Get("realm_coerce_failed_history"), empire.GetEmpireFullName(),
-            war.getMainDefender()?.GetKingdomName() ?? ""));
+            war.GetMainDefender()?.GetKingdomName() ?? ""));
     }
 #endif
 

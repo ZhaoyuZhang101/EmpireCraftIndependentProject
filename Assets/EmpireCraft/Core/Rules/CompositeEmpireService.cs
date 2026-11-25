@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/CompositeEmpireService.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/CompositeEmpireService.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -527,7 +527,7 @@ public static partial class CompositeEmpireService
         if (CultureService.IsValidCulture(capitalCulture)) return capitalCulture;
 
         long administrativeTitleId = member.GetOrCreate().AdministrativeTitle;
-        KingdomTitle administrativeTitle = ModClass.KINGDOM_TITLE_MANAGER?.get(administrativeTitleId);
+        KingdomTitle administrativeTitle = ModClass.KINGDOM_TITLE_MANAGER?.Get(administrativeTitleId);
         string administrativeCulture = CultureService.GetEffectiveTitleCulture(administrativeTitle);
         if (CultureService.IsValidCulture(administrativeCulture)) return administrativeCulture;
         return CultureService.GetRealmCulture(member);
@@ -551,7 +551,7 @@ public static partial class CompositeEmpireService
         KingdomTitle delegatedTitle = null;
         if (member.GetMainTitle() == null)
         {
-            delegatedTitle = ModClass.KINGDOM_TITLE_MANAGER?.get(member.GetOrCreate().AdministrativeTitle);
+            delegatedTitle = ModClass.KINGDOM_TITLE_MANAGER?.Get(member.GetOrCreate().AdministrativeTitle);
         }
 
         member.SetRegimeType(targetType);
@@ -667,14 +667,12 @@ public static partial class CompositeEmpireService
     public static bool FixedCourt(Empire empire) =>
         empire?.CoreKingdom?.Record != null && !empire.CoreKingdom.IsGone() && empire.CoreKingdom.GetOrCreate().fixed_court;
 
-#if EC_PENDING
     public static bool FixedCourt(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone()) return false;
         Realm core = kingdom.GetEmpire()?.CoreKingdom ?? kingdom;
         return core?.Record != null && !core.IsGone() && core.GetOrCreate().fixed_court;
     }
-#endif
 
     // 开局就是多元帝国的兼用路线：不看据城多少、不等天命，国号是剧本定的不再改号，国号类别按朝廷的政体算(朝，不是匈鲁斯)；
     // 不分治、不从俗、不北归，不算离草

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/StateModernization.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/StateModernization.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -156,7 +156,7 @@ public static class StateModernization
         if (data.revolution_tension < ReadyAt) return false;
         bool unrest = kingdom.Cities != null && kingdom.Cities.Any(city => CityStabilitySystem.Disaffected(city));
         bool weakThrone = king == null || !king.Alive || king.Age() < MinorAge;
-        if (!unrest && !weakThrone && !kingdom.hasEnemies() && EcRandom.value >= IncidentChance) return false;
+        if (!unrest && !weakThrone && !kingdom.HasEnemies() && EcRandom.value >= IncidentChance) return false;
 
         RulerQualitySystem.Grade grade = RulerQualitySystem.Of(king);
         bool concedes = weakThrone || grade is RulerQualitySystem.Grade.Wise or RulerQualitySystem.Grade.Weak or

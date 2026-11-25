@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/FiscalBudgetPlanner.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/FiscalBudgetPlanner.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -35,7 +35,6 @@ public static class FiscalBudgetPlanner
         _world = null;
     }
 
-#if EC_PENDING
     private static Plan Get(Realm payer)
     {
         if (!ReferenceEquals(_world, EmpireWorld.Current)) { Plans.Clear(); _world = EmpireWorld.Current; }
@@ -59,6 +58,7 @@ public static class FiscalBudgetPlanner
         return plan;
     }
 
+#if EC_PENDING
     public static bool IsPriority(City city, Realm payer)
     {
         if (city?.Record == null || city.IsGone()) return false;
@@ -66,9 +66,9 @@ public static class FiscalBudgetPlanner
         if (city == payer.Capital || city == owner?.Capital || city == owner?.GetEmpire()?.CoreKingdom?.Capital) return true;
         var state = city.GetOrCreate().stability;
         if (state != null && state.stability < CityStabilityRules.RebellionThreshold) return true;
-        if (owner == null || !owner.hasEnemies() || city.neighbours_kingdoms == null) return false;
+        if (owner == null || !owner.HasEnemies() || city.neighbours_kingdoms == null) return false;
         foreach (Realm neighbour in city.neighbours_kingdoms)
-            if (neighbour != null && !neighbour.IsGone() && owner.isInWarWith(neighbour)) return true;
+            if (neighbour != null && !neighbour.IsGone() && owner.IsAtWarWith(neighbour)) return true;
         return false;
     }
 #endif

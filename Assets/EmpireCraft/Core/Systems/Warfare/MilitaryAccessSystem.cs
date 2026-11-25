@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/MilitaryAccessSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/MilitaryAccessSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System.Collections.Generic;
@@ -79,10 +79,10 @@ public static class MilitaryAccessSystem
         Realm hostRealm = FrontSystem.Realm(host), guestRealm = FrontSystem.Realm(guest);
         return Live(host, guest) || Live(hostRealm, guest) || Live(host, guestRealm) || Live(hostRealm, guestRealm);
     }
+#endif
 
     private static bool Live(Realm host, Realm guest) =>
-        Find(host, guest) is { } grant && Now() < grant.until && !host.isInWarWith(guest);
-#endif
+        Find(host, guest) is { } grant && Now() < grant.until && !host.IsAtWarWith(guest);
 
     // 签约或续约(续约不改起始时间)
 #if EC_PENDING
@@ -225,7 +225,7 @@ public static class MilitaryAccessSystem
             }
             string key = null;
             bool history = true;
-            if (host.isInWarWith(guest) || FrontSystem.Hostile(host, guest)) key = "military_access_void_war";
+            if (host.IsAtWarWith(guest) || FrontSystem.Hostile(host, guest)) key = "military_access_void_war";
             else if (now >= grant.until)
             {
                 key = "military_access_expired";

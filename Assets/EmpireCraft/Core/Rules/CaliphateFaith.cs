@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/CaliphateFaith.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/CaliphateFaith.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -29,13 +29,13 @@ public static class CaliphateFaith
     public const string PreIslamicSuffix = "_preislamic";
 
     // 奉伊斯兰之前的古帝国的中央(成员不算：称号只有中央有)
-#if EC_PENDING
     public static bool PreIslamic(Realm kingdom)
     {
         Empire empire = kingdom?.GetEmpire();
         return empire?.data?.pre_caliphate_faith == true && empire.CoreKingdom == kingdom;
     }
 
+#if EC_PENDING
     public static bool IsCaliphate(Empire empire) =>
         empire?.data != null && !empire.IsGone() && !empire.IsArchived() && empire.CoreKingdom?.Record != null &&
         !empire.CoreKingdom.IsGone() && EmirateSystem.Applies(empire) && PapacySystem.IsCaliphal(empire) &&

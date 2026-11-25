@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/ProvincialPoliticsSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/ProvincialPoliticsSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -53,11 +53,9 @@ public static class ProvincialPoliticsSystem
     private const double LoyaltyCacheSeconds = 2d;
     private static readonly Dictionary<long, (int value, long empire, double at)> LoyaltyCache = new();
 
-#if EC_PENDING
     public static bool IsProvince(Empire empire, Realm kingdom) =>
         empire != null && kingdom != null && !kingdom.IsGone() && kingdom != empire.CoreKingdom &&
         kingdom.GetEmpire() == empire;
-#endif
 
     private static ConstitutionalEconomyState State(Empire empire)
     {
@@ -157,10 +155,12 @@ public static class ProvincialPoliticsSystem
             ? Math.Max(0, term - since + midterm)
             : Math.Max(0, midterm - since);
     }
+#endif
 
     private static IEnumerable<Realm> Provinces(Empire empire) =>
         empire.kingdoms_hashset.Where(kingdom => IsProvince(empire, kingdom)).ToList();
 
+#if EC_PENDING
     private static FixedFaction FindParty(Empire empire, string id) =>
         PartySystem.GetParties(empire).FirstOrDefault(party => party != null && party.GetID() == id);
 

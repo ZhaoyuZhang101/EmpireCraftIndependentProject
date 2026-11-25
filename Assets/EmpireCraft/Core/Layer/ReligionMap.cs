@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/Layer/ReligionMap.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/Layer/ReligionMap.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Color = EmpireCraft.Core.EcColor;
 using System.Collections.Generic;
@@ -207,7 +207,7 @@ public static class ReligionMap
                                                                  kingdom.religion == religion);
         Line(tooltip, "religion_tip_followers", string.Format(LM.Get("religion_tip_followers_value"), UIHelper.ShortCount(people),
             cities.Count, states));
-        if (PapacySystem.ActiveCrusade(religion) is War crusade) Line(tooltip, "religion_row_crusade", crusade.data.name, Bad);
+        if (PapacySystem.ActiveCrusade(religion) is War crusade) Line(tooltip, "religion_row_crusade", crusade.Name, Bad);
         List<Religion> children = ReligionDisplay.Children(religion);
         if (children.Count > 0)
             Line(tooltip, "religion_tip_children", string.Join("、", children.Select(child => child.name)), ReligionDisplay.Purple);

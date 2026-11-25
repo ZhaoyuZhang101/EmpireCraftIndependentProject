@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/Layer/CityViewMap.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/Layer/CityViewMap.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Color = EmpireCraft.Core.EcColor;
 
@@ -35,10 +35,12 @@ public static class CityViewMap
     private static CityViewColor Color => _color ??= CityViewColor.Create();
 
     public static bool Active => EmpireWorld.Current?.getCachedMapMetaAsset()?.map_mode == MetaTypeExtension.CityView;
+#endif
 
     private static bool Shown(City city) =>
         city != null && !city.IsGone() && city.Realm != null && !AncientWarfareCompatibility.OwnsObject(city);
 
+#if EC_PENDING
     public static void Configure(MetaTypeAsset asset)
     {
         asset.draw_zones = (MetaZoneDrawAction)(meta =>

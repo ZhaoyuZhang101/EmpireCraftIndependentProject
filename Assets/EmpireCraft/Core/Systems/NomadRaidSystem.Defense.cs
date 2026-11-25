@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/NomadRaidSystem.Defense.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/NomadRaidSystem.Defense.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -86,7 +86,7 @@ public static partial class NomadRaidSystem
         foreach (long id in state.members)
         {
             Realm member = LiveKingdom(id);
-            if (member == null || !war.isAttacker(member)) continue;
+            if (member == null || !war.IsAttacker(member)) continue;
             foreach (CorpsData corps in CorpsSystem.Of(member))
                 if (corps.task == "attack" && corps.strength > 0f)
                     CorpsSystem.Casualties(corps, corps.strength * WallAttrition * state.defense);
@@ -99,13 +99,13 @@ public static partial class NomadRaidSystem
 #if EC_PENDING
     private static void TryBuyOff(War war, RaidWarState state)
     {
-        Realm target = war.main_defender;
+        Realm target = war.MainDefender;
         Realm payer = ModRealm(target);
         if (!Alive(target) || !Alive(payer) || !payer.HasRuler() || RulerTraitSystem.FounderReigns(payer)) return;
-        List<Realm> raiders = state.members.Select(LiveKingdom).Where(member => member != null && war.isAttacker(member)).ToList();
+        List<Realm> raiders = state.members.Select(LiveKingdom).Where(member => member != null && war.IsAttacker(member)).ToList();
         if (raiders.Count == 0) return;
         double ratio = raiders.Sum(PowerOf) / Math.Max(1d, PowerOf(target));
-        bool otherWars = payer.getWars().Any(other => other?.data != null && other != war && !other.hasEnded());
+        bool otherWars = payer.GetWars().Any(other => other?.Record != null && other != war && !other.HasEnded());
         if (EcRandom.value >= SteppeRules.BuyOffChance(state.sacked, ratio, otherWars)) return;
         int funds = StateSettlementSystem.DiscretionaryFunds(payer);
         int households = CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.Households(target) : target.units?.Count ?? 0;
@@ -161,7 +161,7 @@ public static partial class NomadRaidSystem
         Chronicle(text, raiders.Concat(new[] { target, payer }));
         LogService.LogInfo($"{LogTag} {payer.GetKingdomName()} 向{state.leader_name}买和(第{state.bought_off}种，" +
                            $"已被洗劫{state.sacked:0.#}城，对方/本方{ratio:0.00})：{text}");
-        EmpireWorld.Current.wars.endWar(war, WarWinner.Peace);
+        EmpireWorld.Current.EndWar(war, WarOutcome.Peace);
     }
 #endif
 

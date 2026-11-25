@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/SouthernGarrisonSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/SouthernGarrisonSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System.Collections.Generic;
 using System.Linq;
@@ -39,7 +39,6 @@ public static class SouthernGarrisonSystem
     public static bool Formed(Empire empire) => empire?.data != null && !empire.IsGone() && empire.data.southern_retreat_at >= 0d;
 
     // 诸镇割据的期限：偏安的那些年，或京师还没收回
-#if EC_PENDING
     public static bool Active(Empire empire)
     {
         if (!Formed(empire) || EmpireWorld.Current == null) return false;
@@ -47,7 +46,6 @@ public static class SouthernGarrisonSystem
         City capital = EmpireCoreManager.Get(empire)?.GetCoreCapital();
         return capital?.Realm == null || capital.IsGone() || capital.Realm.GetEmpire() != empire;
     }
-#endif
 
     // 南明的藩镇：结成过南明的帝国里世袭的军府
 #if EC_PENDING
@@ -64,7 +62,7 @@ public static class SouthernGarrisonSystem
 #if EC_PENDING
     public static bool IsInternalWar(War war)
     {
-        Realm attacker = war?.main_attacker, defender = war?.main_defender;
+        Realm attacker = war?.MainAttacker, defender = war?.MainDefender;
         return IsGarrison(attacker) && IsGarrison(defender) && attacker.GetEmpire() == defender.GetEmpire();
     }
 #endif
@@ -143,13 +141,13 @@ public static class SouthernGarrisonSystem
             Declaring = true;
             try
             {
-                war = EmpireWorld.Current.diplomacy.startWar(attacker, target, WarTypeLibrary.normal);
+                war = EmpireWorld.Current.StartWar(attacker, target, WarKinds.Normal);
             }
             finally
             {
                 Declaring = false;
             }
-            if (war?.data == null) continue;
+            if (war?.Record == null) continue;
             WarGoalSystem.Preset(war, WarGoal.夺城);
             WarObjective.Aim(war, target.Capital);
             wars++;
@@ -165,12 +163,12 @@ public static class SouthernGarrisonSystem
     // 已在和别的藩镇打
 #if EC_PENDING
     private static bool Feuding(Realm kingdom) =>
-        kingdom.getWars().Any(war => war?.data != null && !war.hasEnded() && IsInternalWar(war));
+        kingdom.GetWars().Any(war => war?.Record != null && !war.HasEnded() && IsInternalWar(war));
 
     private static bool FeudTarget(Realm attacker, Realm target)
     {
         if (!Alive(target) || target == attacker || target.Capital == null || target.Capital.IsGone() ||
-            !attacker.IsNeighbourWith(target) || attacker.isInWarWith(target) || Feuding(target)) return false;
+            !attacker.IsNeighbourWith(target) || attacker.IsAtWarWith(target) || Feuding(target)) return false;
         if (attacker.Ruler != null && attacker.Ruler == target.Ruler) return false;
         if (attacker.hasAlliance() && attacker.getAlliance() == target.getAlliance() || RoyalMarriageSystem.Allied(attacker, target))
             return false;
@@ -213,10 +211,10 @@ public static class SouthernGarrisonSystem
     private static void Defect(Empire empire, Realm garrison, Realm invader, Empire conqueror, float pressure)
     {
         // 退出与入侵者一方的仗(只退自己，南明与入侵者的大仗照打；DiplomacyActions.EndWars 会把整场仗收掉)
-        foreach (War war in garrison.getWars().ToList())
+        foreach (War war in garrison.GetWars().ToList())
         {
-            if (war?.data == null || war.hasEnded()) continue;
-            if (conqueror.kingdoms_list.Any(member => Alive(member) && war.isInWarWith(garrison, member))) war.leaveWar(garrison);
+            if (war?.Record == null || war.HasEnded()) continue;
+            if (conqueror.kingdoms_list.Any(member => Alive(member) && war.isInWarWith(garrison, member))) war.Leave(garrison);
         }
         conqueror.join(garrison, true, pForce: true);
         if (garrison.GetEmpire() != conqueror) return;

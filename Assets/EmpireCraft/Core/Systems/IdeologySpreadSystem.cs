@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/IdeologySpreadSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/IdeologySpreadSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -159,13 +159,13 @@ public static class IdeologySpreadSystem
 #endif
 
     // 对方从本国学得到的通达强度(不算电讯；还没算的按 1)
-#if EC_PENDING
     private static float Reach(Realm learner, Realm source)
     {
         float strength = ConnectivitySystem.LearnStrength(learner, source, telecom: false);
         return strength < 0f ? 1f : strength;
     }
 
+#if EC_PENDING
     private static void ApplyExposure(string culture, PartyIdeology ideology, float gain)
     {
         // 基本理念随开放党禁而来，不单独播种。

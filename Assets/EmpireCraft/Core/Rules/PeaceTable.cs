@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/PeaceTable.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/PeaceTable.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -99,22 +99,18 @@ public static class PeaceTable
         Concluded.Clear();
     }
 
-#if EC_PENDING
-    private static long Id(War war) => war.data.id;
-#endif
+    private static long Id(War war) => war.Key;
 
     // 这场仗能不能上议和台：有开战目标的国战，还在打，主攻主守都在
-#if EC_PENDING
     public static bool Usable(War war)
     {
-        if (war?.data == null || war.hasEnded() || !WarGoalSystem.UsesPeaceTable(war)) return false;
-        Realm attacker = war.main_attacker, defender = war.main_defender;
+        if (war?.Record == null || war.HasEnded() || !WarGoalSystem.UsesPeaceTable(war)) return false;
+        Realm attacker = war.MainAttacker, defender = war.MainDefender;
         return attacker?.Record != null && defender?.Record != null && !attacker.IsGone() && !defender.IsGone() && attacker != defender;
     }
 
-    public static Realm Giver(War war, PeaceTerm term) => term.by_attacker ? war.main_attacker : war.main_defender;
-    public static Realm Receiver(War war, PeaceTerm term) => term.by_attacker ? war.main_defender : war.main_attacker;
-#endif
+    public static Realm Giver(War war, PeaceTerm term) => term.by_attacker ? war.MainAttacker : war.MainDefender;
+    public static Realm Receiver(War war, PeaceTerm term) => term.by_attacker ? war.MainDefender : war.MainAttacker;
 
     #region 台子(神在议和页上摆的)
 
@@ -128,9 +124,9 @@ public static class PeaceTable
     }
 
     public static void ResetToOffer(War war) => Drafts[Id(war)] = Offer(war);
+#endif
 
     public static void Clear(War war) => Drafts[Id(war)] = new PeaceDeal();
-#endif
 
     // 点一项：在台上就撤下，不在就加上(同一方出的同类条款换掉)
 #if EC_PENDING
@@ -170,8 +166,8 @@ public static class PeaceTable
         }
         long id = Id(war);
         Concluded[id] = (deal, forced ? Source.Forced : Source.Signed);
-        MembershipCooldown.ByGod(() => EmpireWorld.Current.wars.endWar(war, WarWinner.Peace));
-        if (!war.hasEnded())
+        MembershipCooldown.ByGod(() => EmpireWorld.Current.EndWar(war, WarOutcome.Peace));
+        if (!war.HasEnded())
         {
             Concluded.Remove(id);
             return false;
@@ -201,12 +197,12 @@ public static class PeaceTable
         if (mustAccept != null)
         {
             (PeaceOpinion a, PeaceOpinion d) = Evaluate(war, deal, Basis(war));
-            if (!(mustAccept == war.main_attacker ? a : d).Accepts) return false;
+            if (!(mustAccept == war.MainAttacker ? a : d).Accepts) return false;
         }
         long id = Id(war);
         Concluded[id] = (deal, Source.Signed);
-        EmpireWorld.Current.wars.endWar(war, WarWinner.Peace);
-        if (!war.hasEnded())
+        EmpireWorld.Current.EndWar(war, WarOutcome.Peace);
+        if (!war.HasEnded())
         {
             Concluded.Remove(id);
             return false;
@@ -222,11 +218,11 @@ public static class PeaceTable
     public static bool Withdraw(War war, bool byGod)
     {
         if (!Usable(war)) return false;
-        Realm attacker = war.main_attacker, defender = war.main_defender;
+        Realm attacker = war.MainAttacker, defender = war.MainDefender;
         string text = string.Format(LM.Get("peace_withdraw_history"), attacker.GetKingdomName(), defender.GetKingdomName());
-        if (byGod) MembershipCooldown.ByGod(() => EmpireWorld.Current.wars.endWar(war, WarWinner.Defenders));
-        else EmpireWorld.Current.wars.endWar(war, WarWinner.Defenders);
-        if (!war.hasEnded()) return false;
+        if (byGod) MembershipCooldown.ByGod(() => EmpireWorld.Current.EndWar(war, WarOutcome.Defenders));
+        else EmpireWorld.Current.EndWar(war, WarOutcome.Defenders);
+        if (!war.HasEnded()) return false;
         Drafts.Remove(Id(war));
         TranslateHelper.LogEventMessage(text, attacker);
         return true;
@@ -269,7 +265,7 @@ public static class PeaceTable
     {
         var deal = new PeaceDeal();
         if (!Usable(war)) return deal;
-        Realm attacker = war.main_attacker, defender = war.main_defender;
+        Realm attacker = war.MainAttacker, defender = war.MainDefender;
         WarExtension.WarExtraData data = war.GetOrCreate();
         WarGoal goal = WarGoalSystem.Get(war);
 
@@ -341,8 +337,8 @@ public static class PeaceTable
     private static string MainKey(War war)
     {
         City main = WarObjective.Main(war.GetOrCreate());
-        return main?.Record != null && main.Realm == war.main_defender
-            ? new PeaceTerm { kind = CessionKind(main, war.main_defender, war.main_attacker), city_id = main.Key }.Key
+        return main?.Record != null && main.Realm == war.MainDefender
+            ? new PeaceTerm { kind = CessionKind(main, war.MainDefender, war.MainAttacker), city_id = main.Key }.Key
             : null;
     }
 #endif
@@ -363,7 +359,7 @@ public static class PeaceTable
     {
         var list = new List<(PeaceTerm, string)>();
         if (!Usable(war)) return list;
-        Realm giver = byAttacker ? war.main_attacker : war.main_defender, receiver = byAttacker ? war.main_defender : war.main_attacker;
+        Realm giver = byAttacker ? war.MainAttacker : war.MainDefender, receiver = byAttacker ? war.MainDefender : war.MainAttacker;
         bool dependentReceiver = WarlordEraSystem.Dependent(receiver);
         foreach (City city in CityOptions(war, giver, receiver, !byAttacker, nearOnly))
         {
@@ -497,7 +493,7 @@ public static class PeaceTable
     {
         var basis = new PeaceBasis();
         if (!Usable(war)) return basis;
-        Realm attacker = war.main_attacker, defender = war.main_defender;
+        Realm attacker = war.MainAttacker, defender = war.MainDefender;
         basis.attacker = PeaceTermRules.LeverageOf(war, true);
         basis.defender = PeaceTermRules.LeverageOf(war, false);
         basis.attackerWear = PeaceTermRules.WearOf(war, true);
@@ -564,7 +560,7 @@ public static class PeaceTable
         if (!Usable(war)) return (new PeaceOpinion(), new PeaceOpinion());
         return Tally(deal, basis, term => Value(war, term, basis),
             term => EmpireWorld.Current.CityByKey(term.city_id) is City city && city == Giver(war, term).Capital,
-            war.main_attacker.cities?.Count ?? 0, war.main_defender.cities?.Count ?? 0,
+            war.MainAttacker.Cities?.Count ?? 0, war.MainDefender.Cities?.Count ?? 0,
             term => Nation(war, term, basis), term => Gain(war, term, basis));
     }
 #endif
@@ -744,8 +740,8 @@ public static class PeaceTable
             {
                 long id = Id(war);
                 Concluded[id] = (deal, Source.Talks);
-                EmpireWorld.Current.wars.endWar(war, WarWinner.Peace);
-                if (war.hasEnded()) return;
+                EmpireWorld.Current.EndWar(war, WarOutcome.Peace);
+                if (war.HasEnded()) return;
                 Concluded.Remove(id);
             }
             // 谈不拢：开战的一方宁可赔款收兵就罢兵(算打输了)
@@ -759,7 +755,7 @@ public static class PeaceTable
     private static bool TalksAllowed(War war)
     {
         WarExtension.WarExtraData data = war.GetOrCreate();
-        if (data.scripted_war || war.isTotalWar()) return false;
+        if (data.scripted_war || war.IsTotalWar()) return false;
         if (WarlordEraSystem.IsCivilWar(war) || RulerTraitSystem.IsFounderUnificationWar(war) || UnificationSystem.IsUnificationWar(war))
             return false;
         return WarSituation.WarYears(war) >= WarPeaceRules.MinWarYears;
@@ -996,7 +992,7 @@ public static class PeaceTable
         {
             List<PeaceTerm> terms = deal.terms.Where(term => term.by_attacker == byAttacker).ToList();
             if (terms.Count == 0) continue;
-            Realm giver = byAttacker ? war.main_attacker : war.main_defender;
+            Realm giver = byAttacker ? war.MainAttacker : war.MainDefender;
             parts.Add(string.Format(LM.Get("peace_deal_giver"), giver?.GetKingdomName() ?? "", Clauses(war, terms)));
         }
         return parts.Count == 0 ? LM.Get("peace_deal_white") : string.Join(LM.Get("peace_deal_semicolon"), parts);
@@ -1019,7 +1015,7 @@ public static class PeaceTable
         string summary = Summary(war, offer);
         if (a.Accepts && d.Accepts) return (string.Format(LM.Get("peace_preview_both"), summary), "#65D66E");
         if (!a.Accepts && !d.Accepts) return (string.Format(LM.Get("peace_preview_neither"), summary), "#FF6666");
-        Realm refusing = a.Accepts ? war.main_defender : war.main_attacker;
+        Realm refusing = a.Accepts ? war.MainDefender : war.MainAttacker;
         return (string.Format(LM.Get("peace_preview_refuse"), refusing.GetKingdomName(), summary), "#E9A85B");
     }
 #endif
@@ -1031,7 +1027,7 @@ public static class PeaceTable
         if (a.Accepts && d.Accepts) return (LM.Get("peace_hint_both_label"), LM.Get("peace_hint_both"));
         if (!a.Accepts && !d.Accepts) return (LM.Get("peace_hint_neither_label"), LM.Get("peace_hint_neither"));
         bool attackerRefuses = !a.Accepts;
-        Realm refusing = attackerRefuses ? war.main_attacker : war.main_defender;
+        Realm refusing = attackerRefuses ? war.MainAttacker : war.MainDefender;
         int gap = -(attackerRefuses ? a.Total : d.Total);
         string left = string.Format(LM.Get("peace_hint_short"), refusing.GetKingdomName(), gap.ToString("#,0"));
         // 撤掉不肯那一方出的哪一项就够了(挑最便宜的)

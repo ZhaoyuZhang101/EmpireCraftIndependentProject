@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/CommodityMarketSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/CommodityMarketSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -154,7 +154,6 @@ public static class CommodityMarketSystem
     private static bool _ready;
 
     // 这个国家归哪个市场：宗主一系往上(帝国核心、封建宗主、殖民宗主)，朝贡国归宗主帝国，签了关税同盟的归同盟大国
-#if EC_PENDING
     public static Realm RootOf(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone()) return null;
@@ -164,7 +163,6 @@ public static class CommodityMarketSystem
         Realm union = UnionLeader(root);
         return union != null ? EmpireCoreControl.Sovereign(union) ?? union : root;
     }
-#endif
 
     private static Realm UnionLeader(Realm kingdom)
     {
@@ -174,7 +172,6 @@ public static class CommodityMarketSystem
         return leader != null && leader != kingdom && !leader.IsGone() ? leader : null;
     }
 
-#if EC_PENDING
     public static Market MarketOf(Realm kingdom)
     {
         // 邻国列表里可能留着亡国的对象(data 已空)，取 id 会抛空引用，关税同盟那一步就整年算不下去
@@ -183,7 +180,6 @@ public static class CommodityMarketSystem
         Realm root = RootOf(kingdom);
         return root != null && Markets.TryGetValue(root.Key, out market) ? market : null;
     }
-#endif
 
     public static IEnumerable<Market> AllMarkets => Markets.Values;
 
@@ -200,7 +196,7 @@ public static class CommodityMarketSystem
     {
         if (kingdom?.Record == null || leader?.Record == null || kingdom.IsGone() || leader.IsGone() || kingdom == leader)
             return "diplomacy_reason_invalid";
-        if (kingdom.isEnemy(leader)) return "diplomacy_reason_at_war";
+        if (kingdom.IsEnemy(leader)) return "diplomacy_reason_at_war";
         if (RootOf(kingdom) == RootOf(leader)) return "diplomacy_reason_same_market";
         kingdom.GetOrCreate().market_union_leader_id = leader.Key;
         TranslateHelper.LogEventOnly(string.Format(LM.Get("market_union_joined"), kingdom.GetKingdomFullName(),
@@ -282,7 +278,6 @@ public static class CommodityMarketSystem
     };
 
     // 买方对这个卖方收多少关税：和约里的胜者只交自由贸易的关税(协定关税)
-#if EC_PENDING
     public static float TariffBetween(Market buyer, Market seller)
     {
         float rate = PolicyTariff(buyer.policy);
@@ -290,7 +285,6 @@ public static class CommodityMarketSystem
         // 关税战：两国之间的关税翻倍(见 TradeWarSystem)
         return TradeWarSystem.ApplyTariff(buyer.leader, seller.leader, rate);
     }
-#endif
 
     private static bool TreatyBetween(Market a, Market b) =>
         TradeRouteSystem.TreatyPartner(a.leader) is Realm first && MarketOfKingdom.TryGetValue(first.Key, out long own) && own == b.leader?.Key ||
@@ -328,7 +322,6 @@ public static class CommodityMarketSystem
     public static CommodityFileConfig Table => Config;
 
     // 一国各城奢侈品满足度的平均(0~1)
-#if EC_PENDING
     public static float LuxurySatisfaction(Realm kingdom)
     {
         if (kingdom?.Cities == null || kingdom.Cities.Count == 0) return 1f;
@@ -336,13 +329,10 @@ public static class CommodityMarketSystem
         foreach (City city in kingdom.Cities) total += LuxurySatisfaction(city);
         return total / kingdom.Cities.Count;
     }
-#endif
 
     // 这个国家所在市场某样物资的缺口(0 不缺 ~ 1 全无)；还没算出来按不缺
-#if EC_PENDING
     public static float Shortage(Realm kingdom, string good) =>
         MarketOf(kingdom) is Market market && market.shortage.TryGetValue(good, out float value) ? value : 0f;
-#endif
 
     #endregion
 
@@ -371,7 +361,6 @@ public static class CommodityMarketSystem
 #endif
 
     // 工厂：投入缺得越多减产越多(最多减八成)
-#if EC_PENDING
     public static float FactoryFactor(City city, string unitType)
     {
         if (!_ready || city?.Realm == null || !Config.factories.TryGetValue(unitType ?? "", out CommodityRecipe recipe) ||
@@ -379,19 +368,15 @@ public static class CommodityMarketSystem
         float worst = recipe.inputs.Keys.Max(good => Shortage(city.Realm, good));
         return 1f - 0.8f * worst;
     }
-#endif
 
     // 兵种换装：离不开的物资缺过一半就换不了
-#if EC_PENDING
     public static bool CanEquip(Realm kingdom, string arm)
     {
         if (!_ready || kingdom == null || !Config.arms.TryGetValue(arm ?? "", out List<string> needs)) return true;
         return needs.All(good => Shortage(kingdom, good) < 0.5f);
     }
-#endif
 
     // 奢侈品满足度(0~1)：所在市场各样奢侈品按需求加权的满足程度；还没算出来按一半
-#if EC_PENDING
     public static float LuxurySatisfaction(City city)
     {
         if (!_ready || !(MarketOf(city?.Realm) is Market market)) return 0.5f;
@@ -405,10 +390,8 @@ public static class CommodityMarketSystem
         }
         return need <= 0f ? 0.5f : met / need;
     }
-#endif
 
     // 消费品满足度(0~1；电气时代以后的汽车、电器、化工品，tier 为 consumer)：没有这样的需求(还没到那个时代)按一半
-#if EC_PENDING
     public static float ConsumerSatisfaction(Realm kingdom)
     {
         if (!_ready || !(MarketOf(kingdom) is Market market)) return 0.5f;
@@ -422,27 +405,19 @@ public static class CommodityMarketSystem
         }
         return need <= 0f ? 0.5f : met / need;
     }
-#endif
 
     // 消费品买不买得到：市民、劳工的怨气目标 ±ConsumerGrievance(见 InstitutionSystem)
     private const float ConsumerGrievance = 5f;
-#if EC_PENDING
     public static float ConsumerGrievanceShift(Realm kingdom) => (0.5f - ConsumerSatisfaction(kingdom)) * 2f * ConsumerGrievance;
-#endif
 
     // 城的自然稳定：奢侈品满足度一半为平，满足 +4、全缺 -4
-#if EC_PENDING
     public static float LuxuryStability(City city) => (LuxurySatisfaction(city) - 0.5f) * 8f;
-#endif
 
     // 税收：奢侈品买得到，商人、市民手头活络，税多收一点(±5%)
-#if EC_PENDING
     public static float LuxuryTaxFactor(City city) => 0.95f + 0.1f * LuxurySatisfaction(city);
-#endif
 
     // ───────── 市价与国家经济(用户 10-29 "现在的市场系统无法真正影响国家的经济，甚至帝国的经济界面和这些市场完全无关") ─────────
     // 市价指数：本国所在市场某物资的价格 ÷ 底价(还没结算按 1)：缺货涨、过剩跌，城里的产出按它计产值、交税(见 PopulationEconomySystem.UnitValue、FactorySystem.Produce)
-#if EC_PENDING
     public static float PriceIndex(Realm kingdom, string good)
     {
         if (string.IsNullOrEmpty(good) || MarketOf(kingdom) is not Market market || !market.price.TryGetValue(good, out float price))
@@ -450,7 +425,6 @@ public static class CommodityMarketSystem
         float basePrice = BasePrice(good);
         return basePrice <= 0f ? 1f : Mathf.Clamp(price / basePrice, 0.25f, 4f);
     }
-#endif
 
     // 原版资源 → 商品(粮木石金属由原来的实物市场定价，不在这里；同一资源出好几样的取第一样)
     private static Dictionary<string, string> _resourceGoods;
@@ -473,14 +447,11 @@ public static class CommodityMarketSystem
     // 矿产总有人收(铸钱、打器具、囤货)，过剩最多跌到六成(以前古代没人用的铜、煤、硝石一律按两成五计产值)
     private const float ResourcePriceFloor = 0.6f;
 
-#if EC_PENDING
     public static float ResourcePriceIndex(City city, string resource) =>
         GoodOfResource(resource) is string good ? Mathf.Max(ResourcePriceFloor, PriceIndex(city?.Realm, good)) : 1f;
-#endif
 
     // AI 建厂挑门类的分量(用户 2026-11-02 问答选"AI 按缺口建厂"，见 FactorySystem.Grow)：产品缺得多、卖得贵、原料便宜够用的分量大；
     // 原料缺得多打折；没有产品的门类(造纸、印书、船坞，另有用处)分量 1
-#if EC_PENDING
     public static float FactoryAppeal(City city, string unitType)
     {
         if (!_ready || city?.Realm == null || !Config.factories.TryGetValue(unitType ?? "", out CommodityRecipe recipe)) return 1f;
@@ -501,7 +472,6 @@ public static class CommodityMarketSystem
         if (revenue <= cost) appeal *= 0.5f;
         return Mathf.Max(0.05f, appeal);
     }
-#endif
 
     // 本城开得了的矿藏里有本市场缺的(新村镇优先做矿村，见 LivelihoodSystem.Classify)
     private const float MineShortage = 0.3f;
@@ -521,7 +491,6 @@ public static class CommodityMarketSystem
 #endif
 
     // 厂区一年产值按产品的市价指数折算(几样产品按产量加权)
-#if EC_PENDING
     public static float FactoryPriceIndex(City city, string unitType)
     {
         if (!Config.factories.TryGetValue(unitType ?? "", out CommodityRecipe recipe) || recipe.outputs.Count == 0) return 1f;
@@ -534,10 +503,8 @@ public static class CommodityMarketSystem
         }
         return total > 0f ? weighted / total : 1f;
     }
-#endif
 
     // 物价水平：各物资市价指数按需求额加权(1 = 照底价)
-#if EC_PENDING
     public static float PriceLevel(Realm kingdom)
     {
         if (MarketOf(kingdom) is not Market market) return 1f;
@@ -551,23 +518,17 @@ public static class CommodityMarketSystem
         }
         return total > 0f ? weighted / total : 1f;
     }
-#endif
 
     // 缺工具：各城产出打折，全缺 -ToolsPenalty(见 PopulationEconomySystem.PayTaxes)
     private const float ToolsPenalty = 0.25f;
-#if EC_PENDING
     public static float OutputFactor(City city) => 1f - ToolsPenalty * Shortage(city?.Realm, "tools");
-#endif
 
     // 缺布匹、缺粮：民生用品买不到，稳定下降，全缺 -NecessityPenalty(见 CityStabilitySystem)
     private const float NecessityPenalty = 4f;
-#if EC_PENDING
     public static float NecessityStability(City city) =>
         -NecessityPenalty * Mathf.Max(Shortage(city?.Realm, "cloth"), Shortage(city?.Realm, "grain"));
-#endif
 
     // 一国(或一组国家)一年的出口收入、进口花费、关税收入
-#if EC_PENDING
     public static (float exports, float imports, float customs) TradeOf(IEnumerable<Realm> realm)
     {
         float exports = 0f, imports = 0f, customs = 0f;
@@ -580,7 +541,6 @@ public static class CommodityMarketSystem
         }
         return (exports, imports, customs);
     }
-#endif
 
     // 殖民的去处：本国市场缺、这块地出的物资(0~1)
 #if EC_PENDING
@@ -821,9 +781,7 @@ public static class CommodityMarketSystem
 #endif
 
     // 手艺跟价：货贵了多做，货贱了少做(上一年价格指数开方，0.75~1.5 倍)，这样常年缺货的物资手工也能慢慢补上一些
-#if EC_PENDING
     private static float CraftResponse(Realm kingdom, string good) => Mathf.Clamp(Mathf.Sqrt(PriceIndex(kingdom, good)), 0.75f, 1.5f);
-#endif
 
     // 基础物资：粮、木、石、金属(商品表里 tier 为 basic、按账本资源折算的)
     private static bool Basic(CommodityConfig good) => good.tier == "basic" && good.resources.Count > 0;
@@ -1022,7 +980,7 @@ public static class CommodityMarketSystem
             }
         }
         market.memberValue[kingdom.Key] = (madeValue, wantedValue);
-        float soldiers = (CorpsSystem.Of(kingdom)?.Sum(corps => Mathf.Max(0f, corps?.strength ?? 0f)) ?? 0f) * (kingdom.hasEnemies() ? WarArmsFactor : 1f);
+        float soldiers = (CorpsSystem.Of(kingdom)?.Sum(corps => Mathf.Max(0f, corps?.strength ?? 0f)) ?? 0f) * (kingdom.HasEnemies() ? WarArmsFactor : 1f);
         int era = EraTier(kingdom);
         foreach (CommodityConfig good in Goods.Values)
         {
@@ -1038,9 +996,9 @@ public static class CommodityMarketSystem
     // 港口被封了几成，贸易就少几成，商路的航线被截断就断航。AI 的舰队也优先去封这类港口(见 NavySystem.Assign)
     private const float RaidedKeep = 0.25f;
 
-#if EC_PENDING
-    private static bool AtWar(Realm kingdom) => kingdom?.Record != null && kingdom.hasEnemies();
+    private static bool AtWar(Realm kingdom) => kingdom?.Record != null && kingdom.HasEnemies();
 
+#if EC_PENDING
     private static bool LaneCut(Realm colony)
     {
         Realm metropole = ColonySystem.MetropoleOf(colony);
@@ -1266,7 +1224,7 @@ public static class CommodityMarketSystem
                 if (!_routed && city.neighbours_kingdoms != null)
                     foreach (Realm neighbour in city.neighbours_kingdoms)
                         if (neighbour?.Record != null && !neighbour.IsGone() && MarketOfKingdom.TryGetValue(neighbour.Key, out long other) &&
-                            !neighbour.isEnemy(city.Realm))
+                            !neighbour.IsEnemy(city.Realm))
                             Link(own, other);
                 long partnerId = TradeRouteSystem.PartnerOf(city);
                 City partner = partnerId >= 0 ? EmpireWorld.Current.CityByKey(partnerId) : null;
@@ -1287,7 +1245,7 @@ public static class CommodityMarketSystem
         Realm lingao = TransmigrantSystem.Active();
         if (lingao != null && MarketOfKingdom.TryGetValue(lingao.Key, out long home))
             foreach (Realm partner in TransmigrantSystem.SeaTradePartners(lingao))
-                if (MarketOfKingdom.TryGetValue(partner.Key, out long other) && !partner.isEnemy(lingao))
+                if (MarketOfKingdom.TryGetValue(partner.Key, out long other) && !partner.IsEnemy(lingao))
                     Link(home, other, sea: true);
         // 按货物路线连通(见 LinkByRoutes)
         if (_routed)
@@ -1543,7 +1501,6 @@ public static class CommodityMarketSystem
     private const float ImportBudgetShare = 0.3f;
 
     // 进口货款按各城的需求额摊到各城民间存款；关税(货价 × 关税率)按同样的份额归各城所属的国库
-#if EC_PENDING
     private static void PayImports(Market buyer, List<(City city, Realm kingdom, CityPopulationData data, float weight)> cities,
         float paid, float duty)
     {
@@ -1566,11 +1523,9 @@ public static class CommodityMarketSystem
             buyer.memberCustoms[pair.Key.Key] = (buyer.memberCustoms.TryGetValue(pair.Key.Key, out float before) ? before : 0f) + whole;
         }
     }
-#endif
 
     // 出口收入按各城这样物资的产量记进各城产值(交工商税、进民间收入，见 PopulationEconomySystem.PayTaxes)；
     // 没有背景人口的市场照旧进领衔国国库
-#if EC_PENDING
     private static void ReceiveExports(Market seller, CommodityConfig good, float earned)
     {
         if (earned <= 0f) return;
@@ -1604,7 +1559,6 @@ public static class CommodityMarketSystem
             seller.memberExports[kingdom.Key] = (seller.memberExports.TryGetValue(kingdom.Key, out float before) ? before : 0f) + income;
         }
     }
-#endif
 
     private static float Surplus(Market market, string good)
     {
@@ -1627,7 +1581,7 @@ public static class CommodityMarketSystem
             Realm leader = UnionLeader(kingdom);
             if (leader != null)
             {
-                bool stays = MarketOf(leader)?.great == true && !kingdom.isEnemy(leader) && kingdom.isOpinionTowardsKingdomGood(leader);
+                bool stays = MarketOf(leader)?.great == true && !kingdom.IsEnemy(leader) && kingdom.isOpinionTowardsKingdomGood(leader);
                 if (!stays && EcRandom.value < LeaveChance)
                 {
                     data.market_union_leader_id = -1L;
@@ -1649,7 +1603,7 @@ public static class CommodityMarketSystem
             {
                 Market other = MarketOf(neighbour);
                 if (other == null || other == own || !other.great || other.power < own.power * 3d) continue;
-                if (kingdom.isEnemy(other.leader) || !kingdom.isOpinionTowardsKingdomGood(other.leader)) continue;
+                if (kingdom.IsEnemy(other.leader) || !kingdom.isOpinionTowardsKingdomGood(other.leader)) continue;
                 float better = AverageShortage(own) - AverageShortage(other);
                 if (better > gain)
                 {
@@ -1666,14 +1620,12 @@ public static class CommodityMarketSystem
 #endif
 
     // 关税同盟够得着：两边人员往来的通达(取好的一边)不低于 union_min_strength
-#if EC_PENDING
     private static bool UnionReach(Realm kingdom, Realm leader)
     {
         float a = ConnectivitySystem.Strength(kingdom, leader, ConnectivityMode.People);
         float b = ConnectivitySystem.Strength(leader, kingdom, ConnectivityMode.People);
         return Math.Max(a, b) >= ConnectivitySystem.Config.union_min_strength;
     }
-#endif
 
     // 通商政策：AI 领衔国每二十年看一次：技术领先又不入超的要自由贸易，技术落后、入超又有工厂的要保护关税，大国出超的要自由贸易，其余重商。
     // 神力改过的也算定过一次(见 SetPolicy)；制度定了锁国、和约逼开港的不改；AI 不会自己闭关

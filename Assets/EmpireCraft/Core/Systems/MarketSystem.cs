@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/MarketSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/MarketSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -109,17 +109,17 @@ public static class MarketSystem
     public static bool Embargoed(Realm a, Realm b)
     {
         if (a == null || b == null || a == b) return false;
-        if (a.isEnemy(b)) return true;
+        if (a.IsEnemy(b)) return true;
         // 万国公会的制裁、冷战两个阵营之间的铁幕(见 WorldOrderSystem)
         if (WorldOrderSystem.TradeCut(a, b)) return true;
         // 关税战升到断绝通商(见 TradeWarSystem)
         if (TradeWarSystem.Cut(a, b)) return true;
         if (a.hasAlliance())
             foreach (Realm ally in a.getAlliance().kingdoms_list)
-                if (ally != null && ally != a && !ally.IsGone() && ally.isEnemy(b)) return true;
+                if (ally != null && ally != a && !ally.IsGone() && ally.IsEnemy(b)) return true;
         if (b.hasAlliance())
             foreach (Realm ally in b.getAlliance().kingdoms_list)
-                if (ally != null && ally != b && !ally.IsGone() && ally.isEnemy(a)) return true;
+                if (ally != null && ally != b && !ally.IsGone() && ally.IsEnemy(a)) return true;
         return false;
     }
 
@@ -153,7 +153,7 @@ public static class MarketSystem
         float chance = Mathf.Min(0.9f, SurrenderChancePerMonth * (data.siege_famine_months - 2));
         if (EcRandom.value >= chance) return;
         Realm besieger = city.being_captured_by;
-        if (besieger == null || besieger.IsGone() || !besieger.isEnemy(city.Realm))
+        if (besieger == null || besieger.IsGone() || !besieger.IsEnemy(city.Realm))
         {
             besieger = null;
             Dictionary<int, long> occupied = ScorchedEarthSystem.OccupiedZones(city);
@@ -165,7 +165,7 @@ public static class MarketSystem
                 foreach (KeyValuePair<long, int> pair in counts)
                 {
                     Realm candidate = EmpireWorld.Current.RealmByKey(pair.Key);
-                    if (candidate == null || candidate.IsGone() || !candidate.isEnemy(city.Realm) || pair.Value <= best)
+                    if (candidate == null || candidate.IsGone() || !candidate.IsEnemy(city.Realm) || pair.Value <= best)
                         continue;
                     best = pair.Value;
                     besieger = candidate;
@@ -186,14 +186,12 @@ public static class MarketSystem
 
     // ---- 市场范围与价格 ----
 
-#if EC_PENDING
     private static List<City> DomesticMarket(City city)
     {
         Empire empire = city.Realm?.GetEmpire();
         if (empire != null && !empire.IsGone() && !empire.IsArchived()) return empire.AllCities();
         return city.Realm?.Cities ?? new List<City>();
     }
-#endif
 
     // 能做生意的卖家及买方到它的成本(通达层没算好时成本为 -1，不收运费)：见类头
     private static readonly List<ConnectivityNeighbour> NearBuffer = new();

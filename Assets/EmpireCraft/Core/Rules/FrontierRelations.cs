@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/FrontierRelations.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/FrontierRelations.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -99,7 +99,7 @@ public static class FrontierRelations
         bool foreign = !CultureService.SameKin(CultureService.GetRealmCulture(a), CultureService.GetRealmCulture(b));
         if (!frontier && !(foreign && (caravanA || caravanB))) return;
         // 买和开的互市(见 NomadRaidSystem)：期内遭劫过也照常通市
-        if (a.isInWarWith(b) || (RaidedWithin(a, MarketRaidYears) || RaidedWithin(b, MarketRaidYears)) &&
+        if (a.IsAtWarWith(b) || (RaidedWithin(a, MarketRaidYears) || RaidedWithin(b, MarketRaidYears)) &&
             !NomadRaidSystem.MarketTreaty(a, b)) return;
         if (ConnectivitySystem.Ready)
         {
@@ -114,12 +114,14 @@ public static class FrontierRelations
         // 游牧一方记下互市(断了两年算互市断绝，见 NomadRaidSystem 草原压力)
         if (frontier) NomadRaidSystem.NoteMarket(a, b);
     }
+#endif
 
     private static void Pay(Realm kingdom, int amount)
     {
         if (amount > 0 && TreasurySystem.Enabled(kingdom)) kingdom.AddMoney(amount, TreasuryCategory.PublicTrade);
     }
 
+#if EC_PENDING
     private static bool HasCaravan(Realm kingdom) =>
         InstitutionSystem.HasFeature(CultureService.GetInstitutionCulture(kingdom), CaravanFeature);
 

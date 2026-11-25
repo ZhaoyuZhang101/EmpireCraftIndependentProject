@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/PapacySystem.Reformation.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/PapacySystem.Reformation.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -346,7 +346,7 @@ public static partial class PapacySystem
             if (IsExcommunicated(empire)) factor *= 2f;
         }
         Realm see = ModRealm(Papacy(old));
-        if (see != null && realm.isInWarWith(see)) factor *= 1.5f;
+        if (see != null && realm.IsAtWarWith(see)) factor *= 1.5f;
         if (empire != null && empire.CoreKingdom != kingdom)
         {
             if (empire.CoreKingdom.religion == old && DiplomacyLedger.Opinion(kingdom, empire.CoreKingdom) < 0) factor *= 1.5f;
@@ -446,12 +446,12 @@ public static partial class PapacySystem
             Realm rebel = empire.kingdoms_list.ToList()
                 .Where(member => SchismAlive(member) && member != core && member.hasReligion() && IsReformedChurch(member.religion) &&
                                  member.religion.GetOrCreate().ParentReligionId == old.data.id && MembershipCooldown.Settled(member) &&
-                                 !member.hasEnemies())
+                                 !member.HasEnemies())
                 .OrderByDescending(member => member.cities.Count).FirstOrDefault();
             if (rebel == null) continue;
             float chance = RevoltChance * (ReligiousTension.PolicyOf(core) == ReligiousTension.Policy.Intolerant ? 1.5f : 1f);
             if (EcRandom.value >= chance) continue;
-            War war = DiplomacyHelpers.wars.newWar(rebel, core, WarTypeLibrary.normal);
+            War war = DiplomacyHelpers.wars.newWar(rebel, core, WarKinds.Normal);
             if (war == null) continue;
             empire.leave(rebel, true, true);
             war.SetEmpireWarType(EmpireWarType.地方独立);

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/WarScopeSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/WarScopeSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -46,25 +46,20 @@ public static class WarScopeSystem
 
     public static int Level(Realm kingdom) => kingdom?.Record == null ? 0 : kingdom.GetOrCreate().war_mobilization_level;
 
-#if EC_PENDING
     public static bool DispatchedFor(Realm kingdom, War war) =>
-        war?.data != null && kingdom?.Record != null && kingdom.GetOrCreate().expedition_wars?.Contains(war.data.id) == true;
-#endif
+        war?.Record != null && kingdom?.Record != null && kingdom.GetOrCreate().expedition_wars?.Contains(war.Key) == true;
 
     // 为某场仗出征(决议通过或奉诏)
-#if EC_PENDING
     public static bool Dispatched(Realm kingdom)
     {
         List<long> ids = kingdom?.Record == null ? null : kingdom.GetOrCreate().expedition_wars;
         if (ids == null || ids.Count == 0) return false;
         foreach (long id in ids)
-            if (Alive(EmpireWorld.Current.wars.get(id)) is War war && war.hasKingdom(kingdom)) return true;
+            if (Alive(EmpireWorld.Current.WarByKey(id)) is War war && war.HasRealm(kingdom)) return true;
         return false;
     }
-#endif
 
     // 军队可以开往任何战线：出征或举国总动员
-#if EC_PENDING
     public static bool Unbounded(Realm kingdom) => Level(kingdom) >= Total || Dispatched(kingdom);
 
     public static bool Dispatch(Realm kingdom, War war)
@@ -72,12 +67,11 @@ public static class WarScopeSystem
         if (kingdom?.Record == null || Alive(war) == null) return false;
         var data = kingdom.GetOrCreate();
         data.expedition_wars ??= new List<long>();
-        if (data.expedition_wars.Contains(war.data.id)) return false;
-        data.expedition_wars.Add(war.data.id);
+        if (data.expedition_wars.Contains(war.Key)) return false;
+        data.expedition_wars.Add(war.Key);
         _builtAt = -1d;
         return true;
     }
-#endif
 
     public static void ReportShortfall(Realm kingdom)
     {
@@ -99,10 +93,12 @@ public static class WarScopeSystem
         }
         return Scope.Contains(city.Key);
     }
+#endif
 
-    private static War Alive(War war) => war?.data != null && war.Alive && !war.hasEnded() ? war : null;
+    private static War Alive(War war) => war?.Record != null && war.Alive && !war.HasEnded() ? war : null;
 
-    private static bool AtWar(Realm kingdom) => kingdom.hasEnemies() || FrontSystem.Realm(kingdom).hasEnemies();
+#if EC_PENDING
+    private static bool AtWar(Realm kingdom) => kingdom.HasEnemies() || FrontSystem.Realm(kingdom).hasEnemies();
 #endif
 
     private static bool Occupied(City city) =>
@@ -222,7 +218,7 @@ public static class WarScopeSystem
         Hostiles.Clear();
         Realm realm = FrontSystem.Realm(kingdom);
         // 本国自己的敌人：不论同不同帝国都算；敌人是别的帝国的核心，那个帝国在打仗的成员也算
-        foreach (Realm enemy in kingdom.getEnemiesKingdoms())
+        foreach (Realm enemy in kingdom.GetEnemies())
         {
             if (enemy?.Record == null || enemy == kingdom || enemy.IsGone()) continue;
             if (warring.Contains(enemy)) Hostiles.Add(enemy);
@@ -231,7 +227,7 @@ public static class WarScopeSystem
                     if (member != kingdom) Hostiles.Add(member);
         }
         // 本帝国核心的敌人(不在本帝国里的)：它自己、它是别的帝国的核心时名下在打仗的成员
-        foreach (Realm enemy in realm.getEnemiesKingdoms())
+        foreach (Realm enemy in realm.GetEnemies())
         {
             if (enemy?.Record == null || enemy == kingdom || enemy.IsGone()) continue;
             if (warring.Contains(enemy) && FrontSystem.Realm(enemy) != realm) Hostiles.Add(enemy);
@@ -276,10 +272,10 @@ public static class WarScopeSystem
         }
         return best;
     }
+#endif
 
     private static bool LeadsWar(Realm kingdom) =>
-        kingdom.getWars().Any(war => Alive(war) != null && (war.main_attacker == kingdom || war.main_defender == kingdom));
-#endif
+        kingdom.GetWars().Any(war => Alive(war) != null && (war.MainAttacker == kingdom || war.MainDefender == kingdom));
 
     // 每月(征兵前)：吃紧升级、缓和降级；中央吃紧时诏令成员出征
 #if EC_PENDING
@@ -297,7 +293,7 @@ public static class WarScopeSystem
             Shortfall.Remove(kingdom.Key);
             return;
         }
-        data.expedition_wars?.RemoveAll(id => Alive(EmpireWorld.Current.wars.get(id)) == null);
+        data.expedition_wars?.RemoveAll(id => Alive(EmpireWorld.Current.WarByKey(id)) == null);
         bool losing = Shortfall.Remove(kingdom.Key) || kingdom.Cities?.Any(Occupied) == true;
         bool stalled = Stalled(kingdom, data);
         int before = data.war_mobilization_level;
@@ -390,15 +386,15 @@ public static class WarScopeSystem
             return;
         // 哈里发国边远的行省不奉诏远征，仗打到家门口才就近应战(用户 2026-10-21 选"边远行省不听调遣"，见 EmirateSystem.DistantProvinces)
         HashSet<long> distant = EmirateSystem.DistantProvinces(empire);
-        foreach (War war in core.getWars().ToList())
+        foreach (War war in core.GetWars().ToList())
         {
             if (Alive(war) == null) continue;
-            bool attacking = war.isAttacker(core);
+            bool attacking = war.IsAttacker(core);
             foreach (Realm member in empire.kingdoms_list.ToList())
             {
                 if (member?.Record == null || member == core || member.IsGone() || member.IsFactionRebelling() ||
                     member.IsLocalRebelling() || !EmpirePeacePatch.Obeys(empire, member) || distant.Contains(member.Key) ||
-                    !(attacking ? war.isAttacker(member) : war.isDefender(member)) || !Dispatch(member, war)) continue;
+                    !(attacking ? war.IsAttacker(member) : war.IsDefender(member)) || !Dispatch(member, war)) continue;
                 FrontSystem.Log(core, string.Format(LM.Get("corps_log_court_order"), member.GetKingdomName()));
                 FrontSystem.Log(member, LM.Get("corps_log_obey_order"));
             }

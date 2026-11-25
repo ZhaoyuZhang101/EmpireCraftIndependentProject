@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/WarlordUnificationSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/WarlordUnificationSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System.Collections.Generic;
@@ -34,15 +34,13 @@ public static partial class WarlordEraSystem
     private const float CollapseChance = 0.25f;
     private const int MaxCollapsePerYear = 10;
 
-#if EC_PENDING
     public static bool IsCivilWar(War war)
     {
-        if (war == null || war.hasEnded()) return false;
-        EmpireCore attacker = LawfulCoreOf(war.getMainAttacker());
-        return attacker != null && attacker == LawfulCoreOf(war.getMainDefender()) &&
+        if (war == null || war.HasEnded()) return false;
+        EmpireCore attacker = LawfulCoreOf(war.GetMainAttacker());
+        return attacker != null && attacker == LawfulCoreOf(war.GetMainDefender()) &&
                attacker.fragmented_since >= 0d && !attacker.split_recognized;
     }
-#endif
 
     // 法统 = 都城所在的天下(军阀时期以天下为单位，见 WarlordEraSystem 文件头)
     private static EmpireCore LawfulCoreOf(Realm kingdom) => RealmOf(kingdom);
@@ -90,16 +88,16 @@ public static partial class WarlordEraSystem
         Realm centralKingdom = central.CoreKingdom;
         if (centralKingdom == null || !centralKingdom.HasRuler() || CorpsSystem.CannotFundWar(centralKingdom) ||
             Random.value >= UnifyWarChance) return;
-        if (centralKingdom.getWars().Count(IsCivilWar) >= MaxCivilWars) return;
+        if (centralKingdom.GetWars().Count(IsCivilWar) >= MaxCivilWars) return;
         Realm target = held.Keys
             .Where(holder => holder != centralKingdom && IsLocalHolder(core, holder) && !InRealm(holder, central) &&
-                             !holder.isEnemy(centralKingdom) && !InTruce(centralKingdom, holder, central) &&
+                             !holder.IsEnemy(centralKingdom) && !InTruce(centralKingdom, holder, central) &&
                              central.IsNeighbourWith(holder) &&
                              FeudalVassalService.CanDeclareExternalWar(centralKingdom, holder))
             .OrderByDescending(holder => Government(holder) != null && representatives.Contains(Government(holder)))
             .ThenBy(holder => held[holder]).FirstOrDefault();
         if (target == null) return;
-        War war = EmpireWorld.Current.diplomacy.startWar(centralKingdom, target, WarTypeLibrary.normal);
+        War war = EmpireWorld.Current.StartWar(centralKingdom, target, WarKinds.Normal);
         if (war == null) return;
         EventRecorder.Record(centralKingdom, string.Format(LM.Get("warlord_unify_war_history"),
             central.GetBaseEmpireFullName(), HolderName(target)));
@@ -163,7 +161,7 @@ public static partial class WarlordEraSystem
             RebellionStartupService.RollbackCitySplit(city, ruler, rebel);
             return false;
         }
-        War war = EmpireWorld.Current.diplomacy.startWar(rebel, ruler, WarTypeLibrary.rebellion);
+        War war = EmpireWorld.Current.StartWar(rebel, ruler, WarKinds.Rebellion);
         if (war == null)
         {
             RebellionStartupService.RollbackCitySplit(city, ruler, rebel);
@@ -199,12 +197,12 @@ public static partial class WarlordEraSystem
                 holder.IsInEmpire() || FeudalVassalService.GetOverlord(holder) != null ||
                 holder.GetRegime()?.type != RegimeType.Modern || !holder.HasRuler()) continue;
             if (leftoversOnly && (holder.IsFactionRebelling() || holder.IsLocalRebelling() ||
-                                  holder.isEnemy(centralKingdom))) continue;
+                                  holder.IsEnemy(centralKingdom))) continue;
             if (Random.value >= chance) continue;
             War war = FindActiveWar(holder, centralKingdom);
             if (war != null)
-                EmpireWorld.Current.wars.endWar(war, war.isAttacker(centralKingdom) ? WarWinner.Attackers : WarWinner.Defenders);
-            if (holder.isEnemy(centralKingdom) || !AbsorbDefector(central, holder)) continue;
+                EmpireWorld.Current.EndWar(war, war.IsAttacker(centralKingdom) ? WarOutcome.Attackers : WarOutcome.Defenders);
+            if (holder.IsEnemy(centralKingdom) || !AbsorbDefector(central, holder)) continue;
             EmpireCoreControl.Invalidate(core);
             EventRecorder.Record(centralKingdom, string.Format(LM.Get("warlord_bandwagon_history"),
                 HolderName(holder), central.GetBaseEmpireFullName()));
@@ -254,8 +252,8 @@ public static partial class WarlordEraSystem
                 !Borders(holder, founder) || Random.value >= chance) continue;
             War war = FindActiveWar(holder, founderKingdom);
             if (war != null)
-                EmpireWorld.Current.wars.endWar(war, war.isAttacker(founderKingdom) ? WarWinner.Attackers : WarWinner.Defenders);
-            if (holder.isEnemy(founderKingdom) || !AbsorbDefector(founder, holder)) continue;
+                EmpireWorld.Current.EndWar(war, war.IsAttacker(founderKingdom) ? WarOutcome.Attackers : WarOutcome.Defenders);
+            if (holder.IsEnemy(founderKingdom) || !AbsorbDefector(founder, holder)) continue;
             EmpireCoreControl.Invalidate(core);
             EventRecorder.Record(founderKingdom, string.Format(LM.Get("founder_bandwagon_history"),
                 holder.GetKingdomFullName(), founder.GetBaseEmpireFullName(), founder.Emperor?.FullName() ?? "",
@@ -281,18 +279,18 @@ public static partial class WarlordEraSystem
             .OrderByDescending(kingdom => held[kingdom]).FirstOrDefault();
         if (founderKingdom == null || CorpsSystem.CannotFundWar(founderKingdom)) return;
         Empire founder = founderKingdom.GetEmpire();
-        int wars = founderKingdom.getWars().Count(RulerTraitSystem.IsFounderUnificationWar);
+        int wars = founderKingdom.GetWars().Count(RulerTraitSystem.IsFounderUnificationWar);
         foreach (Realm target in held.Keys
                      .Where(holder => holder != null && holder != founderKingdom && !holder.IsGone() && holder.HasRuler() &&
                                       IsCoreHolder(core, holder) && holder.GetEmpire() != founder &&
                                       FeudalVassalService.GetOverlord(holder) != founderKingdom &&
-                                      !holder.isEnemy(founderKingdom) && !InTruce(founderKingdom, holder, founder) &&
+                                      !holder.IsEnemy(founderKingdom) && !InTruce(founderKingdom, holder, founder) &&
                                       Borders(holder, founder) &&
                                       (founderKingdom.getAlliance() == null || holder.getAlliance() != founderKingdom.getAlliance()))
                      .OrderBy(holder => held[holder]).ToList())
         {
             if (wars >= MaxFounderWars || Random.value >= FounderWarChance) break;
-            War war = EmpireWorld.Current.diplomacy.startWar(founderKingdom, target, WarTypeLibrary.normal);
+            War war = EmpireWorld.Current.StartWar(founderKingdom, target, WarKinds.Normal);
             if (war == null) continue;
             // 雄主之战志在一统：目标吞并(以前交给 WarGoalSystem.Ensure 按兵力、接壤定，多半成了赔款、割地，一赔就停战三年)
             WarGoalSystem.Preset(war, WarGoal.吞并);
@@ -310,11 +308,11 @@ public static partial class WarlordEraSystem
 #if EC_PENDING
     public static void FounderCapitulation()
     {
-        if (EmpireWorld.Current?.wars == null) return;
-        foreach (War war in EmpireWorld.Current.wars.list.ToList())
+        if (EmpireWorld.Current?.LiveWars == null) return;
+        foreach (War war in EmpireWorld.Current.LiveWars.ToList())
         {
-            if (war == null || war.hasEnded()) continue;
-            Realm attacker = war.getMainAttacker(), defender = war.getMainDefender();
+            if (war == null || war.HasEnded()) continue;
+            Realm attacker = war.GetMainAttacker(), defender = war.GetMainDefender();
             bool founderWar = RulerTraitSystem.IsFounderUnificationWar(war);
             bool attackerFounder;
             if (founderWar)
@@ -322,7 +320,7 @@ public static partial class WarlordEraSystem
             else if (IsCivilWar(war))
             {
                 EmpireCore lawful = LawfulCoreOf(attacker);
-                Empire centralGovernment = lawful == null ? null : ModClass.EMPIRE_MANAGER?.get(lawful.central_empire_id);
+                Empire centralGovernment = lawful == null ? null : ModClass.EMPIRE_MANAGER?.Get(lawful.central_empire_id);
                 Realm centralKingdom = centralGovernment?.CoreKingdom;
                 if (centralKingdom == null || attacker != centralKingdom && defender != centralKingdom) continue;
                 attackerFounder = attacker == centralKingdom;
@@ -354,7 +352,7 @@ public static partial class WarlordEraSystem
             bool capitalFallen = rival.Capital == null || seatHolder != null && (seatHolder == founderKingdom || seatHolder.GetEmpire() == founder);
             float chance = 0.04f + 0.6f * share + (capitalFallen ? 0.3f : 0f);
             if (lost == 0 && !capitalFallen || Random.value >= chance) continue;
-            EmpireWorld.Current.wars.endWar(war, attackerFounder ? WarWinner.Attackers : WarWinner.Defenders);
+            EmpireWorld.Current.EndWar(war, attackerFounder ? WarOutcome.Attackers : WarOutcome.Defenders);
             if (!AbsorbDefector(founder, rival)) continue;
             EmpireCore core = rival.Capital?.GetEmpireCore();
             if (core != null) EmpireCoreControl.Invalidate(core);
@@ -443,6 +441,7 @@ public static partial class WarlordEraSystem
         FeudalVassalService.MarkDefected(holder);
         return true;
     }
+#endif
 
     private static Empire RulingGovernment(Realm kingdom) =>
         kingdom.GetEmpire() ?? Government(FeudalVassalService.GetOverlord(kingdom));
@@ -452,6 +451,7 @@ public static partial class WarlordEraSystem
         (kingdom == government.CoreKingdom || kingdom.GetEmpire() == government ||
          FeudalVassalService.GetOverlord(kingdom) == government.CoreKingdom);
 
+#if EC_PENDING
     private static Realm AdjacentRealmKingdom(City city, Empire government) =>
         city.neighbours_cities?.FirstOrDefault(neighbour => neighbour != null && !neighbour.IsGone() &&
                                                              InRealm(neighbour.kingdom, government))?.kingdom;

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/EmpireLaw/EmpireLawSystem.Justice.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/EmpireLaw/EmpireLawSystem.Justice.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -43,7 +43,6 @@ public static partial class EmpireLawSystem
     #region 论处的主体
 
     // 论处的主体：帝国之内是帝国(核心国)，不在帝国里是本国
-#if EC_PENDING
     public static Realm RealmKingdom(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone()) return null;
@@ -58,20 +57,16 @@ public static partial class EmpireLawSystem
         Empire empire = kingdom.GetEmpire();
         return empire == null || empire.IsGone() || empire.IsArchived() ? null : empire;
     }
-#endif
 
     // 本朝君主(帝国之内是天子)
-#if EC_PENDING
     public static Person RealmRuler(Realm kingdom)
     {
         Empire empire = RealmEmpire(kingdom);
         Person ruler = empire != null ? empire.Emperor : kingdom?.Ruler;
         return ruler != null && !ruler.IsGone() && ruler.Alive ? ruler : null;
     }
-#endif
 
     // 宗室：与本朝君主同一宗(含分出去的支系)
-#if EC_PENDING
     public static bool IsRoyalKin(Person actor, Realm kingdom)
     {
         Person ruler = RealmRuler(kingdom);
@@ -82,7 +77,6 @@ public static partial class EmpireLawSystem
         SpecificClan royal = ruler.GetSpecificClan();
         return own != null && royal != null && SpecificClanManager.SameLineage(own, royal);
     }
-#endif
 
     #endregion
 
@@ -908,7 +902,6 @@ public static partial class EmpireLawSystem
 
     // 血债宗室：这人亲手杀过几个本朝皇亲(与本朝君主同一宗，含支系)。按他生平里"手刃某某"那几笔回查——死者的死因记录写着
     // 凶手就是他，旧档里早先杀的也算得上(用户 2026-11-10 "都杀了皇室的亲人了这罪名呢")
-#if EC_PENDING
     public static int RoyalBloodDebt(Person actor, Realm kingdom)
     {
         PersonalClanIdentity identity = actor?.GetPersonalIdentity();
@@ -927,7 +920,6 @@ public static partial class EmpireLawSystem
         }
         return victims.Count;
     }
-#endif
 
     // 要人死于人手(BiographySystem.RecordKiller)：同一朝的人、两边又不在交战，下手的人记一桩未发之罪——杀了本朝君主记谋反，
     // 别的记杀人(十恶)，日后年审查出来按律论处；打仗阵前杀的不算(用户 2026-11-10 "都杀了皇室的亲人了这罪名呢")
@@ -938,7 +930,7 @@ public static partial class EmpireLawSystem
         Realm realm = killer.Realm, home = victim.Realm;
         if (realm?.Record == null || home?.Record == null || realm.IsGone() || home.IsGone()) return;
         bool sameRealm = realm == home || realm.IsInEmpire() && home.IsInEmpire() && realm.GetEmpire() == home.GetEmpire();
-        if (!sameRealm || realm.isInWarWith(home)) return;
+        if (!sameRealm || realm.IsAtWarWith(home)) return;
         LawType crime = RealmRuler(home) == victim ? LawType.谋反 : LawType.杀人;
         try
         {

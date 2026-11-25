@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/PrehistoricClanSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/PrehistoricClanSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Time = EmpireCraft.Core.FrameClock;
 using System.Collections.Generic;
@@ -119,7 +119,6 @@ public static class PrehistoricClanSystem
     private static bool Evolves(string culture) =>
         OnomasticsRule.ALL_CULTURE_RULE.TryGetValue(culture, out Setting setting) && setting?.surname_evolution == true;
 
-#if EC_PENDING
     public static bool IsMatrilineal(string culture)
     {
         if (string.IsNullOrEmpty(culture)) return false;
@@ -137,7 +136,6 @@ public static class PrehistoricClanSystem
         Cache[culture] = (now + CacheSeconds, value);
         return value;
     }
-#endif
 
     public static void ResetWorldState()
     {
@@ -148,7 +146,6 @@ public static class PrehistoricClanSystem
         WordPools.Clear();
     }
 
-#if EC_PENDING
     public static SurnameEra EraOf(string culture)
     {
         if (string.IsNullOrEmpty(culture)) return SurnameEra.Merged;
@@ -174,19 +171,14 @@ public static class PrehistoricClanSystem
         EraCache[culture] = (now + CacheSeconds, era);
         return era;
     }
-#endif
 
     // 新立的氏族取古姓：原始群、母系氏族阶段，且本文化配了古姓词库
-#if EC_PENDING
     public static bool AncientNaming(string culture) =>
         EraOf(culture) is SurnameEra.None or SurnameEra.Xing && AncientPool(culture).Count > 0;
-#endif
 
     // 分支的氏还能不能新起(姓氏合一以后，分支沿用宗族的姓)
-#if EC_PENDING
     public static bool ShiForming(string culture) =>
         EraOf(culture) is SurnameEra.ShiEmerging or SurnameEra.ZhouShi or SurnameEra.EliteOnly;
-#endif
 
     // 由分支的来历取氏：受封的国名、所居的城名、房祖的名，取首字；日本的苗字取前两字(足利、德川)
     public static string ShiFrom(string source, string culture = null)
@@ -205,10 +197,8 @@ public static class PrehistoricClanSystem
     }
 
     // 族谱修正用：名字上显示的不是族谱的姓，是不是姓氏演变造成的(称氏、无姓)，是就不算错
-#if EC_PENDING
     public static bool ShownByEra(PersonalClanIdentity person, string shown) =>
         person != null && (EraOf(person.culture) != SurnameEra.Merged || shown == ShiOf(person._specificClan));
-#endif
 
     // 本人(或所在分支的上一层分支)的氏；没有返回 null
     private static string ShiOf(Person actor) => ShiOf(actor?.GetPersonalIdentity()?._specificClan);

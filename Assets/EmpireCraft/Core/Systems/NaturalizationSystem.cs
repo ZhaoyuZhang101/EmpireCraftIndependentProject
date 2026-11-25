@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/NaturalizationSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/NaturalizationSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -219,7 +219,6 @@ public static class NaturalizationSystem
 
     // 干部不够的城赋税、征兵收不齐(见 AdministrativeControlSystem.Yield)：打下来不等于管得了，调干部过去就好。
     // 这条很热，先看有没有算过；城落到别人手里就不再算
-#if EC_PENDING
     public static float YieldFactor(City city)
     {
         CityPopulationData data = Data(city);
@@ -228,7 +227,6 @@ public static class NaturalizationSystem
         float floor = Config.cadre_min_yield;
         return floor + (1f - floor) * data.naturalization_cover;
     }
-#endif
 
     // 事件里的死伤(见 TransmigrantSystem.Events)：从背景人口里扣，干部、教师首当其冲，年底对账不再算一遍
     public static float Casualties(City city, float people)
@@ -308,7 +306,6 @@ public static class NaturalizationSystem
     #region 年度流程
 
     // 本国、殖民地、帝国里的大区
-#if EC_PENDING
     private static List<City> Homes(Realm kingdom)
     {
         var seen = new HashSet<City>();
@@ -324,7 +321,6 @@ public static class NaturalizationSystem
         }
         return seen.ToList();
     }
-#endif
 
     private static float[] Totals(List<City> cities)
     {
@@ -718,7 +714,6 @@ public static class NaturalizationSystem
     #region 查询
 
     // 已归化的总人数(见 TransmigrantSystem.NaturalizedPopulation)
-#if EC_PENDING
     public static float CompletedPopulation(Realm kingdom)
     {
         float total = 0f;
@@ -726,6 +721,7 @@ public static class NaturalizationSystem
         return total;
     }
 
+#if EC_PENDING
     public static NaturalizationSnapshot Snapshot(Realm kingdom)
     {
         var snapshot = new NaturalizationSnapshot();

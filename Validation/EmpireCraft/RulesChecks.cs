@@ -173,6 +173,40 @@ public static class RulesChecks
         Console.WriteLine("PASS generated code sample (" + checks + " checks)");
     }
 
+    // Wars: sides, leaders, leaving, ending, a fallen realm, and the save.
+    public static void Wars()
+    {
+        checks = 0;
+        var map = FlatGenerator.Generate(256, 128, "EMPIRE-WARS", TerrainPreset.Continents, default);
+        var w = Start(map); w.Activate();
+        Realm a = w.LiveRealms[0], b = w.LiveRealms[1], c = w.LiveRealms[2], d = w.LiveRealms[3];
+        var war = w.StartWar(a, b, WarKinds.Normal);
+        Check(a.IsAtWarWith(b) && b.IsEnemy(a) && a.HasEnemies() && !c.HasEnemies() && w.HasWars() && ReferenceEquals(w.StartWar(a, b), war), "a declared war is known to both sides and not declared twice");
+        war.JoinAttackers(c); war.JoinDefenders(d); war.JoinDefenders(d);
+        Check(c.IsAtWarWith(b) && c.IsAtWarWith(d) && a.IsOnSameSide(c) && !a.IsAtWarWith(c) && a.GetEnemies().Count == 2 && war.IsAttacker(c) && war.HasRealm(d) && war.Defenders.Count == 2, "allies join a side once");
+        Consistent(w, "at war");
+        var bytes = EmpireSave.Encode(w); var loaded = EmpireSave.Decode(bytes, w.Map);
+        Check(EmpireSave.Encode(loaded).SequenceEqual(bytes) && loaded.LiveWars.Count == 1 && loaded.LiveRealms[0].IsAtWarWith(loaded.LiveRealms[1]) && loaded.LiveRealms[2].GetEnemies().Count == 2, "a running war survives the save");
+        Check(EmpireSave.Decode(EmpireSave.Encode(w, 2), w.Map).Wars.Count == 0, "a version-2 section loads without wars");
+        war.Leave(a);
+        Check(war.MainAttacker == c && !a.HasEnemies() && war.Alive && war.PastAttackers.Contains(a), "the lead passes on when the leader leaves");
+        war.Leave(c);
+        Check(war.HasEnded() && war.Outcome == WarOutcome.Defenders && !b.HasEnemies() && !w.HasWars() && w.WarByKey(war.Key) == null, "a side left empty has lost");
+        Consistent(w, "after the war");
+        var second = w.StartWar(a, b, WarKinds.Rebellion);
+        Check(second != war && second.IsTotalWar() && second.Id == 1, "old enemies can fight a new war");
+        w.EndWar(second, WarOutcome.Peace);
+        Check(!a.IsAtWarWith(b) && second.Outcome == WarOutcome.Peace && second.DurationMonths() == 0, "peace ends the war for everyone");
+        var third = w.StartWar(d, c);
+        foreach (var city in d.Cities.ToArray()) WorldOps.TransferCity(w, city, a);
+        Check(!d.Alive && third.HasEnded() && third.Outcome == WarOutcome.Defenders && !c.HasEnemies(), "a fallen realm leaves its wars");
+        Consistent(w, "after a realm fell");
+        Run(w, 5, x => Consistent(x, "year " + x.Year));
+        Check(w.Annals.Entries.Count(e => e.Kind == AnnalKind.WarStarted) == 3 && w.Annals.Entries.Count(e => e.Kind == AnnalKind.WarEnded) == 3, "the annals record every war");
+        EmpireWorld.Current = null;
+        Console.WriteLine("PASS wars (" + checks + " checks)");
+    }
+
     // The shared frame budget: jobs run once a frame while there is budget, are put
     // off when there is none, and are never starved.
     public static void Scheduling()

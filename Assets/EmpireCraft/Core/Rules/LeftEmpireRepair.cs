@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/LeftEmpireRepair.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/LeftEmpireRepair.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Linq;
@@ -27,7 +27,7 @@ public static class LeftEmpireRepair
             if (data.left_empire_id < 0) continue;
             try
             {
-                Empire former = ModClass.EMPIRE_MANAGER?.get(data.left_empire_id);
+                Empire former = ModClass.EMPIRE_MANAGER?.Get(data.left_empire_id);
                 Realm core = former?.CoreKingdom;
                 if (core?.Record != null && !core.IsGone() && core != kingdom && kingdom.Record.color_id == core.Record.color_id &&
                     !EmpireFormationService.IsSubject(kingdom))

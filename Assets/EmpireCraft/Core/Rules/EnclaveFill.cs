@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/EnclaveFill.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/EnclaveFill.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Time = EmpireCraft.Core.FrameClock;
 using System;
@@ -140,7 +140,7 @@ public static class EnclaveFill
     public static void Tick()
     {
         EmpireWorld world = EmpireWorld.Current;
-        if (world?.zone_calculator?.zones == null || !Config.game_loaded || SmoothLoader.isLoading()) return;
+        if (world?.zone_calculator?.zones == null || !GameClock.Running || SmoothLoader.isLoading()) return;
         Install();
         if (!ReferenceEquals(_world, world))
         {

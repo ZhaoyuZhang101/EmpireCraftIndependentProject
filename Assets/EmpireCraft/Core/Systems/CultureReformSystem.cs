@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/CultureReformSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/CultureReformSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -245,7 +245,6 @@ public static class CultureReformSystem
 #endif
 
     // 这次改俗涉及的国家：本国；是帝国核心的连同各成员国(宗室封国随帝室一起改)
-#if EC_PENDING
     private static HashSet<Realm> ScopeOf(Realm kingdom)
     {
         var scope = new HashSet<Realm> { kingdom };
@@ -255,7 +254,6 @@ public static class CultureReformSystem
                 if (member?.Record != null && !member.IsGone()) scope.Add(member);
         return scope;
     }
-#endif
 
     // 族人在哪一国：有实体看实体，虚拟族人看族谱记的城；不明的为空
     private static Realm KingdomOf(PersonalClanIdentity person)

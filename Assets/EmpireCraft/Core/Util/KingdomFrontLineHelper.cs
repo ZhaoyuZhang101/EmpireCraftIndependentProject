@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/HelperFunc/KingdomFrontLineHelper.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/HelperFunc/KingdomFrontLineHelper.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Color = EmpireCraft.Core.EcColor;
 using System.Collections.Generic;
@@ -59,7 +59,7 @@ public static class KingdomFrontLineHelper
             return result;
         }
 
-        var enemies = actorKingdom.getEnemiesKingdoms();
+        var enemies = actorKingdom.GetEnemies();
 
         if (enemies == null)
         {
@@ -73,7 +73,7 @@ public static class KingdomFrontLineHelper
                 continue;
             }
 
-            if (!actorKingdom.isInWarWith(enemyKingdom))
+            if (!actorKingdom.IsAtWarWith(enemyKingdom))
             {
                 continue;
             }
@@ -189,7 +189,7 @@ public static class KingdomFrontLineHelper
                 // 接壤非交战第三方国家的边界，不算当前战争前线
                 if (neighbourController != null &&
                     !IsFriendlyKingdom(actorKingdom, neighbourController) &&
-                    !actorKingdom.isInWarWith(neighbourController))
+                    !actorKingdom.IsAtWarWith(neighbourController))
                 {
                     touchesNonWarKingdom = true;
                     break;
@@ -276,7 +276,7 @@ public static class KingdomFrontLineHelper
                     // 如果这段边界接壤的是中立或非当前战争国家，则排除
                     if (neighbourController != null &&
                         !IsFriendlyKingdom(actorKingdom, neighbourController) &&
-                        !actorKingdom.isInWarWith(neighbourController))
+                        !actorKingdom.IsAtWarWith(neighbourController))
                     {
                         touchesNonWarKingdom = true;
                         break;
@@ -719,7 +719,6 @@ public static class KingdomFrontLineHelper
     /// <summary>
     /// 判断两个王国是否属于同一战争阵营。
     /// </summary>
-#if EC_PENDING
     public static bool IsFriendlyKingdom(Realm actorKingdom, Realm otherKingdom)
     {
         if (actorKingdom == null || otherKingdom == null)
@@ -732,9 +731,10 @@ public static class KingdomFrontLineHelper
             return true;
         }
 
-        return actorKingdom.isInWarOnSameSide(otherKingdom);
+        return actorKingdom.IsOnSameSide(otherKingdom);
     }
 
+#if EC_PENDING
     public static bool IsValidZone(TileZone zone)
     {
         if (zone == null)
@@ -817,7 +817,7 @@ public static class KingdomFrontLineHelper
             return;
         }
 
-        var enemies = actorKingdom.getEnemiesKingdoms();
+        var enemies = actorKingdom.GetEnemies();
 
         if (enemies == null)
         {
@@ -832,7 +832,7 @@ public static class KingdomFrontLineHelper
                 continue;
             }
 
-            if (!actorKingdom.isInWarWith(enemyKingdom))
+            if (!actorKingdom.IsAtWarWith(enemyKingdom))
             {
                 continue;
             }

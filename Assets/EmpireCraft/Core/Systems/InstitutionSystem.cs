@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/InstitutionSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/InstitutionSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -586,7 +586,7 @@ public static partial class InstitutionSystem
         // 只写日志，看不到是谁改的。现在要有成年的君主在位、眼下不在打仗，每年 RegimeFollowChance 的机会办成(属国已改的不掷)，
         // 办成记在主持的君主名下、进史书，举足轻重的国上屏幕
         Person ruler = kingdom.Ruler;
-        if (ruler == null || !ruler.Alive || ruler.Age() < RegimeReformAge || kingdom.hasEnemies()) return;
+        if (ruler == null || !ruler.Alive || ruler.Age() < RegimeReformAge || kingdom.HasEnemies()) return;
         if (!subjectsFirst && EcRandom.value >= RegimeFollowChance) return;
 
         LogService.LogInfo($"[EmpireCraft][制度] {kingdom.GetKingdomName()} 跟上本文化的政体：{current} → {target}");
@@ -1068,7 +1068,7 @@ public static partial class InstitutionSystem
         if (reform.resistance_war_id > 0)
         {
             War resistanceWar = EmpireWorld.Current?.wars?.get(reform.resistance_war_id);
-            if (resistanceWar != null && !resistanceWar.hasEnded()) return;
+            if (resistanceWar != null && !resistanceWar.HasEnded()) return;
             reform.resistance_war_id = -1L;
         }
         InstitutionNodeConfig node = InstitutionDefinitionRegistry.Get(reform.node_id);
@@ -2122,7 +2122,7 @@ public static partial class InstitutionSystem
         if (state.social_rebellion_war_id > 0)
         {
             War activeWar = EmpireWorld.Current?.wars?.get(state.social_rebellion_war_id);
-            if (activeWar != null && !activeWar.hasEnded()) { state.social_quiet_reason = "at_war"; return; }
+            if (activeWar != null && !activeWar.HasEnded()) { state.social_quiet_reason = "at_war"; return; }
             state.social_rebellion_war_id = -1L;
         }
         if (state.last_social_rebellion_timestamp >= 0 &&
@@ -2208,7 +2208,7 @@ public static partial class InstitutionSystem
                                                               CityStabilitySystem.CanRise(kingdom.Capital) &&
                                                               !kingdom.IsFactionRebelling() &&
                                                               !kingdom.IsLocalRebelling() &&
-                                                              !kingdom.getWars().Any())
+                                                              !kingdom.GetWars().Any())
             .Select(kingdom => new { Realm = kingdom, Share = GetKingdomClassShare(kingdom, socialClass) })
             .Where(candidate => candidate.Share > 0f)
             .OrderByDescending(candidate => candidate.Share)
@@ -2251,7 +2251,7 @@ public static partial class InstitutionSystem
         }
         string className = LM.Get($"class_{socialClass}");
         rebel.Name = string.Format(LM.Get("institution_social_rebel_kingdom_name"), className);
-        War war = EmpireWorld.Current.diplomacy.startWar(rebel, empire.CoreKingdom, WarTypeLibrary.rebellion);
+        War war = EmpireWorld.Current.StartWar(rebel, empire.CoreKingdom, WarKinds.Rebellion);
         if (war == null)
         {
             rebel.EndLocalRebelling();
@@ -2261,7 +2261,7 @@ public static partial class InstitutionSystem
         }
         war.SetEmpireWarType(EmpireWarType.地方叛乱);
         string cause = GetSocialGrievanceCause(empire, socialClass);
-        war.data.name = string.Format(LM.Get("institution_social_rebellion_war_name"), className);
+        war.Name = string.Format(LM.Get("institution_social_rebellion_war_name"), className);
         WarExtension.WarExtraData warData = war.GetOrCreate();
         warData.institution_social_rebellion_empire_id = empire.Key;
         warData.institution_social_rebellion_class = socialClass;
@@ -2276,7 +2276,7 @@ public static partial class InstitutionSystem
                 landlessRatio, cause);
         }
         InstitutionEmpireState state = EnsureEmpireState(empire);
-        state.social_rebellion_war_id = war.id;
+        state.social_rebellion_war_id = war.Key;
         state.last_social_rebellion_timestamp = GameClock.Now;
 
         string history = string.Format(LM.Get("institution_social_rebellion_history"), className,
@@ -2304,12 +2304,12 @@ public static partial class InstitutionSystem
     {
         mandate = 0;
         if (kingdom == null || kingdom.IsGone()) return false;
-        foreach (War war in kingdom.getWars())
+        foreach (War war in kingdom.GetWars())
         {
-            if (war == null || war.hasEnded() || !war._list_attackers.Contains(kingdom)) continue;
+            if (war == null || war.HasEnded() || !war.Attackers.Contains(kingdom)) continue;
             WarExtension.WarExtraData data = war.GetOrCreate();
             if (data.institution_social_rebellion_empire_id < 0) continue;
-            Empire empire = ModClass.EMPIRE_MANAGER?.get(data.institution_social_rebellion_empire_id);
+            Empire empire = ModClass.EMPIRE_MANAGER?.Get(data.institution_social_rebellion_empire_id);
             float grievance = data.institution_social_rebellion_grievance;
             if (empire != null && GetClassGrievances(empire)
                     .TryGetValue(data.institution_social_rebellion_class, out float current))
@@ -2358,17 +2358,17 @@ public static partial class InstitutionSystem
         return transferred;
     }
 
-    public static void ResolveSocialRebellion(War war, WarWinner winner)
+    public static void ResolveSocialRebellion(War war, WarOutcome winner)
     {
         if (war == null) return;
         WarExtension.WarExtraData warData = war.GetOrCreate();
         if (warData.institution_social_rebellion_empire_id < 0) return;
-        Empire empire = ModClass.EMPIRE_MANAGER?.get(warData.institution_social_rebellion_empire_id);
+        Empire empire = ModClass.EMPIRE_MANAGER?.Get(warData.institution_social_rebellion_empire_id);
         InstitutionEmpireState state = EnsureEmpireState(empire);
         if (empire == null || state == null) return;
         SocialClass socialClass = warData.institution_social_rebellion_class;
-        bool rebelsWon = winner == WarWinner.Attackers;
-        bool centralWon = winner == WarWinner.Defenders;
+        bool rebelsWon = winner == WarOutcome.Attackers;
+        bool centralWon = winner == WarOutcome.Defenders;
         state.social_rebellion_war_id = -1L;
         float current = state.class_grievances.TryGetValue(socialClass, out float grievance) ? grievance : 0f;
         state.class_grievances[socialClass] = rebelsWon ? 18f : centralWon ? current * 0.35f : current * 0.55f;
@@ -2384,8 +2384,8 @@ public static partial class InstitutionSystem
             string.IsNullOrWhiteSpace(warData.institution_social_rebellion_cause)
                 ? LM.Get("institution_social_cause_general")
                 : warData.institution_social_rebellion_cause);
-        empire.RecordHistory(directContent: history, actorId: war.getMainAttacker()?.king?.id ?? -1L,
-            kingdomId: war.getMainAttacker()?.id ?? -1L);
+        empire.RecordHistory(directContent: history, actorId: war.GetMainAttacker()?.king?.id ?? -1L,
+            kingdomId: war.GetMainAttacker()?.Key ?? -1L);
         EmpireCraft.Core.TranslateHelper.LogEventMessage(history, empire.CoreKingdom);
     }
 
@@ -2477,10 +2477,10 @@ public static partial class InstitutionSystem
 #endif
 
     // 派系在推改革那个王国里的占比：帝国派系认帝国(CentralRatio)，王国的派系不挂帝国，直接看本国占比
-#if EC_PENDING
     private static int RatioOf(InstitutionRealm realm, FixedFaction faction) =>
         realm.IsEmpire ? faction.CentralRatio : realm.Core?.GetFactionRatioValue(faction) ?? 0;
 
+#if EC_PENDING
     private static FixedFaction ResolveReformSponsor(InstitutionRealm realm, InstitutionNodeConfig node,
         string requestedFactionId = "")
     {
@@ -2569,13 +2569,13 @@ public static partial class InstitutionSystem
                                                               RebellionSystem.CanAttempt(kingdom) &&
                                                               CityStabilitySystem.CanRise(kingdom.Capital) &&
                                                               !kingdom.IsFactionRebelling() &&
-                                                              !kingdom.getWars().Any())
+                                                              !kingdom.GetWars().Any())
             .OrderByDescending(kingdom => kingdom.countTotalWarriors()).FirstOrDefault();
         if (opposition == null || rebel == null) return false;
         var cause = RebellionSystem.Capture(rebel, rebel.Capital, "rebellion_reason_reform",
             GetNodeName(empire, node) + "：" + GetResistanceReason(node));
         rebel.StartFactionRebelling(opposition);
-        War war = EmpireWorld.Current.diplomacy.startWar(rebel, empire.CoreKingdom, WarTypeLibrary.normal);
+        War war = EmpireWorld.Current.StartWar(rebel, empire.CoreKingdom, WarKinds.Normal);
         if (war == null)
         {
             rebel.EndFactionRebelling();
@@ -2583,7 +2583,7 @@ public static partial class InstitutionSystem
         }
         war.SetEmpireWarType(EmpireWarType.派系叛乱);
         // 战争名写明哪一派反哪项改革(起兵的行省以统兵者官爵相称，派系不在国名里了，见 FactionRebelNaming)
-        war.data.name = string.Format(LM.Get("reform_rebellion_war_name"), opposition.Name, GetNodeName(empire, node));
+        war.Name = string.Format(LM.Get("reform_rebellion_war_name"), opposition.Name, GetNodeName(empire, node));
         RebellionSystem.Record(rebel, war, cause);
         // 郡县多不许养兵，起兵时就地武装义军(见 RebellionStartupService)
         RebellionStartupService.RaiseUprisingMilitia(rebel, 0.5f);
@@ -2602,7 +2602,7 @@ public static partial class InstitutionSystem
         warData.institution_reform_radicalism = reform?.radicalism ?? 0f;
         warData.institution_reform_stage = reform?.stage ?? InstitutionReformStage.Debate;
         warData.institution_reform_forced = reform?.forced ?? false;
-        if (reform != null) reform.resistance_war_id = war.id;
+        if (reform != null) reform.resistance_war_id = war.Key;
 
         string reason = GetResistanceReason(node);
         string stage = LM.Get($"institution_stage_{warData.institution_reform_stage}");
@@ -2610,7 +2610,7 @@ public static partial class InstitutionSystem
             ? "institution_reform_forced_marker"
             : "institution_reform_normal_marker");
         string nodeName = GetNodeName(empire, node);
-        war.data.name = string.Format(LM.Get("institution_reform_rebellion_war_name"), opposition.Name, nodeName);
+        war.Name = string.Format(LM.Get("institution_reform_rebellion_war_name"), opposition.Name, nodeName);
         string content = string.Format(LM.Get("institution_reform_resistance_history_detailed"), opposition.Name,
             nodeName, rebel.GetKingdomName(), reason, stage, warData.institution_reform_support,
             warData.institution_reform_opposition, warData.institution_reform_radicalism, forceMode);
@@ -2620,19 +2620,19 @@ public static partial class InstitutionSystem
         return true;
     }
 
-    public static void ResolveReformRebellion(War war, WarWinner winner)
+    public static void ResolveReformRebellion(War war, WarOutcome winner)
     {
         if (war == null) return;
         WarExtension.WarExtraData warData = war.GetOrCreate();
         if (string.IsNullOrWhiteSpace(warData.institution_reform_node_id)) return;
-        Empire empire = ModClass.EMPIRE_MANAGER?.get(warData.institution_reform_empire_id);
+        Empire empire = ModClass.EMPIRE_MANAGER?.Get(warData.institution_reform_empire_id);
         InstitutionNodeConfig node = InstitutionDefinitionRegistry.Get(warData.institution_reform_node_id);
         if (empire?.data == null || node == null) return;
 
         InstitutionReformState reform = empire.data.institution_state?.active_reform;
         bool sameReform = reform != null && reform.node_id == node.id;
-        bool rebelsWon = winner == WarWinner.Attackers;
-        bool centralWon = winner == WarWinner.Defenders;
+        bool rebelsWon = winner == WarOutcome.Attackers;
+        bool centralWon = winner == WarOutcome.Defenders;
         FixedFaction sponsor = empire.CoreKingdom?.GetRegime()?.GetPlayerFactions()
             ?.FirstOrDefault(faction => faction?.GetID() == warData.institution_reform_sponsor_faction_id);
         FixedFaction opposition = empire.CoreKingdom?.GetRegime()?.GetPlayerFactions()
@@ -2672,7 +2672,7 @@ public static partial class InstitutionSystem
             oppositionName, GetNodeName(empire, node), sponsorName);
         empire.RecordHistory(directContent: content,
             actorId: opposition?.GetLeader()?.Key ?? -1L,
-            kingdomId: war.getMainAttacker()?.id ?? -1L);
+            kingdomId: war.GetMainAttacker()?.Key ?? -1L);
         EmpireCraft.Core.TranslateHelper.LogEventMessage(content, empire.CoreKingdom);
     }
 #endif

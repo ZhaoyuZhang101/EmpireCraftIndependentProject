@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/DiplomacyLedger.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/DiplomacyLedger.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
@@ -66,6 +66,7 @@ public static class DiplomacyLedger
         }
         return near;
     }
+#endif
 
     private static void Touch(HashSet<Realm> near, Realm next, Realm focus, Empire own, bool whole)
     {
@@ -76,7 +77,6 @@ public static class DiplomacyLedger
         near.Add(next);
         if (!sameEmpire && theirs?.CoreKingdom != null) near.Add(theirs.CoreKingdom);
     }
-#endif
 
     public static bool SameTianxia(Realm a, Realm b)
     {
@@ -84,7 +84,6 @@ public static class DiplomacyLedger
         return lead != null && b?.Capital != null && TianxiaSystem.LeadOf(b.Capital) == lead;
     }
 
-#if EC_PENDING
     public static Realm TopOf(Realm kingdom) => kingdom == null ? null : EmpireCoreControl.Sovereign(kingdom) ?? kingdom;
 
     public static bool SameBloc(Realm a, Realm b) => a != null && b != null && TopOf(a) == TopOf(b);
@@ -95,6 +94,7 @@ public static class DiplomacyLedger
         return root != null && CommodityMarketSystem.RootOf(b) == root;
     }
 
+#if EC_PENDING
     public static bool Allied(Realm a, Realm b) =>
         a != null && b != null && a.hasAlliance() && b.hasAlliance() && Alliance.isSame(a.getAlliance(), b.getAlliance());
 
@@ -108,7 +108,6 @@ public static class DiplomacyLedger
 
     // ───────── 附属 ─────────
     // 直接附属：封建附庸、殖民地、帝国成员(帝国之主)、朝贡国(帝国之主)、关税同盟成员不算
-#if EC_PENDING
     public static List<Realm> Dependents(Realm kingdom)
     {
         var result = new List<Realm>();
@@ -123,12 +122,10 @@ public static class DiplomacyLedger
         }
         return result.Where(other => other?.Record != null && !other.IsGone() && other != kingdom).Distinct().ToList();
     }
-#endif
 
     // child 对 parent 是什么(体系图、市场成员)
     // 种类：self 本国、vassal 附庸、colony 殖民地、member 帝国成员、tributary 朝贡国、union 关税同盟、subject 其余属下；
     // 文字是 diplomacy_role_<种类>(简图按种类上色，见 DiplomacyWindow.Map)
-#if EC_PENDING
     public static string RoleKey(Realm child, Realm parent)
     {
         if (child == null || parent == null) return "";
@@ -150,10 +147,8 @@ public static class DiplomacyLedger
         string key = RoleKey(child, parent);
         return key.Length == 0 ? "" : LM.Get("diplomacy_role_" + key);
     }
-#endif
 
     // 直接上级(与 Dependents 相对)：封建宗主、殖民宗主国、所在帝国之主、受贡的帝国之主
-#if EC_PENDING
     public static HashSet<Realm> Overlords(Realm kingdom)
     {
         var result = new HashSet<Realm>();
@@ -169,7 +164,6 @@ public static class DiplomacyLedger
 
     public static string MarketRole(Realm member, Realm leader) =>
         member == leader ? LM.Get("diplomacy_role_leader") : RoleOf(member, leader);
-#endif
 
     // 宗主一系的树：根在前，附属按 RoleOf 写身份(key 是 RoleKey 的种类，根为 self)，至多 MaxDepth 层
     private const int MaxDepth = 4;
@@ -210,7 +204,7 @@ public static class DiplomacyLedger
             });
         }
 
-        if (a.isInWarWith(b)) Add("diplomacy_tie_war", Red);
+        if (a.IsAtWarWith(b)) Add("diplomacy_tie_war", Red);
         else
         {
             double ended = EmpireWorld.Current.diplomacy?.getRelation(a, b)?.data?.timestamp_last_war_ended ?? -1d;
@@ -271,6 +265,7 @@ public static class DiplomacyLedger
         if (god != 0) Add("diplomacy_tie_god", god > 0 ? Green : Red, -1d, -1d, god > 0 ? "+" + god : god.ToString());
         return ties;
     }
+#endif
 
     private static double MarriageSince(Realm a, Realm b)
     {
@@ -279,7 +274,6 @@ public static class DiplomacyLedger
                 return since;
         return -1d;
     }
-#endif
 
     private static double PactSince(Empire a, Empire b) =>
         a?.data?.diplomatic_pacts != null && b != null && a.data.diplomatic_pacts.TryGetValue(b.Key, out double since) ? since : -1d;
@@ -369,19 +363,19 @@ public static class DiplomacyLedger
         }
 
         // 战争：两国分在两边
-        foreach (War war in EmpireWorld.Current.wars.list.ToList())
+        foreach (War war in EmpireWorld.Current.LiveWars.ToList())
         {
-            if (war?.data == null) continue;
-            var attackers = new HashSet<long>(war.data.list_attackers ?? new List<long>());
-            attackers.UnionWith(war.data.past_attackers ?? new List<long>());
-            var defenders = new HashSet<long>(war.data.list_defenders ?? new List<long>());
-            defenders.UnionWith(war.data.past_defenders ?? new List<long>());
+            if (war?.Record == null) continue;
+            var attackers = new HashSet<long>(war.Record.list_attackers ?? new List<long>());
+            attackers.UnionWith(war.Record.past_attackers ?? new List<long>());
+            var defenders = new HashSet<long>(war.Record.list_defenders ?? new List<long>());
+            defenders.UnionWith(war.Record.past_defenders ?? new List<long>());
             bool opposed = attackers.Contains(a.Key) && defenders.Contains(b.Key) || attackers.Contains(b.Key) && defenders.Contains(a.Key);
             if (!opposed) continue;
-            Add(war.data.created_time, string.Format(LM.Get("diplomacy_history_war_started"), war.data.name));
-            if (war.hasEnded() && war.data.died_time > 0d)
-                Add(war.data.died_time, string.Format(LM.Get("diplomacy_history_war_ended"), war.data.name,
-                    LM.Get("diplomacy_war_result_" + war.data.winner.ToString().ToLowerInvariant())));
+            Add(war.StartedStamp, string.Format(LM.Get("diplomacy_history_war_started"), war.Name));
+            if (war.HasEnded() && war.Record.died_time > 0d)
+                Add(war.Record.died_time, string.Format(LM.Get("diplomacy_history_war_ended"), war.Name,
+                    LM.Get("diplomacy_war_result_" + war.Record.winner.ToString().ToLowerInvariant())));
         }
 
         // 帝国史册：记着对方编号、或正文提到对方国名的条目

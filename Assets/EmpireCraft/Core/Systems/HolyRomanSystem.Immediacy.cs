@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/HolyRomanSystem.Immediacy.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/HolyRomanSystem.Immediacy.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -59,7 +59,7 @@ public static partial class HolyRomanSystem
     private static Realm SmallNeighbour(Empire empire, HolyRomanState state, Realm lord) =>
         Members(empire).Where(small => small != lord && Estate(small) == EstateNone && small.Cities.Count == 1 &&
                                        small.Capital != null && !Seats(state).Contains(small.Key) && small.IsNeighbourWith(lord) &&
-                                       !AtWar(small) && !small.isInWarWith(lord))
+                                       !AtWar(small) && !small.IsAtWarWith(lord))
             .OrderBy(small => small.GetNationalPower()).FirstOrDefault();
 
     private static void TryPetition(Empire empire, HolyRomanState state)
@@ -80,6 +80,7 @@ public static partial class HolyRomanSystem
             return;
         }
     }
+#endif
 
     public static (Realm lord, Realm small) PendingPetition(Empire empire)
     {
@@ -90,7 +91,6 @@ public static partial class HolyRomanSystem
                      small != empire.CoreKingdom && small.Cities.Count == 1;
         return valid ? (lord, small) : (null, null);
     }
-#endif
 
     private static void ClearPetition(HolyRomanState state)
     {

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/TransmigrantSystem.Events.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/TransmigrantSystem.Events.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -199,14 +199,14 @@ public static partial class TransmigrantSystem
 
     // 战争结束(WarPatch.end_war)：共同纲领以后头一回打赢大仗算第二次反围剿；霸王行动的收场
 #if EC_PENDING
-    public static void OnWarEnded(War war, WarWinner winner)
+    public static void OnWarEnded(War war, WarOutcome winner)
     {
-        if (war?.data == null || winner != WarWinner.Attackers && winner != WarWinner.Defenders) return;
-        Realm ours = winner == WarWinner.Attackers ? war.main_attacker : war.main_defender;
-        Realm enemy = winner == WarWinner.Attackers ? war.main_defender : war.main_attacker;
+        if (war?.Record == null || winner != WarOutcome.Attackers && winner != WarOutcome.Defenders) return;
+        Realm ours = winner == WarOutcome.Attackers ? war.MainAttacker : war.MainDefender;
+        Realm enemy = winner == WarOutcome.Attackers ? war.MainDefender : war.MainAttacker;
         // 霸王行动打输了：下回还能再打
         TransmigrantState loser = Of(enemy);
-        if (loser != null && loser.overlord_war_id == war.data.id)
+        if (loser != null && loser.overlord_war_id == war.Key)
         {
             loser.overlord_war_id = -1L;
             loser.events?.Remove("overlord_operation");
@@ -214,7 +214,7 @@ public static partial class TransmigrantSystem
         TransmigrantState state = Of(ours);
         if (state == null || enemy?.Record == null) return;
         int year = GameClock.Year;
-        if (state.overlord_war_id == war.data.id)
+        if (state.overlord_war_id == war.Key)
         {
             state.overlord_war_id = -1L;
             state.sea_hegemony = true;
@@ -380,7 +380,7 @@ public static partial class TransmigrantSystem
     private static void OverlordOperation(Realm kingdom, TransmigrantState state, int year)
     {
         int ours = NavySystem.Warships(kingdom);
-        if (ours < OverlordMinShips || kingdom.hasEnemies() || CorpsSystem.CannotFundWar(kingdom) || ArmyOf(kingdom) < CampaignMinArmy) return;
+        if (ours < OverlordMinShips || kingdom.HasEnemies() || CorpsSystem.CannotFundWar(kingdom) || ArmyOf(kingdom) < CampaignMinArmy) return;
         List<City> homes = EngineHomes(kingdom);
         Realm target = null;
         int strongest = 0;
@@ -391,7 +391,7 @@ public static partial class TransmigrantSystem
             if (other?.Record == null || city.IsGone() || other == kingdom || other.IsGone() || !seen.Add(other)) continue;
             int ships = NavySystem.Warships(other);
             if (ships <= strongest || ships > ours * OverlordOdds || other.IsInSameEmpire(kingdom) || ColonySystem.Bound(kingdom, other) ||
-                WarGate.Forbidden(kingdom, other) || !WarReach.MayDeclare(kingdom, other, WarTypeLibrary.normal)) continue;
+                WarGate.Forbidden(kingdom, other) || !WarReach.MayDeclare(kingdom, other, WarKinds.Normal)) continue;
             bool reachable = false;
             foreach (City theirs in other.Cities)
                 if (Nearest(homes, theirs, out int distance) != null && distance <= SeaTradeReach)
@@ -404,11 +404,11 @@ public static partial class TransmigrantSystem
             target = other;
         }
         if (target == null) return;
-        War war = EmpireWorld.Current.diplomacy.startWar(kingdom, target, WarTypeLibrary.normal);
-        if (war?.data == null) return;
+        War war = EmpireWorld.Current.StartWar(kingdom, target, WarKinds.Normal);
+        if (war?.Record == null) return;
         WarGoalSystem.Preset(war, WarGoal.夺城);
-        war.data.name = LM.Get("transmigrant_event_overlord_operation");
-        state.overlord_war_id = war.data.id;
+        war.Name = LM.Get("transmigrant_event_overlord_operation");
+        state.overlord_war_id = war.Key;
         int sunk = 0;
         foreach (FleetData fleet in NavySystem.Of(target))
         {
@@ -452,7 +452,7 @@ public static partial class TransmigrantSystem
         Mark(state, "mainland_campaign", year);
         state.mainland = true;
         state.next_campaign_at = GameClock.Now;
-        string lord = state.disguise_lord_id >= 0 && ModClass.EMPIRE_MANAGER?.get(state.disguise_lord_id) is Empire empire && empire.data != null
+        string lord = state.disguise_lord_id >= 0 && ModClass.EMPIRE_MANAGER?.Get(state.disguise_lord_id) is Empire empire && empire.data != null
             ? empire.GetEmpireFullName() : LM.Get("transmigrant_event_mainland_fallback");
         TranslateHelper.LogMajor(string.Format(LM.Get("transmigrant_event_mainland_campaign_history"), kingdom.GetKingdomFullName(), lord), kingdom);
     }

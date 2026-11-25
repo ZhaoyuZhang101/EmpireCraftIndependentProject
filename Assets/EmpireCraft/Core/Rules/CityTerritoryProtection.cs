@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/CityTerritoryProtection.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/CityTerritoryProtection.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 
 namespace EmpireCraft.Core
@@ -23,7 +23,7 @@ public static class CityTerritoryProtection
 #if EC_PENDING
     public static bool BordersFixed => EmpireCraftWorldLawLibrary.empirecraft_law_fixed_city_borders?.isEnabled() == true;
 
-    public static bool BordersLocked => BordersFixed && !ModClass.IS_CLEAR && Config.game_loaded && !SmoothLoader.isLoading() &&
+    public static bool BordersLocked => BordersFixed && !ModClass.IS_CLEAR && GameClock.Running && !SmoothLoader.isLoading() &&
                                         !WorldMapGenerator.Generating && !WorldMapScenario.AfterLoadPending;
 
     private static bool ManualChange => CityExpansionPatch.ManualClaim || CityPlacementSystem.Placing;
@@ -38,9 +38,9 @@ public static class CityTerritoryProtection
 #if EC_PENDING
     public static bool PreserveWarLayout(City city)
     {
-        if (ModClass.IS_CLEAR || !Config.game_loaded || SmoothLoader.isLoading() || city?.Record == null || city.IsGone() ||
+        if (ModClass.IS_CLEAR || !GameClock.Running || SmoothLoader.isLoading() || city?.Record == null || city.IsGone() ||
             AncientWarfareCompatibility.OwnsObject(city) || Dissolving.Contains(city.Key)) return false;
-        return city.Realm?.hasEnemies() == true || city.GetOrCreate().OccupiedStatus?.Count > 0;
+        return city.Realm?.HasEnemies() == true || city.GetOrCreate().OccupiedStatus?.Count > 0;
     }
 #endif
 

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/NomadCycleSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/NomadCycleSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System.Collections.Generic;
@@ -194,7 +194,7 @@ public static class NomadCycleSystem
     {
         if (member?.Record == null || member.IsGone() || member == empire.CoreKingdom || member.GetEmpire() != empire ||
             !member.HasRuler() || member.Capital == null || member.Cities == null || member.Cities.Count == 0 ||
-            member.IsFactionRebelling() || member.IsLocalRebelling() || member.isInWarWith(empire.CoreKingdom) ||
+            member.IsFactionRebelling() || member.IsLocalRebelling() || member.IsAtWarWith(empire.CoreKingdom) ||
             !RebellionSystem.CanAttempt(member)) return false;
         if (JimiSystem.IsJimiAdministration(member) || JimiSystem.IsJimiRegion(member, empire)) return false;
         if (regent?.Record != null)
@@ -265,7 +265,7 @@ public static class NomadCycleSystem
         // 不许自立(见 SecessionGate)：先开战后离开，要在开战前问
         if (EmpireCraft.Core.SecessionGate.Forbids("据地自立", kingdom.GetKingdomName())) return false;
         RebellionCauseData cause = RebellionSystem.Capture(kingdom, kingdom.Capital, reasonKey);
-        War war = DiplomacyHelpers.wars.newWar(kingdom, empire.CoreKingdom, WarTypeLibrary.normal);
+        War war = DiplomacyHelpers.wars.newWar(kingdom, empire.CoreKingdom, WarKinds.Normal);
         if (war == null) return false;
         kingdom.FinishedSelfPlot();
         empire.leave(kingdom, true, true);
@@ -368,7 +368,7 @@ public static class NomadCycleSystem
     {
         if (member?.Record == null || member.IsGone() || member == empire.CoreKingdom || member.GetEmpire() != empire ||
             !member.HasRuler() || member.Capital == null || member.Cities == null || member.Cities.Count == 0 ||
-            member.IsFactionRebelling() || member.IsLocalRebelling() || member.isInWarWith(empire.CoreKingdom) ||
+            member.IsFactionRebelling() || member.IsLocalRebelling() || member.IsAtWarWith(empire.CoreKingdom) ||
             !CanRiseAfterHero(member)) return false;
         if (member.GetKingdomType() == KingdomType.YouMu_province || JimiSystem.IsJimiAdministration(member) ||
             JimiSystem.IsJimiRegion(member, empire)) return false;
@@ -441,7 +441,7 @@ public static class NomadCycleSystem
         member.Capital != null && member.Cities?.Count > 0 && member.GetRegime()?.type == RegimeType.YouMu &&
         member.GetKingdomType() != KingdomType.YouMu_province && !JimiSystem.IsJimiAdministration(member) &&
         !JimiSystem.IsJimiRegion(member, empire) && !member.IsFactionRebelling() && !member.IsLocalRebelling() &&
-        !member.isInWarWith(empire.CoreKingdom) && RebellionSystem.CanAttempt(member);
+        !member.IsAtWarWith(empire.CoreKingdom) && RebellionSystem.CanAttempt(member);
 #endif
 
     // 自主几档：入伙几代 × (1 + 离汗廷几个 DriftDistanceRef) × (1 + 多出的城 × DriftPerCity)
@@ -492,9 +492,9 @@ public static class NomadCycleSystem
     {
         if (core?.Record == null || core.IsGone()) return 0f;
         float share = 0f;
-        foreach (War war in core.getWars())
+        foreach (War war in core.GetWars())
         {
-            if (war?.data == null || war.hasEnded()) continue;
+            if (war?.Record == null || war.HasEnded()) continue;
             int lost = WarSituation.CitiesLost(war, core);
             if (lost <= 0) continue;
             int before = lost + WarSituation.SideCities(core);
@@ -519,8 +519,8 @@ public static class NomadCycleSystem
     {
         if (!Homesick(realm)) return 0f;
         float years = 0f;
-        foreach (War war in realm.getWars())
-            if (war?.data != null && !war.hasEnded()) years = Mathf.Max(years, WarSituation.WarYears(war));
+        foreach (War war in realm.GetWars())
+            if (war?.Record != null && !war.HasEnded()) years = Mathf.Max(years, WarSituation.WarYears(war));
         return years <= HomesickGraceYears ? 0f : Mathf.Min(HomesickStabilityCap, (years - HomesickGraceYears) * HomesickStability);
     }
 #endif
@@ -544,8 +544,8 @@ public static class NomadCycleSystem
         foreach (Realm side in new[] { kingdom, FrontSystem.Realm(kingdom) })
         {
             if (side?.Record == null || side.IsGone()) continue;
-            foreach (War war in side.getWars())
-                if (war?.data != null && !war.hasEnded()) months = Mathf.Max(months, GameClock.MonthsSince(war.data.created_time));
+            foreach (War war in side.GetWars())
+                if (war?.Record != null && !war.HasEnded()) months = Mathf.Max(months, GameClock.MonthsSince(war.StartedStamp));
         }
         return HomesickLevy(kingdom, months);
     }

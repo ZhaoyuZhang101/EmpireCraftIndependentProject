@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/JimiSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/JimiSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -106,23 +106,23 @@ public static class JimiSystem
     {
         if (empire?.data == null || empire.IsGone() || empire.IsArchived() || !Enacted(empire)) return;
         Realm core = empire.CoreKingdom;
-        if (core == null || core.IsGone() || !core.hasEnemies()) return;
+        if (core == null || core.IsGone() || !core.HasEnemies()) return;
         List<War> wars = null;
         foreach (Realm region in empire.kingdoms_list.ToArray())
         {
             if (region == null || region == core || !IsJimiAdministration(region)) continue;
-            if (region.isInWarWith(core) || region.IsFactionRebelling() || region.IsLocalRebelling()) continue;
-            wars ??= new List<War>(core.getWars());
+            if (region.IsAtWarWith(core) || region.IsFactionRebelling() || region.IsLocalRebelling()) continue;
+            wars ??= new List<War>(core.GetWars());
             foreach (War war in wars)
             {
-                if (war == null || !war.Alive || war.hasEnded() || war.GetEmpireWarType() == EmpireWarType.劫掠) continue;
+                if (war == null || !war.Alive || war.HasEnded() || war.GetEmpireWarType() == EmpireWarType.劫掠) continue;
                 if (IsMember(war, region)) continue;
-                bool coreAttacks = war.isAttacker(core);
-                if (!coreAttacks && !war.isDefender(core)) continue;
+                bool coreAttacks = war.IsAttacker(core);
+                if (!coreAttacks && !war.IsDefender(core)) continue;
                 if (MemberWarAid.IsMemberWar(war, empire, coreAttacks)) continue;
                 if (!BordersSide(region, war, !coreAttacks)) continue;
-                if (coreAttacks) war.joinAttackers(region);
-                else war.joinDefenders(region);
+                if (coreAttacks) war.JoinAttackers(region);
+                else war.JoinDefenders(region);
                 if (!IsMember(war, region)) continue;
                 FiscalDiagnostics.Count("羁縻出兵");
                 TranslateHelper.LogEventOnly(string.Format(LM.Get("jimi_frontier_duty"),
@@ -130,17 +130,17 @@ public static class JimiSystem
             }
         }
     }
+#endif
 
     private static bool IsMember(War war, Realm kingdom) =>
-        war._list_attackers != null && war._list_attackers.Contains(kingdom) ||
-        war._list_defenders != null && war._list_defenders.Contains(kingdom);
-#endif
+        war.Attackers != null && war.Attackers.Contains(kingdom) ||
+        war.Defenders != null && war.Defenders.Contains(kingdom);
 
     // 本政区是否与这场战争的敌方阵营接壤
 #if EC_PENDING
     private static bool BordersSide(Realm region, War war, bool enemyIsAttacker)
     {
-        List<Realm> enemies = enemyIsAttacker ? war._list_attackers : war._list_defenders;
+        List<Realm> enemies = enemyIsAttacker ? war.Attackers : war.Defenders;
         if (enemies == null || enemies.Count == 0) return false;
         foreach (City city in region.Cities)
         {

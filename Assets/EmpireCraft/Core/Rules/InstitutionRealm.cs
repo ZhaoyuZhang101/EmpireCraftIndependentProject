@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/InstitutionRealm.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/InstitutionRealm.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System.Collections.Generic;
 
@@ -27,7 +27,6 @@ public sealed class InstitutionRealm
     public static InstitutionRealm Of(Empire empire) => empire == null ? null : new InstitutionRealm(empire, null);
 
     // 帝国核心、成员国一律归到所在的帝国；其余(独立王国、附庸、部落)按本国，是否独立另看 IsSovereign
-#if EC_PENDING
     public static InstitutionRealm Of(Realm kingdom)
     {
         if (kingdom == null) return null;
@@ -38,7 +37,6 @@ public sealed class InstitutionRealm
         }
         return new InstitutionRealm(null, kingdom);
     }
-#endif
 
     // 能自己推制度的独立王国：开化、非野、有都城、君主是本国的(不是别国君主兼领)、不是帝国也不在帝国里、
     // 没有封建宗主、不奉部落共主、不归古战模组管。朝贡国照样算(朝贡不管内政)；战国离开周室的诸侯按上面的常量

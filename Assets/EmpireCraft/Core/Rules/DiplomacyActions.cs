@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/DiplomacyActions.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/DiplomacyActions.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -58,7 +58,7 @@ public static class DiplomacyActions
             {
                 Make("diplomacy_act_declare", CanDeclare, (a, b, goal) =>
                 {
-                    War war = EmpireWorld.Current.diplomacy.startWar(a, b, WarTypeLibrary.normal);
+                    War war = EmpireWorld.Current.StartWar(a, b, WarKinds.Normal);
                     if (war == null) return "diplomacy_reason_failed";
                     // 剧本点名的劫掠(清军入塞)：只抢不占，抢够或满一年就退(见 NomadRaidSystem.War)
                     if (_applyingScenario && goal == WarGoal.劫掠) war.SetEmpireWarType(EmpireWarType.劫掠);
@@ -69,7 +69,7 @@ public static class DiplomacyActions
                     if (_applyingScenario && _scenarioTarget != null) WarObjective.Aim(war, _scenarioTarget);
                     return null;
                 }, DeclareWarning),
-                Make("diplomacy_act_peace", (a, b) => a.isInWarWith(b) ? null : "diplomacy_reason_not_at_war", (a, b, _) =>
+                Make("diplomacy_act_peace", (a, b) => a.IsAtWarWith(b) ? null : "diplomacy_reason_not_at_war", (a, b, _) =>
                 {
                     EndWars(a, b);
                     return null;
@@ -91,7 +91,7 @@ public static class DiplomacyActions
                 Make("diplomacy_act_ally", (a, b) =>
                 {
                     if (DiplomacyLedger.Allied(a, b)) return "diplomacy_reason_already";
-                    if (a.isInWarWith(b)) return "diplomacy_reason_at_war";
+                    if (a.IsAtWarWith(b)) return "diplomacy_reason_at_war";
                     if (ModAllianceService.IsVanillaAllianceBanned()) return "diplomacy_reason_alliance_banned";
                     if (a.IsEmpire() || a.IsInEmpire() || b.IsEmpire() || b.IsInEmpire()) return "diplomacy_reason_empire_alliance";
                     return OutOfReach(a, b) && !ContactReach(a, b) ? "diplomacy_reason_unreachable" : null;
@@ -106,14 +106,14 @@ public static class DiplomacyActions
                 Make("diplomacy_act_marry", (a, b) =>
                 {
                     if (RoyalMarriageSystem.Allied(a, b)) return "diplomacy_reason_already";
-                    return a.isInWarWith(b) ? "diplomacy_reason_at_war" : null;
+                    return a.IsAtWarWith(b) ? "diplomacy_reason_at_war" : null;
                 }, (a, b, _) => RoyalMarriageSystem.ArrangeHeqin(a, b) != null ? null : "diplomacy_reason_no_match"),
                 Make("diplomacy_act_pact", (a, b) =>
                 {
                     if (GreatPowerDiplomacy.Bound(a, b)) return "diplomacy_reason_already";
                     if (a.GetEmpire() == null || b.GetEmpire() == null) return "diplomacy_reason_not_empire_both";
                     if (a.IsInSameEmpire(b)) return "diplomacy_reason_same_empire";
-                    return a.isInWarWith(b) ? "diplomacy_reason_at_war" : null;
+                    return a.IsAtWarWith(b) ? "diplomacy_reason_at_war" : null;
                 }, (a, b, _) =>
                 {
                     Empire ea = a.GetEmpire(), eb = b.GetEmpire();
@@ -129,7 +129,7 @@ public static class DiplomacyActions
                 Make("diplomacy_act_protect", (a, b) =>
                 {
                     if (HolyRomanSystem.ProtectedBy(b, a)) return "diplomacy_reason_already";
-                    return a.isInWarWith(b) ? "diplomacy_reason_at_war" : null;
+                    return a.IsAtWarWith(b) ? "diplomacy_reason_at_war" : null;
                 }, (a, b, _) =>
                 {
                     var data = b.GetOrCreate();
@@ -228,7 +228,7 @@ public static class DiplomacyActions
                 Make("diplomacy_act_union_in", (a, b) =>
                 {
                     if (CommodityMarketSystem.UnionOf(b) == a) return "diplomacy_reason_already";
-                    if (a.isInWarWith(b)) return "diplomacy_reason_at_war";
+                    if (a.IsAtWarWith(b)) return "diplomacy_reason_at_war";
                     if (DiplomacyLedger.SameMarket(a, b)) return "diplomacy_reason_same_market";
                     return OutOfReach(a, b) && !UnionReach(a, b) ? "diplomacy_reason_unreachable" : null;
                 }, (a, b, _) => CommodityMarketSystem.JoinUnion(b, a)),
@@ -289,13 +289,13 @@ public static class DiplomacyActions
     // 同 AI 并入关税同盟，见 CommodityMarketSystem)
 #if EC_PENDING
     private static bool OutOfReach(Realm a, Realm b) => !_applyingScenario && !WarReach.Reachable(a, b);
+#endif
 
     private static bool ContactReach(Realm a, Realm b) => ConnectivitySystem.CanContact(a, b) == true;
 
     private static bool UnionReach(Realm a, Realm b) =>
         Math.Max(ConnectivitySystem.Strength(a, b, ConnectivityMode.People), ConnectivitySystem.Strength(b, a, ConnectivityMode.People)) >=
         ConnectivitySystem.Config.union_min_strength;
-#endif
 
     // 关税同盟能不能并入(外交界面市场页列可并入的市场用)
 #if EC_PENDING
@@ -320,27 +320,23 @@ public static class DiplomacyActions
 
     // ───────── 借道 ─────────
     // 交战的借不了；同一帝国、并肩作战的本来就能走
-#if EC_PENDING
     private static string CanBorrowPassage(Realm a, Realm b)
     {
-        if (a.isInWarWith(b) || FrontSystem.Hostile(a, b)) return "diplomacy_reason_at_war";
+        if (a.IsAtWarWith(b) || FrontSystem.Hostile(a, b)) return "diplomacy_reason_at_war";
         return FrontSystem.Friendly(a, b) ? "diplomacy_reason_access_needless" : null;
     }
-#endif
 
     // ───────── 宣战 ─────────
     // 宣战的硬条件：只有真做不到的才灰掉按钮。以前停战年限、够不着、同盟姻亲这些 AI 的约束
     // 一样把上帝视角挡死，玩家反馈"手动开战开不了"(11-08)；用户 11-09 定"给予玩家充分的打仗裁定权"，
     // 这些一律改成只提醒(见 DeclareWarning)
-#if EC_PENDING
     private static string CanDeclare(Realm a, Realm b)
     {
-        if (a.isInWarWith(b)) return "diplomacy_reason_at_war";
+        if (a.IsAtWarWith(b)) return "diplomacy_reason_at_war";
         // 同一帝国内部不是外交，是内政(要打得先让它独立)
         if (a.IsInSameEmpire(b)) return "diplomacy_reason_same_empire";
         return null;
     }
-#endif
 
     // 宣战的软条件：AI 受它约束，上帝视角只提醒。按 WarGate.Forbidden 的顺序逐条给原因
 #if EC_PENDING
@@ -351,7 +347,7 @@ public static class DiplomacyActions
         double ended = EmpireWorld.Current.diplomacy?.getRelation(a, b)?.data?.timestamp_last_war_ended ?? -1d;
         // 剧本按史实定下的宣战不看停战年限(清军入关时与明罢兵，次年南下照样开战)
         if (!_applyingScenario && ended > 0d && GameClock.YearsSince(ended) < SimGlobals.m.minimum_years_between_wars) return "diplomacy_reason_truce";
-        return WarReach.MayDeclare(a, b, WarTypeLibrary.normal) ? null : "diplomacy_reason_unreachable";
+        return WarReach.MayDeclare(a, b, WarKinds.Normal) ? null : "diplomacy_reason_unreachable";
     }
 #endif
 
@@ -382,13 +378,12 @@ public static class DiplomacyActions
 
     internal static void EndWars(Realm a, Realm b)
     {
-        foreach (War war in EmpireWorld.Current.wars.list.Where(war => war != null && !war.hasEnded() && war.isInWarWith(a, b)).ToList())
-            EmpireWorld.Current.wars.endWar(war, WarWinner.Peace);
+        foreach (War war in EmpireWorld.Current.LiveWars.Where(war => war != null && !war.HasEnded() && war.isInWarWith(a, b)).ToList())
+            EmpireWorld.Current.EndWar(war, WarOutcome.Peace);
     }
 #endif
 
     // ───────── 宗属 ─────────
-#if EC_PENDING
     private static bool TributaryOf(Realm subject, Realm lord)
     {
         Empire empire = lord.GetEmpire();
@@ -404,6 +399,7 @@ public static class DiplomacyActions
         return FeudalVassalService.IsInChain(a, b) ? "diplomacy_reason_chain" : null;
     }
 
+#if EC_PENDING
     private static string Colonize(Realm a, Realm b, bool company)
     {
         if (FeudalVassalService.GetOverlord(b) != null) FeudalVassalService.Break(b);

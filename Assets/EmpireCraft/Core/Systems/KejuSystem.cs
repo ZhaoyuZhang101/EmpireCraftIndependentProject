@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/KejuSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/KejuSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 
@@ -31,16 +31,16 @@ public static class KejuSystem
         string culture = CultureService.GetInstitutionCulture(core);
         return CultureService.IsValidCulture(culture) && InstitutionSystem.IsEnacted(culture, ExamNode);
     }
+#endif
 
     private static int Cost(Empire empire) =>
         Math.Max(MinCost, (int)(StateDebtSystem.AnnualStableIncome(empire.CoreKingdom) * (double)CostShare));
-#endif
 
     // 府库够不够开 rounds 科(不设国库的照开)
-#if EC_PENDING
     private static bool Afford(Empire empire, float rounds) =>
         !TreasurySystem.Enabled(empire.CoreKingdom) || empire.CoreKingdom.GetTreasuryBalance() >= Cost(empire) * rounds;
 
+#if EC_PENDING
     private static bool Calm(Empire empire) => !WarGoalSystem.FightingForSurvival(empire.CoreKingdom);
 #endif
 

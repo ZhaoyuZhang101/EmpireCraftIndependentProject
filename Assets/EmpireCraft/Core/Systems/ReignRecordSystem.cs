@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/ReignRecordSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/ReignRecordSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -196,24 +196,25 @@ public static class ReignRecordSystem
         EmpireCraftHistory last = empire?.data?.history?.LastOrDefault(reign => reign != null && !reign.is_republic);
         if (last != null && last.id != newEmperor?.data?.id) last.ended_dynasty = true;
     }
+#endif
 
-    public static void OnWarEnded(War war, WarWinner winner)
+    public static void OnWarEnded(War war, WarOutcome winner)
     {
         if (war == null) return;
-        bool rebellion = war.getAsset() == WarTypeLibrary.rebellion;
+        bool rebellion = war.GetKind() == WarKinds.Rebellion;
         var seen = new HashSet<long>();
-        foreach (Realm kingdom in war._list_attackers.ToList()) Tally(kingdom, true, winner, rebellion, seen);
-        foreach (Realm kingdom in war._list_defenders.ToList()) Tally(kingdom, false, winner, rebellion, seen);
+        foreach (Realm kingdom in war.Attackers.ToList()) Tally(kingdom, true, winner, rebellion, seen);
+        foreach (Realm kingdom in war.Defenders.ToList()) Tally(kingdom, false, winner, rebellion, seen);
     }
 
-    private static void Tally(Realm kingdom, bool attacker, WarWinner winner, bool rebellion, HashSet<long> seen)
+    private static void Tally(Realm kingdom, bool attacker, WarOutcome winner, bool rebellion, HashSet<long> seen)
     {
         if (kingdom == null || kingdom.IsGone() || !kingdom.IsEmpire()) return;
         Empire empire = kingdom.GetEmpire();
         EmpireCraftHistory reign = empire?.data?.currentHistory;
         if (reign == null || reign.is_republic || !seen.Add(empire.Key)) return;
-        bool won = winner == (attacker ? WarWinner.Attackers : WarWinner.Defenders);
-        bool lost = winner == (attacker ? WarWinner.Defenders : WarWinner.Attackers);
+        bool won = winner == (attacker ? WarOutcome.Attackers : WarOutcome.Defenders);
+        bool lost = winner == (attacker ? WarOutcome.Defenders : WarOutcome.Attackers);
         if (rebellion && !attacker)
         {
             reign.rebellions++;
@@ -223,6 +224,5 @@ public static class ReignRecordSystem
         if (won) reign.wars_won++;
         else if (lost) reign.wars_lost++;
     }
-#endif
 }
 }

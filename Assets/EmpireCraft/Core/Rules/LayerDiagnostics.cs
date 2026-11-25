@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/LayerDiagnostics.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/LayerDiagnostics.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
@@ -63,7 +63,7 @@ public static class LayerDiagnostics
     private static void TickCore()
     {
         EmpireWorld world = EmpireWorld.Current;
-        if (!PureMapMode.Enabled && !SmoothBorders.Enabled || world?.zone_calculator?.zones == null || !Config.game_loaded ||
+        if (!PureMapMode.Enabled && !SmoothBorders.Enabled || world?.zone_calculator?.zones == null || !GameClock.Running ||
             SmoothLoader.isLoading()) return;
         if (!ReferenceEquals(_world, world))
         {

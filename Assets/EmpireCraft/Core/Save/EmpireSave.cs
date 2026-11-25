@@ -10,7 +10,7 @@ namespace EmpireCraft.Core
     // a bed fingerprint. Derived indices (tile owners, living list) are rebuilt.
     public static class EmpireSave
     {
-        public const int Version=2;
+        public const int Version=3;
         const uint Magic=0x44574345; // "ECWD"
         const int MaxEntities=4_000_000,MaxString=256;
 
@@ -68,6 +68,15 @@ namespace EmpireCraft.Core
                 b.Write(r.Legitimacy);b.Write(r.InArrears);b.Write(r.Unpaid);
                 b.Write(r.Books.started);var periods=r.Books.periods??new System.Collections.Generic.List<TreasuryPeriod>();b.Write(periods.Count);
                 foreach(var p in periods){b.Write(p.timestamp);Amounts(b,p.income);Amounts(b,p.expense);Amounts(b,p.tax_transfer_income);}
+            }
+            if(version<3){b.Flush();return stream.ToArray();}
+            // Version 3: wars. The running-war lists on the world and the realms are rebuilt on load.
+            b.Write(w.Wars.Count);
+            foreach(var war in w.Wars)
+            {
+                b.Write(war.Name??"");b.Write(war.Kind.Id);b.Write(war.MainAttacker.IdOf());b.Write(war.MainDefender.IdOf());
+                b.Write(war.StartedMonth);b.Write(war.EndedMonth);b.Write((byte)war.Outcome);
+                Side(b,war.Attackers);Side(b,war.Defenders);Side(b,war.PastAttackers);Side(b,war.PastDefenders);
             }
             b.Flush();return stream.ToArray();
         }
@@ -127,7 +136,7 @@ namespace EmpireCraft.Core
             int entries=Count(b);
             for(int i=0;i<entries;i++)
             {
-                int month=b.ReadInt32();byte kind=b.ReadByte();Check(kind<=(byte)AnnalKind.NewDynasty,"Unknown annal kind");
+                int month=b.ReadInt32();byte kind=b.ReadByte();Check(kind<=(byte)AnnalKind.WarEnded,"Unknown annal kind");
                 w.Annals.Entries.Add(new AnnalEntry(month,(AnnalKind)kind,b.ReadInt32(),b.ReadInt32(),b.ReadInt32()));
             }
             if(version>=2)
@@ -144,6 +153,23 @@ namespace EmpireCraft.Core
                         var p=new TreasuryPeriod{timestamp=b.ReadDouble()};Amounts(b,p.income);Amounts(b,p.expense);Amounts(b,p.tax_transfer_income);
                         r.Books.periods.Add(p);
                     }
+                }
+            }
+            if(version>=3)
+            {
+                int wars=Count(b);
+                for(int i=0;i<wars;i++)
+                {
+                    var war=new War{Id=i,Name=Text(b),Kind=WarKinds.Get(Text(b))};
+                    int lead=Ref(b,realms),target=Ref(b,realms);war.MainAttacker=lead<0?null:w.Realms[lead];war.MainDefender=target<0?null:w.Realms[target];
+                    war.StartedMonth=b.ReadInt32();war.EndedMonth=b.ReadInt32();
+                    byte outcome=b.ReadByte();Check(outcome<=(byte)WarOutcome.Merged,"Unknown war outcome");war.Outcome=(WarOutcome)outcome;
+                    Side(b,w,war.Attackers,realms);Side(b,w,war.Defenders,realms);Side(b,w,war.PastAttackers,realms);Side(b,w,war.PastDefenders,realms);
+                    w.Wars.Add(war);
+                    if(!war.Alive)continue;
+                    w.LiveWars.Add(war);
+                    foreach(var r in war.Attackers)r.Wars.Add(war);
+                    foreach(var r in war.Defenders)r.Wars.Add(war);
                 }
             }
             Check(stream.Position==stream.Length,"Trailing bytes in EmpireCraft section");
@@ -167,6 +193,8 @@ namespace EmpireCraft.Core
         }
         static int Count(BinaryReader b){int n=b.ReadInt32();Check(n>=0&&n<=MaxEntities,"Invalid count "+n);return n;}
         static int Id(BinaryReader b,int bound){int n=b.ReadInt32();Check(n>=0&&n<bound,"Invalid reference "+n);return n;}
+        static void Side(BinaryWriter b,System.Collections.Generic.List<Realm> side){b.Write(side.Count);foreach(var r in side)b.Write(r.Id);}
+        static void Side(BinaryReader b,EmpireWorld w,System.Collections.Generic.List<Realm> side,int realms){int n=Count(b);for(int i=0;i<n;i++)side.Add(w.Realms[Id(b,realms)]);}
         static int Ref(BinaryReader b,int bound){int n=b.ReadInt32();Check(n>=-1&&n<bound,"Invalid reference "+n);return n;}
         static string Text(BinaryReader b){string s=b.ReadString();Check(s.Length<=MaxString,"String too long");return s;}
     }

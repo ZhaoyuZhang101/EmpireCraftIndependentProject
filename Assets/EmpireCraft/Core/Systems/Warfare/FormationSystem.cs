@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/FormationSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/FormationSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -135,13 +135,13 @@ public static class FormationSystem
             _ => member ? map.district : map.central
         };
     }
+#endif
 
     private static bool IsMember(Realm kingdom)
     {
         var empire = kingdom?.GetEmpire();
         return empire != null && empire.CoreKingdom != kingdom;
     }
-#endif
 
     // 旧档里成员国的都城驻军记成了中央建制(辽东挂着禁军)：改回地方建制，番号重编，旧称记下
 #if EC_PENDING

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/Data/ConfigActions.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/Data/ConfigActions.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -10,7 +10,6 @@ namespace EmpireCraft.Core
 {
     public class ConfigActions
     {
-#if EC_PENDING
         public static void SwitchTitleFreezeCallBack(bool on)
         {
             ModClass.KINGDOM_TITLE_FREEZE = on;
@@ -23,7 +22,6 @@ namespace EmpireCraft.Core
         {
             ModClass.TITLE_MAX_CITIES = int.TryParse(count, out int value) ? Math.Max(0, value) : 0;
         }
-#endif
         public static void TitleShareLimitCallBack(string count)
         {
             DeJureShareSystem.TitleShareLimit = SettlementValue(count, 2, 1, 99);
@@ -39,15 +37,12 @@ namespace EmpireCraft.Core
             DeJureShareSystem.TianxiaShareLimit = SettlementValue(count, 2, 1, 99);
             DeJureShareSystem.RefreshShareLimits();
         }
-#if EC_PENDING
         public static void CityMaxZonesCallBack(string count)
         {
             ModClass.CITY_MAX_ZONES = int.TryParse(count, out int value) ? Math.Max(0, value) : 50;
         }
-#endif
         private static int SettlementValue(string text, int fallback, int min, int max = 100000) =>
             int.TryParse(text, out int value) ? Math.Min(max, Math.Max(min, value)) : fallback;
-#if EC_PENDING
         public static void SettlementBaseGoldCallBack(string v) => ModClass.SETTLEMENT_BASE_GOLD = SettlementValue(v, 200, 50);
         public static void SettlementPerCityGoldCallBack(string v) => ModClass.SETTLEMENT_PER_CITY_GOLD = SettlementValue(v, 25, 0);
         public static void SettlementReserveGoldCallBack(string v) => ModClass.SETTLEMENT_RESERVE_GOLD = SettlementValue(v, 200, 0);
@@ -72,9 +67,7 @@ namespace EmpireCraft.Core
         {
             ModClass.WAR_END_YEAR = int.Parse(time);
         }
-#endif
         // 0 = 永远不承认分治
-#if EC_PENDING
         public static void WarlordEraYearsCallBack(string years)
         {
             if (int.TryParse(years, out int value)) ModClass.WARLORD_ERA_YEARS = global::System.Math.Max(0, value);
@@ -87,11 +80,13 @@ namespace EmpireCraft.Core
         {
             ModClass.PERFORMANCE_HIGH_POPULATION_MODE = on;
         }
+#if EC_PENDING
         public static void AdaptiveThroughputPerformanceCallBack(bool on)
         {
             ModClass.PERFORMANCE_ADAPTIVE_THROUGHPUT_MODE = on;
             EmpireCraft.Core.EmpireCraftStrategicScheduler.Reset();
         }
+#endif
         public static void HiddenVisualsPerformanceCallBack(bool on)
         {
             ModClass.PERFORMANCE_SKIP_HIDDEN_VISUALS = on;
@@ -100,14 +95,11 @@ namespace EmpireCraft.Core
         {
             ModClass.PERFORMANCE_SKIP_NAMEPLATE_OVERLAP = on;
         }
-#endif
         // 王国推制度改革(见 InstitutionSystem.Realm.cs)；设置里没有这一项时不会回调，ModClass 里默认开
-#if EC_PENDING
         public static void KingdomInstitutionReformsCallBack(bool on)
         {
             ModClass.KINGDOM_INSTITUTION_REFORMS = on;
         }
-#endif
         // 神罗帝国解体：外国保护人拉走诸侯同盟、皇帝退位解散(见 HolyRomanSystem.Decline)；设置里没有这一项时默认开
         public static void HreDissolutionCallBack(bool on)
         {

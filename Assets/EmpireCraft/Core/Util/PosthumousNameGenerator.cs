@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/HelperFunc/PosthumousNameGenerator.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/HelperFunc/PosthumousNameGenerator.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -265,7 +265,6 @@ namespace EmpireCraft.Core
 #endif
 
         // 这条纪年属于哪个帝国(史书里有它的)
-#if EC_PENDING
         private static Empire EmpireOf(EmpireCraftHistory history)
         {
             if (ModClass.EMPIRE_MANAGER == null) return null;
@@ -274,7 +273,6 @@ namespace EmpireCraft.Core
                     return empire;
             return null;
         }
-#endif
 
         // 帝国设置打开长谥号：本朝有庙号、谥号的先帝补上长谥(之后定谥的先帝也给，见 EmpireCraftPlotsAddition)
         public static void EnsureLong(Empire empire)

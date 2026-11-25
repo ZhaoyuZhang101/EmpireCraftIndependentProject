@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/EmirateSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/EmirateSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System.Collections.Generic;
@@ -202,7 +202,7 @@ public static class EmirateSystem
                   !MembershipCooldown.ManualJoinActive(kingdom)
                 : RebellionSystem.CanAttempt(kingdom);
             if (kingdom == regentSeat || kingdom.Ruler == null || kingdom.Capital == null || kingdom.IsFactionRebelling() ||
-                kingdom.IsLocalRebelling() || kingdom.isInWarWith(core) || !allowed) continue;
+                kingdom.IsLocalRebelling() || kingdom.IsAtWarWith(core) || !allowed) continue;
             distantChances.TryGetValue(kingdom.Key, out float distant);
             float chance = distant * BreakawayDistantShare + weak + defeat + (far ? BeyondBreakaway : 0f);
             if (chance <= 0f) continue;

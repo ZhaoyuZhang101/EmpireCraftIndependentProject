@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/RoadBuildingSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/RoadBuildingSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -357,7 +357,6 @@ public static class RoadBuildingSystem
 #endif
 
     // 通路之约的路：另一头是议定了通路之约、不在同一帝国的邻国
-#if EC_PENDING
     private static Realm TreatyPartner(Realm kingdom, (long, long) key)
     {
         Realm a = EmpireWorld.Current.CityByKey(key.Item1)?.Realm, b = EmpireWorld.Current.CityByKey(key.Item2)?.Realm;
@@ -365,7 +364,6 @@ public static class RoadBuildingSystem
         if (other == null || other == kingdom || kingdom.GetEmpire() != null && other.GetEmpire() == kingdom.GetEmpire()) return null;
         return RoadTreatySystem.Has(kingdom, other) ? other : null;
     }
-#endif
 
     // 统一了的帝国：本国是帝国核心(春秋、战国的周室不算)
 #if EC_PENDING

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/RealmNamingSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/RealmNamingSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -70,10 +70,8 @@ public static partial class RealmNamingSystem
         core.titlesRecord is { Count: > 0 };
 
     // 这个帝国法理眼下归哪个现存帝国(没有返回 null)
-#if EC_PENDING
     public static Empire HolderOf(EmpireCore core, Empire except = null) =>
         core == null ? null : EmpireCoreManager.GetEmpires(core).FirstOrDefault(empire => empire != null && empire != except && !empire.IsArchived());
-#endif
 
     // 天下基名：玩家定的基名 → 从天下整名里按本文明的格式拆出来 → 整名不带天下称呼词的就用整名 → 主核心名
 #if EC_PENDING

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/TransmigrantSystem.Fiscal.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/TransmigrantSystem.Fiscal.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -31,9 +31,9 @@ public static partial class TransmigrantSystem
 #endif
 
     // 澳宋各国不向百姓举债，缺钱走流通券
-#if EC_PENDING
     public static bool IssuesScrip(Realm kingdom) => NavalState(kingdom) != null;
 
+#if EC_PENDING
     private static void IssueScrip()
     {
         Realm senate = Active();

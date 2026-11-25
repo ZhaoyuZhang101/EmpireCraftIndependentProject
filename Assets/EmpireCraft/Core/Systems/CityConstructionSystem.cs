@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/CityConstructionSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/CityConstructionSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -43,14 +43,12 @@ public static class CityConstructionSystem
     private const float HomesFirstShare = 0.9f;
 
     // 首都 0.6，首府(帝国内藩属王国/行省的首都)0.3，其余 0
-#if EC_PENDING
     public static float SeatBonus(City city)
     {
         Realm kingdom = city?.Realm;
         if (kingdom == null || kingdom.IsWild || city != kingdom.Capital) return 0f;
         return kingdom.IsInEmpire() && !kingdom.IsEmpire() ? ProvincialSeatBonus : CapitalBonus;
     }
-#endif
 
     // ---- 富庶度(0~1) ----
     // 以前 = 商人市民的比例(六成)与城市国库(四成)乘地利：农耕腹地商人少、赋税上解把城库抽空，又多半缺皮革(繁荣度打七折)，

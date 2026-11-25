@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/InstitutionSystem.Realm.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/InstitutionSystem.Realm.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -26,9 +26,7 @@ namespace EmpireCraft.Core
 public static partial class InstitutionSystem
 {
     // 总开关(模组设置，见 ConfigActions.KingdomInstitutionReformsCallBack)
-#if EC_PENDING
     public static bool KingdomReformsEnabled => ModClass.KINGDOM_INSTITUTION_REFORMS;
-#endif
 
     // 这一国推不推制度：总开关开着，或是原始政体的部落——部落不再是帝国(用户 2026-10-26 选"部落不再是帝国")，
     // 原始改革(华夏母系氏族至家天下、日本绳文至大和、游牧与阿拉伯的部落阶段)只能由各部自己推，关了开关就没人推了
@@ -159,7 +157,6 @@ public static partial class InstitutionSystem
 #endif
 
     // 王国派系占比第一次全为零：按各派系的阶层势力(ClassPower)分掉六成，余下四成留给以后的消长
-#if EC_PENDING
     private static void SeedFactionRatios(Realm kingdom, List<FixedFaction> factions)
     {
         List<FixedFaction> active = factions.Where(faction => !faction.Ban).ToList();
@@ -179,7 +176,6 @@ public static partial class InstitutionSystem
         }
         kingdom.ClampFactionRatio();
     }
-#endif
 
     #endregion
 

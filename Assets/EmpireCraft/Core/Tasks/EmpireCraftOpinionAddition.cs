@@ -1,0 +1,420 @@
+// Generated from the EmpireCraft mod: Scripts/AI/EmpireCraftOpinionAddition.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
+// see Port/manifest.json and Tools/PortTool.
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace EmpireCraft.Core
+{
+public static class EmpireCraftOpinionAddition
+{
+    //被劫掠
+#if EC_PENDING
+    public static void init()
+    {
+        OpinionLibrary opl = AssetManager.opinion_library;
+        // 神力修正的好感(外交界面，见 DiplomacyActions.GodOpinion)
+        opl.add(new OpinionAsset
+        {
+            id = "opinion_god_favor",
+            translation_key = "opinion_god_favor",
+            translation_key_negative = "opinion_god_disfavor",
+            calc = EmpireCraft.Core.DiplomacyActions.GodOpinion
+        });
+        // 剧本开局的旧谊、宿怨(世界地图剧本按史实设，六十年内淡去)
+        opl.add(new OpinionAsset
+        {
+            id = "opinion_history_ties",
+            translation_key = "opinion_history_ties",
+            translation_key_negative = "opinion_history_feud",
+            calc = EmpireCraft.Core.DiplomacyActions.HistoryOpinion
+        });
+        // 对某国称帝不服：对其帝国核心王国好感大降，二十年内逐渐恢复(武力霸权称帝降得更多)
+        opl.add(new OpinionAsset
+        {
+            id = "opinion_empire_proclamation_grudge",
+            translation_key = "opinion_empire_proclamation_grudge",
+            calc = EmpireCraft.Core.EmpireFormationService.GetGrudgeOpinion
+        });
+        // 挟冕之辱：教廷对施压、开战逼冕的帝国好感下降，二十年回复(见 RealmNamingSystem.Universal)
+        opl.add(new OpinionAsset
+        {
+            id = "opinion_coerced_coronation",
+            translation_key = "opinion_coerced_coronation",
+            calc = EmpireCraft.Core.RealmNamingSystem.CoercionOpinion
+        });
+        // 核威慑：对方有核则不敢轻易开战，自己有核则有恃无恐(见 NuclearDoctrineSystem)
+        opl.add(new OpinionAsset
+        {
+            id = "opinion_nuclear_deterrence",
+            translation_key = "opinion_nuclear_deterrence",
+            translation_key_negative = "opinion_nuclear_superiority",
+            calc = EmpireCraft.Core.NuclearDoctrineSystem.DeterrenceOpinion
+        });
+        // 理念定亲疏：近代国家之间立国理念相近的亲善、相去甚远的提防、截然对立的敌视；还在激进期的革命政权，君主国都防着(见 WorldOrderSystem)
+        opl.add(new OpinionAsset
+        {
+            id = "opinion_ideology",
+            translation_key = "opinion_ideology_kin",
+            translation_key_negative = "opinion_ideology_foe",
+            calc = EmpireCraft.Core.WorldOrderSystem.IdeologyOpinion
+        });
+        // 阵营：同阵营 +40，冷战的对面 −40；万国公会会员对受制裁之国 −20(见 WorldOrderSystem)
+        opl.add(new OpinionAsset
+        {
+            id = "opinion_world_bloc",
+            translation_key = "opinion_world_bloc_ally",
+            translation_key_negative = "opinion_world_bloc_rival",
+            calc = EmpireCraft.Core.WorldOrderSystem.BlocOpinionOf
+        });
+        // 关税战：互加关税 −15，断绝通商 −25(见 TradeWarSystem)
+        opl.add(new OpinionAsset
+        {
+            id = "opinion_trade_war",
+            translation_key_negative = "opinion_trade_war",
+            calc = EmpireCraft.Core.TradeWarSystem.OpinionOf
+        });
+        // 外国资本：关键行业三成以上操在对方手里 +20；自己的产业被对方没收过(二十年内) −40(见 CompanySystem)
+        opl.add(new OpinionAsset
+        {
+            id = "opinion_foreign_capital",
+            translation_key = "opinion_foreign_capital",
+            translation_key_negative = "opinion_foreign_capital_seized",
+            calc = EmpireCraft.Core.CompanySystem.OpinionOf
+        });
+        // 移民积怨：抽走本国人口 −25、往本国驱逐人口 −40，十年(见 MigrationRelations)
+        opl.add(new OpinionAsset
+        {
+            id = "opinion_migration_grievance",
+            translation_key_negative = "opinion_migration_grievance",
+            calc = EmpireCraft.Core.MigrationRelations.Opinion
+        });
+        // 跨文明通好：互认称号、互不侵犯的帝国好感 +40(见 GreatPowerDiplomacy)
+        opl.add(new OpinionAsset
+        {
+            id = "opinion_great_power_pact",
+            translation_key = "opinion_great_power_pact",
+            calc = EmpireCraft.Core.GreatPowerDiplomacy.PactOpinionOf
+        });
+        // 受胙：天子赐胙之国十年内对王室好感 +40(见 ZhouEraSystem.GrantZuo)
+        opl.add(new OpinionAsset
+        {
+            id = "opinion_zhou_zuo",
+            translation_key = "opinion_zhou_zuo",
+            calc = EmpireCraft.Core.ZhouEraSystem.ZuoOpinionOf
+        });
+        // 会盟：当年来朝的部落与共主彼此好感 +10；屡次不朝、记为不臣的，共主对它好感 -25(见 TribalAssemblySystem)
+        opl.add(new OpinionAsset
+        {
+            id = "opinion_tribal_assembly",
+            translation_key = "opinion_tribal_assembly",
+            translation_key_negative = "opinion_tribal_defiance",
+            calc = EmpireCraft.Core.TribalAssemblySystem.OpinionOf
+        });
+        opl.add(new OpinionAsset
+        {
+            id = "opinion_false_empire_core",
+            translation_key_negative = "opinion_false_empire_core",
+            calc = delegate (Realm pMain, Realm pTarget)
+            {
+                if (pMain == null || pTarget == null) return 0;
+                Empire claimant = pMain.GetEmpire();
+                Empire legitimate = EmpireCoreManager.GetLegitimateEmpire(EmpireCoreManager.Get(claimant));
+                return legitimate != null && legitimate != claimant && pTarget.GetEmpire() == legitimate
+                    ? -1200 : 0;
+            }
+        });
+        opl.add(new OpinionAsset
+        {
+            id = "opinion_empire_loyalty",
+            translation_key = "opinion_empire_loyalty",
+            calc = delegate (Realm pMain, Realm pTarget)
+            {
+                int result = 0;
+                if (pMain.IsInSameEmpire(pTarget))
+                {
+                    if (!pMain.IsEmpire()&&pTarget.IsEmpire())
+                    {
+                        var mandate = pTarget.GetEmpire().Legitimacy;
+                        result = (mandate-50)*5;
+                    }
+                }
+                return result;
+            }
+        });
+        opl.add(new OpinionAsset
+        {
+            id = "opinion_empire_polite",
+            translation_key = "opinion_empire_polite",
+            calc = delegate (Realm pMain, Realm pTarget)
+            {
+                int result = 0;
+                if (!pMain.IsInSameEmpire(pTarget))
+                {
+                    if (!pMain.IsInEmpire() && pTarget.IsEmpire()&&pMain.countTotalWarriors()*2<=pTarget.GetEmpire().countWarriors())
+                    {
+                        result = pTarget.GetEmpire().Additions.addition[OfficerPowerType.礼仪] * 5;
+                    }
+                }
+                return result;
+            }
+        });
+        opl.add(new OpinionAsset
+        {
+            id = "opinion_occupied_title",
+            translation_key = "opinion_occupied_title",
+            calc = delegate (Realm pMain, Realm pTarget)
+            {
+                int result = 0;
+                if (!pMain.IsInSameEmpire(pTarget))
+                {
+                    if (pMain.HasMainTitle())
+                    {
+                        var title = pMain.GetMainTitle();
+                        var value = pTarget.Cities.Intersect(title.getCities()).Count();
+                        result = -(value*100);
+                    }
+                }
+                return result;
+            }
+        });
+        opl.add(new OpinionAsset
+        {
+            id = "opinion_different_faction",
+            translation_key = "opinion_different_faction",
+            calc = delegate (Realm pMain, Realm pTarget)
+            {
+                int result = 0;
+                if (pMain.IsInSameEmpire(pTarget))
+                {
+                    if ((pMain?.king?.HasFaction()??false)&&(pTarget?.king?.HasFaction()??false))
+                    {
+                        if (pMain.Ruler.GetFaction() != pTarget.Ruler.GetFaction())
+                        {
+                            // 前现代分封的不同派系是有限的政见分歧，不能单项压过全部正统贡献。
+                            result = EmpireCraft.Core.ModernLegitimacy.Applies(pMain.GetEmpire()) ? -300 : -30;
+                        }
+                    }
+                }
+                return result;
+            }
+        });
+        opl.add(new OpinionAsset
+        {
+            id = "opinion_empire_maintained",
+            translation_key = "opinion_empire_maintained",
+            calc = delegate (Realm pMain, Realm pTarget)
+            {
+                // 保留资产 ID 以兼容旧档；旧维持标记不再提供异常的免叛好感。
+                return 0;
+            }
+        });
+        opl.add(new OpinionAsset
+        {
+            id = "opinion_religion_place",
+            translation_key = "opinion_religion_place",
+            calc = delegate (Realm pMain, Realm pTarget)
+            {
+                int result = 0;
+                // 圣地只让外国景仰；同一帝国的成员对坐拥圣地的朝廷不另加(以前另加 200~300，成员永远自立不了)
+                if (pMain.IsInSameEmpire(pTarget)) return result;
+                if (pMain.hasReligion()&&pMain.GetRegime()!=null)
+                {
+                    Religion religion = pMain.religion;
+                    // 教派那座城只是中心，不算圣地(见 ReligionSphere"教派与圣地")
+                    if (religion.GetCity() == pTarget.Capital && pTarget.religion == religion && !ReligionSphere.IsBranch(religion))
+                    {
+                        result = 100*(int)pMain.GetRegime().GetReligionLevel();
+                    }
+                }
+                return result;
+            }
+        });
+        opl.add(new OpinionAsset
+        {
+            id = "opinion_empire_powerful_minister`",
+            translation_key_negative = "opinion_empire_powerful_minister",
+            calc = delegate (Realm pMain, Realm pTarget)
+            {
+                int result = 0;
+                if (pMain.IsInSameEmpire(pTarget))
+                {
+                    if (!pMain.IsEmpire()&&pTarget.IsEmpire()&&(pMain.countTotalWarriors()>pMain.GetEmpire().countWarriors()- pMain.countTotalWarriors()))
+                    {
+                        result = -50;
+                    }
+                }
+                return result;
+            }
+        });
+        opl.add(new OpinionAsset
+        {
+            id = "opinion_tianming_aquire",
+            translation_key_negative = "opinion_tianming_aquire",
+            calc = delegate (Realm pMain, Realm pTarget)
+            {
+                int result = 0;
+                if (pMain.IsInSameEmpire(pTarget))
+                {
+                    if (!pMain.IsEmpire()&&pTarget.IsEmpire())
+                    {
+                        if (pMain.GetCorruptionRate()>0.8f&&pMain.countTotalWarriors()>=pTarget.countTotalWarriors())
+                            result = -999;
+                    }
+                }
+                return result;
+            }
+        });
+        opl.add(new OpinionAsset
+        {
+            id = "opinion_in_same_empire",
+            translation_key = "opinion_in_same_empire",
+            calc = delegate (Realm pMain, Realm pTarget)
+            {
+                int result = 0;
+                if (pMain.IsInSameEmpire(pTarget))
+                {
+                    result = 100;
+                }
+                return result;
+            }
+        });
+        opl.add(new OpinionAsset
+        {
+            id = "opinion_empire_clan_been_changed",
+            translation_key = "opinion_empire_clan_been_changed",
+            calc = delegate (Realm pMain, Realm pTarget)
+            {
+                int result = 0;
+                if ( pMain.IsInEmpire()&&pTarget.IsInEmpire())
+                {
+                    if (!pMain.IsEmpire()&&pTarget.IsEmpire())
+                    {
+                        if (pMain.GetEmpire().data.original_royal_been_changed)
+                        {
+                            result = -200;
+                        }
+                    }
+                }
+
+                return result;
+            }
+        });
+        opl.add(new OpinionAsset
+        {
+            id = "opinion_different_empire_with_other_subspecies",
+            translation_key_negative = "opinion_different_empire_with_other_subspecies",
+            calc = delegate (Realm pMain, Realm pTarget)
+            {
+                int result = 0;
+                if (!pMain.IsInSameEmpire(pTarget)&&pMain.IsEmpire()&&pTarget.IsEmpire()&&pMain.getSpecies()==pTarget.getSpecies()&&pMain.Ruler!=pTarget.Ruler)
+                {
+                    // 同一文明势不两立；不同文明按远近相忌、通好的不忌(见 GreatPowerDiplomacy)
+                    result = EmpireCraft.Core.GreatPowerDiplomacy.EmperorRivalry(pMain, pTarget);
+                }
+                return result;
+            }
+        });
+        opl.add(new OpinionAsset
+        {
+            id = "opinion_same_empire_core",
+            translation_key_negative = "opinion_same_empire_core",
+            calc = delegate (Realm pMain, Realm pTarget)
+            {
+                int result = 0;
+                if (pMain == null || pTarget == null) return result;
+                if (!pMain.IsEmpire() || !pTarget.IsEmpire()) return result;
+                if (pMain.IsInSameEmpire(pTarget)) return result;
+                EmpireCore mainCore = EmpireCoreManager.GetRiseCandidateCore(pMain);
+                EmpireCore targetCore = EmpireCoreManager.GetRiseCandidateCore(pTarget);
+                if (mainCore == null || targetCore == null) return result;
+                if (mainCore.id == targetCore.id)
+                {
+                    result = -1200;
+                }
+                return result;
+            }
+        });
+        opl.add(new OpinionAsset
+        {
+            id = "opinion_just_enfeoff",
+            translation_key = "opinion_just_enfeoff",
+            calc = delegate (Realm pMain, Realm pTarget)
+            {
+                int result = 0;
+                if (pMain.IsInSameEmpire(pTarget))
+                {
+                    if (GameClock.YearsSince(pMain.GetFiedTimestamp())<=50)
+                        result = 100;
+                }
+                return result;
+            }
+        });
+        opl.add(new OpinionAsset
+        {
+            id = "opinion_same_ruler",
+            translation_key = "opinion_same_ruler",
+            calc = delegate (Realm pMain, Realm pTarget)
+            {
+                int result = 0;
+                if (pMain.Ruler == pTarget.Ruler&&!pMain.Ruler.IsGone())
+                {
+                    result = 999;
+                }
+                return result;
+            }
+        });
+        opl.add(new OpinionAsset
+        {
+            id = "opinion_minister_usurpation",
+            translation_key_negative = "opinion_minister_usurpation",
+            calc = delegate (Realm pMain, Realm pTarget)
+            {
+                if (pMain == null || pTarget == null || pMain == pTarget ||
+                    !pMain.IsInSameEmpire(pTarget) || !pTarget.IsEmpire()) return 0;
+                return pTarget.GetEmpire()?.GetMinisterOppositionPenalty() ?? 0;
+            }
+        });
+        // 藩属自危：朝廷把别的藩属改设成行政区(见 VassalReduction)
+        opl.add(new OpinionAsset
+        {
+            id = "opinion_vassal_alarm",
+            translation_key_negative = "opinion_vassal_alarm",
+            calc = (pMain, pTarget) => EmpireCraft.Core.VassalReduction.AlarmOpinion(pMain, pTarget)
+        });
+        opl.add(new OpinionAsset
+        {
+            id = "opinion_local_claim_failed",
+            translation_key_negative = "opinion_local_claim_failed",
+            calc = delegate (Realm pMain, Realm pTarget)
+            {
+                int result = 0;
+                if (pMain == null || pTarget == null) return result;
+                if (!pMain.IsInSameEmpire(pTarget)) return result;
+                if (pMain.IsEmpire() || !pTarget.IsEmpire()) return result;
+                Empire empire = pTarget.GetEmpire();
+                if (empire == null) return result;
+                result = -(pMain.GetLocalClaimFailedOpinion(empire) * 20);
+                return result;
+            }
+        });
+        opl.add(new OpinionAsset
+        {
+            id = "opinion_rebel_against_empire",
+            translation_key_negative = "opinion_rebel_against_empire",
+            calc = delegate (Realm pMain, Realm pTarget)
+            {
+                if (pMain == null || pTarget == null || pMain == pTarget || !pMain.IsEmpire()) return 0;
+                Empire empire = pMain.GetEmpire();
+                return pTarget.HasRebelledAgainst(empire)
+                    ? EmpireSubmissionRules.RebellionOpinionPenalty
+                    : 0;
+            }
+        });
+
+    }
+#endif
+}
+}

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/TianxiaSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/TianxiaSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Time = EmpireCraft.Core.FrameClock;
 using System.Collections.Generic;
@@ -114,7 +114,6 @@ public static class TianxiaSystem
     private static object _citiesWorld;
     private static readonly Dictionary<long, List<City>> CitiesByLead = new();
 
-#if EC_PENDING
     public static List<City> Cities(EmpireCore lead)
     {
         if (lead == null || EmpireWorld.Current?.Cities == null) return new List<City>();
@@ -146,11 +145,9 @@ public static class TianxiaSystem
         }
         return CitiesByLead.TryGetValue(lead.id, out List<City> found) ? found : new List<City>();
     }
-#endif
 
     // 天下里各家(宗主)据有的城数与城的总数
     // 与年度结算同一口径(见 UnificationSystem.Tally)：野生国的城不算(以前窗口里的占比把野生国算进总数，与结算不一致)
-#if EC_PENDING
     public static (Dictionary<Realm, int> held, int total) Holdings(EmpireCore lead)
     {
         List<City> cities = Cities(lead).Where(city => city?.Realm != null && !city.Realm.IsGone() && !city.Realm.IsWild)
@@ -158,6 +155,7 @@ public static class TianxiaSystem
         return (EmpireCoreControl.CountHolders(cities), cities.Count);
     }
 
+#if EC_PENDING
     public static string Name(EmpireCore lead)
     {
         if (lead == null) return "";
@@ -628,13 +626,13 @@ public static class TianxiaSystem
             return string.Format(LM.Get("tianxia_mandate_vacant"), lead.mandate_holder_name, GameClock.YearsSince(lead.mandate_lost_at));
         return LM.Get("tianxia_mandate_never");
     }
+#endif
 
     private static void InvalidateLegitimacy(Realm kingdom)
     {
         Empire empire = kingdom?.GetEmpire();
         if (empire != null) MonarchyLegitimacy.Invalidate(empire);
     }
-#endif
 
     // 天命得失：记史册之外也上世界公告(以前只记本国史册，看不到)。读档(或开新世界)后头一年只记史册不公告——
     // 旧档第一次结算时各天下一齐受命，公告刷屏

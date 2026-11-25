@@ -1,0 +1,195 @@
+// Generated from the EmpireCraft mod: Scripts/AI/EmpireAI/EmpireCraftEmpireBehCheckCabinet.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
+// see Port/manifest.json and Tools/PortTool.
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace EmpireCraft.Core
+{
+
+public class EmpireCraftEmpireBehCheckCabinet : GameAIEmpireBase
+{
+    public override Type OriginalBeh => GetType();
+    
+#if EC_PENDING
+    public override BehResult execute(Realm pKingdom)
+    {
+        if (pKingdom?.Record == null || pKingdom.IsGone()) return BehResult.Continue;
+        pKingdom.CheckEmpire();
+        if (!pKingdom.IsEmpire()) return BehResult.Continue;
+        Empire empire = pKingdom.GetEmpire();
+        Regime regime = empire?.CoreKingdom?.GetRegime();
+        if (regime == null) return BehResult.Continue;
+        List<FixedFaction> factions = regime.GetPlayerFactions();
+        foreach (var ff in factions)
+        {
+            ff.FixMissedTemporaryFactions();
+            ff.Update();
+        }
+        pKingdom.ApplyAnnualFactionLeaderGrowth(factions);
+        bool parliament = ParliamentSystem.HasParliament(empire);
+        // 议会召开后普通内阁撤销，由议会与总理大臣取代；选帝侯团性质的内阁(如西方封建)照常维护
+        if (parliament && !ParliamentSystem.KeepsCabinet(empire))
+        {
+            ParliamentSystem.RetireCabinet(empire);
+        }
+        else switch (regime.type)
+        {
+            case RegimeType.LvLing:
+                if (CourtSystem.Applies(empire)) CourtSystem.MaintainCabinet(empire);
+                else SetCabinetForLvLing(empire);
+                break;
+            case RegimeType.Feudalism:
+                SetCabinetForFeudalism(empire);
+                break;
+            case RegimeType.ZhouFeudalism:
+                break;
+            case RegimeType.Republic:
+                break;
+            case RegimeType.Arabic:
+                break;
+            case RegimeType.ClassicalRepublic:
+                // 施行「元老院」后维护元老名单(执政官出缺时按派系投票)
+                SenateSystem.Maintain(empire);
+                break;
+            case RegimeType.Bakufu:
+                // 幕府的三席(老中)：同律令按主导派系维护(以前没有这一支，每次都抛异常)
+                SetCabinetForLvLing(empire);
+                break;
+            case RegimeType.YouMu:
+            case RegimeType.Modern:
+            case RegimeType.Origin:
+            case RegimeType.HuaxiaOrigin:
+                break;
+            default:
+                // 新政体没登记内阁规则：不维护，不抛异常
+                break;
+        }
+
+        if (parliament)
+        {
+            empire.Additions.cabinet_acc = ParliamentSystem.HasWorkingMajority(empire)
+                ? InstitutionDefinitionRegistry.Global.constitution.government_majority_acceleration
+                : 0;
+        }
+        else if (regime.has_cabinet)
+        {
+            // 朝堂模式下施行速度由 CourtSystem.ProgressMultiplier 按阁臣支持度算
+            empire.Additions.cabinet_acc = CourtSystem.Applies(empire) ? 0 : IsCabinetControlEmpire(pKingdom) ? 30 : 0;
+        }
+        return base.execute(pKingdom);
+    }
+
+    public static bool IsCabinetControlEmpire(Realm pKingdom)
+    {
+        //todo: 派系完全控制内閣
+        Regime regime = pKingdom?.GetRegime();
+        Empire empire = pKingdom?.GetEmpire();
+        if (regime == null || empire == null) return false;
+        if (ParliamentSystem.HasParliament(empire)) return ParliamentSystem.HasWorkingMajority(empire);
+        var dominate = regime.GetDominateFaction();
+        List<Person> members = empire.GetCabinetMembers();
+        return members != null && members.All(m=>m?.GetFaction()?.GetID()==dominate?.GetID());
+    }
+
+    public void SetCabinetForLvLing(Empire empire)
+    {
+        Regime regime = empire.CoreKingdom.GetRegime();
+        var dominateFaction = regime.GetDominateFaction();
+        if (dominateFaction==null) return;
+        if (dominateFaction.Members.Count<=0) return;
+        // —— 1) 计算内阁规模：0~15 → 1~5 ——
+        int S = empire.Emperor?.stewardship??0;        // 组织能力
+        if (S < 3) S = 0; if (S > 15) S = 15;      // 手动 clamp
+        int cabinetSize = 1 + (S * regime.cabinet_number-1) / 15;        // 线性映射到 1..5，最多 5 个
+
+        Person cabinetLeader = dominateFaction.Members
+            .Select(id => world.units.get(id))
+            .Where(actor => actor != null && !actor.IsGone() && actor.HasOfficeIdentity())
+            .OrderByDescending(actor => OfficeSelector.IsPreferredOfficeCandidate(actor, empire.CoreKingdom))
+            .ThenByDescending(actor => actor.GetIdentity()?.TotalPerformance ?? double.MinValue)
+            .FirstOrDefault();
+        if (cabinetLeader != null && cabinetLeader.Key != empire.GetCabinetLeader()?.Key)
+        {
+            empire.SetCabinetLeader(cabinetLeader);
+        }
+
+        if (empire.data.CabinetMembers.Count > cabinetSize)
+        {
+            empire.data.CabinetMembers.Remove(empire.data.CabinetMembers.Last());
+        }
+        else if  (empire.data.CabinetMembers.Count < cabinetSize)
+        {
+            Person newFactionMember = regime.GetAllFactionMembers()
+                .Where(actor => actor != null && !actor.IsGone() && actor.HasOfficeIdentity() &&
+                                !empire.data.CabinetMembers.Contains(actor.Key))
+                .OrderByDescending(actor => OfficeSelector.IsPreferredOfficeCandidate(actor, empire.CoreKingdom))
+                .ThenByDescending(actor => actor.GetIdentity()?.TotalPerformance ?? double.MinValue)
+                .FirstOrDefault();
+            if (newFactionMember != null) empire.AddCabinetMember(newFactionMember);
+        }
+        
+    }
+
+    public void SetCabinetForFeudalism(Empire empire)
+    {
+        if (empire?.data == null || empire.kingdoms_list == null) return;
+        List<long> previousElectors = empire.data.CabinetMembers?.ToList() ?? new List<long>();
+        long previousChiefElector = previousElectors.FirstOrDefault(id => id > 0);
+        List<long> religionLeaderList = new();
+        List<Realm> activeKingdoms = empire.kingdoms_list
+            .Where(k => k?.Record != null && !k.IsGone())
+            .ToList();
+        // 被帝国禁令放逐的、自由城市、主教领不占世俗选帝侯席位(主教领占教会席位，见下)；
+        // 有帝国议会的帝国，世俗四席绑定领国、可授可夺(见 HolyRomanSystem.Electors)，不再每次按兵力重排
+        List<long> normalKingList = HolyRomanSystem.HasDiet(empire)
+            ? HolyRomanSystem.SecularElectorKings(empire)
+            : activeKingdoms.FindAll(k => k.HasRuler() && k.Ruler?.Record != null && !k.IsEmpire()
+                    && k.GetRegime()?.GetReligionLevel() != ReligionLevel.High && !HolyRomanSystem.IsBanned(k) &&
+                    HolyRomanSystem.Estate(k) == HolyRomanSystem.EstateNone)
+                .OrderByDescending(k => k.countTotalWarriors()).Select(k => k.king.id).Take(4).ToList();
+        // 教会席位：主教领的主教优先(见 HolyRomanSystem.ChurchElectors)
+        religionLeaderList.AddRange(HolyRomanSystem.ChurchElectors(empire));
+        if (empire.Religion != null && !empire.Religion.IsGone())
+        {
+            foreach (var kingdom in activeKingdoms)
+            {
+                if (kingdom.IsEmpire()) continue;
+                var regime = kingdom.GetRegime();
+                if (regime == null || regime.GetReligionLevel() != ReligionLevel.High) continue;
+                if (religionLeaderList.Count >= 3) continue;
+                var religionAreas = kingdom.Cities
+                    .Where(c => c?.Record != null && !c.IsGone())
+                    .OrderByDescending(c => c.countWarriors());
+                religionLeaderList.AddRange(from area in religionAreas
+                    where area.hasLeader() && area.leader?.data != null
+                    select area.leader.id);
+            }
+        }
+        religionLeaderList = religionLeaderList.Distinct().Take(3).ToList();
+        while (religionLeaderList.Count < 3)
+        {
+            religionLeaderList.Add(-1L);
+        }
+
+        while (normalKingList.Count < 4)
+        {
+            normalKingList.Add(-1L);
+        }
+        religionLeaderList.AddRange(normalKingList);
+        empire.data.CabinetMembers = religionLeaderList;
+
+        foreach (long electorId in religionLeaderList.Where(id => id > 0 && !previousElectors.Contains(id)))
+        {
+            world.units.get(electorId)?.RecordPersonalHistory(LM.Get("personal_history_became_elector"));
+        }
+
+        long chiefElector = religionLeaderList.FirstOrDefault(id => id > 0);
+        if (chiefElector > 0 && chiefElector != previousChiefElector)
+        {
+            world.units.get(chiefElector)?.RecordPersonalHistory(LM.Get("personal_history_became_chief_elector"));
+        }
+    }
+#endif
+}
+}

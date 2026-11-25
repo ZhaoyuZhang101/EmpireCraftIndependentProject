@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/PalaceArmySystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/PalaceArmySystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -23,7 +23,6 @@ public static class PalaceArmySystem
     private const int PrivateArmyYears = 15;
 
     // 禁军：帝国中央驻都城的军
-#if EC_PENDING
     public static bool IsPalace(Realm kingdom, CorpsData corps)
     {
         Empire empire = kingdom?.GetEmpire();
@@ -32,7 +31,6 @@ public static class PalaceArmySystem
     }
 
     public static IEnumerable<CorpsData> Palace(Realm core) => CorpsSystem.Of(core).Where(corps => IsPalace(core, corps));
-#endif
 
     // 实兵比例(交战战力用)
     public static float RealShare(CorpsData corps) => 1f - Mathf.Clamp(corps?.phantom ?? 0f, 0f, PhantomCap);

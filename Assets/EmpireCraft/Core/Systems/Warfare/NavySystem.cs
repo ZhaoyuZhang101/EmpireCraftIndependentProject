@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/NavySystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/NavySystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
@@ -186,13 +186,11 @@ public static class NavySystem
         return kingdom?.Record != null && !kingdom.IsGone() ? kingdom : null;
     }
 
-#if EC_PENDING
     private static bool HostileControl(Realm side, SeaRegionSystem.Region region)
     {
         Realm controller = Controller(region);
         return controller != null && FrontSystem.Hostile(side, controller);
     }
-#endif
 
     // 水师辐射半径(格，用户 2026-10-15："能攻打隔海相望的目标需要海军的力量能辐射到""按照海军的战斗力和辐射能力来"
     // "距离港口多少距离为半径""通过海军军事科技的升级提高这个半径""可以加海军科技线")：以本国(连同所在帝国各成员国)的港口为圆心——
@@ -254,9 +252,9 @@ public static class NavySystem
         >= 1.5f => 10,
         _ => 3
     };
+#endif
 
     public static bool IsHostile(Realm side, SeaRegionSystem.Region region) => HostileControl(side, region);
-#endif
 
     // 本国(连同宗主中央)有战舰在这片海区：运兵船有护航
 #if EC_PENDING
@@ -528,7 +526,7 @@ public static class NavySystem
                 fleet.task = "retreat";
                 FrontSystem.Log(kingdom, string.Format(LM.Get("navy_log_retreat"), Name(fleet)));
             }
-        bool war = kingdom.hasEnemies() || FrontSystem.Realm(kingdom)?.hasEnemies() == true;
+        bool war = kingdom.HasEnemies() || FrontSystem.Realm(kingdom)?.hasEnemies() == true;
         var ready = list.Where(fleet => fleet.task != "retreat" && fleet.warships > 0).ToList();
         foreach (FleetData fleet in list.Where(fleet => fleet.task == "retreat"))
         {

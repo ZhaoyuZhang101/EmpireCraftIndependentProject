@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/ModernPolicySystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/ModernPolicySystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -24,9 +24,7 @@ public static class ModernPolicySystem
     private const int SalePerLevel = 20;
 
     private static ConstitutionalEconomyState State(Empire empire) => empire?.data?.constitutional_economy;
-#if EC_PENDING
     private static ConstitutionalEconomyState State(Realm kingdom) => kingdom?.GetEmpire()?.data?.constitutional_economy;
-#endif
 
     // 提得出现代议题的国家：工业时代以后(穿越政权自成一套)
 #if EC_PENDING
@@ -91,24 +89,20 @@ public static class ModernPolicySystem
 #endif
 
     // 新办产业谁先出资(见 EnterpriseSystem.StatePreferred)：定了国有化、私有化的照国策，没定返回 null
-#if EC_PENDING
     public static bool? StatePreferred(Realm kingdom) => State(kingdom)?.nationalization switch
     {
         Nationalized => true,
         Privatized => false,
         _ => null
     };
-#endif
 
     // 工厂产值(见 FactorySystem.Produce)
-#if EC_PENDING
     public static float OutputFactor(City city) => State(city?.Realm)?.nationalization switch
     {
         Nationalized => 0.9f,
         Privatized => 1.05f,
         _ => 1f
     };
-#endif
 
     #region 国民教育
 

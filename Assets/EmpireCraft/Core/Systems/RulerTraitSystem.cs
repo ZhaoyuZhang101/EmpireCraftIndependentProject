@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/RulerTraitSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/RulerTraitSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 
 namespace EmpireCraft.Core
@@ -156,11 +156,11 @@ public static class RulerTraitSystem
 #if EC_PENDING
     public static bool IsFounderUnificationWar(War war)
     {
-        if (war == null || war.hasEnded()) return false;
+        if (war == null || war.HasEnded()) return false;
         // 天下大势的统一战争同样打到底(见 UnificationSystem)
         if (UnificationSystem.IsUnificationWar(war)) return true;
-        Realm attacker = war.getMainAttacker();
-        Realm defender = war.getMainDefender();
+        Realm attacker = war.GetMainAttacker();
+        Realm defender = war.GetMainDefender();
         return IsFounderAgainstLocalRival(attacker, defender) || IsFounderAgainstLocalRival(defender, attacker);
     }
 

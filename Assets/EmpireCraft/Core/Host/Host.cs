@@ -19,6 +19,8 @@ namespace EmpireCraft.Core
         public static int frameCount { get; private set; }
         public static float realtimeSinceStartup { get; private set; }
         public static float unscaledDeltaTime { get; private set; }
+        public static float unscaledTime => realtimeSinceStartup;
+        public static float smoothDeltaTime => unscaledDeltaTime;
         // Game-speed multiplier the player picked; background budgets may widen with it.
         public static float SpeedFactor = 1f;
 
@@ -149,6 +151,19 @@ namespace EmpireCraft.Core
         // Integers in [min, max); floats in [min, max).
         public static int Range(int min, int max) => max <= min ? min : min + (int)(Next() % (ulong)(max - min));
         public static float Range(float min, float max) => min + (max - min) * value;
+    }
+
+    // The mod asks here whether a realm or person belongs to another mod it coexists with.
+    // There is no other mod in this game, so nothing ever does.
+    public static class AncientWarfareCompatibility
+    {
+        public static bool Loaded => false;
+        public static void Refresh() { }
+        public static bool Owns(Realm realm) => false;
+        public static bool Owns(Person person) => false;
+        public static bool OwnsObject(object value) => false;
+        public static bool OwnsAny(object[] values) => false;
+        public static bool BlocksEmpireFormation(Realm realm) => false;
     }
 
     // The mod probes its call depth here to catch runaway recursion; a host may hook it.

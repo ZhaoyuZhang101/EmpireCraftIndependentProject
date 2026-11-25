@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/VirtualIndustrySystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/VirtualIndustrySystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
@@ -28,9 +28,9 @@ public static class VirtualIndustrySystem
     // 本文化已解锁、资产又不存在的工厂类数(其中船厂几类)；每两秒(真实时间)重算
     private static readonly Dictionary<string, (float at, int all, int shipyards)> Unlocked = new();
 
-#if EC_PENDING
     public static bool Applies => PureMapMode.Enabled;
 
+#if EC_PENDING
     public static int Factories(City city)
     {
         if (!Applies || city?.Record == null || city.IsGone()) return 0;

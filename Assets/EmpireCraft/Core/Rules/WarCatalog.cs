@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/WarCatalog.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/WarCatalog.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Color = EmpireCraft.Core.EcColor;
 using System;
@@ -18,10 +18,9 @@ public static class WarCatalog
     public enum Category { Territory, Demand, Religion, Steppe, Throne, Rebellion, Revolution, Other }
 
     // 类型键：war_kind_<键> 是名称，war_outcome_<键> 是拿到目标后的结局
-#if EC_PENDING
     public static string KindKey(War war)
     {
-        if (war?.data == null) return "none";
+        if (war?.Record == null) return "none";
         WarExtension.WarExtraData data = war.GetOrCreate();
         EmpireWarType type = war.GetEmpireWarType();
         if (type == EmpireWarType.神圣)
@@ -40,13 +39,11 @@ public static class WarCatalog
         if (goal != WarGoal.None && !TypeNamed(type)) return "goal_" + goal;
         return type == EmpireWarType.None ? "plain" : "type_" + type;
     }
-#endif
 
     // 这几种按类型显示(目标只是战后怎么分)；其余有目标的按目标
     private static bool TypeNamed(EmpireWarType type) => type is EmpireWarType.伐不臣 or EmpireWarType.迫使朝贡 or
         EmpireWarType.游牧扩张 or EmpireWarType.逼冕 or EmpireWarType.去帝号 or EmpireWarType.征伐不服;
 
-#if EC_PENDING
     public static string Kind(War war) => LM.Get("war_kind_" + KindKey(war));
 
     public static Category CategoryOf(War war)
@@ -63,10 +60,8 @@ public static class WarCatalog
         if (key.StartsWith("type_")) return Category.Throne;
         return Category.Other;
     }
-#endif
 
     // 类型的颜色(与示意图一致)
-#if EC_PENDING
     public static string Color(War war) => KindKey(war) switch
     {
         "goal_夺城" or "goal_争夺资源" or "raid" or "type_草场之争" or "peasant_revolt" => "#E9A85B",
@@ -81,14 +76,12 @@ public static class WarCatalog
             _ => "#C8C2B4"
         }
     };
-#endif
 
     // 标签：开战缘由、统一天下、世界大战、诸王之乱
-#if EC_PENDING
     public static List<string> Tags(War war)
     {
         var tags = new List<string>();
-        if (war?.data == null) return tags;
+        if (war?.Record == null) return tags;
         WarExtension.WarExtraData data = war.GetOrCreate();
         EmpireWarType type = war.GetEmpireWarType();
         if (type is EmpireWarType.攘夷 or EmpireWarType.帝国扩张) tags.Add(LM.Get("war_tag_" + type));
@@ -99,7 +92,6 @@ public static class WarCatalog
         if (WarGoalSystem.Get(war) == WarGoal.侵略) tags.Add(LM.Get("war_tag_invasion"));
         return tags;
     }
-#endif
 
     #region 目标与结局
 
@@ -107,10 +99,10 @@ public static class WarCatalog
 #if EC_PENDING
     public static string GoalText(War war)
     {
-        if (war?.data == null) return "";
+        if (war?.Record == null) return "";
         WarExtension.WarExtraData data = war.GetOrCreate();
         WarGoal goal = WarGoalSystem.Get(war);
-        string defender = war.main_defender?.GetKingdomName() ?? "";
+        string defender = war.MainDefender?.GetKingdomName() ?? "";
         List<City> targets = Cities(data);
         string names = string.Join(LM.Get("list_separator"), targets.Take(3).Select(city => city.GetCityName())) +
                        (targets.Count > 3 ? LM.Get("list_etc") : "");
@@ -139,7 +131,6 @@ public static class WarCatalog
 #endif
 
     // 拿到目标会怎样(提示框、窗口的"达成"一行)
-#if EC_PENDING
     public static string Outcome(War war)
     {
         string key = KindKey(war);
@@ -147,16 +138,17 @@ public static class WarCatalog
         return text == "war_outcome_" + key ? "" : text;
     }
 
+#if EC_PENDING
     public static List<City> Cities(WarExtension.WarExtraData data) =>
         (data?.goal_city_ids ?? new List<long>()).Select(id => EmpireWorld.Current?.cities?.get(id))
         .Where(city => city?.data != null && !city.IsGone()).ToList();
+#endif
 
     public static string TitleName(WarExtension.WarExtraData data)
     {
-        KingdomTitle title = data?.goal_title_id >= 0 ? ModClass.KINGDOM_TITLE_MANAGER?.get(data.goal_title_id) : null;
+        KingdomTitle title = data?.goal_title_id >= 0 ? ModClass.KINGDOM_TITLE_MANAGER?.Get(data.goal_title_id) : null;
         return title?.data?.name ?? "";
     }
-#endif
 
     public static string ResourceName(string resource) =>
         string.IsNullOrEmpty(resource) ? "" :
@@ -171,36 +163,36 @@ public static class WarCatalog
 #if EC_PENDING
     public static void ApplyName(War war, bool force = false)
     {
-        if (war?.data == null || war.hasEnded()) return;
+        if (war?.Record == null || war.HasEnded()) return;
         WarExtension.WarExtraData data = war.GetOrCreate();
         if (data.world_war) return;
         EmpireWarType type = war.GetEmpireWarType();
         if (!force && !DefaultName(war, type)) return;
         string name = Compose(war);
         if (string.IsNullOrWhiteSpace(name)) return;
-        war.data.name = name;
+        war.Name = name;
         data.goal_named = true;
     }
 #endif
 
     // 原版起的名、或 SetEmpireWarType 拼出来的"某某帝国扩张战争"
-#if EC_PENDING
     private static bool DefaultName(War war, EmpireWarType type)
     {
-        string name = war.data.name ?? "";
+        string name = war.Name ?? "";
         if (type == EmpireWarType.None) return true;
         string raw = type.ToString();
         return name.EndsWith(raw + "战争", StringComparison.Ordinal) || name.EndsWith(raw, StringComparison.Ordinal);
     }
 
+#if EC_PENDING
     private static string Compose(War war)
     {
         // 华夏诸国打穿越政权：剿髡(见 TransmigrantSystem.WarName)
         string kun = TransmigrantSystem.WarName(war);
         if (kun != null) return kun;
         WarExtension.WarExtraData data = war.GetOrCreate();
-        string attacker = Display(war.main_attacker), defender = Display(war.main_defender);
-        string main = WarObjective.Main(data)?.GetCityName() ?? war.main_defender?.capital?.GetCityName() ?? "";
+        string attacker = Display(war.MainAttacker), defender = Display(war.MainDefender);
+        string main = WarObjective.Main(data)?.GetCityName() ?? war.MainDefender?.capital?.GetCityName() ?? "";
         string key = "war_name_" + KindKey(war);
         // 没有这种仗的命名模板就不另起名；先查有没有(直接取，原版每次报一条 missing text，如 war_name_crusade_holy)
         if (!LocalizedTextManager.stringExists(key)) return null;

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/HolyRomanSystem.Feuds.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/HolyRomanSystem.Feuds.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -36,13 +36,11 @@ public static partial class HolyRomanSystem
 
     // 只许两家对打(不拉外人、不升级)的内战：私战、争位之战(神罗的对立国王，与分裂进程的争位之战，见 SchismSystem)、
     // 游牧争草场(开战那一刻起)；劫掠之战也不拉姻亲、不扩封建、不升级世界大战(联盟各部由 NomadRaidSystem 自己拉进来)
-#if EC_PENDING
     public static bool ContainedWar(War war) =>
         DeclaringFeud || DeclaringContest || SchismSystem.Declaring || NomadRaidSystem.Declaring || SteppeOrderSystem.Declaring ||
         SouthernGarrisonSystem.Declaring ||
-        war?.data != null && war.GetEmpireWarType() is EmpireWarType.私战 or EmpireWarType.对立国王 or EmpireWarType.劫掠 or
+        war?.Record != null && war.GetEmpireWarType() is EmpireWarType.私战 or EmpireWarType.对立国王 or EmpireWarType.劫掠 or
             EmpireWarType.草场之争;
-#endif
 
     public static int ActiveFeuds(HolyRomanState state) => state?.private_wars?.Count(record => record.ended_at < 0d) ?? 0;
 
@@ -68,7 +66,7 @@ public static partial class HolyRomanSystem
                 continue;
             }
             state.year_turmoil = true;
-            if (WarSituation.WarYears(war) >= FeudMaxYears) EmpireWorld.Current.wars.endWar(war, WarWinner.Peace);
+            if (WarSituation.WarYears(war) >= FeudMaxYears) EmpireWorld.Current.EndWar(war, WarOutcome.Peace);
         }
         bool reformed = ReformEnacted(empire);
         if (reformed) LawsuitsYearly(empire, state);
@@ -78,28 +76,22 @@ public static partial class HolyRomanSystem
 
     #region 私战
 
-#if EC_PENDING
-    private static bool AtWar(Realm kingdom) => kingdom.getWars().Any(war => war?.data != null && !war.hasEnded());
-#endif
+    private static bool AtWar(Realm kingdom) => kingdom.GetWars().Any(war => war?.Record != null && !war.HasEnded());
 
     private static bool Rebelling(Realm kingdom) => kingdom.IsFactionRebelling() || kingdom.IsLocalRebelling();
 
     // 能兴私战的诸侯
-#if EC_PENDING
     private static bool FeudCapable(Empire empire, Realm kingdom) =>
         kingdom?.Record != null && !kingdom.IsGone() && kingdom != empire.CoreKingdom && SecularPrince(kingdom) &&
         !IsBanned(kingdom) && kingdom.HasRuler() && kingdom.Ruler.IsAdult() && !AtWar(kingdom) && !Rebelling(kingdom);
-#endif
 
     // claimant 对这座城有法理：城所属法理在它的法理头衔里，或法理主国就是它
-#if EC_PENDING
     private static bool ClaimsCity(Realm claimant, List<long> titles, City city)
     {
         var title = city?.GetTitle();
         if (title == null || title.IsGone()) return false;
         return titles.Contains(title.Key) || (title.main_kingdom ?? title.owner?.Realm) == claimant;
     }
-#endif
 
     // holder 手里属于 claimant 法理的非都城(与 claimant 接壤的在前)
 #if EC_PENDING
@@ -169,21 +161,21 @@ public static partial class HolyRomanSystem
         DeclaringFeud = true;
         try
         {
-            war = EmpireWorld.Current.diplomacy.startWar(attacker, defender, WarTypeLibrary.normal);
+            war = EmpireWorld.Current.StartWar(attacker, defender, WarKinds.Normal);
         }
         finally
         {
             DeclaringFeud = false;
         }
-        if (war?.data == null) return;
+        if (war?.Record == null) return;
         war.SetEmpireWarType(EmpireWarType.私战);
         string first = cities[0].GetCityName();
         string names = string.Join("、", cities.Select(city => city.GetCityName()));
-        war.data.name = string.Format(LM.Get(cities.Count > 1 ? "hre_feud_war_name_many" : "hre_feud_war_name"),
+        war.Name = string.Format(LM.Get(cities.Count > 1 ? "hre_feud_war_name_many" : "hre_feud_war_name"),
             attacker.GetKingdomName(), first);
         state.private_wars.Add(new PrivateWarRecord
         {
-            war_id = war.data.id, attacker_id = attacker.Key, defender_id = defender.Key,
+            war_id = war.Key, attacker_id = attacker.Key, defender_id = defender.Key,
             attacker_name = attacker.GetKingdomName(), defender_name = defender.GetKingdomName(), city_names = names,
             city_ids = cities.Select(city => city.Key).ToList(), at = GameClock.Now, illegal = illegal
         });
@@ -205,19 +197,18 @@ public static partial class HolyRomanSystem
 #endif
 
     // 私战进行中：交战两家之间，不在争城清单里的城一律不易手(CityPatch 攻城结算、改换归属时调用)
-#if EC_PENDING
     public static bool BlocksFeudCity(Realm newKingdom, City city)
     {
         Realm holder = city?.Realm;
         if (newKingdom?.Record == null || holder?.Record == null || holder == newKingdom) return false;
         try
         {
-            foreach (War war in newKingdom.getWars())
+            foreach (War war in newKingdom.GetWars())
             {
-                if (war?.data == null || war.hasEnded() || war.GetEmpireWarType() != EmpireWarType.私战) continue;
-                if (!(war.isAttacker(newKingdom) && war.isDefender(holder) || war.isDefender(newKingdom) && war.isAttacker(holder)))
+                if (war?.Record == null || war.HasEnded() || war.GetEmpireWarType() != EmpireWarType.私战) continue;
+                if (!(war.IsAttacker(newKingdom) && war.IsDefender(holder) || war.IsDefender(newKingdom) && war.IsAttacker(holder)))
                     continue;
-                PrivateWarRecord record = FeudRecord(holder.GetEmpire(), war.data.id) ?? FeudRecord(newKingdom.GetEmpire(), war.data.id);
+                PrivateWarRecord record = FeudRecord(holder.GetEmpire(), war.Key) ?? FeudRecord(newKingdom.GetEmpire(), war.Key);
                 return record != null && !record.city_ids.Contains(city.Key);
             }
         }
@@ -227,21 +218,20 @@ public static partial class HolyRomanSystem
         }
         return false;
     }
-#endif
 
     private static PrivateWarRecord FeudRecord(Empire empire, long warId) =>
         empire?.data?.holy_roman?.private_wars?.FirstOrDefault(record => record.war_id == warId && record.ended_at < 0d);
 
     // 私战收场(OnWarEnded 调用)：攻方胜或议和，争城里攻方占了一半以上地块的割给攻方；守方胜，攻方赔款、打下的争城退还
 #if EC_PENDING
-    private static void SettleFeud(Empire empire, HolyRomanState state, War war, WarWinner winner)
+    private static void SettleFeud(Empire empire, HolyRomanState state, War war, WarOutcome winner)
     {
-        PrivateWarRecord record = FeudRecord(empire, war.data.id);
+        PrivateWarRecord record = FeudRecord(empire, war.Key);
         if (record == null) return;
         record.ended_at = GameClock.Now;
         state.year_turmoil = true;
         Realm attacker = LiveKingdom(record.attacker_id), defender = LiveKingdom(record.defender_id);
-        bool defendersWon = winner == WarWinner.Defenders;
+        bool defendersWon = winner == WarOutcome.Defenders;
         var taken = new List<string>();
         int returned = 0;
         foreach (long id in record.city_ids)
@@ -300,11 +290,11 @@ public static partial class HolyRomanSystem
 
     #region 帝国法院
 
-#if EC_PENDING
     private static bool CanSue(Empire empire, Realm kingdom) =>
         kingdom?.Record != null && !kingdom.IsGone() && kingdom.GetEmpire() == empire && !IsBanned(kingdom) && kingdom.HasRuler() &&
         (kingdom == empire.CoreKingdom || SecularPrince(kingdom)) && !Rebelling(kingdom);
 
+#if EC_PENDING
     private static void LawsuitsYearly(Empire empire, HolyRomanState state)
     {
         foreach (LawsuitRecord suit in state.lawsuits.ToList())
@@ -319,7 +309,7 @@ public static partial class HolyRomanSystem
                 continue;
             }
             // 两造正在交战(违禁私战、禁令战)：缓判
-            if (plaintiff.isInWarWith(defendant) || GameClock.YearsSince(suit.filed_at) < LawsuitHearingYears ||
+            if (plaintiff.IsAtWarWith(defendant) || GameClock.YearsSince(suit.filed_at) < LawsuitHearingYears ||
                 EcRandom.value >= VerdictChance) continue;
             state.lawsuits.Remove(suit);
             Verdict(empire, state, suit, plaintiff, defendant, city);
@@ -343,7 +333,7 @@ public static partial class HolyRomanSystem
     {
         foreach (Realm holder in realms.OrderByDescending(kingdom => plaintiff.IsNeighbourWith(kingdom)))
         {
-            if (holder == plaintiff || holder.isInWarWith(plaintiff)) continue;
+            if (holder == plaintiff || holder.IsAtWarWith(plaintiff)) continue;
             City city = ClaimedFrom(plaintiff, holder).FirstOrDefault(item => state.lawsuits.All(suit => suit.city_id != item.Key));
             if (city != null) return (holder, city);
         }

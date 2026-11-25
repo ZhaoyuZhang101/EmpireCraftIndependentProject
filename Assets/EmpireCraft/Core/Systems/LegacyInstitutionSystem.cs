@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/LegacyInstitutionSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/LegacyInstitutionSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Linq;
@@ -66,7 +66,6 @@ public static class LegacyInstitutionSystem
 #endif
 
     // 改从 target 时会不会旧制犹存：target 的文明等级低于现用的制度文化，且不属例外
-#if EC_PENDING
     public static bool WouldKeep(Realm kingdom, string current, string target)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || !CultureService.IsValidCulture(current) ||
@@ -74,7 +73,6 @@ public static class LegacyInstitutionSystem
         if (Exempt(kingdom)) return false;
         return InstitutionSystem.GetCultureLevel(target) < InstitutionSystem.GetCultureLevel(current);
     }
-#endif
 
     // 不论旧制时本国该用的制度文化：帝国核心(征服王朝除外)按帝国的制度文化，其余按国家文化
 #if EC_PENDING
@@ -85,16 +83,15 @@ public static class LegacyInstitutionSystem
             ? InstitutionSystem.GetPrimaryCulture(empire, honorLegacy: false)
             : CultureService.GetRealmCulture(kingdom);
     }
+#endif
 
     private static Empire CoreEmpireOf(Realm kingdom)
     {
         Empire empire = kingdom?.GetEmpire();
         return empire?.data != null && !empire.IsGone() && !empire.IsArchived() && empire.CoreKingdom == kingdom ? empire : null;
     }
-#endif
 
     // 所在帝国(本国是成员、不是核心)
-#if EC_PENDING
     private static Empire MemberEmpireOf(Realm kingdom)
     {
         if (kingdom == null || !kingdom.IsInEmpire()) return null;
@@ -102,7 +99,6 @@ public static class LegacyInstitutionSystem
         return empire?.data != null && !empire.IsGone() && !empire.IsArchived() && empire.CoreKingdom != null &&
                !empire.CoreKingdom.IsGone() && empire.CoreKingdom != kingdom ? empire : null;
     }
-#endif
 
     // 帝国的制度文化(与旧制不同)不比旧制落后：成员该照帝国之制
 #if EC_PENDING
@@ -116,7 +112,6 @@ public static class LegacyInstitutionSystem
 #endif
 
     // 例外：古战模组的国、新立之国、征服王朝的核心(另有制度文化之分)、手选或被锁定政体的国家(政体本就不随文化动)
-#if EC_PENDING
     private static bool Exempt(Realm kingdom)
     {
         if (AncientWarfareCompatibility.Owns(kingdom)) return true;
@@ -127,7 +122,6 @@ public static class LegacyInstitutionSystem
         Empire empire = CoreEmpireOf(kingdom);
         return empire != null && CompositeEmpireService.IsComposite(empire);
     }
-#endif
 
     #endregion
 

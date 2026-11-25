@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/PettyRebellion.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/PettyRebellion.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 
 namespace EmpireCraft.Core
@@ -41,7 +41,7 @@ public static class PettyRebellion
         if (data.petty_rebel_origin < 0) return false;
         Realm origin = EmpireWorld.Current?.kingdoms?.get(data.petty_rebel_origin);
         bool settled = origin?.Record == null || origin.IsGone() ||
-                       data.petty_rebel_since >= 0d && GameClock.YearsSince(data.petty_rebel_since) >= 1 && !rebel.isInWarWith(origin);
+                       data.petty_rebel_since >= 0d && GameClock.YearsSince(data.petty_rebel_since) >= 1 && !rebel.IsAtWarWith(origin);
         if (!settled) return true;
         data.petty_rebel_origin = -1;
         data.petty_rebel_since = -1d;

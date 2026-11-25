@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/PersonalUnionService.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/PersonalUnionService.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System.Collections.Generic;
 using System.Linq;
@@ -262,7 +262,7 @@ public static class PersonalUnionService
         }
         foreach (long titleId in titleIds.Distinct().ToList())
         {
-            KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER.get(titleId);
+            KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER.Get(titleId);
             City seat = title?.title_capital;
             if (title == null || title.IsGone() || seat == null || seat.IsGone() || seat.Realm == null ||
                 seat.Realm == successor)

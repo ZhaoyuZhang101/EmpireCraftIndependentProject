@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/HelperFunc/EnfeoffmentHelper.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/HelperFunc/EnfeoffmentHelper.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -62,11 +62,9 @@ public static class EnfeoffmentHelper
 #endif
 
     // 正在叛乱、或与中央交战的成员：战时不从它那里划城，也不往它那里划
-#if EC_PENDING
     public static bool Contested(Realm kingdom, Realm core) =>
         kingdom?.Record != null && core != null && kingdom != core &&
-        (kingdom.IsFactionRebelling() || kingdom.IsLocalRebelling() || kingdom.isInWarWith(core));
-#endif
+        (kingdom.IsFactionRebelling() || kingdom.IsLocalRebelling() || kingdom.IsAtWarWith(core));
 
     // 法理里归本帝国的城有一座在前线就算前线(别国手里的城不算)
 #if EC_PENDING
@@ -94,6 +92,7 @@ public static class EnfeoffmentHelper
             if (IsFrontCity(city, core)) return true;
         return false;
     }
+#endif
 
     private static bool InRealm(City city, Realm core)
     {
@@ -101,6 +100,7 @@ public static class EnfeoffmentHelper
         return owner != null && !city.IsGone() && (owner == core || owner.GetEmpire()?.CoreKingdom == core);
     }
 
+#if EC_PENDING
     public static List<KingdomTitle> FindEnfeoffableTitles(Empire empire)
     {
         Realm coreKingdom = empire?.CoreKingdom;
@@ -113,16 +113,16 @@ public static class EnfeoffmentHelper
             .Where(title => title != null && !title.IsGone() && title != capitalTitle &&
                             !string.Equals(title.data?.name, empireName, StringComparison.Ordinal))
             .Where(title => title.title_capital != null && !title.title_capital.IsGone() &&
-                            title.title_capital.kingdom == coreKingdom && title.title_capital != coreKingdom.Capital &&
+                            title.title_capital.Realm == coreKingdom && title.title_capital != coreKingdom.Capital &&
                             !IsRealmCapital(title.title_capital) &&
                             // 战时代管的城等战后分配完再说
                             !EmpireCraft.Core.WartimeCustodySystem.InCustody(title.title_capital))
             .Where(title => !title.getCities().Any(city => city == coreKingdom.Capital ||
-                city?.id == coreKingdom.Capital.Key))
+                city?.Key == coreKingdom.Capital.Key))
             .Where(title => !atWar || !AtFront(title, coreKingdom))
             .OrderByDescending(title => title.getCities().Count(city => city != null && !city.IsGone() &&
-                                                                       city.kingdom == coreKingdom))
-            .ThenBy(title => title.id)
+                                                                       city.Realm == coreKingdom))
+            .ThenBy(title => title.Key)
             .ToList();
     }
 

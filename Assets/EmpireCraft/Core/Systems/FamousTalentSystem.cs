@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/FamousTalentSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/FamousTalentSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using ColorUtility = EmpireCraft.Core.EcColorUtility;
@@ -422,7 +422,7 @@ public static class FamousTalentSystem
         Realm kingdom = actor.Realm;
         Empire empire = kingdom != null && kingdom.IsInEmpire() ? kingdom.GetEmpire() : null;
         float season = 1f;
-        if (kind == TalentKind.General) season *= kingdom != null && kingdom.hasEnemies() ? 1.6f : 0.6f;
+        if (kind == TalentKind.General) season *= kingdom != null && kingdom.HasEnemies() ? 1.6f : 0.6f;
         if (empire != null && !empire.IsGone() && !empire.IsArchived())
         {
             if (empire.InFoundingGrace) season *= 1.3f;

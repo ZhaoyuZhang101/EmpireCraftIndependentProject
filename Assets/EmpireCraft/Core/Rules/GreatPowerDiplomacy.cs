@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/GreatPowerDiplomacy.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/GreatPowerDiplomacy.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -36,13 +36,13 @@ public static class GreatPowerDiplomacy
         GameClock.YearsSince(since) < PactYears;
 
     // 两国(或所在的帝国)通好之中：互不侵犯
-#if EC_PENDING
     public static bool Bound(Realm a, Realm b)
     {
         Empire ea = a?.GetEmpire(), eb = b?.GetEmpire();
         return ea != null && eb != null && ea != eb && Active(ea, eb);
     }
 
+#if EC_PENDING
     private static bool SameCivilization(Realm a, Realm b) =>
         CultureService.SameKin(CultureService.GetRealmCulture(a), CultureService.GetRealmCulture(b));
 #endif
@@ -68,10 +68,10 @@ public static class GreatPowerDiplomacy
 #endif
 
     // 通好之国的好感
-#if EC_PENDING
     public static int PactOpinionOf(Realm main, Realm target) =>
         main != null && target != null && main.IsEmpire() && target.IsEmpire() && Bound(main, target) ? PactOpinion : 0;
 
+#if EC_PENDING
     public static void TryYearlyScan()
     {
         if (EmpireWorld.Current == null || ModClass.EMPIRE_MANAGER == null || ModClass.IS_CLEAR) return;
@@ -81,7 +81,7 @@ public static class GreatPowerDiplomacy
         if (_lastScan >= 0d && now >= _lastScan && GameClock.YearsSince(_lastScan) < 1) return;
         _lastScan = now;
         List<Empire> empires = ModClass.EMPIRE_MANAGER.Where(empire => empire?.data != null && !empire.IsGone() &&
-            !empire.IsArchived() && empire.CoreKingdom?.data != null && !empire.CoreKingdom.IsGone()).ToList();
+            !empire.IsArchived() && empire.CoreKingdom?.Record != null && !empire.CoreKingdom.IsGone()).ToList();
         for (int i = 0; i < empires.Count; i++)
         for (int j = i + 1; j < empires.Count; j++)
         {
@@ -99,10 +99,10 @@ public static class GreatPowerDiplomacy
     private static void Consider(Empire a, Empire b)
     {
         Realm ca = a.CoreKingdom, cb = b.CoreKingdom;
-        if (Active(a, b) || SameCivilization(ca, cb) || ca.isInWarWith(cb) || BarredByConquest(ca, cb)) return;
+        if (Active(a, b) || SameCivilization(ca, cb) || ca.IsAtWarWith(cb) || BarredByConquest(ca, cb)) return;
         float opinion = EmpireWorld.Current.diplomacy?.getOpinion(ca, cb)?.total ?? 0f;
         if (opinion < MinOpinion) return;
-        bool common = ca.getEnemiesKingdoms().Intersect(cb.getEnemiesKingdoms()).Any();
+        bool common = ca.GetEnemies().Intersect(cb.GetEnemies()).Any();
         if (EcRandom.value >= (common ? CommonEnemyChance : PactChance)) return;
         // 够不着的不通好(见类头)：先掷机会再量远近，省得每年两两都量
         if (!(ConnectivitySystem.CanContactEither(ca, cb) ?? WarReach.Reachable(ca, cb))) return;
@@ -140,22 +140,22 @@ public static class GreatPowerDiplomacy
     public static void Aid(Realm core)
     {
         Empire empire = core?.GetEmpire();
-        if (empire?.data?.diplomatic_pacts == null || empire.CoreKingdom != core || core.hasEnemies() ||
+        if (empire?.data?.diplomatic_pacts == null || empire.CoreKingdom != core || core.HasEnemies() ||
             EcRandom.value >= AidChance) return;
         foreach (long partnerId in empire.data.diplomatic_pacts.Keys.ToList())
         {
-            Empire partner = ModClass.EMPIRE_MANAGER.get(partnerId);
+            Empire partner = ModClass.EMPIRE_MANAGER.Get(partnerId);
             Realm ally = partner?.CoreKingdom;
             if (ally?.Record == null || ally.IsGone() || !Active(empire, partner)) continue;
-            War war = ally.getWars().FirstOrDefault(candidate =>
-                candidate?.data != null && candidate.Alive && !candidate.hasEnded() && candidate.isDefender(ally) &&
-                !candidate.hasKingdom(core) && candidate.main_attacker?.GetEmpire() != empire);
-            Realm attacker = war?.main_attacker;
+            War war = ally.GetWars().FirstOrDefault(candidate =>
+                candidate?.Record != null && candidate.Alive && !candidate.HasEnded() && candidate.IsDefender(ally) &&
+                !candidate.HasRealm(core) && candidate.MainAttacker?.GetEmpire() != empire);
+            Realm attacker = war?.MainAttacker;
             if (attacker?.Record == null || attacker.IsGone() || EmpirePeacePatch.HasLeft(core, war, joiningAttackers: false) ||
                 WarSituation.TooBusyForWar(core) || CorpsSystem.CannotFundWar(core) || !WarGate.CanDeclare(core, attacker) ||
                 !WarReach.Reachable(core, attacker)) continue;
-            war.joinDefenders(core);
-            if (!war._list_defenders.Contains(core)) continue;
+            war.JoinDefenders(core);
+            if (!war.Defenders.Contains(core)) continue;
             TranslateHelper.LogEventMessage(string.Format(LM.Get("great_power_aid"), empire.GetEmpireName(),
                 partner.GetEmpireName(), attacker.GetKingdomName()), core);
             return;

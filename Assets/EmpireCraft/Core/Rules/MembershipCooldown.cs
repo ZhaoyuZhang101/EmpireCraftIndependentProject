@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/MembershipCooldown.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/MembershipCooldown.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Time = EmpireCraft.Core.FrameClock;
 using System;
@@ -128,7 +128,6 @@ public static class MembershipCooldown
 #endif
 
     // 神力拉入、仍在原处、未满 JoinYears 年(帝国核心不算)
-#if EC_PENDING
     public static bool ManualJoinActive(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || EmpireWorld.Current == null) return false;
@@ -140,13 +139,10 @@ public static class MembershipCooldown
         Realm lord = FeudalVassalService.GetOverlord(kingdom);
         return lord != null && data.manual_join_lord_id == lord.Key;
     }
-#endif
 
     // 已在帝国里待稳：入帝国满 RebellionRules.LocalGraceYears 年，且不在神力拉入的稳定期里
-#if EC_PENDING
     public static bool Settled(Realm kingdom) =>
         kingdom?.Record != null && RebellionSystem.GraceYearsRemaining(kingdom) == 0 && !ManualJoinActive(kingdom);
-#endif
 
     // 离开 empire 才几年(没离开过、离开的不是它为 -1)
     public static int YearsSinceLeft(Realm kingdom, Empire empire)
@@ -162,7 +158,7 @@ public static class MembershipCooldown
     private static bool WarResult(Realm kingdom, Empire empire, Realm lord)
     {
         if (empire != null && !empire.IsGone() && !empire.IsArchived() && empire.hasWarsWith(kingdom)) return true;
-        if (lord != null && !lord.IsGone() && kingdom.isInWarWith(lord)) return true;
+        if (lord != null && !lord.IsGone() && kingdom.IsAtWarWith(lord)) return true;
         Realm other = lord ?? empire?.CoreKingdom;
         if (other?.Record == null || other.IsGone()) return false;
         double ended = EmpireWorld.Current?.diplomacy?.getRelation(kingdom, other)?.data?.timestamp_last_war_ended ?? -1d;
@@ -175,10 +171,10 @@ public static class MembershipCooldown
     public static bool Desperate(Realm kingdom, Empire former)
     {
         if (kingdom?.Record == null || kingdom.IsGone()) return false;
-        foreach (War war in kingdom.getWars())
+        foreach (War war in kingdom.GetWars())
         {
-            if (war?.data == null || war.hasEnded() || !war.isDefender(kingdom)) continue;
-            Realm attacker = war.getMainAttacker();
+            if (war?.Record == null || war.HasEnded() || !war.IsDefender(kingdom)) continue;
+            Realm attacker = war.GetMainAttacker();
             if (attacker?.Record == null || attacker.IsGone() || former != null && attacker.GetEmpire() == former) continue;
             int lost = WarSituation.CitiesLost(war, kingdom);
             int held = WarSituation.SideCities(kingdom);

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/MusterSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/MusterSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -30,10 +30,8 @@ public static class MusterSystem
         EmpireWarType.地方独立, EmpireWarType.附庸独立, EmpireWarType.清君侧
     };
 
-#if EC_PENDING
     public static bool IsRebellion(War war) =>
-        war?.data != null && (war.getAsset() == WarTypeLibrary.rebellion || Rebellions.Contains(war.GetEmpireWarType()));
-#endif
+        war?.Record != null && (war.GetKind() == WarKinds.Rebellion || Rebellions.Contains(war.GetEmpireWarType()));
 
     // 这场叛乱的集结期(月)，第一次问到时掷定并记在战争上
 #if EC_PENDING
@@ -41,8 +39,8 @@ public static class MusterSystem
     {
         var data = war.GetOrCreate();
         if (data.muster_months >= 0) return data.muster_months;
-        int months = 1 + (int)(Math.Abs(war.data.id * 7919L) % 3);
-        Realm rebel = war.main_attacker, loyal = FrontSystem.Realm(war.main_defender);
+        int months = 1 + (int)(Math.Abs(war.Key * 7919L) % 3);
+        Realm rebel = war.MainAttacker, loyal = FrontSystem.Realm(war.MainDefender);
         if (rebel?.Capital != null && loyal?.Capital != null &&
             Vector2.Distance(rebel.Capital.city_center, loyal.Capital.city_center) > FarDistance) months++;
         if (loyal?.GetEmpire() is Empire empire && empire.Mandate < WeakMandate) months++;
@@ -52,8 +50,8 @@ public static class MusterSystem
     }
 
     private static bool Underway(War war) =>
-        war?.data != null && war.Alive && !war.hasEnded() && IsRebellion(war) &&
-        GameClock.MonthsSince(war.data.created_time) < Months(war);
+        war?.Record != null && war.Alive && !war.HasEnded() && IsRebellion(war) &&
+        GameClock.MonthsSince(war.StartedStamp) < Months(war);
 #endif
 
     // loyal 一方还在集结、对 rebel 这伙叛军不能全力应战
@@ -62,11 +60,11 @@ public static class MusterSystem
     {
         if (loyal?.Record == null || rebel?.Record == null || loyal == rebel) return false;
         Realm realm = FrontSystem.Realm(loyal);
-        foreach (War war in rebel.getWars())
+        foreach (War war in rebel.GetWars())
         {
             if (!Underway(war)) continue;
-            bool loyalDefends = war.isDefender(loyal) || war.isDefender(realm);
-            if (loyalDefends && war.isAttacker(rebel)) return true;
+            bool loyalDefends = war.IsDefender(loyal) || war.IsDefender(realm);
+            if (loyalDefends && war.IsAttacker(rebel)) return true;
         }
         return false;
     }
@@ -82,18 +80,18 @@ public static class MusterSystem
 #if EC_PENDING
     public static void MonthTick()
     {
-        foreach (War war in EmpireWorld.Current.wars.ToList())
+        foreach (War war in EmpireWorld.Current.LiveWars.ToList())
         {
-            if (war?.data == null || !war.Alive || war.hasEnded() || !IsRebellion(war)) continue;
+            if (war?.Record == null || !war.Alive || war.HasEnded() || !IsRebellion(war)) continue;
             var data = war.GetOrCreate();
-            Realm rebel = war.main_attacker, loyal = FrontSystem.Realm(war.main_defender);
+            Realm rebel = war.MainAttacker, loyal = FrontSystem.Realm(war.MainDefender);
             if (rebel?.Record == null || loyal?.Record == null) continue;
             bool fresh = data.muster_months < 0;
             int months = Months(war);
             if (fresh && months > 0)
                 FrontSystem.Log(loyal, string.Format(LM.Get("corps_log_muster_start"), rebel.GetKingdomName(),
                     loyal.GetKingdomName(), months));
-            if (months > 0 && !data.muster_done && GameClock.MonthsSince(war.data.created_time) >= months)
+            if (months > 0 && !data.muster_done && GameClock.MonthsSince(war.StartedStamp) >= months)
             {
                 data.muster_done = true;
                 FrontSystem.Log(loyal, string.Format(LM.Get("corps_log_muster_done"), loyal.GetKingdomName(),

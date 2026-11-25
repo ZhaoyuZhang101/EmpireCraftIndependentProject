@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/WildernessSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/WildernessSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
@@ -327,7 +327,6 @@ public static class WildernessSystem
 #endif
 
     // 同一国，或同一帝国(帝国的省)
-#if EC_PENDING
     private static bool SameRealm(Realm a, Realm b)
     {
         if (a == b) return true;
@@ -335,7 +334,6 @@ public static class WildernessSystem
         Empire empire = a.GetEmpire();
         return empire != null && empire == b.GetEmpire();
     }
-#endif
 
     // 取得这块无人区所挂法理的国家(不管永久中立、周边的城；悬停提示里写明法理归谁，看得出为什么没并进国土)
 #if EC_PENDING
@@ -548,7 +546,7 @@ public static class WildernessSystem
     private static bool InWorld()
     {
         EmpireWorld world = EmpireWorld.Current;
-        return world?.zone_calculator?.zones != null && world.Cities != null && Config.game_loaded && !SmoothLoader.isLoading() &&
+        return world?.zone_calculator?.zones != null && world.Cities != null && GameClock.Running && !SmoothLoader.isLoading() &&
                !ModClass.IS_CLEAR && !WorldMapGenerator.Generating && !WorldMapScenario.AfterLoadPending;
     }
 #endif
@@ -858,7 +856,7 @@ public static class WildernessSystem
             return;
         }
         EmpireWorld world = EmpireWorld.Current;
-        if (world?.zone_calculator?.zones == null || world.Cities == null || !Config.game_loaded || SmoothLoader.isLoading() ||
+        if (world?.zone_calculator?.zones == null || world.Cities == null || !GameClock.Running || SmoothLoader.isLoading() ||
             ModClass.IS_CLEAR || WorldMapGenerator.Generating || WorldMapScenario.AfterLoadPending) return;
         float now = Time.realtimeSinceStartup;
         if (now < _retryAt) return;
@@ -1283,7 +1281,7 @@ public static class WildernessSystem
                     oldOf[id] = index;
                     oldNeutral[id] = data.neutral || neutral?.Contains(id) == true;
                     long titleId = k < data.titles.Count ? data.titles[k] : -1L;
-                    KingdomTitle title = titleId >= 0 ? ModClass.KINGDOM_TITLE_MANAGER?.get(titleId) : null;
+                    KingdomTitle title = titleId >= 0 ? ModClass.KINGDOM_TITLE_MANAGER?.Get(titleId) : null;
                     oldTitles[id] = title == null || title.IsGone() ? null : title;
                     long originId = data.origins != null && k < data.origins.Count ? data.origins[k] : -1L;
                     oldParents[id] = originId >= 0 ? EmpireWorld.Current.CityByKey(originId) : null;
@@ -2031,11 +2029,9 @@ public static class WildernessSystem
     // before 为 null 时(城没了的那一核)不还原，只做连得上与分完
     private const int ClaimPasses = 512;
 
-#if EC_PENDING
     private static bool ClaimSource(City city) =>
         city?.Record != null && !city.IsGone() && city.Realm != null && !city.Realm.IsGone() && !city.Realm.IsWild &&
         !AncientWarfareCompatibility.OwnsObject(city);
-#endif
 
     // 照指定不动的：神力笔刷、剧本编辑器刷的、剧本明确设的地区归属(FixedTitle)、州府锚点、时代文件写了史实归属的(TitleFor)。
     // 剧本里别的地块虽然也挂着法理，那是按最近的城挂的，照认领走(以前把剧本里挂了法理的全当史实不动，认领在剧本里等于没生效)
@@ -2450,6 +2446,7 @@ public static class WildernessSystem
         }
         return walled;
     }
+#endif
 
     private static KingdomTitle TitleOfCity(City city, Dictionary<City, KingdomTitle> titleOf)
     {
@@ -2459,7 +2456,6 @@ public static class WildernessSystem
         if (title != null && title.IsGone()) title = null;
         return titleOf[city] = title;
     }
-#endif
 
     // 州府锚点定的城的王国法理(见 WorldMapWilderness.AnchorCity；不是剧本、没定的为 null)
 #if EC_PENDING
@@ -2500,13 +2496,13 @@ public static class WildernessSystem
 #endif
 
     // 一国所在的政权：帝国的省算帝国核心
-#if EC_PENDING
     private static Realm RealmOf(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone()) return null;
         return kingdom.GetEmpire()?.CoreKingdom ?? kingdom;
     }
 
+#if EC_PENDING
     private static City NearestCity(IEnumerable<City> cities, TileZone zone)
     {
         WorldTile at = zone?.centerTile;

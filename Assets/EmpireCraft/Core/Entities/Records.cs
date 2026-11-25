@@ -10,6 +10,12 @@ namespace EmpireCraft.Core
         public abstract bool Alive { get; }
     }
 
+    // Bases of the mod's decision routines (its AI folder). Their per-tick entry points were
+    // driven by WorldBox's behaviour trees and stay suspended; the helpers on them are used widely.
+    public abstract class RealmTask { }
+    public abstract class CityTask { }
+    public abstract class PersonTask { }
+
     // The saved part of a record object. Field names follow the data classes of the
     // ported systems that derive from it.
     public abstract class RecordData
@@ -35,8 +41,10 @@ namespace EmpireCraft.Core
 
     // Holds the record objects of one kind for a world: creation with fresh keys,
     // lookup by key, removal. Subclasses add their own bookkeeping.
-    public class RecordStore<TObject, TData> where TObject : RecordObject<TData>, new() where TData : RecordData, new()
+    public class RecordStore<TObject, TData> : IEnumerable<TObject> where TObject : RecordObject<TData>, new() where TData : RecordData, new()
     {
+        public IEnumerator<TObject> GetEnumerator() => list.GetEnumerator();
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => list.GetEnumerator();
         public readonly List<TObject> list = new List<TObject>();
         readonly Dictionary<long, TObject> _byKey = new Dictionary<long, TObject>();
         long _nextKey = 1;

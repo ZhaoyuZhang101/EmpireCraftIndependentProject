@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/ClanSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/ClanSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Color = EmpireCraft.Core.EcColor;
 using System;
@@ -137,9 +137,7 @@ public class SpecificClan
 
     // 姓氏体系(华夏，用户 2026-10-16 选定"姓—氏两层")：始祖宗族是"姓"(姬姓)，支脉是"氏"(鲁氏)，原版氏族是每个氏的实体；
     // 姓氏合一(郡县)以后，有氏的支脉升为新的姓(鲁氏宗族，出自姬姓)，再往下分的是郡望、房支。见 PrehistoricClanSystem
-#if EC_PENDING
     private bool SurnameMerged() => PrehistoricClanSystem.EraOf(_lineCulture) == PrehistoricClanSystem.SurnameEra.Merged;
-#endif
 
     // 离本支最近的"氏"(含本支，不含始祖宗族)；没有返回 null
     private string NearestShi()
@@ -1709,7 +1707,7 @@ public class PersonalClanIdentity
         familyName = actor.hasFamily() ? actor.family.data.name : "";
         factionName = actor.GetFaction()?.Name ?? "";
         ownedTitleNames = (actor.GetOwnedTitle() ?? new List<long>())
-            .Select(titleId => ModClass.KINGDOM_TITLE_MANAGER.get(titleId)?.data?.name)
+            .Select(titleId => ModClass.KINGDOM_TITLE_MANAGER.Get(titleId)?.data?.name)
             .Where(titleName => !string.IsNullOrWhiteSpace(titleName))
             .Distinct()
             .ToList();

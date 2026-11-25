@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/SteppeOrderSystem.Tribute.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/SteppeOrderSystem.Tribute.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System.Collections.Generic;
 using System.Linq;
@@ -94,7 +94,7 @@ public static partial class SteppeOrderSystem
     private static void TrySubmit(Realm kingdom, SteppeState state)
     {
         if (kingdom.GetEmpire() != null || kingdom.IsEmpire() || TribalFissionService.IsTribal(kingdom) || !kingdom.HasRuler() ||
-            kingdom.hasEnemies() || kingdom.HasGivenAlliance() || state.treasury <= 0f && state.pressure < SubmitPressure) return;
+            kingdom.HasEnemies() || kingdom.HasGivenAlliance() || state.treasury <= 0f && state.pressure < SubmitPressure) return;
         double own = global::System.Math.Max(1d, kingdom.GetNationalPower());
         Empire best = null;
         double bestPower = 0d;
@@ -107,7 +107,7 @@ public static partial class SteppeOrderSystem
             best = empire;
             bestPower = power;
         }
-        if (best == null || kingdom.isInWarWith(best.CoreKingdom) || EcRandom.value >= SubmitChance) return;
+        if (best == null || kingdom.IsAtWarWith(best.CoreKingdom) || EcRandom.value >= SubmitChance) return;
         kingdom.JoinTakenAlliance(best);
         if (kingdom.GetTakenAllianceEmpire() != best) return;
         Chronicle(string.Format(LM.Get("steppe_tribute_submit_history"), kingdom.GetKingdomName(), best.GetEmpireName()),

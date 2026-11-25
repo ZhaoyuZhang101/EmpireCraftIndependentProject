@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/SouthernRetreatSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/SouthernRetreatSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System.Collections.Generic;
 using System.Linq;
@@ -159,7 +159,7 @@ public static class SouthernRetreatSystem
             if (WarSituation.Power(kingdom) >= courtPower || !WarReach.Reachable(courtCore, kingdom)) continue;
             // 走投无路才来投(见 ScenarioEventSystem.Desperate)
             if (!ScenarioEventSystem.Desperate(kingdom, invader, pressure)) continue;
-            float chance = ScenarioPlotRules.RallyChance(pressure, WarReach.Reachable(invader, kingdom), kingdom.isInWarWith(invader));
+            float chance = ScenarioPlotRules.RallyChance(pressure, WarReach.Reachable(invader, kingdom), kingdom.IsAtWarWith(invader));
             if (EcRandom.value >= chance) continue;
             if (ScenarioEventSystem.Submit(kingdom, invader, courtCore, court, pressure)) joined.Add(kingdom);
             if (joined.Count >= RallyMaxPerYear) break;

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/Layer/CoreEmpireTitleManager.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/Layer/CoreEmpireTitleManager.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -44,7 +44,6 @@ public static class EmpireCoreManager
     // 却没从原核心里移走，两边共用同一批法理。城市只能记一个核心，谁最后同步就归谁——
     // 子核心一同步(吸收法理、读档修复……)就会把这些城市从原核心抢走，地图上原核心被割得七零八落。
     // 凡是法理同属上级核心的城市，一律归还上级核心。
-#if EC_PENDING
     public static void RestoreParentCities(EmpireCore child)
     {
         EmpireCore parent = child?.warlord_parent_core_id > 0 ? Get(child.warlord_parent_core_id) : null;
@@ -55,24 +54,21 @@ public static class EmpireCoreManager
             if (ContainsTitle(parent, city.GetTitle())) city.SetEmpireCore(parent);
         }
     }
-#endif
 
     // 军阀时期的核心"有主"：除了直接绑定它的帝国，挂在它下面的临时子核心政府、它记录的中央政府也算。
     // 否则各政府都挂在子核心上时原核心看似无主，外人称帝就会把整个原核心拿走。
-#if EC_PENDING
     public static bool IsClaimedByContest(EmpireCore core, Empire except = null)
     {
         if (core == null || ModClass.EMPIRE_MANAGER == null) return false;
         // 军阀时期以天下为单位，中央记在天下的主核心上(见 WarlordEraSystem)
         EmpireCore lead = EmpireCraft.Core.TianxiaSystem.Lead(core) ?? core;
         long centralId = lead.central_empire_id > 0 ? lead.central_empire_id : core.central_empire_id;
-        Empire central = centralId > 0 ? ModClass.EMPIRE_MANAGER.get(centralId) : null;
+        Empire central = centralId > 0 ? ModClass.EMPIRE_MANAGER.Get(centralId) : null;
         if (central != null && central != except && !central.IsGone() && !central.IsArchived()) return true;
         return ModClass.EMPIRE_MANAGER.Any(empire => empire != null && empire != except && !empire.IsGone() &&
                                                      !empire.IsArchived() &&
                                                      Get(empire)?.warlord_parent_core_id == core.id);
     }
-#endif
 
     // 读档修复：原核心被外来帝国占着(见 IsClaimedByContest)，而它记录的中央政府仍在、且挂在它下面时，
     // 把原核心还给中央政府；外来帝国另立核心，只保留它自己实际控制的法理。
@@ -84,11 +80,11 @@ public static class EmpireCoreManager
         foreach (EmpireCore core in EmpireCores.Values.ToList())
         {
             if (core == null || core.warlord_parent_core_id > 0 || core.central_empire_id <= 0) continue;
-            Empire central = ModClass.EMPIRE_MANAGER.get(core.central_empire_id);
+            Empire central = ModClass.EMPIRE_MANAGER.Get(core.central_empire_id);
             if (central == null || central.IsGone() || central.IsArchived() || central.CoreKingdom == null) continue;
             EmpireCore centralCore = Get(central);
             if (centralCore == core || centralCore?.warlord_parent_core_id != core.id) continue;
-            Empire intruder = core.empire_id > 0 ? ModClass.EMPIRE_MANAGER.get(core.empire_id) : null;
+            Empire intruder = core.empire_id > 0 ? ModClass.EMPIRE_MANAGER.Get(core.empire_id) : null;
             if (intruder == null || intruder == central || intruder.IsGone() || intruder.IsArchived() ||
                 intruder.CoreKingdom == null) continue;
             // 外来帝国另立核心：它实际控制的法理从原核心移过去；冻结法理时法理留在原核心，它只记无主的法理(见 TitlesForNewCore)
@@ -185,14 +181,12 @@ public static class EmpireCoreManager
     private static bool IsFormalCore(EmpireCore core) =>
         core?.titlesRecord != null && core.false_core_against_empire_id <= 0 && core.warlord_parent_core_id <= 0;
 
-#if EC_PENDING
     public static void RestoreAllParentCities()
     {
         if (EmpireCores == null) return;
         foreach (EmpireCore core in EmpireCores.Values.ToList())
             if (core?.warlord_parent_core_id > 0) RestoreParentCities(core);
     }
-#endif
 
     // coreName：新法理另起的名字(国号取自别的帝国法理时，见 RealmNamingSystem.FreshCoreName)；空 = 照国号
 #if EC_PENDING
@@ -223,13 +217,11 @@ public static class EmpireCoreManager
 
     // 冻结法理(模组设置)：新立的帝国法理只记无主的法理。已记在别的帝国法理里的不另记一份——城只能记一个核心，
     // 记了两份，城跟谁走看谁最后同步，原帝国法理空着时法理连同法理首都就被新核心拿走了
-#if EC_PENDING
     private static List<KingdomTitle> TitlesForNewCore(List<KingdomTitle> controlled)
     {
         if (!ModClass.KINGDOM_TITLE_FREEZE) return controlled;
         return controlled.Where(title => !EmpireCores.Values.Any(core => ContainsTitle(core, title))).ToList();
     }
-#endif
 
     public static EmpireCore Get(long id)
     {
@@ -262,7 +254,7 @@ public static class EmpireCoreManager
             !DeJureShareSystem.Any) yield break;
         foreach (var record in core.titlesRecord.ToList())
         {
-            KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER.get(record.titleId);
+            KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER.Get(record.titleId);
             if (title == null || title.IsGone()) continue;
             foreach (City city in DeJureShareSystem.SharedCities(title)) yield return city;
         }
@@ -280,7 +272,7 @@ public static class EmpireCoreManager
         bool provisional = core.false_core_against_empire_id > 0 || core.warlord_parent_core_id > 0;
         foreach (var record in core.titlesRecord)
         {
-            KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER.get(record.titleId);
+            KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER.Get(record.titleId);
             if (title == null || title.IsGone()) continue;
             foreach (City city in title.getCities())
             {
@@ -323,7 +315,6 @@ public static class EmpireCoreManager
     // 法理收进核心、城并入法理时顺手写——并入时看的是法理都城记的核心，都城自己没记上(换过都城、读旧档)，
     // 新并进来的城也就没记上，法理明明在核心里，城却成了无主。只改没记核心、或记着已没有帝国且不含本城法理的核心的城；
     // 被占领(记着占领者核心)、军阀临时核心的城照旧
-#if EC_PENDING
     public static int ReconcileCityCores()
     {
         if (EmpireCores == null || EmpireWorld.Current?.Cities == null || ModClass.KINGDOM_TITLE_MANAGER == null) return 0;
@@ -362,7 +353,6 @@ public static class EmpireCoreManager
         if (fixedCount > 0) LogService.LogInfo($"[EmpireCraft][法理] 城市所属核心与法理不符，已改正 {fixedCount} 座");
         return fixedCount;
     }
-#endif
 
     // 读档修复：0.4.7Beta1 称帝前补立的首府法理只收了都城，帝国法理、天下都只剩一块地。
     // 现存帝国本国还没有法理的城并进主法理(主法理须在本帝国法理里)，只动无法理的城，不改既有法理
@@ -384,6 +374,7 @@ public static class EmpireCoreManager
         if (added > 0) LogService.LogInfo($"[EmpireCraft][法理] 帝国本国无法理的城已并入主法理 {added} 座");
         return added;
     }
+#endif
 
     public static List<Empire> GetEmpires(EmpireCore core)
     {
@@ -399,7 +390,6 @@ public static class EmpireCoreManager
     {
         return GetEmpires(core).Count;
     }
-#endif
 
     public static void RegisterEmpireHistory(EmpireCore core, long empireId)
     {
@@ -411,7 +401,6 @@ public static class EmpireCoreManager
         }
     }
 
-#if EC_PENDING
     public static City GetRepresentativeCity(EmpireCore core)
     {
         if (core == null) return null;
@@ -438,12 +427,13 @@ public static class EmpireCoreManager
         if (core.titlesRecord == null) return null;
         foreach (var record in core.titlesRecord)
         {
-            KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER.get(record.titleId);
+            KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER.Get(record.titleId);
             if (title != null && !title.IsGone()) return title;
         }
         return null;
     }
 
+#if EC_PENDING
     public static bool GenerateColor(EmpireCore core)
     {
         KingdomTitle colorTitle = GetColorTitle(core);
@@ -487,6 +477,7 @@ public static class EmpireCoreManager
 
         return "";
     }
+#endif
 
     public static string NormalizeCoreName(string name)
     {
@@ -504,10 +495,11 @@ public static class EmpireCoreManager
     public static Empire GetLegitimateEmpire(EmpireCore core)
     {
         if (core == null || core.false_core_against_empire_id <= 0) return null;
-        Empire empire = ModClass.EMPIRE_MANAGER?.get(core.false_core_against_empire_id);
+        Empire empire = ModClass.EMPIRE_MANAGER?.Get(core.false_core_against_empire_id);
         return empire != null && !empire.IsGone() && !empire.IsArchived() ? empire : null;
     }
 
+#if EC_PENDING
     public static string GetStatusDisplayName(EmpireCore core)
     {
         string name = GetDisplayName(core);
@@ -538,7 +530,7 @@ public static class EmpireCoreManager
         if (core == null) return "";
         foreach (long empireId in core.empire_history_ids ?? new List<long>())
         {
-            Empire activeEmpire = ModClass.EMPIRE_MANAGER.get(empireId);
+            Empire activeEmpire = ModClass.EMPIRE_MANAGER.Get(empireId);
             if (activeEmpire != null && !activeEmpire.IsGone())
             {
                 return activeEmpire.GetEmpireName();
@@ -560,7 +552,7 @@ public static class EmpireCoreManager
 
         foreach (long empireId in core.empire_history_ids ?? new List<long>())
         {
-            Empire activeEmpire = ModClass.EMPIRE_MANAGER.get(empireId);
+            Empire activeEmpire = ModClass.EMPIRE_MANAGER.Get(empireId);
             if (activeEmpire != null && !activeEmpire.IsGone() && activeEmpire.data?.history != null)
             {
                 foreach (var history in activeEmpire.data.history)
@@ -590,6 +582,7 @@ public static class EmpireCoreManager
             .OrderBy(h => h?.descriptions?.FirstOrDefault()?.time ?? "")
             .ToList();
     }
+#endif
 
     public static List<KingdomTitle> GetTitles(EmpireCore core)
     {
@@ -597,7 +590,7 @@ public static class EmpireCoreManager
         if (core?.titlesRecord == null) return titles;
         foreach (var record in core.titlesRecord)
         {
-            KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER.get(record.titleId);
+            KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER.Get(record.titleId);
             if (title == null || title.IsGone()) continue;
             if (!titles.Contains(title))
             {
@@ -606,7 +599,6 @@ public static class EmpireCoreManager
         }
         return titles;
     }
-#endif
 
     public static bool ContainsTitle(EmpireCore core, KingdomTitle title)
     {
@@ -620,13 +612,12 @@ public static class EmpireCoreManager
         return false;
     }
 
-#if EC_PENDING
     private static KingdomTitle GetFirstLivingTitleWithCapital(EmpireCore core)
     {
         if (core?.titlesRecord == null) return null;
         foreach (var record in core.titlesRecord)
         {
-            KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER.get(record.titleId);
+            KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER.Get(record.titleId);
             if (title?.title_capital != null && !title.IsGone() && !title.title_capital.IsGone()) return title;
         }
         return null;
@@ -674,6 +665,7 @@ public static class EmpireCoreManager
         return Math.Min(total, 3);
     }
 
+#if EC_PENDING
     public static int GetAssimilationCost(Empire empire, KingdomTitle title)
     {
         if (empire?.CoreKingdom == null || title?.title_capital?.Realm == null) return int.MaxValue;

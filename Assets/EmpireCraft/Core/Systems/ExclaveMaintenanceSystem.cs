@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/ExclaveMaintenanceSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/ExclaveMaintenanceSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -39,18 +39,16 @@ public static class ExclaveMaintenanceSystem
 
     private static readonly Dictionary<long, Audit> Audits = new();
     private static readonly Queue<long> Pending = new();
-#if EC_PENDING
     private static Realm ModRealm(Realm kingdom) => kingdom?.GetEmpire()?.CoreKingdom ?? kingdom;
-#endif
 
     // 本国(连同本帝国成员)法理上的无人区
 #if EC_PENDING
     private static bool OwnWild(TileZone zone, Realm realm) =>
         WildernessSystem.IsWild(zone) && WildernessSystem.OwnerOf(zone) is Realm owner && ModRealm(owner) == realm;
+#endif
 
     private static bool Valid(City city, Realm realm) => city?.Record != null && !city.IsGone() &&
         !AncientWarfareCompatibility.OwnsObject(city) && ModRealm(city.Realm) == realm;
-#endif
 
     public static void ResetWorldState() { Audits.Clear(); Pending.Clear(); }
 
@@ -199,7 +197,7 @@ public static class ExclaveMaintenanceSystem
         state.paid = Math.Min(Math.Max(0, money), cost); state.unpaid = cost - state.paid;
         if (state.paid > 0) work.realm.SubMoney(state.paid, TreasuryCategory.Maintenance);
         state.treasury_after = work.realm.GetMoney();
-        if (!ExclaveMaintenanceRules.ShouldRelease(state.weak_years, evidence, work.realm.hasEnemies())) return;
+        if (!ExclaveMaintenanceRules.ShouldRelease(state.weak_years, evidence, work.realm.HasEnemies())) return;
         // 每年最多放走一个连通片，先处理后勤负担最大的一片：整片自立(以前交接给接壤的邻国)
         foreach (var pair in fees)
             if (Secede(work, pair.part)) { state.weak_years = 0; break; }
@@ -229,10 +227,10 @@ public static class ExclaveMaintenanceSystem
     private static bool AtWarWithForeigners(Realm core)
     {
         string own = CultureService.GetRealmCulture(core);
-        foreach (War war in core.getWars())
+        foreach (War war in core.GetWars())
         {
-            if (war?.data == null || war.hasEnded()) continue;
-            Realm enemy = war.main_attacker == core || war.isAttacker(core) ? war.main_defender : war.main_attacker;
+            if (war?.Record == null || war.HasEnded()) continue;
+            Realm enemy = war.MainAttacker == core || war.IsAttacker(core) ? war.MainDefender : war.MainAttacker;
             string theirs = CultureService.GetRealmCulture(enemy);
             if (CultureService.IsValidCulture(own) && CultureService.IsValidCulture(theirs) && !CultureService.SameKin(own, theirs)) return true;
         }
@@ -248,7 +246,7 @@ public static class ExclaveMaintenanceSystem
         var gone = new List<Realm>();
         foreach (Realm member in empire.kingdoms_list.ToList())
         {
-            if (member?.Record == null || member.IsGone() || member == core || member.Capital == null || member.isInWarWith(core) ||
+            if (member?.Record == null || member.IsGone() || member == core || member.Capital == null || member.IsAtWarWith(core) ||
                 MembershipCooldown.ManualJoinActive(member) || AncientWarfareCompatibility.Owns(member)) continue;
             // 剧本的地方实力派(川军、马家军……)：中央正与外族交战时不自立(1937 剧本开局两年民国正统跌破，十四个地方实力派全散了)
             if (member.GetOrCreate().scenario_autonomy && AtWarWithForeigners(core)) continue;
@@ -274,9 +272,9 @@ public static class ExclaveMaintenanceSystem
 
     private static bool Front(City city, Realm realm)
     {
-        if (!city.Realm.hasEnemies() && !realm.hasEnemies()) return false;
+        if (!city.Realm.HasEnemies() && !realm.HasEnemies()) return false;
         foreach (City next in (IEnumerable<City>)city.neighbours_cities ?? Array.Empty<City>())
-            if (next?.Realm != null && !next.IsGone() && (next.Realm.isInWarWith(city.Realm) || next.Realm.isInWarWith(realm)))
+            if (next?.Realm != null && !next.IsGone() && (next.Realm.IsAtWarWith(city.Realm) || next.Realm.IsAtWarWith(realm)))
                 return true;
         return false;
     }

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/WartimeCustodySystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/WartimeCustodySystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -33,13 +33,12 @@ public static class WartimeCustodySystem
         if (capturer.IsInSameEmpire(oldKingdom)) return null;
         if (capturer.IsFactionRebelling() || capturer.IsLocalRebelling()) return null;
         if (FeudalVassalService.GetOverlord(capturer) != null) return null;
-        if (!core.isInWarWith(oldKingdom)) return null;
+        if (!core.IsAtWarWith(oldKingdom)) return null;
         return core;
     }
 #endif
 
     // 城市交给中央之前调用
-#if EC_PENDING
     public static void Record(City city, Realm capturer, Realm oldKingdom, War war)
     {
         var data = city?.GetOrCreate();
@@ -49,7 +48,6 @@ public static class WartimeCustodySystem
         data.custody_war_id = war?.Key ?? -1L;
         LogService.LogInfo($"[EmpireCraft][战时代管] {capturer?.Name} 打下 {city.Name}，交中央暂管");
     }
-#endif
 
     public static void Clear(City city)
     {
@@ -111,16 +109,18 @@ public static class WartimeCustodySystem
             empire.GetEmpireFullName(), city.GetCityName(), target.Name), holder);
         return true;
     }
+#endif
 
     private static bool WarOver(long warId, Realm core, long enemyId)
     {
-        War war = warId >= 0 ? EmpireWorld.Current.wars.get(warId) : null;
-        if (war != null && war.Alive && !war.hasEnded()) return false;
+        War war = warId >= 0 ? EmpireWorld.Current.WarByKey(warId) : null;
+        if (war != null && war.Alive && !war.HasEnded()) return false;
         // 同一敌人还在别的战争里与中央交战：等那场也打完再分
         Realm enemy = enemyId >= 0 ? EmpireWorld.Current.RealmByKey(enemyId) : null;
-        return enemy == null || enemy.IsGone() || !core.isInWarWith(enemy);
+        return enemy == null || enemy.IsGone() || !core.IsAtWarWith(enemy);
     }
 
+#if EC_PENDING
     private static Realm Allocate(City city, Empire empire, Realm capturer)
     {
         Realm core = empire.CoreKingdom;
@@ -160,19 +160,17 @@ public static class WartimeCustodySystem
     private static int Rank(Realm kingdom, Realm capturer, Realm core) =>
         kingdom == capturer ? 0 : kingdom == core ? 1 : 2;
 
-#if EC_PENDING
     private static bool CanReceive(Realm kingdom, Empire empire, Realm core)
     {
         if (kingdom == null || kingdom.IsGone() || kingdom.Capital == null) return false;
         if (kingdom == core) return true;
         if (!EmpireMembershipService.BelongsTo(empire, kingdom)) return false;
-        if (kingdom.IsFactionRebelling() || kingdom.IsLocalRebelling() || kingdom.isInWarWith(core)) return false;
+        if (kingdom.IsFactionRebelling() || kingdom.IsLocalRebelling() || kingdom.IsAtWarWith(core)) return false;
         // 治理能力：自己首府都濒临叛乱的成员不再接收新地
         var state = kingdom.Capital.GetOrCreate().stability;
         if (state != null && state.owner_id == kingdom.Key && state.stability < CityStabilityRules.RebellionThreshold) return false;
         return !EmpireCraft.Core.AncientWarfareCompatibility.Owns(kingdom);
     }
-#endif
 
     // 与本城相邻的各成员共有多少段边界(按区域四向相邻计)
 #if EC_PENDING

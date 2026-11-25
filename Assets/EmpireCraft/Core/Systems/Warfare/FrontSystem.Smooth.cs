@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/FrontSystem.Smooth.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/FrontSystem.Smooth.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -105,7 +105,6 @@ public static partial class FrontSystem
 #endif
 
     // 记下这一仗同在场的友军(见 TryInherit)
-#if EC_PENDING
     private static void NoteCamp(City city, List<(Realm kingdom, CorpsData corps)> present)
     {
         if (!Pushes.TryGetValue(city.Key, out Push push)) return;
@@ -115,7 +114,6 @@ public static partial class FrontSystem
             if (entry.kingdom.Key != push.Side && (Friendly(side, entry.kingdom) || push.Retake && !Hostile(side, entry.kingdom)))
                 push.Camp.Add(entry.kingdom.Key);
     }
-#endif
 
     // 本月占优的一家对城里这条推进线算什么
     private enum PushClaim
@@ -127,7 +125,6 @@ public static partial class FrontSystem
         Restart   // 同一家换了行动(城换主后进攻变收复之类)：旧线作废重开
     }
 
-#if EC_PENDING
     private static PushClaim ClaimOf(Push push, Realm current, Realm side, Realm owner, bool retake, bool free)
     {
         if (current == side) return push.Retake == retake ? PushClaim.Own : PushClaim.Restart;
@@ -143,7 +140,6 @@ public static partial class FrontSystem
         if (friendly || retake && Friendly(current, owner) && Friendly(side, owner)) return PushClaim.Ally;
         return PushClaim.Stranger;
     }
-#endif
 
     // 城里已有推进线时的交接；返回 true 表示办完了，false 表示旧线已撤、由调用方另起一条
 #if EC_PENDING

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/FrontSystem.PushDiagnostics.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/FrontSystem.PushDiagnostics.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
@@ -101,7 +101,6 @@ public static partial class FrontSystem
 #endif
 
     // 全图每分钟至多几行明细
-#if EC_PENDING
     private static bool PushDetailAllowed()
     {
         float now = Time.unscaledTime;
@@ -113,6 +112,7 @@ public static partial class FrontSystem
         return ++_pushDetailLines <= MaxDetailPerMinute;
     }
 
+#if EC_PENDING
     private static string KingdomLabel(Realm kingdom) =>
         kingdom?.Record == null ? "无" : kingdom.IsGone() ? $"已亡#{kingdom.Key}" : $"{kingdom.GetKingdomName()}#{kingdom.Key}";
 

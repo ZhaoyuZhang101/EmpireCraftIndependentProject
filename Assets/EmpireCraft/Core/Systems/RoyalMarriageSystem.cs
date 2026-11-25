@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/RoyalMarriageSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/RoyalMarriageSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Time = EmpireCraft.Core.FrameClock;
 using System;
@@ -70,6 +70,7 @@ public static class RoyalMarriageSystem
         yield return king;
         foreach (Person child in king?.getChildren(false) ?? Enumerable.Empty<Person>()) yield return child;
     }
+#endif
 
     private static bool Marriageable(Person actor, Realm kingdom)
     {
@@ -80,6 +81,7 @@ public static class RoyalMarriageSystem
         return identity != null && !identity.is_concubine && identity.IsFreeToMarry(-2L);
     }
 
+#if EC_PENDING
     private static bool Ruling(Person actor, Realm kingdom) =>
         actor == kingdom.Ruler || kingdom.HasHeir() && kingdom.GetHeir() == actor;
 #endif
@@ -108,7 +110,7 @@ public static class RoyalMarriageSystem
         foreach (Realm other in EmpireWorld.Current.LiveRealms)
         {
             if (other == kingdom || other?.Record == null || other.IsGone() || !other.HasRuler() ||
-                !RegimeManager.IsMonarchy(other.GetRegime()?.type) || kingdom.isInWarWith(other)) continue;
+                !RegimeManager.IsMonarchy(other.GetRegime()?.type) || kingdom.IsAtWarWith(other)) continue;
             float opinion = EmpireWorld.Current.diplomacy?.getOpinion(kingdom, other)?.total ?? 0;
             if (opinion < -30f) continue;
             float realm = (float)Math.Log10(1d + other.GetNationalPower());
@@ -247,7 +249,6 @@ public static class RoyalMarriageSystem
     #region 姻亲之国
 
     // 二十年内的姻亲：互不开战(EmpireCraftPlotsAddition、WarTargetPatch、FeudalVassalService)
-#if EC_PENDING
     public static bool Allied(Realm a, Realm b)
     {
         if (a?.Record == null || b?.Record == null || a == b) return false;
@@ -255,7 +256,6 @@ public static class RoyalMarriageSystem
     }
 
     private static Realm Core(Realm kingdom) => kingdom.GetEmpire()?.CoreKingdom ?? kingdom;
-#endif
 
     private static bool Pact(Realm a, Realm b)
     {
@@ -271,15 +271,15 @@ public static class RoyalMarriageSystem
 #if EC_PENDING
     public static void OnWarStarted(War war)
     {
-        Realm defender = war?.main_defender, attacker = war?.main_attacker;
+        Realm defender = war?.MainDefender, attacker = war?.MainAttacker;
         var pacts = defender?.Record == null ? null : defender.GetOrCreate().marriage_pacts;
         if (pacts == null || pacts.Count == 0 || attacker == null) return;
         foreach (long id in pacts.Keys.ToList())
         {
             Realm ally = EmpireWorld.Current.RealmByKey(id);
-            if (ally?.Record == null || ally.IsGone() || !Pact(defender, ally) || ally == attacker || war.hasKingdom(ally) ||
-                Allied(ally, attacker) || ally.isInWarWith(attacker) || EcRandom.value >= AidChance) continue;
-            war.joinDefenders(ally);
+            if (ally?.Record == null || ally.IsGone() || !Pact(defender, ally) || ally == attacker || war.HasRealm(ally) ||
+                Allied(ally, attacker) || ally.IsAtWarWith(attacker) || EcRandom.value >= AidChance) continue;
+            war.JoinDefenders(ally);
             TranslateHelper.LogEventMessage(string.Format(LM.Get("royal_marriage_aid_history"), ally.GetKingdomName(),
                 defender.GetKingdomName()), ally);
         }
@@ -295,7 +295,6 @@ public static class RoyalMarriageSystem
     private static readonly Dictionary<(long, long), (bool claim, float at)> ClaimCache = new();
     private const float ClaimCacheSeconds = 60f;
 
-#if EC_PENDING
     public static bool HasClaim(Realm claimant, Realm target)
     {
         Person a = claimant?.Ruler, b = target?.Ruler;
@@ -311,7 +310,6 @@ public static class RoyalMarriageSystem
         ClaimCache[key] = (claim, now);
         return claim;
     }
-#endif
 
     // 血缘远近(沿父母、子女走的步数，找不到为 -1)
     public static int BloodDistance(PersonalClanIdentity from, PersonalClanIdentity to, int limit)

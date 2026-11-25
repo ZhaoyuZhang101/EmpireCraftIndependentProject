@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/Data/DataManager.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/Data/DataManager.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 
 using System;
@@ -127,7 +127,7 @@ public static class DataManager
         var kingdomById = EmpireWorld.Current.LiveRealms.ToDictionary(k => k.Key);
         var cityById = EmpireWorld.Current.Cities.ToDictionary(c => c.Key);
         var clanById = EmpireWorld.Current.clans.ToDictionary(c => c.Key);
-        var warById = EmpireWorld.Current.wars.ToDictionary(w => w.Key);
+        var warById = EmpireWorld.Current.LiveWars.ToDictionary(w => w.Key);
         var religionById = EmpireWorld.Current.religions.ToDictionary(r => r.Key);
         CulturePatch.ImportCultureBindings(saveData.cultureBindings);
         // 没记绑定的旧档里混进字表名的起名模板重套(见 TemplateNameRepair)
@@ -264,7 +264,7 @@ public static class DataManager
                 if (empireData.TaxRate < Empire.MinimumTaxRate) empireData.TaxRate = 0.2f;
                 Empire empire = new Empire();
                 empire.LoadData(empireData);
-                ModClass.EMPIRE_MANAGER.addObject(empire);
+                ModClass.EMPIRE_MANAGER.AddObject(empire);
                 LogService.LogInfo($"加载帝国{empire.Name}");
                 if (empire.data.centerOffice == null && empire.CoreKingdom != null)
                 {
@@ -316,7 +316,7 @@ public static class DataManager
                 {
                     kt.isBeenControlled();
                 }
-                ModClass.KINGDOM_TITLE_MANAGER.addObject(kt);
+                ModClass.KINGDOM_TITLE_MANAGER.AddObject(kt);
             }
             catch (Exception e)
             {
@@ -324,7 +324,7 @@ public static class DataManager
             }
 
         }
-        ModClass.KINGDOM_TITLE_MANAGER.update(-1L);
+        ModClass.KINGDOM_TITLE_MANAGER.Update(-1L);
         // 旧存档没有法理的初始文化：以现在的文化补上(见 CultureService.RememberInitialTitleCulture)
         foreach (KingdomTitle title in ModClass.KINGDOM_TITLE_MANAGER.ToList())
             CultureService.RememberInitialTitleCulture(title);
@@ -570,7 +570,7 @@ public static class DataManager
             extra.saved_factions_regime = extra.regime.type;
         }
         saveData.kingdomExtraData = EmpireWorld.Current.LiveRealms.Select(a => a.GetExtraData<Realm, KingdomExtraData>(true)).Where(ed => ed != null).ToList();
-        saveData.warExtraData = EmpireWorld.Current.wars.Select(a => a.GetExtraData<War, WarExtraData>(true)).Where(ed => ed != null).ToList(); ;
+        saveData.warExtraData = EmpireWorld.Current.LiveWars.Select(a => a.GetExtraData<War, WarExtraData>(true)).Where(ed => ed != null).ToList(); ;
         saveData.clanExtraData = EmpireWorld.Current.clans.Select(a => a.GetExtraData<Clan, ClanExtraData>(true)).Where(ed => ed != null).ToList(); ;
         saveData.bookExtraData = EmpireWorld.Current.books.Select(b => b.GetExtraData<Book, BookExtension.BookExtraData>(true))
             .Where(ed => ed != null && (!string.IsNullOrEmpty(ed.landmark_id) || !string.IsNullOrEmpty(ed.culture))).ToList();
@@ -584,8 +584,8 @@ public static class DataManager
         saveData.world_map_tech_calendar = TechnologySystem.ExportCalendar();
         saveData.era_lock_tier = TechnologySystem.EraLockTier;
         saveData.famousTalents = FamousTalentSystem.Export();
-        ModClass.EMPIRE_MANAGER.update(-1L);
-        ModClass.KINGDOM_TITLE_MANAGER.update(-1L);
+        ModClass.EMPIRE_MANAGER.Update(-1L);
+        ModClass.KINGDOM_TITLE_MANAGER.Update(-1L);
         saveData.officeObjects = OfficeManager.Offices;
         saveData.mod_version = ModClass.MOD_DATA_VERSION;
         foreach (Empire empire in ModClass.EMPIRE_MANAGER)
@@ -799,7 +799,6 @@ public static class DataManager
         if (state.authority == -1 && active) state.authority = -2;
     }
 
-#if EC_PENDING
     private static Dictionary<long, EmpireCore> BuildEmpireCoreMap(IEnumerable<EmpireCore> cores)
     {
         Dictionary<long, EmpireCore> result = new Dictionary<long, EmpireCore>();
@@ -814,7 +813,6 @@ public static class DataManager
         }
         return result;
     }
-#endif
 
     private static void NormalizeKingdomTitleCollections(KingdomTitleData data)
     {

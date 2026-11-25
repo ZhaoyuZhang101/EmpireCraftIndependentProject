@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/WorldMap/WorldMapScenario.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/WorldMap/WorldMapScenario.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
@@ -2558,7 +2558,7 @@ public static class WorldMapScenario
     private static void Finish()
     {
         Guard("开局流亡的国家", BuildExiles);
-        Guard("法理更新", () => ModClass.KINGDOM_TITLE_MANAGER?.update(-1f));
+        Guard("法理更新", () => ModClass.KINGDOM_TITLE_MANAGER?.Update(-1f));
         Guard("入主国号", ScriptConquests);
         Guard("城的帝国法理", () => { EmpireCoreManager.ReconcileCityCores(); });
         Guard("后妃", () => Marry(_polities));

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/Regimes/FixedFaction.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/Regimes/FixedFaction.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -382,9 +382,9 @@ public class FixedFaction
     public AdvancedButton LockButton { get; set; }
     [JsonIgnore] 
     public AutoVertLayoutGroup CardUI;
-    [JsonIgnore] 
-    public Empire Empire => ModClass.EMPIRE_MANAGER.get(EmpireId);
 #endif
+    [JsonIgnore] 
+    public Empire Empire => ModClass.EMPIRE_MANAGER.Get(EmpireId);
     public List<long> Members = new();
     // 抽象阶层政治基础：亲和度(-100~100)是派系的长期定位；好感与支持份额(0~100)
     // 会被诉求、制度和年度竞争改变。它们不代表具体人物入党。
@@ -397,12 +397,10 @@ public class FixedFaction
         .Where(actor => actor != null && !actor.IsGone()).ToList();
     [JsonIgnore]
     public int Count => Members.Count;
-#if EC_PENDING
     [JsonIgnore]
     public int CentralRatio => Empire?.CoreKingdom?.GetFactionRatioValue(this) ?? 0;
     [JsonIgnore]
     public int TotalPower => CentralRatio;
-#endif
     //倾向于推动的政策
     [JsonIgnore]
     public List<TemporaryFactionType> TemporaryFactionTypes => FactionManager.FactionConfig.TryGetValue(Type, out var tfList)? tfList : null;

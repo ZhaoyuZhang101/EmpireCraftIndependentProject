@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/WildernessDevelopmentSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/WildernessDevelopmentSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
@@ -421,7 +421,7 @@ public static class WildernessDevelopmentSystem
         Empire empire = kingdom.GetEmpire();
         Realm core = empire?.CoreKingdom;
         realm.Core = core != null && !core.IsGone() ? core : kingdom;
-        realm.Unrest = kingdom.hasEnemies() || realm.Core != kingdom && realm.Core.hasEnemies() ||
+        realm.Unrest = kingdom.HasEnemies() || realm.Core != kingdom && realm.Core.HasEnemies() ||
                        empire != null && !empire.IsGone() && DynasticCycleSystem.InCrisis(empire);
         if (cached) Realms[kingdom] = realm;
         return realm;
@@ -509,7 +509,7 @@ public static class WildernessDevelopmentSystem
 #if EC_PENDING
     private static void Hand(TileZone zone, long by)
     {
-        if (zone == null || zone.city != null || EmpireWorld.Current == null || !Config.game_loaded || SmoothLoader.isLoading()) return;
+        if (zone == null || zone.city != null || EmpireWorld.Current == null || !GameClock.Running || SmoothLoader.isLoading()) return;
         try
         {
             if (WildernessPlotSystem.Claim(zone)) return;

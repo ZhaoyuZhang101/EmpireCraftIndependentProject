@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/ReligionSchismSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/ReligionSchismSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System.Collections.Generic;
@@ -56,9 +56,9 @@ public static class ReligionSchismSystem
 
     private static bool Alive(Realm kingdom) => kingdom?.Record != null && !kingdom.IsGone() && !kingdom.IsWild;
 
-#if EC_PENDING
     private static Realm ModRealm(Realm kingdom) => kingdom?.GetEmpire()?.CoreKingdom ?? kingdom;
 
+#if EC_PENDING
     public static void YearlyPass()
     {
         if (EmpireWorld.Current?.religions == null || ModClass.IS_CLEAR) return;
@@ -249,7 +249,7 @@ public static class ReligionSchismSystem
     {
         Realm core = empire.CoreKingdom;
         int count = 0;
-        if (core.isInWarWith(see) || patron != null && patron != core && core.isInWarWith(patron)) count++;
+        if (core.IsAtWarWith(see) || patron != null && patron != core && core.IsAtWarWith(patron)) count++;
         if (PapacySystem.IsExcommunicated(empire)) count++;
         if (religion.GetOrCreate().Schism) count++;
         if (PapacySystem.Authority(religion) < 40f) count++;
@@ -290,7 +290,7 @@ public static class ReligionSchismSystem
         foreach (Realm kingdom in EmpireWorld.Current.LiveRealms.ToList())
         {
             if (!Alive(kingdom) || ModRealm(kingdom) != kingdom || kingdom == core || kingdom.religion != old || kingdom.Capital == null ||
-                kingdom.isInWarWith(core) || PapacySystem.HoldsHolyCity(kingdom) || kingdom == see) continue;
+                kingdom.IsAtWarWith(core) || PapacySystem.HoldsHolyCity(kingdom) || kingdom == see) continue;
             float near = Vector2.Distance(kingdom.Capital.city_center, capital.city_center);
             float far = Vector2.Distance(kingdom.Capital.city_center, oldHoly.city_center);
             if (near >= far) continue;

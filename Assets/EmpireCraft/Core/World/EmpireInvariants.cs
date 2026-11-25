@@ -45,6 +45,19 @@ namespace EmpireCraft.Core
             if(alive!=w.LiveRealms.Count)Fail("living realm index "+w.LiveRealms.Count+" != "+alive);
             foreach(var r in w.Realms)if(r.Alive&&r.Ruler!=null&&r.Ruler.Throne!=r)Fail("ruler of realm "+r.Id+" does not hold its throne");
             foreach(var p in w.People)if(p.Throne!=null&&(!p.Alive||!p.Throne.Alive||p.Throne.Ruler!=p))Fail("person "+p.Id+" holds a throne that is not theirs");
+            int running=0;
+            foreach(var war in w.Wars)
+            {
+                if(!war.Alive)continue;
+                if(running>=w.LiveWars.Count||w.LiveWars[running]!=war)Fail("running war index misses war "+war.Id);
+                running++;
+                if(war.Attackers.Count==0||war.Defenders.Count==0)Fail("war "+war.Id+" has an empty side");
+                if(!war.Attackers.Contains(war.MainAttacker)||!war.Defenders.Contains(war.MainDefender))Fail("war "+war.Id+" is led from outside its sides");
+                foreach(var r in war.Attackers)if(!r.Alive||!r.Wars.Contains(war)||war.Defenders.Contains(r))Fail("war "+war.Id+" attacker "+r.Id+" is out of step");
+                foreach(var r in war.Defenders)if(!r.Alive||!r.Wars.Contains(war))Fail("war "+war.Id+" defender "+r.Id+" is out of step");
+            }
+            if(running!=w.LiveWars.Count)Fail("running war index "+w.LiveWars.Count+" != "+running);
+            foreach(var r in w.Realms)foreach(var war in r.Wars)if(!r.Alive||!war.Alive||!war.HasRealm(r))Fail("realm "+r.Id+" lists a war it is not fighting");
             int living=0;
             foreach(var p in w.People)
             {

@@ -85,6 +85,14 @@ IDENTITY = [
     (r"(?<![.\w])MetaSystemManager<", "RecordStore<"),
     (r"(?<![.\w])NanoObject\b", "Entity"),
     (r"\bEmpireCraft\.Core\.StackGuard\b", "StackGuard"),
+    (r"(?<![.\w])WarWinner\b", "WarOutcome"),
+    (r"(?<![.\w])WarTypeLibrary\b", "WarKinds"),
+    (r"(?<![.\w])WarTypeAsset\b", "WarKind"),
+    (r"(?<![.\w])BehaviourActionKingdom\b", "RealmTask"),
+    (r"(?<![.\w])BehaviourActionCity\b", "CityTask"),
+    (r"(?<![.\w])BehaviourActionActor\b", "PersonTask"),
+    (r"(?<![.\w])Config\.game_loaded\b", "GameClock.Running"),
+    (r"(?<![.\w])Config\.paused\b", "GameClock.Paused"),
     (r"\.isRekt\(\)", ".IsGone()"),
     (r"\.isAlive\(\)", ".Alive"),
     (r"\.hasKing\(\)", ".HasRuler()"),
@@ -247,6 +255,8 @@ def extract_source(text, types):
             outer, inner = name.split(".", 1)
             _, header_end, block_end = _declaration(text, outer, 0, len(text))
             header = text[text.rfind("\n", 0, header_end) + 1:header_end].strip()
+            # The lifted members do not need what the class derives from (the mod's entry class is a MonoBehaviour).
+            header = re.sub(r"\s*:.*$", "", header)
             if " partial " not in " " + header + " ":
                 header = re.sub(r"\b(class|struct)\b", r"partial \1", header, count=1)
             type_pattern = re.compile(r"\b(?:enum|class|struct|interface)[ \t]+%s\b" % re.escape(inner))

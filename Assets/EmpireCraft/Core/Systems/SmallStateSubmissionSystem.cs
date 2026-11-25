@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/SmallStateSubmissionSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/SmallStateSubmissionSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -63,7 +63,7 @@ public static class SmallStateSubmissionSystem
         int cities = small.Cities?.Count ?? 0;
         if (cities == 0 || cities > MaxCities || small.IsInEmpire() || small.IsEmpire() ||
             FeudalVassalService.GetOverlord(small) != null || small.GetTakenAllianceEmpire() != null) return false;
-        if (small.getWars().Any(war => war != null && !war.hasEnded()) || CityStateService.IsCityState(small) ||
+        if (small.GetWars().Any(war => war != null && !war.HasEnded()) || CityStateService.IsCityState(small) ||
             RulerTraitSystem.FounderShield(small) || UnificationSystem.InGrace(small) ||
             AncientWarfareCompatibility.Owns(small)) return false;
         double founded = small.FoundedStamp;
@@ -92,7 +92,7 @@ public static class SmallStateSubmissionSystem
         if (total == 0) return null;
         var best = contacts.OrderByDescending(pair => pair.Value).First();
         Realm lord = best.Key;
-        if (best.Value < total * MinShare || lord.isInWarWith(small) || FrontSystem.Hostile(lord, small)) return null;
+        if (best.Value < total * MinShare || lord.IsAtWarWith(small) || FrontSystem.Hostile(lord, small)) return null;
         return WarSituation.Power(lord) >= WarSituation.Power(small) * PowerRatio ? lord : null;
     }
 #endif

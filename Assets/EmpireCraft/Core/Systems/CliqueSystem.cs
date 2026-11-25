@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/CliqueSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/CliqueSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -140,9 +140,9 @@ public static class CliqueSystem
         Regime regime = empire?.CoreKingdom?.GetRegime();
         return regime != null && ClassClique(regime, PartyIdeology.Eunuchs)?.GetLeader() != null;
     }
+#endif
 
     private static float Ratio(Empire empire, FixedFaction faction) => empire.CoreKingdom.GetFactionRatioValue(faction);
-#endif
 
     private static bool Settled(FixedFaction faction) =>
         faction.CliqueFoundedAt < 0d || GameClock.YearsSince(faction.CliqueFoundedAt) >= MinYearsBeforeMerge;

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/GentrySystem.Kin.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/GentrySystem.Kin.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System.Collections.Generic;
@@ -140,7 +140,6 @@ public static partial class GentrySystem
 #endif
 
     // 京城：所在帝国核心的都城(不在帝国里的按本国都城)
-#if EC_PENDING
     private static bool IsCapital(City city)
     {
         Realm kingdom = city?.Realm;
@@ -148,7 +147,6 @@ public static partial class GentrySystem
         Realm court = (kingdom.IsEmpire() || kingdom.IsInEmpire() ? kingdom.GetEmpire()?.CoreKingdom : null) ?? kingdom;
         return court.Capital == city;
     }
-#endif
 
     // 每年(Assess)：世家的族众向上限靠；不是世家的散回谱上的人数
 #if EC_PENDING

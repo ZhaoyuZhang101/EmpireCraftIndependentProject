@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/WallPassage.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/WallPassage.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Time = EmpireCraft.Core.FrameClock;
 using System;
@@ -156,7 +156,7 @@ public static class WallPassage
             if (Dirty.Count > 0) Refresh();
             return _any;
         }
-        if (!Config.game_loaded || SmoothLoader.isLoading()) return false;
+        if (!GameClock.Running || SmoothLoader.isLoading()) return false;
         Rebuild(world);
         return _any;
     }

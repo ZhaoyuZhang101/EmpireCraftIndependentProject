@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/EmpireFormationService.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/EmpireFormationService.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -167,7 +167,6 @@ public static class EmpireFormationService
 #endif
 
     // 宗室复国：国王所在宗族曾是某个帝国的皇族，该帝国灭亡不满百年，且宗族眼下没有在统治任何帝国
-#if EC_PENDING
     private static bool MeetsRestoration(Realm kingdom)
     {
         SpecificClan clan = kingdom.Ruler?.GetSpecificClan();
@@ -180,7 +179,6 @@ public static class EmpireFormationService
                !ModClass.EMPIRE_MANAGER.Any(empire => empire != null && !empire.IsGone() &&
                                                       SpecificClanManager.SameLineage(empire.EmpireSpecificClan, clan));
     }
-#endif
 
     // 每个法理只计一个独立国家；拥戴者至少四国，候选者须强于核心内所有其他独立国家。
 #if EC_PENDING
@@ -533,21 +531,21 @@ public static class EmpireFormationService
 #if EC_PENDING
     public static int Population(Realm kingdom) =>
         kingdom?.Record == null ? 0 : CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.Households(kingdom) : kingdom.countUnits();
+#endif
 
     public static bool IsSubject(Realm kingdom) =>
         kingdom?.Record != null && !kingdom.IsGone() &&
         (FeudalVassalService.GetOverlord(kingdom) != null || kingdom.HasTakenAlliance() || WarlordEraSystem.Dependent(kingdom));
-#endif
 
     // 从属之国的帝国不用帝号(群友 2026-11-16 "依旧有x属xx称帝"，用户选"只改称呼")：先称了帝、后来才成了属地、保护国、
     // 朝贡国或封建附庸的，帝国层照旧(朝廷、成员国都在)，从属期间全称不带帝国字样(见 Empire.GetBaseEmpireFullName)、
     // 君主不称皇帝(见 RepublicSystem.CustomHeadTitle)、类别不显示帝国(见 GetKingdomTypeDisplayKey)，脱离宗主后恢复。
     // 傀儡照立国时定的(伪满称帝国，另有"傀儡政权"的类别)，流亡政府、宗主不在图上的剧本属地也不改
-#if EC_PENDING
     public static bool StyledAsSubject(Realm core) =>
         core?.Record != null && !core.IsGone() && core.IsEmpire() && !PuppetStateSystem.IsPuppet(core) &&
         (FeudalVassalService.GetOverlord(core) != null || core.HasTakenAlliance() || ColonySystem.MetropoleOf(core) != null);
 
+#if EC_PENDING
     private static bool MeetsBaseRequirements(Realm kingdom, bool requireNonNegativeTreasury)
     {
         if (kingdom == null || kingdom.IsGone()) return false;
@@ -745,7 +743,6 @@ public static class EmpireFormationService
 
     // 好感修正 opinion_empire_proclamation_grudge：对称帝不服的国家，对那个帝国的核心王国好感下降，
     // 二十年内线性恢复
-#if EC_PENDING
     public static int GetGrudgeOpinion(Realm from, Realm to)
     {
         if (from == null || to == null) return 0;
@@ -757,7 +754,6 @@ public static class EmpireFormationService
         if (years >= GrudgeYears) return 0;
         return -(int)(data.proclamation_grudge_strength * (1f - years / GrudgeYears));
     }
-#endif
 
     #endregion
 }

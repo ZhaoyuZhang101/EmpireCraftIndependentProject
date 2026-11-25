@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/LawEvents.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/LawEvents.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -45,11 +45,9 @@ public static class LawEvents
     #region 通用
 
     // 同一国或同一帝国
-#if EC_PENDING
     private static bool Within(Realm kingdom, Realm realm) =>
         kingdom?.Record != null && realm?.Record != null && !kingdom.IsGone() && !realm.IsGone() &&
         (kingdom == realm || kingdom.IsInSameEmpire(realm));
-#endif
 
     private static bool Living(Person actor) => actor?.Record != null && !actor.IsGone() && actor.Alive;
 
@@ -95,7 +93,6 @@ public static class LawEvents
 
     // 叛乱一类的仗(攻方是起事的一方)按什么罪论处；不是叛乱返回 null。
     // 不奉诏(朝廷是攻方)、伐不臣、征伐不服这些朝廷讨伐的仗不在这里
-#if EC_PENDING
     private static LawType? RebelLaw(War war, EmpireWarType type)
     {
         switch (type)
@@ -113,12 +110,11 @@ public static class LawEvents
             case EmpireWarType.清君侧:
                 return LawType.谋反;
             case EmpireWarType.None:
-                return war.getAsset() == WarTypeLibrary.rebellion ? LawType.谋反 : (LawType?)null;
+                return war.GetKind() == WarKinds.Rebellion ? LawType.谋反 : (LawType?)null;
             default:
                 return null;
         }
     }
-#endif
 
     private static string RebelReason(LawType law) => law switch
     {
@@ -130,12 +126,11 @@ public static class LawEvents
 
     // WarPatch.update 里每次更新：记下叛军眼下的首领(叛军灭亡后国王没了，战后要按记下的找人)。
     // 每帧都走，出错也不能抛出去(会让原版 War.update 每帧报错)
-#if EC_PENDING
     public static void TrackRebelLeader(War war)
     {
         try
         {
-            Person leader = war?.data == null || war.hasEnded() ? null : war.getMainAttacker()?.king;
+            Person leader = war?.Record == null || war.HasEnded() ? null : war.GetMainAttacker()?.Ruler;
             if (!Living(leader)) return;
             WarExtension.WarExtraData data = war.GetOrCreate();
             LawType? law = data == null ? null : RebelLaw(war, data.empireWarType);
@@ -148,16 +143,14 @@ public static class LawEvents
             // 记不上首领只是战后不论处，不影响战争
         }
     }
-#endif
 
     // 起兵、自立记在叛乱一方各国之主身上(量刑天平的叛逆砝码)：主攻之外，随攻的本朝诸国(还在帝国里或就是从这个帝国叛出的)
     // 也记；外国来助的不记。每场仗每人只记一次(用户 2026-11-10 "接着做"自立的判定；以前只记主攻)
-#if EC_PENDING
     private static void NoteRebels(War war, WarExtension.WarExtraData data, bool secession)
     {
-        Realm main = war.getMainAttacker();
-        Empire home = war.getMainDefender()?.GetEmpire();
-        foreach (Realm kingdom in war.getAttackers())
+        Realm main = war.GetMainAttacker();
+        Empire home = war.GetMainDefender()?.GetEmpire();
+        foreach (Realm kingdom in war.GetAttackers())
         {
             Person ruler = kingdom?.Record == null || kingdom.IsGone() ? null : kingdom.Ruler;
             if (!Living(ruler)) continue;
@@ -170,13 +163,12 @@ public static class LawEvents
             EmpireLawSystem.NoteDefiance(ruler, secession);
         }
     }
-#endif
 
     // 战争结束(WarPatch.end_war，各项结局结算之后)：叛乱兵败、不奉诏平定后论处首领
 #if EC_PENDING
-    public static void OnWarEnded(War war, WarWinner winner)
+    public static void OnWarEnded(War war, WarOutcome winner)
     {
-        if (war?.data == null || EmpireWorld.Current?.Living == null || !EmpireLawSystem.Enabled) return;
+        if (war?.Record == null || EmpireWorld.Current?.Living == null || !EmpireLawSystem.Enabled) return;
         try
         {
             WarExtension.WarExtraData data = war.GetOrCreate();
@@ -190,44 +182,42 @@ public static class LawEvents
             if (law == null || !RebelsLost(war, winner)) return;
             long id = data.rebel_leader_id >= 0 ? data.rebel_leader_id : data.republic_revolution_leader_id;
             Person leader = id >= 0 ? EmpireWorld.Current.PersonByKey(id) : null;
-            Realm loyalist = war.getMainDefender();
+            Realm loyalist = war.GetMainDefender();
             if (Captive(leader, loyalist)) Prosecute(leader, law.Value, loyalist, RebelReason(law.Value));
         }
         catch (Exception exception)
         {
-            LogService.LogWarning($"[律法][实事] 战后论处叛乱首领失败({war.data.name}): {exception.Message}");
+            LogService.LogWarning($"[律法][实事] 战后论处叛乱首领失败({war.Name}): {exception.Message}");
         }
     }
 #endif
 
     // 守方胜；或者议和、作罢时叛军已经灭亡(没有城了)
 #if EC_PENDING
-    private static bool RebelsLost(War war, WarWinner winner)
+    private static bool RebelsLost(War war, WarOutcome winner)
     {
-        if (winner == WarWinner.Defenders) return true;
-        if (winner != WarWinner.Nobody) return false;
-        Realm rebel = war.getMainAttacker();
+        if (winner == WarOutcome.Defenders) return true;
+        if (winner != WarOutcome.Nobody) return false;
+        Realm rebel = war.GetMainAttacker();
         return rebel?.Record == null || rebel.IsGone() || !rebel.Alive || rebel.countCities() == 0;
     }
 #endif
 
     // 落到朝廷手里：还活着，人在胜方(或胜方所在帝国)境内，不再是一国之君(还据着一国的不算被擒)
-#if EC_PENDING
     private static bool Captive(Person actor, Realm victor)
     {
         if (!Living(actor) || victor?.Record == null || victor.IsGone()) return false;
         Realm held = actor.Realm;
         return held?.Record != null && held.Ruler != actor && Within(held, victor);
     }
-#endif
 
     // 不奉诏：朝廷(攻方)获胜、改立了新君，被废的抗命嗣君以谋反论处
 #if EC_PENDING
-    private static void Defiance(War war, WarExtension.WarExtraData data, WarWinner winner)
+    private static void Defiance(War war, WarExtension.WarExtraData data, WarOutcome winner)
     {
-        if (winner != WarWinner.Attackers || data.investiture_heir_id < 0) return;
+        if (winner != WarOutcome.Attackers || data.investiture_heir_id < 0) return;
         Person heir = EmpireWorld.Current.PersonByKey(data.investiture_heir_id);
-        Realm core = war.getMainAttacker();
+        Realm core = war.GetMainAttacker();
         if (Captive(heir, core)) Prosecute(heir, LawType.谋反, core, "law_reason_defiance_crushed");
     }
 #endif

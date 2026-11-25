@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/NomadRaidSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/NomadRaidSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -107,10 +107,10 @@ public static partial class NomadRaidSystem
         kingdom?.Record != null && !kingdom.IsGone() && !kingdom.IsWild && kingdom.HasCapital() && kingdom.Cities?.Count > 0;
 
     // 一方之主：独立的国或帝国核心
-#if EC_PENDING
     private static bool IsRealm(Realm kingdom) =>
         Alive(kingdom) && (kingdom.GetEmpire() is not Empire empire || empire.CoreKingdom == kingdom);
 
+#if EC_PENDING
     private static Realm ModRealm(Realm kingdom) => FrontSystem.Realm(kingdom);
 #endif
 
@@ -142,14 +142,12 @@ public static partial class NomadRaidSystem
         return kingdom?.Record != null && !kingdom.IsGone() ? kingdom : null;
     }
 
-#if EC_PENDING
     private static War LiveWar(long id)
     {
-        if (id < 0 || EmpireWorld.Current?.wars == null) return null;
-        War war = EmpireWorld.Current.wars.get(id);
-        return war?.data != null && war.Alive && !war.hasEnded() ? war : null;
+        if (id < 0 || EmpireWorld.Current?.LiveWars == null) return null;
+        War war = EmpireWorld.Current.WarByKey(id);
+        return war?.Record != null && war.Alive && !war.HasEnded() ? war : null;
     }
-#endif
 
     private static float YearsSince(double at) =>
         at < 0d || GameClock.Now < at ? float.MaxValue : GameClock.YearsSince(at);
@@ -318,7 +316,7 @@ public static partial class NomadRaidSystem
 #if EC_PENDING
     private static bool CanRaid(Realm kingdom)
     {
-        if (!Alive(kingdom) || !kingdom.HasRuler() || kingdom.hasEnemies() || WarSituation.TooBusyForWar(kingdom)) return false;
+        if (!Alive(kingdom) || !kingdom.HasRuler() || kingdom.HasEnemies() || WarSituation.TooBusyForWar(kingdom)) return false;
         if (kingdom.IsFactionRebelling() || kingdom.IsLocalRebelling()) return false;
         if (TechnologySystem.GetEraTier(TechnologySystem.GetCultureOf(kingdom)) > MaxRaidEraTier) return false;
         SteppeState state = State(kingdom);
@@ -450,8 +448,8 @@ public static partial class NomadRaidSystem
         }
         if (TribalFissionService.IsTribal(target) && TribalFissionService.IsTribal(leader)) return false;
         if (target.GetOrCreate().raided_at >= 0d && YearsSince(target.GetOrCreate().raided_at) < VictimImmunityYears) return false;
-        if (target.getWars().Any(war => war?.data != null && !war.hasEnded() && war.GetEmpireWarType() == EmpireWarType.劫掠 &&
-                                       war.isDefender(target))) return false;
+        if (target.GetWars().Any(war => war?.Record != null && !war.HasEnded() && war.GetEmpireWarType() == EmpireWarType.劫掠 &&
+                                       war.IsDefender(target))) return false;
         // 开战的是盟主：目标只挨着盟里远处的某部、盟主够不着的，开战会被远战闸拦下(见 WarReach)，劫掠白白作罢
         return WarGate.CanDeclare(leader, target) && WarReach.Reachable(leader, target);
     }
@@ -494,20 +492,20 @@ public static partial class NomadRaidSystem
         Declaring = true;
         try
         {
-            war = EmpireWorld.Current.diplomacy.startWar(leader, target, WarTypeLibrary.normal);
-            if (war?.data != null)
+            war = EmpireWorld.Current.StartWar(leader, target, WarKinds.Normal);
+            if (war?.Record != null)
             {
                 war.SetEmpireWarType(EmpireWarType.劫掠);
-                foreach (Realm member in members.Skip(1)) war.joinAttackers(member);
+                foreach (Realm member in members.Skip(1)) war.JoinAttackers(member);
             }
         }
         finally
         {
             Declaring = false;
         }
-        if (war?.data == null) return;
+        if (war?.Record == null) return;
         double now = GameClock.Now;
-        var joined = members.Where(member => war.isAttacker(member)).ToList();
+        var joined = members.Where(member => war.IsAttacker(member)).ToList();
         var state = new RaidWarState
         {
             leader_id = leader.Key, leader_name = leader.GetKingdomName(), target_name = target.GetKingdomName(),
@@ -520,11 +518,11 @@ public static partial class NomadRaidSystem
         {
             SteppeState steppe = State(member);
             steppe.last_raid_at = now;
-            steppe.raid_war_id = war.data.id;
+            steppe.raid_war_id = war.Key;
         }
         bool league = joined.Count > 1;
         string others = string.Join("、", joined.Skip(1).Select(member => member.GetKingdomName()));
-        war.data.name = string.Format(LM.Get(league ? "nomad_raid_league_war_name" : "nomad_raid_war_name"),
+        war.Name = string.Format(LM.Get(league ? "nomad_raid_league_war_name" : "nomad_raid_war_name"),
             state.leader_name, state.target_name);
         string text = league
             ? string.Format(LM.Get("nomad_raid_league_history"), state.leader_name, leader.Ruler?.FullName() ?? "", others,

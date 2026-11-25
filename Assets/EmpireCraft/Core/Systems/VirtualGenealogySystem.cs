@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/VirtualGenealogySystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/VirtualGenealogySystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Time = EmpireCraft.Core.FrameClock;
 using System;
@@ -725,10 +725,8 @@ public static partial class VirtualGenealogySystem
     private const int KeepHistoryHead = 1;
     private const int KeepHistoryTail = 2;
     private const int KeepHistoryMajor = 4;
-#if EC_PENDING
     private static readonly EmpireCraft.Core.FrameBudgetQueue<long> PruneQueue =
         new(1.5d, PruneClan, "族谱瘦身");
-#endif
     private static readonly HashSet<long> PrunedClans = new();
     private static double _lastPrunePass = -1d;
     private static bool _upkeepTurn;
@@ -868,7 +866,6 @@ public static partial class VirtualGenealogySystem
         return false;
     }
 
-#if EC_PENDING
     private static void PruneClan(long clanId)
     {
         SpecificClan clan = SpecificClanManager.Get(clanId);
@@ -918,10 +915,8 @@ public static partial class VirtualGenealogySystem
         PrunedClans.Add(clan.id);
         _prunedPeople += people.Length;
     }
-#endif
 
     // 现存帝国的皇族
-#if EC_PENDING
     private static bool IsEmpireClan(SpecificClan clan)
     {
         if (ModClass.EMPIRE_MANAGER == null) return false;
@@ -949,7 +944,6 @@ public static partial class VirtualGenealogySystem
         }
         return false;
     }
-#endif
 
     private static void FinishPrune()
     {
@@ -1042,7 +1036,6 @@ public static partial class VirtualGenealogySystem
     private static readonly HashSet<long> RulingRoots = new();
     private static float _rulingRootsAt = -100f;
 
-#if EC_PENDING
     private static bool IsRulingLineage(SpecificClan clan)
     {
         if (clan == null || EmpireWorld.Current?.LiveRealms == null) return false;
@@ -1061,7 +1054,6 @@ public static partial class VirtualGenealogySystem
         }
         return RulingRoots.Contains(clan.GetRootClan().id);
     }
-#endif
 
     // 正在统治某个王国或帝国的宗族(永不销户)
     // 各国的执政宗族，一帧只数一遍(见 FrameStamp)：以前每查一个宗族就把全图各国过一遍、各问一回君主的宗族，
@@ -1070,7 +1062,6 @@ public static partial class VirtualGenealogySystem
     private static int _rulingClansFrame = -1;
     private static EmpireWorld _rulingClansWorld;
 
-#if EC_PENDING
     private static bool IsRulingClan(SpecificClan clan)
     {
         if (clan == null || EmpireWorld.Current?.LiveRealms == null) return false;
@@ -1092,10 +1083,8 @@ public static partial class VirtualGenealogySystem
         if (CacheAudit.Sampled(16)) CacheAudit.Compare("执政宗族", ruling == ScanRulingClan(clan));
         return ruling;
     }
-#endif
 
     // 老办法(逐国问一遍)，只在核对时用(见 CacheAudit)
-#if EC_PENDING
     private static bool ScanRulingClan(SpecificClan clan)
     {
         foreach (Realm kingdom in EmpireWorld.Current.LiveRealms)
@@ -1106,7 +1095,6 @@ public static partial class VirtualGenealogySystem
         }
         return false;
     }
-#endif
 
     #endregion
 

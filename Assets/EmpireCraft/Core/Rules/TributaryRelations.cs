@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/TributaryRelations.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/TributaryRelations.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System.Collections.Generic;
@@ -33,7 +33,6 @@ public static class TributaryRelations
     public static void ResetWorldState() => Reach.Clear();
 
     // 够不着几年断朝贡(见类头)
-#if EC_PENDING
     private static float DriftLimit(Realm tributary, Empire empire)
     {
         Realm core = empire?.CoreKingdom;
@@ -42,7 +41,6 @@ public static class TributaryRelations
         if (a < 0f || b < 0f) return DriftYears;
         return DriftYears * (0.5f + (a > b ? a : b));
     }
-#endif
 
     // 宗主的直辖之地：核心王国与它的行政区(律令制的道、都护府，行省、总督区……见 IsAdministrativeKingdomType)
 #if EC_PENDING
@@ -94,18 +92,18 @@ public static class TributaryRelations
     {
         Empire empire = tributary?.GetTakenAllianceEmpire();
         Realm core = empire?.CoreKingdom;
-        if (core?.Record == null || core.IsGone() || empire.IsArchived() || core.hasEnemies()) return;
-        War war = tributary.getWars().FirstOrDefault(candidate =>
-            candidate?.data != null && candidate.Alive && !candidate.hasEnded() && candidate.isDefender(tributary) &&
-            candidate.GetEmpireWarType() != EmpireWarType.劫掠 && !candidate.hasKingdom(core) &&
-            !candidate._list_attackers.Any(kingdom => kingdom == core || kingdom?.GetEmpire() == empire ||
+        if (core?.Record == null || core.IsGone() || empire.IsArchived() || core.HasEnemies()) return;
+        War war = tributary.GetWars().FirstOrDefault(candidate =>
+            candidate?.Record != null && candidate.Alive && !candidate.HasEnded() && candidate.IsDefender(tributary) &&
+            candidate.GetEmpireWarType() != EmpireWarType.劫掠 && !candidate.HasRealm(core) &&
+            !candidate.Attackers.Any(kingdom => kingdom == core || kingdom?.GetEmpire() == empire ||
                                                       kingdom?.GetTakenAllianceEmpire() == empire));
-        Realm attacker = war?.main_attacker;
+        Realm attacker = war?.MainAttacker;
         if (attacker?.Record == null || attacker.IsGone() || EmpirePeacePatch.HasLeft(core, war, joiningAttackers: false)) return;
         if (WarSituation.TooBusyForWar(core) || CorpsSystem.CannotFundWar(core) ||
             WarSituation.Power(empire) <= WarSituation.Power(attacker) || !WarGate.CanDeclare(core, attacker)) return;
-        war.joinDefenders(core);
-        if (!war._list_defenders.Contains(core)) return;
+        war.JoinDefenders(core);
+        if (!war.Defenders.Contains(core)) return;
         TranslateHelper.LogEventMessage(string.Format(LM.Get("tributary_protected"), core.GetKingdomName(),
             tributary.GetKingdomName(), attacker.GetKingdomName()), core);
     }

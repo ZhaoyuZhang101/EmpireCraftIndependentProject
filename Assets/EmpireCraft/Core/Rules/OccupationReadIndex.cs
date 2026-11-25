@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/OccupationReadIndex.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/OccupationReadIndex.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Time = EmpireCraft.Core.FrameClock;
 using System;
@@ -62,6 +62,7 @@ public static class OccupationReadIndex
             if (SmoothBorders.Enabled) SmoothBorders.Repaint(each);
             else each?.resetRenderHelpers();
     }
+#endif
 
     public static void Reset()
     {
@@ -70,6 +71,7 @@ public static class OccupationReadIndex
         ControlBuilds = ControlHits = 0; _active = false;
     }
 
+#if EC_PENDING
     public static IReadOnlyList<Group> Read(City city)
     {
         var data = city.GetOrCreate();
@@ -112,9 +114,7 @@ public static class OccupationReadIndex
         internal Realm[] Attackers;
         internal Control Value;
     }
-#if EC_PENDING
     private static ConditionalWeakTable<War, ControlEntry> ControlEntries = new();
-#endif
     public static long ControlBuilds { get; private set; }
     public static long ControlHits { get; private set; }
 
@@ -125,17 +125,17 @@ public static class OccupationReadIndex
         _active = true;
         long signature = membership?.Invoke() ?? 0L;
         var entry = ControlEntries.GetOrCreateValue(war);
-        bool sameAttackers = entry.Attackers != null && entry.Attackers.Length == war._list_attackers.Count;
+        bool sameAttackers = entry.Attackers != null && entry.Attackers.Length == war.Attackers.Count;
         if (sameAttackers)
             for (int i = 0; i < entry.Attackers.Length; i++)
-                if (entry.Attackers[i] != war._list_attackers[i]) { sameAttackers = false; break; }
+                if (entry.Attackers[i] != war.Attackers[i]) { sameAttackers = false; break; }
         if (entry.Frame == Time.frameCount && entry.Revision == Revision && ReferenceEquals(entry.World, EmpireWorld.Current) &&
             ReferenceEquals(entry.Scope, scope) && entry.Membership == signature && sameAttackers)
         { ControlHits++; return entry.Value; }
         Control value = calculate();
         entry.World = EmpireWorld.Current; entry.Scope = scope; entry.Frame = Time.frameCount; entry.Revision = Revision;
         entry.Membership = signature;
-        entry.Attackers = new Realm[war._list_attackers.Count]; war._list_attackers.CopyTo(entry.Attackers);
+        entry.Attackers = new Realm[war.Attackers.Count]; war.Attackers.CopyTo(entry.Attackers);
         entry.Value = value; ControlBuilds++;
         return value;
     }

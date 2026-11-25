@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/EmpireCraftStrategicScheduler.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/EmpireCraftStrategicScheduler.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Time = EmpireCraft.Core.FrameClock;
 using System;
@@ -32,12 +32,10 @@ public static class EmpireCraftStrategicScheduler
     private static readonly Dictionary<long, KingdomScheduleState> KingdomStates = new();
     private static readonly Dictionary<long, EmpireScheduleState> EmpireStates = new();
     private static readonly Dictionary<long, float> FaultRetryTimes = new();
-#if EC_PENDING
     private static readonly EmpireCraftKingdomBehCheckTemporaryFaction TemporaryFactionCheck = new();
     private static readonly EmpireCraftKingdomBehCheckPlots PlotCheck = new();
     private static readonly EmpireCraftKingdomBehCheckKingdomType KingdomTypeCheck = new();
     private static readonly EmpireCraftKingdomBehCheckReligionKingdom ReligionKingdomCheck = new();
-#endif
     private static EmpireWorld _boundWorld;
     private static int _kingdomCursor;
     private static int _empireCursor;
@@ -48,12 +46,12 @@ public static class EmpireCraftStrategicScheduler
     public static void Tick()
     {
         EmpireWorld currentWorld = EmpireWorld.Current;
-        if (currentWorld == null || !Config.game_loaded || SmoothLoader.isLoading()) return;
+        if (currentWorld == null || !GameClock.Running || SmoothLoader.isLoading()) return;
         if (!ReferenceEquals(_boundWorld, currentWorld)) Reset(currentWorld);
         // 世界地图剧本进世界后的安排(行政区、多京、殖民地、兵力、名人……)，等各国的城表就绪再做(见 WorldMapScenario.TickAfterLoad)；
         // 加载界面等它做完才揭开，暂停着也照做
         EmpireCraft.Core.WorldMapScenario.TickAfterLoad();
-        if (Config.paused) return;
+        if (GameClock.Paused) return;
         // 自定剧本的剧情事件(每年查一次，见 ScenarioEventSystem)
         EmpireCraft.Core.ScenarioEventSystem.Tick();
         // 读档后第 1、6、12、36 个月对一次帝国的账(见 EmpireLossDiagnostics)，平时第一行就返回
@@ -160,7 +158,7 @@ public static class EmpireCraftStrategicScheduler
 
         // Titles are internally sliced. Calling once per render frame avoids a full
         // title scan on every physics tick.
-        using (FrameProfiler.Measure("头衔管理")) ModClass.KINGDOM_TITLE_MANAGER?.update(0f);
+        using (FrameProfiler.Measure("头衔管理")) ModClass.KINGDOM_TITLE_MANAGER?.Update(0f);
 
         // 预算用光了也至少过这么几个(ForcedEmpiresPerFrame、ForcedKingdomsPerFrame)：前面的子系统、军团用光了预算时，
         // 帝国与王国也不至于一帧一个都轮不上(平常模式以前不受预算管，现在受管，见 FrameJobs)。

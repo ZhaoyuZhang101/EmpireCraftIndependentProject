@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/SteppeOrderSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/SteppeOrderSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -64,6 +64,7 @@ public static partial class SteppeOrderSystem
             LogService.LogWarning($"{LogTag} 朝贡换赏赐结算失败: {exception.Message}");
         }
     }
+#endif
 
     public static void Monthly()
     {
@@ -76,6 +77,5 @@ public static partial class SteppeOrderSystem
             LogService.LogWarning($"{LogTag} 争草场到期结算失败: {exception.Message}");
         }
     }
-#endif
 }
 }

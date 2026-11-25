@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/HolyRomanSystem.Members.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/HolyRomanSystem.Members.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -83,16 +83,16 @@ public static partial class HolyRomanSystem
 #endif
 
     // 候选：三城以上的普通成员国(含中央)里，人口最多的非都城
-#if EC_PENDING
     private static City FreeCityCandidate(Empire empire) =>
         empire.kingdoms_list
             .Where(kingdom => kingdom?.Record != null && !kingdom.IsGone() && kingdom.GetEmpire() == empire &&
                               kingdom.Cities.Count >= 3 && Estate(kingdom) == EstateNone && !IsBanned(kingdom) &&
-                              !kingdom.isInWarWith(empire.CoreKingdom))
-            .SelectMany(kingdom => kingdom.cities.Where(item => item?.data != null && !item.IsGone() && item != kingdom.capital &&
+                              !kingdom.IsAtWarWith(empire.CoreKingdom))
+            .SelectMany(kingdom => kingdom.Cities.Where(item => item?.Record != null && !item.IsGone() && item != kingdom.Capital &&
                                                                 !EnfeoffmentHelper.IsRealmCapital(item)))
-            .OrderByDescending(item => item.getPopulationPeople()).FirstOrDefault();
+            .OrderByDescending(item => item.PopulationCount()).FirstOrDefault();
 
+#if EC_PENDING
     public static Realm CharterFreeCity(Empire empire, City city)
     {
         Realm former = city?.Realm;
@@ -161,7 +161,7 @@ public static partial class HolyRomanSystem
         Realm core = empire.CoreKingdom;
         foreach (Realm free in Members(empire).Where(IsFreeCity))
         {
-            if (free.isInWarWith(core)) continue;
+            if (free.IsAtWarWith(core)) continue;
             int amount = (int)Math.Min(StateSettlementSystem.DiscretionaryFunds(free),
                 (long)(StateDebtSystem.AnnualStableIncome(free) * FreeCityTax));
             if (amount <= 0) continue;
@@ -190,7 +190,7 @@ public static partial class HolyRomanSystem
             int price = (int)Math.Max(100L, (long)(StateDebtSystem.AnnualStableIncome(free) * PawnYears));
             Realm buyer = Members(empire)
                 .Where(member => Estate(member) == EstateNone && !IsBanned(member) && member.GetMoney() >= price &&
-                                 !member.isInWarWith(core))
+                                 !member.IsAtWarWith(core))
                 .OrderByDescending(member => member.IsNeighbourWith(free))
                 .ThenByDescending(member => member.GetMoney()).FirstOrDefault();
             if (buyer == null) continue;
@@ -340,11 +340,9 @@ public static partial class HolyRomanSystem
 #endif
 
     // 选帝侯团的教会席位：主教领的主教优先(最多三席)
-#if EC_PENDING
     public static List<long> ChurchElectors(Empire empire) =>
         Members(empire).Where(IsChurchEstate).Where(kingdom => kingdom.Ruler?.Record != null && !IsBanned(kingdom))
             .OrderByDescending(kingdom => kingdom.Cities.Count).Select(kingdom => kingdom.Ruler.Key).Take(MaxChurchPrinces).ToList();
-#endif
 
     #endregion
 }

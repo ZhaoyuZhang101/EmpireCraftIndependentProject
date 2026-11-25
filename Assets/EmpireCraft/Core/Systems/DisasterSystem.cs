@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/DisasterSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/DisasterSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -146,7 +146,6 @@ public static class DisasterSystem
 #endif
 
     // 帝国：核心与全体成员的城；古战模组的成员不算
-#if EC_PENDING
     private static List<City> RealmCities(Realm head)
     {
         var result = new List<City>();
@@ -162,7 +161,6 @@ public static class DisasterSystem
         }
         return result;
     }
-#endif
 
     // 从人均粮食最少的那批城里随机抽；正在受灾的城尽量不重复抽
 #if EC_PENDING

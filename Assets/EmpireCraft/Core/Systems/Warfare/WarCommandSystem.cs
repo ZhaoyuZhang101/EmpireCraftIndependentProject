@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/WarCommandSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/WarCommandSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System.Collections.Generic;
@@ -97,7 +97,7 @@ public static class WarCommandSystem
     {
         if (kingdom?.Record == null || kingdom.IsGone() || ModRealm(kingdom) != kingdom) return;
         var data = kingdom.GetOrCreate();
-        bool war = kingdom.hasEnemies() || CityPopulationSystem.IsMobilizing(kingdom);
+        bool war = kingdom.HasEnemies() || CityPopulationSystem.IsMobilizing(kingdom);
         if (!war)
         {
             if (data.war_commander_id >= 0 || data.war_quartermaster_id >= 0) Dismiss(kingdom);
@@ -192,24 +192,24 @@ public static class WarCommandSystem
 #endif
 
     // 这国眼下主打的那场仗(主攻或主守优先)；只在谋划开战时为 null
-#if EC_PENDING
     private static War MainWar(Realm kingdom)
     {
         War fallback = null;
-        foreach (War war in kingdom.getWars())
+        foreach (War war in kingdom.GetWars())
         {
-            if (war?.data == null || war.hasEnded()) continue;
-            if (war.main_attacker == kingdom || war.main_defender == kingdom) return war;
+            if (war?.Record == null || war.HasEnded()) continue;
+            if (war.MainAttacker == kingdom || war.MainDefender == kingdom) return war;
             fallback ??= war;
         }
         return fallback;
     }
 
+#if EC_PENDING
     private static string Kind(Realm kingdom, War war)
     {
-        bool attacking = war == null || war.isAttacker(kingdom);
+        bool attacking = war == null || war.IsAttacker(kingdom);
         EmpireWarType type = war?.GetEmpireWarType() ?? EmpireWarType.None;
-        bool rebellion = war != null && (!attacking && (war.getAsset() == WarTypeLibrary.rebellion || Rebellions.Contains(type)) ||
+        bool rebellion = war != null && (!attacking && (war.GetKind() == WarKinds.Rebellion || Rebellions.Contains(type)) ||
                                          attacking && Punitive.Contains(type));
         if (ModernStability.IsModern(kingdom))
             return rebellion ? "modern_rebellion" : attacking ? "modern" : "modern_defend";
@@ -217,7 +217,7 @@ public static class WarCommandSystem
         if (!attacking) return "defend";
         WarGoal goal = WarGoalSystem.Get(war);
         if (goal == WarGoal.劫掠) return "raid";
-        Realm enemy = war == null ? CityPopulationSystem.EnemyOf(kingdom) : war.main_defender;
+        Realm enemy = war == null ? CityPopulationSystem.EnemyOf(kingdom) : war.MainDefender;
         string ours = CultureService.GetRealmCulture(kingdom), theirs = CultureService.GetRealmCulture(enemy);
         // 蛮夷之战按天下(见 CultureService.SameKin)不按制度线：同一线里的异族(法兰克打林地部族)也算，同一天下的不算
         if (type == EmpireWarType.攘夷 || CultureService.IsValidCulture(ours) && CultureService.IsValidCulture(theirs) &&
@@ -236,10 +236,10 @@ public static class WarCommandSystem
     private const int TriumphFamousCap = 3;
 
 #if EC_PENDING
-    public static void OnWarEnded(War war, WarWinner winner)
+    public static void OnWarEnded(War war, WarOutcome winner)
     {
-        if (!CorpsSystem.Enabled || war?.data == null) return;
-        Realm main = winner == WarWinner.Attackers ? war.main_attacker : winner == WarWinner.Defenders ? war.main_defender : null;
+        if (!CorpsSystem.Enabled || war?.Record == null) return;
+        Realm main = winner == WarOutcome.Attackers ? war.MainAttacker : winner == WarOutcome.Defenders ? war.MainDefender : null;
         if (main?.Record == null || main.IsGone()) return;
         try
         {
@@ -248,7 +248,7 @@ public static class WarCommandSystem
             if (commander == null || commander == realm.Ruler) return;
             float host = Host(realm);
             RenownSystem.OnBattle(commander, TriumphRenown * Mathf.Clamp(host / 20000f, 0.5f, 3f));
-            Realm foe = winner == WarWinner.Attackers ? war.main_defender : war.main_attacker;
+            Realm foe = winner == WarOutcome.Attackers ? war.MainDefender : war.MainAttacker;
             string title = TitleOf(realm), foeName = foe?.GetKingdomName() ?? "";
             if (host < WarMuster.GrandHost)
             {
@@ -277,7 +277,6 @@ public static class WarCommandSystem
 #endif
 
     // 本国(帝国中央连同各成员国)军中的兵
-#if EC_PENDING
     private static float Host(Realm kingdom)
     {
         Empire empire = kingdom.GetEmpire();
@@ -293,6 +292,7 @@ public static class WarCommandSystem
         return total;
     }
 
+#if EC_PENDING
     private static string TitleKey(Realm kingdom, War war)
     {
         string kind = Kind(kingdom, war);

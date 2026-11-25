@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/CorpsCommandSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/CorpsCommandSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System.Collections.Generic;
 
@@ -21,12 +21,11 @@ public static class CorpsCommandSystem
         Attacks.Clear();
     }
 
-#if EC_PENDING
     public static City HoldCity(Realm kingdom)
     {
         if (kingdom == null || !Holds.TryGetValue(kingdom.Key, out long id)) return null;
         City city = EmpireWorld.Current.CityByKey(id);
-        if (city?.Record != null && !city.IsGone() && city.Realm == kingdom && kingdom.hasEnemies()) return city;
+        if (city?.Record != null && !city.IsGone() && city.Realm == kingdom && kingdom.HasEnemies()) return city;
         Holds.Remove(kingdom.Key);
         return null;
     }
@@ -35,11 +34,10 @@ public static class CorpsCommandSystem
     {
         if (kingdom == null || !Attacks.TryGetValue(kingdom.Key, out long id)) return null;
         City city = EmpireWorld.Current.CityByKey(id);
-        if (city?.Realm != null && !city.IsGone() && kingdom.isInWarWith(city.Realm)) return city;
+        if (city?.Realm != null && !city.IsGone() && kingdom.IsAtWarWith(city.Realm)) return city;
         Attacks.Remove(kingdom.Key);
         return null;
     }
-#endif
 
     // 下令或撤销，返回提示
 #if EC_PENDING
@@ -53,11 +51,11 @@ public static class CorpsCommandSystem
                 Holds.Remove(kingdom.Key);
                 return string.Format(LM.Get("corps_command_hold_cancelled"), kingdom.GetKingdomName(), city.GetCityName());
             }
-            if (!kingdom.hasEnemies()) return string.Format(LM.Get("corps_command_no_war"), kingdom.GetKingdomName());
+            if (!kingdom.HasEnemies()) return string.Format(LM.Get("corps_command_no_war"), kingdom.GetKingdomName());
             Holds[kingdom.Key] = city.Key;
             return string.Format(LM.Get("corps_command_hold"), kingdom.GetKingdomName(), city.GetCityName());
         }
-        if (!kingdom.isInWarWith(city.Realm))
+        if (!kingdom.IsAtWarWith(city.Realm))
             return string.Format(LM.Get("corps_command_not_enemy"), kingdom.GetKingdomName(), city.Realm.GetKingdomName());
         if (AttackCity(kingdom) == city)
         {

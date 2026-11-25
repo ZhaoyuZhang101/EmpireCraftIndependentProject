@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/HolyRomanSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/HolyRomanSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -105,6 +105,7 @@ public static partial class HolyRomanSystem
         if (IsElective(empire) && HouseShare(empire) < WeakHouse && member.Cities.Count > core) return true;
         return member.Cities.Count * 2 > core && RomzugUnderway(empire);
     }
+#endif
 
     public static Person KingOfRomans(Empire empire)
     {
@@ -112,7 +113,6 @@ public static partial class HolyRomanSystem
         Person actor = state?.king_of_romans_id >= 0 ? EmpireWorld.Current.PersonByKey(state.king_of_romans_id) : null;
         return actor?.Record != null && !actor.IsGone() && actor.Alive && actor.Realm?.GetEmpire() == empire ? actor : null;
     }
-#endif
 
     // 帝位选出的人(OfficeObject.SetActor 调用)：是别的成员国的君主时，带着自家领国成为中央，不调进原中央
 #if EC_PENDING
@@ -237,7 +237,7 @@ public static partial class HolyRomanSystem
     {
         bool Fit(Person actor) => actor.IsAdult() && actor.isUnitFitToRule() && actor.Realm?.GetEmpire() == empire;
         Person pick = EmpireCraftKingdomBehCheckHeir.HeirCandidates(empire.CoreKingdom).Where(Fit)
-            .OrderByDescending(actor => actor.getAge()).FirstOrDefault();
+            .OrderByDescending(actor => actor.Age()).FirstOrDefault();
         if (pick != null || !CityPopulationSystem.AbstractPopulationEnabled) return pick;
         PersonalClanIdentity parent = empire.Emperor?.GetPersonalIdentity();
         if (parent == null) return null;
@@ -460,7 +460,7 @@ public static partial class HolyRomanSystem
         if (KingOfRomans(empire) is Person chosen) return $"已选立{chosen.FullName()}";
         Person emperor = empire.Emperor;
         if (emperor == null) return "帝位空缺";
-        int living = EmpireCraftKingdomBehCheckHeir.HeirCandidates(empire.CoreKingdom).Count(actor => actor.isAdult());
+        int living = EmpireCraftKingdomBehCheckHeir.HeirCandidates(empire.CoreKingdom).Count(actor => actor.IsAdult());
         PersonalClanIdentity parent = emperor.GetPersonalIdentity();
         int all = parent == null ? 0 : SpecificClanManager.getChildren(parent).Count(item =>
             item.Item2 != null && item.Item2.is_alive && item.Item2.CanHeir() && item.Item2.age >= 18);
@@ -512,7 +512,7 @@ public static partial class HolyRomanSystem
         if (papacy == null || PapacySystem.BrokeWithRome(empire)) return "教廷无主或已脱离罗马，自行加冕";
         if (papacy == core) return "教廷就在皇帝自家领内，直接加冕";
         if (PapacySystem.IsExcommunicated(empire)) return "绝罚中";
-        if (papacy.isInWarWith(core)) return $"与教廷{papacy.GetKingdomName()}交战";
+        if (papacy.IsAtWarWith(core)) return $"与教廷{papacy.GetKingdomName()}交战";
         return $"未加冕，每年四成可能远征{papacy.GetKingdomName()}";
     }
 #endif

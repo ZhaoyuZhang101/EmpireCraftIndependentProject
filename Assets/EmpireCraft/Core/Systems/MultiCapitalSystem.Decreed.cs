@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/MultiCapitalSystem.Decreed.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/MultiCapitalSystem.Decreed.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System.Collections.Generic;
 using System.Linq;
@@ -20,10 +20,8 @@ public static partial class MultiCapitalSystem
     public static int AuxiliaryCount(Empire empire) =>
         empire?.data?.jing == null ? 0 : empire.data.jing.Count(record => record != null && !string.IsNullOrEmpty(record.direction));
 
-#if EC_PENDING
     private static bool Holds(Empire empire, City city) =>
         city?.Record != null && !city.IsGone() && city.Realm != null && !city.Realm.IsGone() && city.Realm.GetEmpire() == empire;
-#endif
 
     // 奉诏设的陪京里眼下还作数的(城还在本帝国手里、不是京师)；不作数的从诏令里除掉
 #if EC_PENDING

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/AdministrationReorganizationSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/AdministrationReorganizationSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System.Collections.Generic;
 using System.Linq;
@@ -88,11 +88,11 @@ public static class AdministrationReorganizationSystem
         !WorldMapWilderness.FixedLayout || empire.data.administrative_reorganization_explicit;
 
     // 剧本的地方实力派(晋绥、桂系……)自成一块，不拿来改划(见 ScenarioModernPolitics.MakeWarlordMember)
-#if EC_PENDING
     private static bool Eligible(Empire empire, Realm kingdom) => kingdom != null && !kingdom.IsGone() &&
         kingdom.GetEmpire() == empire && kingdom.Cities?.Count > 0 && !AncientWarfareCompatibility.Owns(kingdom) &&
         !kingdom.GetOrCreate().scenario_autonomy;
 
+#if EC_PENDING
     private static void RefreshProtected(Work work)
     {
         Realm core = work.Empire.CoreKingdom;

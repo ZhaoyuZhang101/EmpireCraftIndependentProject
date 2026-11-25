@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/Layer/WealthMap.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/Layer/WealthMap.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
@@ -112,11 +112,13 @@ public static class WealthMap
         _colors ??= BucketHex.Select((hex, i) => WealthMapColor.Create(i, hex)).ToArray();
         return _colors[bucket];
     }
+#endif
 
     private static bool Shown(City city) =>
         city != null && !city.IsGone() && !AncientWarfareCompatibility.OwnsObject(city) &&
         city.Realm != null && !city.Realm.IsWild;
 
+#if EC_PENDING
     public static void Configure(MetaTypeAsset asset)
     {
         asset.draw_zones = (MetaZoneDrawAction)(meta =>

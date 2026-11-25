@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/MapWallSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/MapWallSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System.Collections.Generic;
 using System.Linq;
@@ -84,7 +84,7 @@ public static class MapWallSystem
     public static void Tick()
     {
         EmpireWorld world = EmpireWorld.Current;
-        if (world?.tiles_list == null || !Config.game_loaded || SmoothLoader.isLoading()) return;
+        if (world?.tiles_list == null || !GameClock.Running || SmoothLoader.isLoading()) return;
         if (!ReferenceEquals(_world, world))
         {
             _world = world;

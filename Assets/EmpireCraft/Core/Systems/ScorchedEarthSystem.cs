@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/ScorchedEarthSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/ScorchedEarthSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -128,7 +128,7 @@ public static class ScorchedEarthSystem
             foreach (KeyValuePair<long, int> pair in byKingdom)
             {
                 Realm occupier = EmpireWorld.Current.RealmByKey(pair.Key);
-                if (occupier == null || occupier.IsGone() || !occupier.isEnemy(city.Realm) || !WillScorch(occupier, city))
+                if (occupier == null || occupier.IsGone() || !occupier.IsEnemy(city.Realm) || !WillScorch(occupier, city))
                     continue;
                 float share = Mathf.Clamp01(pair.Value / (float)city.zones.Count);
                 int killed = Kill(city, KillRatePerMonth * share);

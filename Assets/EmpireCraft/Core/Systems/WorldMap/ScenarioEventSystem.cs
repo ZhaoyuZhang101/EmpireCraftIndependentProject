@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/WorldMap/ScenarioEventSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/WorldMap/ScenarioEventSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -247,14 +247,12 @@ public static class ScenarioEventSystem
         return city?.Record == null || city.IsGone() ? null : city;
     }
 
-#if EC_PENDING
     private static KingdomTitle Title(string id)
     {
         if (string.IsNullOrEmpty(id) || !_state.titles.TryGetValue(id, out long titleId) || ModClass.KINGDOM_TITLE_MANAGER == null) return null;
-        KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER.get(titleId);
+        KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER.Get(titleId);
         return title?.data == null || title.IsGone() ? null : title;
     }
-#endif
 
     // 剧本人物(还活着的)：按名字找
     private static Person Person(string name)
@@ -277,12 +275,9 @@ public static class ScenarioEventSystem
     }
 
     // 城在不在这国手里(帝国连同它的成员国都算；殖民地、傀儡算宗主国、主国的，日本据有京城、台北、新京)
-#if EC_PENDING
     private static bool Holds(Realm kingdom, City city) => city?.Realm != null && Controls(kingdom, city.Realm);
-#endif
 
     // holder 是不是 kingdom 这一方：本国、本帝国的成员、本国(帝国中央)的殖民地与傀儡
-#if EC_PENDING
     private static bool Controls(Realm kingdom, Realm holder)
     {
         if (kingdom == null || holder == null) return false;
@@ -292,7 +287,6 @@ public static class ScenarioEventSystem
         Realm lord = ColonySystem.MetropoleOf(holder) ?? PuppetStateSystem.Master(holder);
         return lord != null && lord != holder && Controls(kingdom, lord);
     }
-#endif
 
     #endregion
 
@@ -320,7 +314,7 @@ public static class ScenarioEventSystem
                 return a != null && a.IsEmpire();
             case "at_war":
                 Realm b = ModRealm(step.b);
-                return a != null && b != null && a.isEnemy(b);
+                return a != null && b != null && a.IsEnemy(b);
             case "strain_above":
                 Empire empire = a?.GetEmpire();
                 return empire != null && DynasticCycleSystem.GetPressure(empire) > step.value;
@@ -391,7 +385,7 @@ public static class ScenarioEventSystem
     {
         foreach ((long empireId, long fromId, long toId) in Moved)
         {
-            Empire empire = ModClass.EMPIRE_MANAGER?.get(empireId);
+            Empire empire = ModClass.EMPIRE_MANAGER?.Get(empireId);
             Realm core = empire?.CoreKingdom;
             City from = EmpireWorld.Current.CityByKey(fromId), to = EmpireWorld.Current.CityByKey(toId);
             EmpireCore empireCore = EmpireCoreManager.Get(empire);
@@ -655,14 +649,14 @@ public static class ScenarioEventSystem
                 .OrderByDescending(entry => entry.strength).FirstOrDefault();
             if (free != null) CorpsSystem.AssignGeneral(rebel, free, follower);
         }
-        War war = DiplomacyHelpers.wars.newWar(rebel, target, WarTypeLibrary.normal);
+        War war = DiplomacyHelpers.wars.newWar(rebel, target, WarKinds.Normal);
         if (war != null)
         {
             war.SetEmpireWarType(EmpireWarType.地方独立);
             // 战争名：两人以上取领头与第一位部将的姓(安史之乱)，否则称领头之名(某某之乱)
             Person second = people.FirstOrDefault(actor => actor != leader && actor.Realm == rebel);
             string a = Surname(leader), b = Surname(second);
-            war.data.name = second != null && a.Length > 0 && b.Length > 0 && a != b
+            war.Name = second != null && a.Length > 0 && b.Length > 0 && a != b
                 ? string.Format(LM.Get("faction_war_pair"), a, b)
                 : string.Format(LM.Get("faction_rebellion_war_name"), leader.FullName());
         }
@@ -706,7 +700,7 @@ public static class ScenarioEventSystem
         {
             if (joined >= RallyMaxPerYear) break;
             if (!RallyCandidate(kingdom, conqueror, court, target, culture, pressure)) continue;
-            float chance = ScenarioPlotRules.RallyChance(pressure, WarReach.Reachable(conqueror, kingdom), kingdom.isInWarWith(conqueror));
+            float chance = ScenarioPlotRules.RallyChance(pressure, WarReach.Reachable(conqueror, kingdom), kingdom.IsAtWarWith(conqueror));
             if (EcRandom.value >= chance) continue;
             if (Submit(kingdom, conqueror, court, target, pressure)) joined++;
         }
@@ -882,11 +876,9 @@ public static class ScenarioEventSystem
 #endif
 
     // 结果点名的城里还在 a 手里的
-#if EC_PENDING
     private static List<City> StepCities(WorldMapEventStep step, Realm a) =>
         new[] { step.city }.Concat(step.cities ?? new List<string>()).Select(CityOf)
             .Where(city => city != null && Holds(a, city)).Distinct().ToList();
-#endif
 
     // 地区(王国法理)里的城；没写或对不上的为空
 #if EC_PENDING
@@ -1052,13 +1044,11 @@ public static class ScenarioEventSystem
 #endif
 
     // 剧本起兵定的自定名就是这个国号时撤掉(玩家另起的名字不动)
-#if EC_PENDING
     private static void ClearScriptedCustomName(Realm kingdom, string name)
     {
         if (kingdom?.Record == null || string.IsNullOrWhiteSpace(name) || !string.IsNullOrWhiteSpace(kingdom.GetCustomCountrySuffix())) return;
         if (string.Equals(kingdom.GetCustomCountryName(), name, StringComparison.Ordinal)) kingdom.SetCustomCountryName("");
     }
-#endif
 
     // 旧档：已经称帝的顺、西还挂着起兵时的自定名，读档后第一次结算时撤掉
 #if EC_PENDING

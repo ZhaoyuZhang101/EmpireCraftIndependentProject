@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/HostageSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/HostageSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Linq;
@@ -29,10 +29,8 @@ public static class HostageSystem
 #endif
 
     // 眼下的宗主：封建附庸的领主，或朝贡的那个帝国的中央
-#if EC_PENDING
     private static Realm Lord(Realm subject) =>
         FeudalVassalService.GetOverlord(subject) ?? subject.GetTakenAllianceEmpire()?.CoreKingdom;
-#endif
 
     // 在别国为质的这个人是谁的质子(界面、个人提示用)；不是为 null
 #if EC_PENDING

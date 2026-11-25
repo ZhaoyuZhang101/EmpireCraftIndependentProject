@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/ClaimAgendaSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/ClaimAgendaSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -274,7 +274,6 @@ public static class ClaimAgendaSystem
 #endif
 
     // 国库欠饷、入不敷出，或税率压得很低时急着加税(以前加税没有紧迫度，减税却税率越高越急，税率只降不升)
-#if EC_PENDING
     private static float TaxRaiseUrgency(Empire empire)
     {
         Realm core = empire?.CoreKingdom;
@@ -289,6 +288,7 @@ public static class ClaimAgendaSystem
         return urgency;
     }
 
+#if EC_PENDING
     private static float GetLandlessUrgency(Empire empire)
     {
         var cities = empire.CoreKingdom?.cities?.Where(city => city != null && !city.IsGone()).ToList();

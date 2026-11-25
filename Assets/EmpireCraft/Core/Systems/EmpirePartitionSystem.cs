@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/EmpirePartitionSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/EmpirePartitionSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Color = EmpireCraft.Core.EcColor;
@@ -45,27 +45,23 @@ public static class EmpirePartitionSystem
 
     #region 查询
 
-#if EC_PENDING
     public static Empire Twin(Empire empire)
     {
         long id = empire?.data?.partition_twin_id ?? -1L;
         if (id <= 0 || ModClass.EMPIRE_MANAGER == null) return null;
-        Empire twin = ModClass.EMPIRE_MANAGER.get(id);
+        Empire twin = ModClass.EMPIRE_MANAGER.Get(id);
         return twin?.data == null || twin.IsGone() || twin.IsArchived() || twin.data.partition_twin_id != empire.data.id ? null : twin;
     }
 
     private static Empire RealmOf(Realm kingdom) =>
         kingdom == null ? null : kingdom.IsEmpire() || kingdom.IsInEmpire() ? kingdom.GetEmpire() : null;
-#endif
 
     // 兄弟之国(遗诏分治后的四十年)：两朝之间不开战
-#if EC_PENDING
     public static bool InAmity(Realm first, Realm second)
     {
         Empire a = RealmOf(first), b = RealmOf(second);
         return a != null && b != null && a != b && a.data.partition_amity && Twin(a) == b;
     }
-#endif
 
     // 天命阶段的分裂倍数：治世 ×0.25、动荡 ×1、乱世(天下无主；都城不在任何天下里也记为乱世) ×1.5
     private static float PhaseFactor(Realm core) => TianxiaSystem.PhaseOf(core) switch
@@ -653,7 +649,7 @@ public static class EmpirePartitionSystem
             Restorations.Remove(pair.Key);
             try
             {
-                Restore(ModClass.EMPIRE_MANAGER?.get(pair.Key), pair.Value.clan, pair.Value.name, pair.Value.legacy);
+                Restore(ModClass.EMPIRE_MANAGER?.Get(pair.Key), pair.Value.clan, pair.Value.name, pair.Value.legacy);
             }
             catch (Exception exception)
             {
@@ -772,14 +768,14 @@ public static class EmpirePartitionSystem
 #if EC_PENDING
     public static void OnWarStarted(War war)
     {
-        Realm defender = war?.main_defender, attacker = war?.main_attacker;
+        Realm defender = war?.MainDefender, attacker = war?.MainAttacker;
         Empire realm = RealmOf(defender);
         if (realm == null || !realm.data.partition_amity) return;
         Empire twin = Twin(realm);
         Realm ally = twin?.CoreKingdom;
         if (ally == null || ally.IsGone() || RealmOf(attacker) == twin || RealmOf(attacker) == realm ||
-            war.hasKingdom(ally) || ally.isInWarWith(attacker)) return;
-        war.joinDefenders(ally);
+            war.HasRealm(ally) || ally.IsAtWarWith(attacker)) return;
+        war.JoinDefenders(ally);
         string text = string.Format(LM.Get("partition_aid_history"), twin.GetEmpireFullName(), realm.GetEmpireFullName());
         twin.RecordHistory(directContent: text);
         TranslateHelper.LogEventOnly(text, ally);
@@ -967,8 +963,8 @@ public static class EmpirePartitionSystem
         var pool = EmpireCraftKingdomBehCheckHeir.CollateralPool(empire.CoreKingdom, parent);
         // 先挑京城里现成的宗室(实体)，再挑年幼的；不随手从族谱里拉出一位成年皇叔
         IEnumerable<PersonalClanIdentity> ordered = (preferYoung
-                ? pool.OrderByDescending(item => !item.person.is_virtual && item.person._actor?.data != null &&
-                                                 item.person._actor.city == empire.CoreKingdom.Capital)
+                ? pool.OrderByDescending(item => !item.person.is_virtual && item.person._actor?.Record != null &&
+                                                 item.person._actor.City == empire.CoreKingdom.Capital)
                     .ThenByDescending(item => item.person.age >= 5 && item.person.age < 16)
                     .ThenBy(item => item.kinship).ThenBy(item => Mathf.Abs(item.person.age - 10))
                 : pool.OrderBy(item => item.kinship).ThenByDescending(item => item.person.age >= 18).ThenByDescending(item => item.person.age))
@@ -1158,7 +1154,6 @@ public static class EmpirePartitionSystem
     #region 复归一统
 
     // 一朝皇族绝嗣、群臣迎立另一朝的皇帝兼承大统(SuccessionCouncilSystem)：并入另一朝
-#if EC_PENDING
     public static bool CanUnite(Empire vacant, out Empire heir)
     {
         heir = Twin(vacant);
@@ -1166,7 +1161,6 @@ public static class EmpirePartitionSystem
         return heir != null && emperor?.Record != null && emperor.Alive &&
                SpecificClanManager.SameLineage(heir.EmpireSpecificClan, vacant.EmpireSpecificClan);
     }
-#endif
 
     // historyKey：记史的文案(参数同 partition_reunite_history：{0} 承统的君主、{1} 并入的一朝、{2} 合一后的国号)；
     // major：不论哪国都上屏(幕府说和、南北朝合一，见 ShogunateDramaSystem)

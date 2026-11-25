@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/JimiTributeSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/JimiTributeSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -99,7 +99,7 @@ public static class JimiTributeSystem
     private static bool Tribute(Empire empire, Realm core, Realm region, ref int popups, ref bool honoured)
     {
         EmpireData data = empire.data;
-        if (!Due(Get(data.jimi_tribute_at, region.Key), TributeYears) || region.isInWarWith(core) || region.IsLocalRebelling() ||
+        if (!Due(Get(data.jimi_tribute_at, region.Key), TributeYears) || region.IsAtWarWith(core) || region.IsLocalRebelling() ||
             region.IsFactionRebelling() || Random.value > TributeChance) return false;
         int tribute = Math.Max(5, region.GetMoney() / 20);
         if (region.GetMoney() < tribute) return false;
@@ -127,12 +127,12 @@ public static class JimiTributeSystem
         // 不许自立(见 SecessionGate)：羁縻不叛去
         if (SecessionGate.Forbids("羁縻叛去", region.GetKingdomName())) return false;
         // 新入帝国十年内、神力拉入未满期的不叛去(见 MembershipCooldown)
-        if (RulerTraitSystem.FounderShield(region) || region.isInWarWith(core) || region.IsLocalRebelling() ||
+        if (RulerTraitSystem.FounderShield(region) || region.IsAtWarWith(core) || region.IsLocalRebelling() ||
             !MembershipCooldown.Settled(region)) return false;
         EmpireData data = empire.data;
         float chance = RevoltBase;
         if (empire.Mandate < 40) chance += RevoltWeak;
-        if (core.hasEnemies()) chance += RevoltWar;
+        if (core.HasEnemies()) chance += RevoltWar;
         if (Uninvested(empire, region)) chance += RevoltUninvested;
         if (Due(Get(data.jimi_tribute_at, region.Key), FavorYears)) chance += RevoltNeglected;
         if (!Due(Get(data.jimi_favor_at, region.Key), FavorYears)) chance *= FavorFactor;
@@ -140,7 +140,7 @@ public static class JimiTributeSystem
         string chief = region.Ruler.FullName(), name = region.GetKingdomName();
         int cost = Math.Max(40, region.Cities.Count * 25);
         bool pacify = core.GetMoney() >= cost * 2 &&
-                      (core.hasEnemies() || ZhouEraSystem.Power(region) * 2 > ZhouEraSystem.Power(core) || Random.value < 0.5f);
+                      (core.HasEnemies() || ZhouEraSystem.Power(region) * 2 > ZhouEraSystem.Power(core) || Random.value < 0.5f);
         if (pacify && TreasurySystem.TrySpend(core, cost, TreasuryCategory.Gift, discretionary: false))
         {
             region.AddMoney(cost, TreasuryCategory.Gift);
@@ -150,11 +150,11 @@ public static class JimiTributeSystem
             return true;
         }
         empire.leave(region);
-        War war = DiplomacyHelpers.wars.newWar(region, core, WarTypeLibrary.normal);
-        if (war?.data != null)
+        War war = DiplomacyHelpers.wars.newWar(region, core, WarKinds.Normal);
+        if (war?.Record != null)
         {
             war.SetEmpireWarType(EmpireWarType.地方独立);
-            war.data.name = string.Format(LM.Get("jimi_revolt_war_name"), core.GetKingdomName(), name);
+            war.Name = string.Format(LM.Get("jimi_revolt_war_name"), core.GetKingdomName(), name);
         }
         data.jimi_rebels[region.Key] = GameClock.Now;
         data.jimi_chiefs.Remove(region.Key);
@@ -185,7 +185,7 @@ public static class JimiTributeSystem
                 continue;
             }
             if (!rebel.HasRuler()) continue;
-            bool atWar = rebel.isInWarWith(core);
+            bool atWar = rebel.IsAtWarWith(core);
             int power = ZhouEraSystem.Power(rebel), royal = ZhouEraSystem.Power(core);
             bool yields = atWar
                 ? GameClock.YearsSince(since) >= 1 && power * 2 < royal && Random.value < SubmitChance

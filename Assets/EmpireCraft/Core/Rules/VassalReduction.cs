@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/VassalReduction.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/VassalReduction.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -47,9 +47,7 @@ public static class VassalReduction
     private const string RiseReason = "rebellion_reason_vassal_reduction";
 
     // 朝廷这一头：帝国的核心，或者一国自己(招安)
-#if EC_PENDING
     private static Realm Court(Realm realm) => realm?.GetEmpire()?.CoreKingdom ?? realm;
-#endif
 
     private static bool Alive(Realm kingdom) => kingdom?.Record != null && !kingdom.IsGone() && !kingdom.IsWild;
 
@@ -58,10 +56,10 @@ public static class VassalReduction
     public static bool IsRebelOf(Realm realm, Realm other)
     {
         if (!Alive(realm) || !Alive(other) || realm == other) return false;
-        foreach (War war in other.getWars())
+        foreach (War war in other.GetWars())
         {
-            if (war?.data == null || war.hasEnded() || !MusterSystem.IsRebellion(war) || war.main_attacker != other) continue;
-            if (FrontSystem.Realm(war.main_defender) == realm) return true;
+            if (war?.Record == null || war.HasEnded() || !MusterSystem.IsRebellion(war) || war.MainAttacker != other) continue;
+            if (FrontSystem.Realm(war.MainDefender) == realm) return true;
         }
         return false;
     }
@@ -74,7 +72,7 @@ public static class VassalReduction
         if (!Alive(realm) || !Alive(other) || realm == other || other.Cities == null || other.Cities.Count == 0) return -1;
         if (IsRebelOf(realm, other)) return VassalReductionRules.Rebel;
         Empire empire = realm.GetEmpire();
-        if (empire == null || empire.CoreKingdom != realm || realm.isInWarWith(other)) return -1;
+        if (empire == null || empire.CoreKingdom != realm || realm.IsAtWarWith(other)) return -1;
         if (other.GetEmpire() == empire)
         {
             if (JimiSystem.IsJimiAdministration(other)) return VassalReductionRules.Jimi;
@@ -103,8 +101,8 @@ public static class VassalReduction
             int kind = KindOf(realm, other);
             if (kind >= 0) found.Add((other, kind));
         }
-        foreach (War war in realm.getWars())
-            if (war?.data != null && !war.hasEnded() && MusterSystem.IsRebellion(war)) Try(war.main_attacker);
+        foreach (War war in realm.GetWars())
+            if (war?.Record != null && !war.HasEnded() && MusterSystem.IsRebellion(war)) Try(war.MainAttacker);
         Empire empire = realm.GetEmpire();
         if (empire != null && empire.CoreKingdom == realm)
         {
@@ -216,10 +214,10 @@ public static class VassalReduction
     public static bool Convert(Realm realm, Realm other, int kind)
     {
         double now = GameClock.Now;
-        foreach (War war in other.getWars().ToList())
-            if (war?.data != null && !war.hasEnded() && (war.hasKingdom(realm) || FrontSystem.Realm(war.main_defender) == realm ||
-                                                         FrontSystem.Realm(war.main_attacker) == realm))
-                EmpireWorld.Current.wars.endWar(war, WarWinner.Peace);
+        foreach (War war in other.GetWars().ToList())
+            if (war?.Record != null && !war.HasEnded() && (war.HasRealm(realm) || FrontSystem.Realm(war.MainDefender) == realm ||
+                                                         FrontSystem.Realm(war.MainAttacker) == realm))
+                EmpireWorld.Current.EndWar(war, WarOutcome.Peace);
         Empire empire = realm.GetEmpire();
         List<City> cities = (other.Cities ?? new List<City>()).Where(city => city?.Record != null && !city.IsGone()).ToList();
         foreach (City city in cities) city.GetOrCreate().tusi_reformed_at = now;
@@ -272,7 +270,7 @@ public static class VassalReduction
             started = NomadCycleSystem.DeclareIndependence(other, empire, RiseReason);
         else if (kind == VassalReductionRules.Vassal)
         {
-            War war = EmpireWorld.Current.diplomacy.startWar(other, realm, WarTypeLibrary.normal);
+            War war = EmpireWorld.Current.StartWar(other, realm, WarKinds.Normal);
             started = war != null;
             if (started) war.SetEmpireWarType(EmpireWarType.附庸独立);
         }
@@ -325,7 +323,6 @@ public static class VassalReduction
     private static float Years(double at) => at < 0d || GameClock.Now < at ? 0f : GameClock.YearsSince(at);
 
     // 好感条目(负数)：main 对 target(朝廷)的自危
-#if EC_PENDING
     public static int AlarmOpinion(Realm main, Realm target)
     {
         if (main?.Record == null || target?.Record == null || main == target) return 0;
@@ -335,6 +332,5 @@ public static class VassalReduction
         if (empire == null || empire.CoreKingdom != target || empire.Key != data.vassal_alarm_empire) return 0;
         return -VassalReductionRules.AlarmNow(data.vassal_alarm, Years(data.vassal_alarm_at));
     }
-#endif
 }
 }

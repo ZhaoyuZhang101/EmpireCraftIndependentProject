@@ -28,7 +28,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import closure
 import port_tool as tool
 
-DIRS = closure.DEFAULT_DIRS + ["Scripts/GameClassExtensions"]
+DIRS = closure.DEFAULT_DIRS + ["Scripts/GameClassExtensions", "Scripts/AI"]
 ENTITIES = ("Realm", "City", "Person", "Clan", "EmpireWorld")
 
 

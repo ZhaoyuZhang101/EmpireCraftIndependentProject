@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/WorldOrderSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/WorldOrderSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
@@ -82,16 +82,14 @@ public static class WorldOrderSystem
 
     #region 查询
 
-#if EC_PENDING
     private static Empire Living(long id)
     {
-        Empire empire = id > 0 ? ModClass.EMPIRE_MANAGER?.get(id) : null;
+        Empire empire = id > 0 ? ModClass.EMPIRE_MANAGER?.Get(id) : null;
         return empire?.data != null && !empire.IsGone() && !empire.IsArchived() && empire.CoreKingdom?.Record != null &&
                !empire.CoreKingdom.IsGone() ? empire : null;
     }
 
     public static Empire LeaderOf(BlocData bloc) => bloc == null ? null : Living(bloc.leader_id);
-#endif
 
     public static BlocData Bloc(int id) => _data.blocs.FirstOrDefault(bloc => bloc.id == id);
 
@@ -115,7 +113,6 @@ public static class WorldOrderSystem
     }
 
     // 一国所在的阵营：自己的政府在哪个阵营；封臣跟着宗主
-#if EC_PENDING
     public static BlocData BlocOf(Realm kingdom)
     {
         if (kingdom?.Record == null || _data.blocs.Count == 0) return null;
@@ -131,15 +128,12 @@ public static class WorldOrderSystem
         BlocData bloc = BlocOf(a);
         return bloc != null && bloc == BlocOf(b);
     }
-#endif
 
     public static ColdWarData ColdWarBetween(BlocData x, BlocData y) => x == null || y == null || x == y ? null
         : _data.cold_wars.FirstOrDefault(war => war.a == x.id && war.b == y.id || war.a == y.id && war.b == x.id);
 
-#if EC_PENDING
     public static ColdWarData ColdWarBetween(Realm a, Realm b) =>
         _data.cold_wars.Count == 0 ? null : ColdWarBetween(BlocOf(a), BlocOf(b));
-#endif
 
     // 核恐怖平衡：冷战双方的盟主都有核，盟主之间不直接开战(各自的盟友、第三国的仗不拦)
 #if EC_PENDING
@@ -152,9 +146,9 @@ public static class WorldOrderSystem
         if (lx == null || ly == null || ModRealm(attacker) != lx || ModRealm(target) != ly) return false;
         return NuclearDoctrineSystem.IsNuclearPower(lx) && NuclearDoctrineSystem.IsNuclearPower(ly);
     }
+#endif
 
     private static Realm ModRealm(Realm kingdom) => kingdom?.GetEmpire()?.CoreKingdom ?? kingdom;
-#endif
 
     public static bool IsSanctioned(Empire empire) =>
         empire?.data != null && _data.sanctions.Any(sanction => sanction.target_id == empire.Key);
@@ -163,7 +157,6 @@ public static class WorldOrderSystem
         empire?.data != null && _data.league?.members.Contains(empire.Key) == true;
 
     // 断绝通商(见 MarketSystem.Embargoed)：万国公会制裁的国与各会员之间；冷战紧张过了 IronCurtainAt 的两个阵营之间
-#if EC_PENDING
     public static bool TradeCut(Realm a, Realm b)
     {
         if (_data.sanctions.Count == 0 && _data.cold_wars.Count == 0) return false;
@@ -176,27 +169,22 @@ public static class WorldOrderSystem
         }
         return ColdWarBetween(BlocOf(ea), BlocOf(eb)) is { } war && war.tension >= IronCurtainAt;
     }
-#endif
 
     // 军备竞赛(见 CorpsSystem)：平时兵源多征的成数、军费多拨的份额
-#if EC_PENDING
     public static float ArmsPool(Realm kingdom) => (BlocOf(kingdom)?.arms_level ?? 0) * ArmsPoolPerLevel;
     public static float ArmsBudget(Realm kingdom) => (BlocOf(kingdom)?.arms_level ?? 0) * ArmsBudgetPerLevel;
-#endif
 
     // 正在打世界大战(见 WorldWarSystem)：倾国而战
-#if EC_PENDING
     public static bool InWorldWar(Realm kingdom)
     {
         foreach (Realm side in new[] { kingdom, ModRealm(kingdom) })
         {
             if (side?.Record == null || side.IsGone()) continue;
-            foreach (War war in side.getWars())
-                if (war?.data != null && !war.hasEnded() && war.GetOrCreate().world_war) return true;
+            foreach (War war in side.GetWars())
+                if (war?.Record != null && !war.HasEnded() && war.GetOrCreate().world_war) return true;
         }
         return false;
     }
-#endif
 
     #endregion
 
@@ -251,7 +239,6 @@ public static class WorldOrderSystem
 #endif
 
     // 阵营与制裁
-#if EC_PENDING
     public static int BlocOpinionOf(Realm main, Realm target)
     {
         if (_data.blocs.Count == 0 && _data.sanctions.Count == 0) return 0;
@@ -265,7 +252,6 @@ public static class WorldOrderSystem
             value += SanctionOpinion;
         return value;
     }
-#endif
 
     #endregion
 
@@ -297,7 +283,7 @@ public static class WorldOrderSystem
     // 近代的主权国家：组建了政府、够得上近代国家，不是别国的附从与封臣
 #if EC_PENDING
     private static List<Empire> States() => ModClass.EMPIRE_MANAGER.Where(empire =>
-        empire?.data != null && !empire.IsGone() && !empire.IsArchived() && empire.CoreKingdom?.data != null &&
+        empire?.data != null && !empire.IsGone() && !empire.IsArchived() && empire.CoreKingdom?.Record != null &&
         !empire.CoreKingdom.IsGone() && empire.CoreKingdom.HasRuler() && StateModernization.IsModernPower(empire.CoreKingdom) &&
         !WarlordEraSystem.Dependent(empire.CoreKingdom) && FeudalVassalService.GetOverlord(empire.CoreKingdom) == null &&
         Cities(empire) > 0).ToList();
@@ -430,7 +416,7 @@ public static class WorldOrderSystem
         {
             if (BlocOf(great) != null) continue;
             Empire rival = greats.FirstOrDefault(other => other != great && Distance(great, other) >= OpposedIdeology &&
-                                                          !great.CoreKingdom.isInWarWith(other.CoreKingdom) && Contact(great, other));
+                                                          !great.CoreKingdom.IsAtWarWith(other.CoreKingdom) && Contact(great, other));
             if (rival == null) continue;
             // 已有同道的阵营就入盟，不另起炉灶；够不着它的盟主就先等着(免得同一面旗号下立两个阵营)
             BlocData kin = _data.blocs.Where(bloc => Distance(great, bloc) <= CloseIdeology && LeaderOf(bloc) != null)
@@ -467,7 +453,7 @@ public static class WorldOrderSystem
             if (BlocOf(state) != null) continue;
             Realm core = state.CoreKingdom;
             BlocData best = _data.blocs.Where(bloc => Distance(state, bloc) <= CloseIdeology && LeaderOf(bloc) is Empire leader &&
-                                                     !core.isInWarWith(leader.CoreKingdom) &&
+                                                     !core.IsAtWarWith(leader.CoreKingdom) &&
                                                      (EmpireWorld.Current.diplomacy?.getOpinion(core, leader.CoreKingdom)?.total ?? 0f) >= JoinMinOpinion &&
                                                      Contact(state, leader))
                 .OrderBy(bloc => Distance(state, bloc)).FirstOrDefault();
@@ -490,7 +476,7 @@ public static class WorldOrderSystem
             foreach (long id in rival.members)
             {
                 Realm other = Living(id)?.CoreKingdom;
-                if (other != null && (state.CoreKingdom.isInWarWith(other) || state.IsNeighbourWith(other))) return true;
+                if (other != null && (state.CoreKingdom.IsAtWarWith(other) || state.IsNeighbourWith(other))) return true;
             }
         }
         return false;
@@ -503,7 +489,7 @@ public static class WorldOrderSystem
     {
         if (_data.blocs.Count == 0) return;
         Empire empire = core?.GetEmpire();
-        if (empire == null || empire.CoreKingdom != core || core.hasEnemies()) return;
+        if (empire == null || empire.CoreKingdom != core || core.HasEnemies()) return;
         BlocData bloc = BlocOf(empire);
         if (bloc == null || EcRandom.value >= AidChance * (bloc.leader_id == empire.Key ? 1f : 0.5f)) return;
         foreach (long id in bloc.members)
@@ -511,15 +497,15 @@ public static class WorldOrderSystem
             if (id == empire.Key) continue;
             Realm ally = Living(id)?.CoreKingdom;
             if (ally == null) continue;
-            War war = ally.getWars().FirstOrDefault(candidate =>
-                candidate?.data != null && candidate.Alive && !candidate.hasEnded() && candidate.isDefender(ally) &&
-                !candidate.hasKingdom(core) && candidate.main_attacker != null && !SameBloc(candidate.main_attacker, core));
-            Realm attacker = war?.main_attacker;
+            War war = ally.GetWars().FirstOrDefault(candidate =>
+                candidate?.Record != null && candidate.Alive && !candidate.HasEnded() && candidate.IsDefender(ally) &&
+                !candidate.HasRealm(core) && candidate.MainAttacker != null && !SameBloc(candidate.MainAttacker, core));
+            Realm attacker = war?.MainAttacker;
             if (attacker?.Record == null || attacker.IsGone() || MutuallyDeterred(core, attacker) ||
                 EmpirePeacePatch.HasLeft(core, war, joiningAttackers: false) || WarSituation.TooBusyForWar(core) ||
                 CorpsSystem.CannotFundWar(core) || !WarGate.CanDeclare(core, attacker) || !WarReach.Reachable(core, attacker)) continue;
-            war.joinDefenders(core);
-            if (!war._list_defenders.Contains(core)) continue;
+            war.JoinDefenders(core);
+            if (!war.Defenders.Contains(core)) continue;
             TranslateHelper.LogEventMessage(string.Format(LM.Get("world_bloc_aid"), empire.GetEmpireFullName(),
                 ally.GetEmpire()?.GetEmpireFullName() ?? ally.GetKingdomName(), BlocName(bloc), attacker.GetKingdomName()), core);
             return;
@@ -565,7 +551,7 @@ public static class WorldOrderSystem
             x.unopposed_since = y.unopposed_since = -1d;
             Realm cx = lx.CoreKingdom, cy = ly.CoreKingdom;
             // 已经打起来了：等这一仗打完
-            if (cx.isInWarWith(cy))
+            if (cx.IsAtWarWith(cy))
             {
                 war.tension = 100f;
                 continue;
@@ -603,7 +589,7 @@ public static class WorldOrderSystem
             // 紧张到头：都有核、或打不成，就缓和；不然国力强的一方动手
             Realm attacker = px >= py ? cx : cy, defender = px >= py ? cy : cx;
             bool mad = nuclearX && nuclearY;
-            bool fight = !mad && WarGate.CanDeclare(attacker, defender) && WarReach.MayDeclare(attacker, defender, WarTypeLibrary.normal) &&
+            bool fight = !mad && WarGate.CanDeclare(attacker, defender) && WarReach.MayDeclare(attacker, defender, WarKinds.Normal) &&
                          !WarSituation.TooBusyForWar(attacker) && !CorpsSystem.CannotFundWar(attacker) &&
                          WarMuster.Declare(attacker, defender, EmpireWarType.None);
             if (fight)
@@ -627,21 +613,19 @@ public static class WorldOrderSystem
                 Dissolve(bloc, LeaderOf(bloc), "world_bloc_disbanded_history");
         }
     }
+#endif
 
     private static IEnumerable<Empire> Members(BlocData bloc) =>
         bloc == null ? Enumerable.Empty<Empire>() : bloc.members.Select(Living).Where(member => member != null);
-#endif
 
     // 两个阵营的国正在别处交手(盟主之间没打)：代理人战争
-#if EC_PENDING
     private static bool ProxyWar(BlocData x, BlocData y)
     {
         foreach (Empire member in Members(x))
             foreach (Empire other in Members(y))
-                if (member.CoreKingdom.isInWarWith(other.CoreKingdom)) return true;
+                if (member.CoreKingdom.IsAtWarWith(other.CoreKingdom)) return true;
         return false;
     }
-#endif
 
     // winner 为空：握手言和(理念不再相左)。losers：输的一方的成员(阵营已散时传进来)
 #if EC_PENDING
@@ -698,20 +682,20 @@ public static class WorldOrderSystem
             foreach (Empire state in states)
             {
                 if (league.members.Contains(state.Key) || IsSanctioned(state) ||
-                    state.CoreKingdom.isInWarWith(founder.CoreKingdom) || EcRandom.value >= LeagueJoinChance) continue;
+                    state.CoreKingdom.IsAtWarWith(founder.CoreKingdom) || EcRandom.value >= LeagueJoinChance) continue;
                 league.members.Add(state.Key);
                 EventRecorder.RecordRoutine(state, string.Format(LM.Get("world_league_joined_history"), state.GetEmpireFullName()));
             }
         // 议处新起的战事
         List<Empire> council = league.members.Select(Living).Where(member => member != null)
             .OrderByDescending(member => power.TryGetValue(member.Key, out double value) ? value : 0d).Take(CouncilSeats).ToList();
-        foreach (War war in EmpireWorld.Current.wars.list.ToList())
+        foreach (War war in EmpireWorld.Current.LiveWars.ToList())
         {
-            if (war?.data == null || war.hasEnded() || !war.Alive) continue;
+            if (war?.Record == null || war.HasEnded() || !war.Alive) continue;
             WarExtension.WarExtraData extra = war.GetOrCreate();
-            if (extra.league_case || war.getAge() > 2f) continue;
+            if (extra.league_case || war.AgeYears() > 2f) continue;
             extra.league_case = true;
-            Realm attacker = war.getMainAttacker(), defender = war.getMainDefender();
+            Realm attacker = war.GetMainAttacker(), defender = war.GetMainDefender();
             Empire aggressor = attacker?.GetEmpire(), victim = defender?.GetEmpire();
             // 只管国与国的仗：叛乱、内战、同一帝国里的不管
             if (aggressor == null || victim == null || aggressor == victim || aggressor.CoreKingdom != attacker ||
@@ -803,13 +787,13 @@ public static class WorldOrderSystem
 #if EC_PENDING
     private static void WarWeariness()
     {
-        foreach (War war in EmpireWorld.Current.wars.list.ToList())
+        foreach (War war in EmpireWorld.Current.LiveWars.ToList())
         {
-            if (war?.data == null || war.hasEnded() || !war.GetOrCreate().world_war) continue;
-            int years = Mathf.FloorToInt(war.getAge());
+            if (war?.Record == null || war.HasEnded() || !war.GetOrCreate().world_war) continue;
+            int years = Mathf.FloorToInt(war.AgeYears());
             if (years < WearyFromYear) continue;
             var seen = new HashSet<long>();
-            foreach (Realm kingdom in war._list_attackers.Concat(war._list_defenders).ToList())
+            foreach (Realm kingdom in war.Attackers.Concat(war.Defenders).ToList())
             {
                 Empire empire = kingdom?.GetEmpire();
                 if (empire?.data == null || empire.IsGone() || empire.IsArchived() || !seen.Add(empire.Key)) continue;
@@ -825,14 +809,14 @@ public static class WorldOrderSystem
 
     // 世界大战打完(WorldWarSystem.Resolve)：战败国正统大跌、革命形势陡增，战胜国发起万国公会
 #if EC_PENDING
-    public static void OnWorldWarEnded(War war, WarWinner winner)
+    public static void OnWorldWarEnded(War war, WarOutcome winner)
     {
-        if (war == null || winner != WarWinner.Attackers && winner != WarWinner.Defenders) return;
+        if (war == null || winner != WarOutcome.Attackers && winner != WarOutcome.Defenders) return;
         _data.world_war_ended_at = GameClock.Now;
         List<Empire> Side(IEnumerable<Realm> kingdoms) => kingdoms.Select(kingdom => kingdom?.GetEmpire())
             .Where(empire => empire?.data != null && !empire.IsGone() && !empire.IsArchived()).Distinct().ToList();
-        List<Empire> winners = Side(winner == WarWinner.Attackers ? war._list_attackers : war._list_defenders);
-        List<Empire> losers = Side(winner == WarWinner.Attackers ? war._list_defenders : war._list_attackers);
+        List<Empire> winners = Side(winner == WarOutcome.Attackers ? war.Attackers : war.Defenders);
+        List<Empire> losers = Side(winner == WarOutcome.Attackers ? war.Defenders : war.Attackers);
         foreach (Empire loser in losers.Except(winners))
         {
             loser.AddMandate(-15);
@@ -841,7 +825,7 @@ public static class WorldOrderSystem
             EconomicCycleSystem.Shock(loser, "war");
         }
         foreach (Empire victor in winners) victor.AddMandate(8);
-        Empire chief = (winner == WarWinner.Attackers ? war.getMainAttacker() : war.getMainDefender())?.GetEmpire();
+        Empire chief = (winner == WarOutcome.Attackers ? war.GetMainAttacker() : war.GetMainDefender())?.GetEmpire();
         if (chief == null || !winners.Contains(chief)) chief = winners.FirstOrDefault();
         if (chief == null || _data.league != null || DiplomacyLaws.AllianceBlocked ||
             !StateModernization.IsModernPower(chief.CoreKingdom)) return;

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/ReligiousPersecution.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/ReligiousPersecution.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System.Collections.Generic;
@@ -45,9 +45,9 @@ public static class ReligiousPersecution
 
     private static bool Alive(Realm kingdom) => kingdom?.Record != null && !kingdom.IsGone() && !kingdom.IsWild;
 
-#if EC_PENDING
     private static Realm ModRealm(Realm kingdom) => kingdom?.GetEmpire()?.CoreKingdom ?? kingdom;
 
+#if EC_PENDING
     public static void YearlyPass()
     {
         if (EmpireWorld.Current?.LiveRealms == null || ModClass.IS_CLEAR) return;
@@ -80,6 +80,7 @@ public static class ReligiousPersecution
             else Persecute(realm, target.Key, target.ToList(), homeland ? HomelandConvertShare : ConvertShare);
         }
     }
+#endif
 
     private static List<City> Cities(Realm realm)
     {
@@ -89,7 +90,6 @@ public static class ReligiousPersecution
             : new[] { realm };
         return members.SelectMany(member => member.Cities).Where(city => city?.Record != null && !city.IsGone()).ToList();
     }
-#endif
 
     // 被迫害的是本土之教：过半的城，该教是城所在天下的本土宗教，国教却不是这个天下的
 #if EC_PENDING
@@ -107,9 +107,7 @@ public static class ReligiousPersecution
 #endif
 
     // 国库吃紧：不到半年经常收入
-#if EC_PENDING
     private static bool Strapped(Realm realm) => realm.GetMoney() < StateDebtSystem.AnnualStableIncome(realm) / 2;
-#endif
 
     // 迫害：没收寺产、一半的城改宗，其余不稳、可能起事
 #if EC_PENDING

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/MemberWarAid.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/MemberWarAid.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System.Linq;
 
@@ -18,14 +18,12 @@ public static class MemberWarAid
     public const string CenterPlot = "member_aid_center";
 
     // 某一方领头的是本帝国的非核心成员：这是成员的仗，不是中央的
-#if EC_PENDING
     public static bool IsMemberWar(War war, Empire empire, bool attackers)
     {
-        if (war?.data == null || empire?.CoreKingdom == null) return false;
-        Realm lead = attackers ? war.getMainAttacker() : war.getMainDefender();
+        if (war?.Record == null || empire?.CoreKingdom == null) return false;
+        Realm lead = attackers ? war.GetMainAttacker() : war.GetMainDefender();
         return lead != null && lead != empire.CoreKingdom && lead.GetEmpire() == empire;
     }
-#endif
 
     // 王国 AI 每月一查：长官没在办别的决议时，本国挨打就向中央求援，邻近成员挨打就议驰援
 #if EC_PENDING
@@ -43,17 +41,17 @@ public static class MemberWarAid
     }
 
     public static War FindRequestWar(Realm member) =>
-        Context(member) == null ? null : member.getWars().FirstOrDefault(war => RequestValid(member, war));
+        Context(member) == null ? null : member.GetWars().FirstOrDefault(war => RequestValid(member, war));
 
     public static bool FindNeighbourWar(Realm member, out War target, out Realm ally)
     {
         target = null;
         ally = null;
         Empire empire = Context(member);
-        if (empire == null || member.getWars().Any(war => war != null && !war.hasEnded())) return false;
+        if (empire == null || member.GetWars().Any(war => war != null && !war.HasEnded())) return false;
         foreach (Realm other in empire.kingdoms_list.ToList())
         {
-            War war = other?.getWars().FirstOrDefault(candidate => NeighbourValid(member, candidate, other));
+            War war = other?.GetWars().FirstOrDefault(candidate => NeighbourValid(member, candidate, other));
             if (war == null) continue;
             target = war;
             ally = other;
@@ -70,8 +68,8 @@ public static class MemberWarAid
         Empire empire = Context(member);
         if (empire == null || !Aidable(war, member, empire)) return false;
         Realm core = empire.CoreKingdom;
-        if (war.hasKingdom(core) || EmpirePeacePatch.HasLeft(core, war, joiningAttackers: false)) return false;
-        if (core.getWars().Any(other => other.GetEmpireWarType() == EmpireWarType.藩王索取皇位)) return false;
+        if (war.HasRealm(core) || EmpirePeacePatch.HasLeft(core, war, joiningAttackers: false)) return false;
+        if (core.GetWars().Any(other => other.GetEmpireWarType() == EmpireWarType.藩王索取皇位)) return false;
         return EmpirePeacePatch.Obeys(empire, member) || core.isOpinionTowardsKingdomGood(member);
     }
 #endif
@@ -82,8 +80,8 @@ public static class MemberWarAid
     {
         Empire empire = Context(member);
         if (empire == null || ally == null || ally == member || ally == empire.CoreKingdom || ally.IsGone() ||
-            ally.GetEmpire() != empire || !Aidable(war, ally, empire) || war.hasKingdom(member)) return false;
-        if (member.getWars().Any(other => other != null && !other.hasEnded())) return false;
+            ally.GetEmpire() != empire || !Aidable(war, ally, empire) || war.HasRealm(member)) return false;
+        if (member.GetWars().Any(other => other != null && !other.HasEnded())) return false;
         if (EmpirePeacePatch.HasLeft(member, war, joiningAttackers: false) || !member.IsNeighbourWith(ally)) return false;
         return EmpirePeacePatch.Obeys(empire, member) || member.isOpinionTowardsKingdomGood(ally);
     }
@@ -96,7 +94,7 @@ public static class MemberWarAid
         if (war == null) return false;
         Plot plot = EmpireWorld.Current.plots.newPlot(actor, asset, forced);
         plot.target_war = war;
-        plot.target_kingdom = war.getMainAttacker();
+        plot.target_kingdom = war.GetMainAttacker();
         return true;
     }
 
@@ -159,25 +157,25 @@ public static class MemberWarAid
 #if EC_PENDING
     public static War FindCenterWar(Realm member, bool needy = true) =>
         Context(member) is Empire empire
-            ? empire.CoreKingdom.getWars().FirstOrDefault(war => CenterValid(member, war, needy))
+            ? empire.CoreKingdom.GetWars().FirstOrDefault(war => CenterValid(member, war, needy))
             : null;
 
     public static bool CenterValid(Realm member, War war, bool needy = true)
     {
         Empire empire = Context(member);
         Realm core = empire?.CoreKingdom;
-        if (core == null || war?.data == null || !war.Alive || war.hasEnded() || !war.hasKingdom(core) ||
+        if (core == null || war?.Record == null || !war.Alive || war.HasEnded() || !war.HasRealm(core) ||
             war.GetEmpireWarType() == EmpireWarType.劫掠 || ZhouEraSystem.IsInternalWar(war) || SouthernGarrisonSystem.IsInternalWar(war) ||
             WarScopeSystem.DispatchedFor(member, war)) return false;
-        bool attacking = war.isAttacker(core);
-        var opponents = attacking ? war._list_defenders : war._list_attackers;
+        bool attacking = war.IsAttacker(core);
+        var opponents = attacking ? war.Defenders : war.Attackers;
         if (opponents.Any(kingdom => kingdom != null && !kingdom.IsGone() && kingdom.GetEmpire() == empire &&
                                      !kingdom.IsFactionRebelling() && !kingdom.IsLocalRebelling())) return false;
-        if (war.hasKingdom(member))
+        if (war.HasRealm(member))
         {
-            if (attacking ? !war.isAttacker(member) : !war.isDefender(member)) return false;
+            if (attacking ? !war.IsAttacker(member) : !war.IsDefender(member)) return false;
         }
-        else if (member.getWars().Any(other => other != null && !other.hasEnded()) ||
+        else if (member.GetWars().Any(other => other != null && !other.HasEnded()) ||
                  EmpirePeacePatch.HasLeft(member, war, joiningAttackers: attacking)) return false;
         if (needy && WarScopeSystem.Level(core) < WarScopeSystem.Wider) return false;
         return EmpirePeacePatch.Obeys(empire, member) || member.isOpinionTowardsKingdomGood(core);
@@ -207,11 +205,11 @@ public static class MemberWarAid
         Realm member = actor.Realm;
         War war = actor.plot.target_war;
         Realm core = member.GetEmpire().CoreKingdom;
-        if (!war.hasKingdom(member))
+        if (!war.HasRealm(member))
         {
-            if (war.isAttacker(core)) war.joinAttackers(member);
-            else war.joinDefenders(member);
-            if (!war.hasKingdom(member)) return false;
+            if (war.IsAttacker(core)) war.JoinAttackers(member);
+            else war.JoinDefenders(member);
+            if (!war.HasRealm(member)) return false;
         }
         WarScopeSystem.Dispatch(member, war);
         string text = string.Format(LM.Get("member_aid_center_history"), member.GetKingdomName());
@@ -239,21 +237,21 @@ public static class MemberWarAid
 #if EC_PENDING
     private static bool Aidable(War war, Realm defender, Empire empire)
     {
-        if (war?.data == null || !war.Alive || war.hasEnded() || !war.isDefender(defender) ||
+        if (war?.Record == null || !war.Alive || war.HasEnded() || !war.IsDefender(defender) ||
             war.GetEmpireWarType() == EmpireWarType.劫掠 || ZhouEraSystem.IsInternalWar(war) ||
             SouthernGarrisonSystem.IsInternalWar(war)) return false;
-        return !war._list_attackers.Any(kingdom => kingdom != null && !kingdom.IsGone() &&
+        return !war.Attackers.Any(kingdom => kingdom != null && !kingdom.IsGone() &&
                                                    kingdom.GetEmpire() == empire &&
                                                    !kingdom.IsFactionRebelling() && !kingdom.IsLocalRebelling());
     }
+#endif
 
     private static bool Join(War war, Realm kingdom)
     {
-        if (war?.data == null || kingdom == null || kingdom.IsGone() || war.hasEnded() || war.hasKingdom(kingdom))
+        if (war?.Record == null || kingdom == null || kingdom.IsGone() || war.HasEnded() || war.HasRealm(kingdom))
             return false;
-        war.joinDefenders(kingdom);
-        return war._list_defenders.Contains(kingdom);
+        war.JoinDefenders(kingdom);
+        return war.Defenders.Contains(kingdom);
     }
-#endif
 }
 }

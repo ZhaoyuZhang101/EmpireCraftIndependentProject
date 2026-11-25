@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/HelperFunc/HeirFinderHelper.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/HelperFunc/HeirFinderHelper.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Concurrent;

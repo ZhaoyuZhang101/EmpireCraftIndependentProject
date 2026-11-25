@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/EmpireCoreControl.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/EmpireCoreControl.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Time = EmpireCraft.Core.FrameClock;
 using System.Collections.Generic;
@@ -16,7 +16,6 @@ public static class EmpireCoreControl
     private static readonly Dictionary<long, (Dictionary<Realm, int> held, int total, float at)> Cache = new();
     private static object _world;
 
-#if EC_PENDING
     public static Realm Sovereign(Realm kingdom)
     {
         if (kingdom == null || kingdom.IsGone()) return null;
@@ -42,7 +41,6 @@ public static class EmpireCoreControl
         }
         return held;
     }
-#endif
 
     // 各政权控制的核心城市数与核心城市总数；同一核心会被频繁询问(华夏军阀 AI、年度扫描)，缓存几秒
 #if EC_PENDING

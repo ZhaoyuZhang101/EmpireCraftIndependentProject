@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/NativeDefenseSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/NativeDefenseSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -46,7 +46,7 @@ public static class NativeDefenseSystem
     public static void Tick()
     {
         EmpireWorld world = EmpireWorld.Current;
-        if (world?.wars == null || ModClass.IS_CLEAR) return;
+        if (world?.LiveWars == null || ModClass.IS_CLEAR) return;
         if (!ReferenceEquals(_world, world))
         {
             ResetWorldState();
@@ -100,7 +100,7 @@ public static class NativeDefenseSystem
         var key = (native.Key, invader.Key);
         if (Cache.TryGetValue(key, out var cached) && now >= cached.at && now - cached.at < 5d) return cached.value;
         bool value = IsNativeEmpire(native) && CultureService.IsValidCulture(CultureService.GetRealmCulture(invader)) &&
-                     !SameKin(native, invader) && InvasionWars(native).Any(war => ModRealm(war.main_attacker) == invader) &&
+                     !SameKin(native, invader) && InvasionWars(native).Any(war => ModRealm(war.MainAttacker) == invader) &&
                      WarSituation.Power(invader) <= WarSituation.Power(native);
         Cache[key] = (now, value);
         return value;
@@ -130,10 +130,10 @@ public static class NativeDefenseSystem
         foreach (Realm member in members.ToList())
         {
             if (!Alive(member)) continue;
-            foreach (War war in member.getWars())
+            foreach (War war in member.GetWars())
             {
-                if (war?.data == null || war.hasEnded() || !war.isDefender(member) || !seen.Add(war)) continue;
-                Realm attacker = war.main_attacker;
+                if (war?.Record == null || war.HasEnded() || !war.IsDefender(member) || !seen.Add(war)) continue;
+                Realm attacker = war.MainAttacker;
                 if (Alive(attacker) && ModRealm(attacker) != native && CultureService.IsValidCulture(CultureService.GetRealmCulture(attacker)) &&
                     !SameKin(native, ModRealm(attacker)))
                     yield return war;
@@ -153,15 +153,15 @@ public static class NativeDefenseSystem
             if (empire?.data == null || empire.IsGone() || empire.IsArchived() || !IsNativeEmpire(native)) continue;
             foreach (War war in InvasionWars(native).ToList())
             {
-                if (Rallied.TryGetValue(war.data.id, out double at) && now >= at && GameClock.YearsSince(at) < RallyYears) continue;
-                Realm invader = ModRealm(war.main_attacker);
+                if (Rallied.TryGetValue(war.Key, out double at) && now >= at && GameClock.YearsSince(at) < RallyYears) continue;
+                Realm invader = ModRealm(war.MainAttacker);
                 if (!Resisting(native, invader)) continue;
-                Rallied[war.data.id] = now;
+                Rallied[war.Key] = now;
                 CallKin(empire, native, invader, war);
             }
         }
         foreach (long id in Rallied.Keys.ToList())
-            if (EmpireWorld.Current.wars.get(id) is not War war || war.data == null || war.hasEnded()) Rallied.Remove(id);
+            if (EmpireWorld.Current.WarByKey(id) is not War war || war.Record == null || war.HasEnded()) Rallied.Remove(id);
     }
 
     private static void CallKin(Empire empire, Realm native, Realm invader, War war)
@@ -173,14 +173,14 @@ public static class NativeDefenseSystem
             if (EcRandom.value >= chance) continue;
             try
             {
-                war.joinDefenders(kin);
+                war.JoinDefenders(kin);
             }
             catch (Exception exception)
             {
                 LogService.LogWarning($"[EmpireCraft][御侮] {kin.GetKingdomName()} 参战失败: {exception.Message}");
                 continue;
             }
-            if (war.isDefender(kin)) joined.Add(kin);
+            if (war.IsDefender(kin)) joined.Add(kin);
         }
         if (joined.Count == 0) return;
         string text = string.Format(LM.Get("native_rally_log"), empire.GetEmpireFullName(), invader.GetKingdomName(),
@@ -200,7 +200,7 @@ public static class NativeDefenseSystem
         Empire lord = invader.GetEmpire();
         return EmpireWorld.Current.LiveRealms
             .Where(kin => Alive(kin) && kin.IsCivilized() && ModRealm(kin) == kin && kin != native && kin != invader &&
-                          !war.hasKingdom(kin) && NativeBorn(kin) && SameKin(kin, native) &&
+                          !war.HasRealm(kin) && NativeBorn(kin) && SameKin(kin, native) &&
                           (lord == null || kin.GetTakenAllianceEmpire() != lord && kin.GetGivenAllianceEmpire() != lord) &&
                           !AncientWarfareCompatibility.Owns(kin) &&
                           (alliance == null || !kin.hasAlliance() || kin.getAlliance() != alliance) &&

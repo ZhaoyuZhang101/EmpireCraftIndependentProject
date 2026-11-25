@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/LateImperialSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/LateImperialSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -96,7 +96,7 @@ public static class LateImperialSystem
     {
         Realm core = empire?.CoreKingdom;
         if (core?.Record == null || core.IsGone() || !InstitutionSystem.HasFeature(empire, TusiFeature)) return;
-        if (empire.Mandate < TusiMandate || core.hasEnemies()) return;
+        if (empire.Mandate < TusiMandate || core.HasEnemies()) return;
         var extra = core.GetOrCreate();
         if (extra.tusi_reform_at >= 0d && GameClock.YearsSince(extra.tusi_reform_at) < TusiIntervalYears) return;
         Realm target = (empire.kingdoms_list ?? new List<Realm>())

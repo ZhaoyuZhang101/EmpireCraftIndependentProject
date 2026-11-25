@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/PeaceTermRules.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/PeaceTermRules.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Linq;
@@ -72,7 +72,6 @@ public static class PeaceTermRules
 #endif
 
     // 这一档赔款合计多少钱(当场 + 分付)
-#if EC_PENDING
     public static long IndemnityAmount(Realm payer, int tier)
     {
         if (payer?.Record == null || payer.IsGone()) return 0L;
@@ -81,6 +80,7 @@ public static class PeaceTermRules
         return installments ? amount + WarReparationsSystem.InstallmentTotal(payer) : amount;
     }
 
+#if EC_PENDING
     public static int Share(Realm kingdom, double share) => (int)Math.Round(RealmValue(kingdom) * share);
 #endif
 
@@ -141,8 +141,8 @@ public static class PeaceTermRules
     public static Leverage LeverageOf(War war, bool attackers)
     {
         var result = new Leverage();
-        Realm side = attackers ? war?.main_attacker : war?.main_defender, foe = attackers ? war?.main_defender : war?.main_attacker;
-        if (war?.data == null || side?.Record == null || foe?.Record == null || side.IsGone() || foe.IsGone()) return result;
+        Realm side = attackers ? war?.MainAttacker : war?.MainDefender, foe = attackers ? war?.MainDefender : war?.MainAttacker;
+        if (war?.Record == null || side?.Record == null || foe?.Record == null || side.IsGone() || foe.IsGone()) return result;
         result.taken = Math.Max(0, WarSituation.CitiesLost(war, foe)) * AverageCityValue(foe);
         double occupied = 0d;
         foreach (City city in foe.Cities)
@@ -162,12 +162,12 @@ public static class PeaceTermRules
     public static float OccupiedShare(War war, City city, bool attackers)
     {
         if (attackers) return WarObjective.HeldShareOf(war, city);
-        if (war?.data == null || city?.Record == null || city.IsGone()) return 0f;
-        if (city.Realm != null && war._list_defenders.Contains(city.Realm)) return 1f;
+        if (war?.Record == null || city?.Record == null || city.IsGone()) return 0f;
+        if (city.Realm != null && war.Defenders.Contains(city.Realm)) return 1f;
         int total = city.zones?.Count ?? 0;
         if (total == 0) return 0f;
         int held = 0;
-        foreach (Realm kingdom in war._list_defenders)
+        foreach (Realm kingdom in war.Defenders)
             if (kingdom?.Record != null && !kingdom.IsGone()) held += city.GetOccupiedTileZoneCount(kingdom);
         return Math.Min(1f, held / (float)total);
     }
@@ -189,8 +189,8 @@ public static class PeaceTermRules
     public static Wear WearOf(War war, bool attackers)
     {
         var result = new Wear();
-        Realm side = attackers ? war?.main_attacker : war?.main_defender, foe = attackers ? war?.main_defender : war?.main_attacker;
-        if (war?.data == null || side?.Record == null || side.IsGone()) return result;
+        Realm side = attackers ? war?.MainAttacker : war?.MainDefender, foe = attackers ? war?.MainDefender : war?.MainAttacker;
+        if (war?.Record == null || side?.Record == null || side.IsGone()) return result;
         int value = RealmValue(side);
         Realm realm = FrontSystem.Realm(side) ?? side;
         var data = realm.GetOrCreate();
@@ -215,7 +215,6 @@ public static class PeaceTermRules
 #endif
 
     // 势头：上次议和(每年一次，见 PeaceTable.Talks)以来新打下来的本钱
-#if EC_PENDING
     public static int Momentum(War war, bool attackers, Leverage leverage)
     {
         var data = war?.GetOrCreate();
@@ -223,7 +222,6 @@ public static class PeaceTermRules
         int before = data.peace_talks_at < 0d ? 0 : attackers ? data.peace_momentum_attacker : data.peace_momentum_defender;
         return Math.Max(0, leverage.Cities - before);
     }
-#endif
 
     #endregion
 }

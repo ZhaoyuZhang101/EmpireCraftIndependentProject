@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/StateSettlementSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/StateSettlementSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -113,7 +113,7 @@ public static class StateSettlementSystem
         if (!ValidCity(city) || city.Realm == null) return "unsafe";
         // 自发迁民正是为了离开饥荒、拥挤或战乱，不要求原居地先恢复安全与富足。
         if (spontaneous) return null;
-        if (city.Realm.hasEnemies() ||
+        if (city.Realm.HasEnemies() ||
             city.GetOrCreate().OccupiedStatus?.Count > 0) return "unsafe";
         if (city.units?.Any(actor => actor != null && !actor.IsGone() && actor.Alive &&
                 actor.hasTrait("plague")) == true) return "unsafe";
@@ -167,7 +167,7 @@ public static class StateSettlementSystem
             City source = EmpireWorld.Current.CityByKey(project.source);
             // 已经创建的项目必须完成记账，不能因为关闭法则或爆发战争留下免费城市。
             if (project.city >= 0L || project.committing) { Complete(payer, state); return; }
-            if (!project.spontaneous && payer.hasEnemies()) { state.status = "unsafe"; return; }
+            if (!project.spontaneous && payer.HasEnemies()) { state.status = "unsafe"; return; }
             if (landOwner == null || landOwner.IsGone() || FundingRealm(landOwner) != payer ||
                 !ValidCity(source) || source.Realm != landOwner)
             { Cancel(payer, state, "changed"); return; }
@@ -192,7 +192,7 @@ public static class StateSettlementSystem
             Complete(payer, state);
             return;
         }
-        if (payer.hasEnemies()) { state.status = "unsafe"; return; }
+        if (payer.HasEnemies()) { state.status = "unsafe"; return; }
         City lastCity = EmpireWorld.Current.CityByKey(state.last_city);
         // 只等待本系统上次建立的城安置，不因别的旧城人少而锁死全国。
         if (ValidCity(lastCity) && (FundingRealm(lastCity.Realm) == payer ||
@@ -355,7 +355,7 @@ public static class StateSettlementSystem
         Person actor = Founder(owner, source);
         if (!ValidCity(source) || source.Realm != owner || FundingRealm(owner) != payer || actor == null)
         { Cancel(payer, state, "changed"); return; }
-        if (!project.spontaneous && (payer.hasEnemies() || owner.hasEnemies()))
+        if (!project.spontaneous && (payer.HasEnemies() || owner.HasEnemies()))
         { state.status = "unsafe"; PendingSearches.Enqueue(id); return; }
         // 人物只提供原版物种/文化初始化上下文，不派人寻路，也不检查人物所在位置。
         state.status = search.sea != null ? "sea_searching" : project.spontaneous ? "spontaneous_searching" : "searching";
@@ -519,12 +519,12 @@ public static class StateSettlementSystem
 
     // 建城筹备月数(模组设置)：官办建城与百姓因住房拥挤、缺少岗位自发迁出的聚落都要筹备；逃荒、避战的难民当即动身。
     // 以前自发聚落一律不筹备，而满城、缺岗时常有自发迁民，看起来就像筹备月数不生效
-#if EC_PENDING
     private static int PreparationMonths(StateSettlementProject project) =>
         project.spontaneous && (project.cause == "famine" || project.cause == "war")
             ? 0
             : Math.Max(0, ModClass.SETTLEMENT_PREPARATION_MONTHS);
 
+#if EC_PENDING
     private static bool Ready(StateSettlementProject project) => project.started >= 0d &&
         GameClock.Now >= project.started && GameClock.MonthsSince(project.started) >=
         PreparationMonths(project) +

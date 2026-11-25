@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/PartyBanSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/PartyBanSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -83,7 +83,6 @@ public static class PartyBanSystem
     public const int ConsultativeRatioCap = 5;
 
     // 把各政协友党的中央占比压到 ConsultativeRatioCap 以内，超出部分归领导党
-#if EC_PENDING
     public static void CapConsultativeRatios(Realm kingdom, Dictionary<FixedFaction, int> ratios)
     {
         if (kingdom == null || ratios == null || ratios.Count == 0 || !kingdom.IsEmpire()) return;
@@ -102,7 +101,6 @@ public static class PartyBanSystem
         }
         if (excess > 0 && leader != null) ratios[leader] = Mathf.Min(100, ratios[leader] + excess);
     }
-#endif
 
     public static bool IsConsultative(Empire empire, FixedFaction party)
     {

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/BattleSound.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/BattleSound.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
@@ -138,7 +138,7 @@ public static class BattleSound
 
     private static void Update(float dt)
     {
-        bool want = SwitchBattleSoundButton.On && MusicBox.sounds_on && EmpireWorld.Current != null && Config.game_loaded &&
+        bool want = SwitchBattleSoundButton.On && MusicBox.sounds_on && EmpireWorld.Current != null && GameClock.Running &&
                     !SmoothLoader.isLoading() && EmpireWorld.Current.camera != null;
         if (!want)
         {

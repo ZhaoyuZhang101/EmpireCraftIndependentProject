@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/NativeFaithSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/NativeFaithSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -30,10 +30,8 @@ public static class NativeFaithSystem
     public const float ReturnChance = 0.08f;
     public const int FallbackCityAge = 20;
 
-#if EC_PENDING
     private static bool Valid(City city) => city?.Record != null && !city.IsGone() && city.Realm?.Record != null &&
                                            !city.Realm.IsWild && !AncientWarfareCompatibility.OwnsObject(city);
-#endif
 
     private static bool Alive(Person actor) => actor?.Record != null && !actor.IsGone() && actor.Alive;
 

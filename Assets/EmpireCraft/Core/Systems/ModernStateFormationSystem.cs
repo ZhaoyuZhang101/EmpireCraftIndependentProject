@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/ModernStateFormationSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/ModernStateFormationSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -117,17 +117,14 @@ public static class ModernStateFormationSystem
 #endif
 
     // 法统 = 天下(军阀时期以天下为单位，见 WarlordEraSystem)：主法理所在核心的天下
-#if EC_PENDING
     private static EmpireCore LawfulCore(Realm kingdom)
     {
         EmpireCore core = EmpireCoreManager.GetRiseCandidateCore(kingdom);
         if (core?.false_core_against_empire_id > 0) return null;
         return TianxiaSystem.Lead(core);
     }
-#endif
 
     // 是否同属一个法统(天下)：主法理与都城可能落在不同核心里，任一处在政府的天下里即算
-#if EC_PENDING
     private static bool SameLawfulCore(Realm governmentKingdom, Realm subject)
     {
         EmpireCore lawful = LawfulCore(governmentKingdom);
@@ -149,6 +146,7 @@ public static class ModernStateFormationSystem
         return overlord != null;
     }
 
+#if EC_PENDING
     public static bool TryMergeIntoOverlordGovernment(Realm subject)
     {
         return TryGetSameCoreOverlord(subject, out Realm overlord) &&
@@ -284,7 +282,6 @@ public static class ModernStateFormationSystem
 #endif
 
     // 称呼含 {0} 时把名号代进去(如"{0}系军阀")，否则接在名号后面
-#if EC_PENDING
     public static string FormatLabel(string front, string label)
     {
         if (string.IsNullOrWhiteSpace(label)) return front ?? "";
@@ -292,7 +289,6 @@ public static class ModernStateFormationSystem
             ? label.Replace("{0}", front ?? "")
             : OverallHelperFunc.JoinNameParts(front, label);
     }
-#endif
 
     // 理念变了、或记下的序号已不在词库范围里(旧存档、词库改动)就重抽
     private static int StablePick(int count, PartyIdeology ideology, ref int storedIdeology, ref int storedPick)

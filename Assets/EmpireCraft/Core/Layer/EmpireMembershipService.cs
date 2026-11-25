@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/Layer/EmpireMembershipService.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/Layer/EmpireMembershipService.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System.Collections.Generic;
 using System.Linq;
@@ -14,7 +14,6 @@ public static class EmpireMembershipService
 
     // 帝国图层上的归属(用户 2026-10-22 "帝国内部的国家附庸外部的也应该纳入帝国版图")：成员国算它的帝国；
     // 帝国核心或成员国的封建附庸(附庸的附庸也算)也画进宗主所在帝国的版图。只管地图显示，附庸照旧不进成员名单、自有军政外交
-#if EC_PENDING
     public static Empire MapEmpire(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone()) return null;
@@ -23,10 +22,8 @@ public static class EmpireMembershipService
             empire = EmpireCoreControl.Sovereign(kingdom)?.GetEmpire();
         return empire?.data != null && !empire.IsGone() && !empire.IsArchived() ? empire : null;
     }
-#endif
 
     // 帝国图层上画进这个帝国、却不是成员的附庸国
-#if EC_PENDING
     public static IEnumerable<Realm> MapVassals(Empire empire)
     {
         if (empire?.data == null || EmpireWorld.Current?.LiveRealms == null) yield break;
@@ -49,7 +46,6 @@ public static class EmpireMembershipService
                     !AncientWarfareCompatibility.OwnsObject(city) && seen.Add(city.Key)) yield return city;
         }
     }
-#endif
 
     // 在加载任意帝国对象之前统一判定，避免后加载的旧名单覆盖前一个帝国的核心或成员。
     // 直辖核心优先；普通成员尊重国家自己的存档归属，明确独立的国家不因旧名单重新入帝国。
@@ -98,16 +94,16 @@ public static class EmpireMembershipService
         {
             if (Protected(data)) continue;
             data.kingdoms = living.Values.Where(kingdom => !AncientWarfareCompatibility.Owns(kingdom) &&
-                kingdom.GetEmpireID() == data.id).Select(kingdom => kingdom.id)
+                kingdom.GetEmpireID() == data.id).Select(kingdom => kingdom.Key)
                 .Concat((data.kingdoms ?? new List<long>()).Where(id => living.TryGetValue(id, out Realm kingdom) &&
                     AncientWarfareCompatibility.Owns(kingdom))).Distinct().OrderBy(id => id).ToList();
             // cities 是过期缓存；加载后从国家当前拥有的城市重建。
             data.cities = living.Values.Where(kingdom => kingdom.GetEmpireID() == data.id &&
                     !AncientWarfareCompatibility.Owns(kingdom))
-                .SelectMany(kingdom => kingdom.cities ?? new List<City>())
-                .Where(city => city != null && !city.IsGone() && city.kingdom?.GetEmpireID() == data.id &&
+                .SelectMany(kingdom => kingdom.Cities ?? new List<City>())
+                .Where(city => city != null && !city.IsGone() && city.Realm?.GetEmpireID() == data.id &&
                     !AncientWarfareCompatibility.OwnsObject(city))
-                .Select(city => city.id).Distinct().ToList();
+                .Select(city => city.Key).Distinct().ToList();
         }
     }
 #endif

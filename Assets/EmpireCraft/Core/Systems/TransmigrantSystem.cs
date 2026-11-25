@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/TransmigrantSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/TransmigrantSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Color = EmpireCraft.Core.EcColor;
@@ -884,7 +884,6 @@ public static partial class TransmigrantSystem
     public const int RegionStage = 3, RegionRenameStage = 5;
 
     // 成员所属的元老院国家(帝国核心是穿越政权时)；自己就是元老院国家时返回自己
-#if EC_PENDING
     public static Realm SenateOf(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone()) return null;
@@ -895,12 +894,9 @@ public static partial class TransmigrantSystem
 
     public static bool IsRegion(Realm kingdom) =>
         kingdom?.Record != null && !kingdom.IsGone() && !kingdom.IsEmpire() && Of(kingdom) == null && SenateOf(kingdom) != null;
-#endif
 
     // 共同纲领以前的大区叫特区
-#if EC_PENDING
     public static bool IsZone(Realm kingdom) => IsRegion(kingdom) && StageOf(SenateOf(kingdom)) < RegionStage;
-#endif
 
     public static bool Partitions(Empire empire) =>
         empire?.CoreKingdom is Realm core && !core.IsGone() && StageOf(core) >= RegionStage;
@@ -968,11 +964,11 @@ public static partial class TransmigrantSystem
     public static int AgeOf(SenatorSeat seat) => seat == null ? 0 : Mathf.Max(0, GameClock.Year - seat.birth_year);
 
     // 特别市：元老院内阁以后的都城、各大区治所与经济重镇(一万五千人以上)；大区的城按元老院的阶段算
-#if EC_PENDING
     public static bool SpecialCity(City city) =>
         city?.Realm != null && StageOf(SenateOf(city.Realm)) >= RegionRenameStage &&
         (city.IsCapital() || CityPopulationSystem.GetTotal(city) >= 15000f);
 
+#if EC_PENDING
     private static void Stage(Realm kingdom, TransmigrantState state)
     {
         int stage = 1;
@@ -1011,7 +1007,7 @@ public static partial class TransmigrantSystem
     public static void NameWar(War war)
     {
         string name = WarName(war);
-        if (name != null) war.data.name = name;
+        if (name != null) war.Name = name;
     }
 #endif
 
@@ -1019,8 +1015,8 @@ public static partial class TransmigrantSystem
 #if EC_PENDING
     public static string WarName(War war)
     {
-        if (war?.data == null) return null;
-        Realm attacker = war.getMainAttacker(), defender = war.getMainDefender();
+        if (war?.Record == null) return null;
+        Realm attacker = war.GetMainAttacker(), defender = war.GetMainDefender();
         if (attacker == null || !IsTransmigrant(defender)) return null;
         string culture = CultureService.GetRealmCulture(attacker);
         if (culture == Culture || !CultureService.IsValidCulture(culture) || OnomasticsRule.GetTianxiaId(culture) != HomeCulture)

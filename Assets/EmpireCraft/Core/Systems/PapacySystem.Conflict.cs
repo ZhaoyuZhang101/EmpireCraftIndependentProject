@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/PapacySystem.Conflict.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/PapacySystem.Conflict.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -60,7 +60,7 @@ public static partial class PapacySystem
         // 教宗受挟：与挟持者交战的遭绝罚(奉对立教宗的不算)
         if (!FollowsAntipope(empire) && CaptorBan(empire, state, religion)) return;
         // 与教廷交战
-        if (papacy.isInWarWith(core) && EcRandom.value < authority / 100f)
+        if (papacy.IsAtWarWith(core) && EcRandom.value < authority / 100f)
         {
             Excommunicate(empire, state, "papal_ban_reason_war");
             return;
@@ -178,8 +178,8 @@ public static partial class PapacySystem
         foreach (Realm member in PartyMembers(empire, PartyPope))
         {
             // 新入帝国十年内、神力拉入未满期的不倒戈(见 MembershipCooldown)
-            if (member.hasEnemies() || !MembershipCooldown.Settled(member) || EcRandom.value >= DefectChance) continue;
-            War war = DiplomacyHelpers.wars.newWar(member, core, WarTypeLibrary.normal);
+            if (member.HasEnemies() || !MembershipCooldown.Settled(member) || EcRandom.value >= DefectChance) continue;
+            War war = DiplomacyHelpers.wars.newWar(member, core, WarKinds.Normal);
             if (war == null) continue;
             empire.leave(member, true, true);
             war.SetEmpireWarType(EmpireWarType.地方独立);

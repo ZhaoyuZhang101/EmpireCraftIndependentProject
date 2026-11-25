@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/Layer/KingdomTtitleManager.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/Layer/KingdomTtitleManager.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Time = EmpireCraft.Core.FrameClock;
 using System;
@@ -71,9 +71,9 @@ public class KingdomTitleManager : RecordStore<KingdomTitle, KingdomTitleData>
 
     // 法理扩张(未冻结法理)时，单个王国法理最多容纳的城市数；0 表示不限。只限制决议自动扩张，
     // 上帝之力手动加城不受影响。
-#if EC_PENDING
     public static int MaxCitiesPerTitle => ModClass.KINGDOM_TITLE_FREEZE ? 0 : Math.Max(0, ModClass.TITLE_MAX_CITIES);
 
+#if EC_PENDING
     public static int CountTitleCities(KingdomTitle title) =>
         title?.getCities()?.Count(city => city != null && !city.IsGone()) ?? 0;
 
@@ -114,10 +114,10 @@ public class KingdomTitleManager : RecordStore<KingdomTitle, KingdomTitleData>
     {
         if (EmpireCraft.Core.AncientWarfareCompatibility.OwnsObject(pCity1) ||
             EmpireCraft.Core.AncientWarfareCompatibility.OwnsObject(pCity2)) return false;
-        KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER.get(pCity1.GetTitleID());
+        KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER.Get(pCity1.GetTitleID());
         if (title == null)
         {
-            title = ModClass.KINGDOM_TITLE_MANAGER.get(pCity2.GetTitleID());
+            title = ModClass.KINGDOM_TITLE_MANAGER.Get(pCity2.GetTitleID());
         }
         bool result = false;
         if (title == null)

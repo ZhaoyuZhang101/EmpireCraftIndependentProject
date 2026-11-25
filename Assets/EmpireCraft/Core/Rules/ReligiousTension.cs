@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/ReligiousTension.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/ReligiousTension.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Linq;
@@ -252,7 +252,7 @@ public static class ReligiousTension
         }
         if (faith != null) rebel.setReligion(faith);
         rebel.Name = kingdomName;
-        War war = EmpireWorld.Current.diplomacy.startWar(rebel, origin, WarTypeLibrary.rebellion);
+        War war = EmpireWorld.Current.StartWar(rebel, origin, WarKinds.Rebellion);
         if (war == null)
         {
             RebellionStartupService.RollbackCitySplit(city, origin, rebel);
@@ -260,7 +260,7 @@ public static class ReligiousTension
         }
         war.SetEmpireWarType(EmpireWarType.宗教叛乱);
         RebellionSystem.Record(rebel, war, cause);
-        war.data.name = warName;
+        war.Name = warName;
         RebellionStartupService.RaiseUprisingMilitia(rebel, 0.5f);
         city.GetOrCreate().last_harsh_uprising = GameClock.Now;
         Empire empire = origin.GetEmpire();
@@ -274,9 +274,9 @@ public static class ReligiousTension
 #if EC_PENDING
     public static bool CanJoinHolyWar(Realm kingdom, War war)
     {
-        Realm defender = war?.main_defender;
+        Realm defender = war?.MainDefender;
         if (kingdom?.Capital == null || defender?.Capital == null || defender.IsGone()) return false;
-        if (war._list_attackers.Count >= MaxHolyWarAttackers || kingdom.IsInSameEmpire(defender)) return false;
+        if (war.Attackers.Count >= MaxHolyWarAttackers || kingdom.IsInSameEmpire(defender)) return false;
         return Vector2.Distance(kingdom.Capital.city_center, defender.Capital.city_center) <= HolyWarReach;
     }
 #endif

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/Layer/EmpireHistoryDisplay.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/Layer/EmpireHistoryDisplay.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 
@@ -6,7 +6,6 @@ namespace EmpireCraft.Core
 {
     public static class EmpireHistoryDisplay
     {
-#if EC_PENDING
         public static string FullName(string snapshot, string shortName, string storedFullName,
             string storedShortName, string unknown)
         {
@@ -17,6 +16,5 @@ namespace EmpireCraft.Core
                 return storedFullName.UseLocalizedNameSeparator();
             return string.IsNullOrWhiteSpace(shortName) ? unknown : shortName;
         }
-#endif
     }
 }

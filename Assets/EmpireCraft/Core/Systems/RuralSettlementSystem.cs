@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/RuralSettlementSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/RuralSettlementSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -219,7 +219,7 @@ public static class RuralSettlementSystem
     // 收回来又多出一份，用户 2026-10-17 "每次战线变化的时候就重复刷新消失和生成新的村镇")
 #if EC_PENDING
     public static bool MayGrow(City city) =>
-        !Fixed && city?.Record != null && !city.IsGone() && (city.Realm == null || !city.Realm.hasEnemies()) &&
+        !Fixed && city?.Record != null && !city.IsGone() && (city.Realm == null || !city.Realm.HasEnemies()) &&
         !FrontSystem.Battles.ContainsKey(city.Key);
 #endif
 
@@ -937,9 +937,9 @@ public static class RuralSettlementSystem
         List<RuralSettlement> list = InZone(zone);
         if (list.Count == 0) return;
         Realm owner = city.Realm;
-        bool raid = occupier.getWars().Any(war => war != null && !war.hasEnded() && war.GetEmpireWarType() == EmpireWarType.劫掠 &&
-                                                  (war.isAttacker(occupier) && war.isDefender(owner) ||
-                                                   war.isDefender(occupier) && war.isAttacker(owner)));
+        bool raid = occupier.GetWars().Any(war => war != null && !war.HasEnded() && war.GetEmpireWarType() == EmpireWarType.劫掠 &&
+                                                  (war.IsAttacker(occupier) && war.IsDefender(owner) ||
+                                                   war.IsDefender(occupier) && war.IsAttacker(owner)));
         double now = GameClock.Now;
         foreach (RuralSettlement settlement in list)
         {
@@ -968,7 +968,7 @@ public static class RuralSettlementSystem
                 now >= settlement.ruined_at && GameClock.YearsSince(settlement.ruined_at) < RebuildYears) continue;
             TileZone zone = EmpireWorld.Current.GetTile(settlement.x, settlement.y)?.zone;
             City city = zone?.city;
-            if (city?.Realm == null || city.IsGone() || city.Realm.hasEnemies() || city.GetTileZoneOccupier(zone) != null) continue;
+            if (city?.Realm == null || city.IsGone() || city.Realm.HasEnemies() || city.GetTileZoneOccupier(zone) != null) continue;
             if (EcRandom.value >= RebuildChancePerYear / 12f) continue;
             settlement.ruined_at = -1d;
             settlement.founded = now;

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/SubjectChain.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/SubjectChain.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -18,7 +18,6 @@ namespace EmpireCraft.Core
 public static class SubjectChain
 {
     // 直接的上家：封建宗主、受贡的帝国中央、属地的宗主国、傀儡的主国、所在帝国的中央
-#if EC_PENDING
     public static IEnumerable<Realm> Lords(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone()) yield break;
@@ -28,30 +27,24 @@ public static class SubjectChain
         if (PuppetStateSystem.Master(kingdom) is Realm master) yield return master;
         if (Centre(kingdom) is Realm centre) yield return centre;
     }
-#endif
 
     // 受它朝贡的帝国的中央
-#if EC_PENDING
     private static Realm Suzerain(Realm kingdom)
     {
         if (!kingdom.HasTakenAlliance()) return null;
         Realm core = kingdom.GetTakenAllianceEmpire()?.CoreKingdom;
         return core?.Record != null && core != kingdom && !core.IsGone() ? core : null;
     }
-#endif
 
     // 帝国的成员：上面是帝国中央
-#if EC_PENDING
     private static Realm Centre(Realm kingdom)
     {
         if (!kingdom.IsInEmpire() || kingdom.IsEmpire()) return null;
         Realm core = kingdom.GetEmpire()?.CoreKingdom;
         return core?.Record != null && core != kingdom && !core.IsGone() ? core : null;
     }
-#endif
 
     // kingdom 是不是(直接或隔着几层)从属于 lord
-#if EC_PENDING
     public static bool Under(Realm kingdom, Realm lord)
     {
         if (kingdom?.Record == null || lord?.Record == null || kingdom == lord) return false;
@@ -66,7 +59,6 @@ public static class SubjectChain
             }
         return false;
     }
-#endif
 
     // 要立 lord 作 subject 的上家，而 lord 眼下正从属于 subject：把 lord 通到 subject 的那一层解开(翻身做主)。
     // 解完不再从属返回真；隔着帝国成员那一层的解不开，返回假(这层关系就不立了)

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/HelperFunc/HighPopulationPerformance.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/HelperFunc/HighPopulationPerformance.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
@@ -13,7 +13,6 @@ public static class HighPopulationPerformance
     private const float HighPopulationFrontLineCacheSeconds = 0.25f;
     private const float ExtremePopulationFrontLineCacheSeconds = 0.5f;
 
-#if EC_PENDING
     public static int GetFrontLineCacheKey()
     {
         if (!ModClass.PERFORMANCE_HIGH_POPULATION_MODE || EmpireWorld.Current?.Living == null)
@@ -27,6 +26,5 @@ public static class HighPopulationPerformance
             : HighPopulationFrontLineCacheSeconds;
         return Mathf.FloorToInt(Time.realtimeSinceStartup / cacheSeconds);
     }
-#endif
 }
 }

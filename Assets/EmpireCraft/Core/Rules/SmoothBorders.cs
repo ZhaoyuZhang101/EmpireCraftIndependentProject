@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/SmoothBorders.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/SmoothBorders.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
@@ -162,7 +162,7 @@ public static partial class SmoothBorders
         if (!ControlLayer(layer) || zone?.city?.kingdom == null) return meta;
         Realm owner = zone.city.kingdom;
         Realm occupier = zone.city.GetTileZoneOccupier(zone);
-        if (occupier?.Record == null || occupier.IsGone() || occupier == owner || occupier.isInWarOnSameSide(owner) ||
+        if (occupier?.Record == null || occupier.IsGone() || occupier == owner || occupier.IsOnSameSide(owner) ||
             !FrontSystem.Hostile(owner, occupier)) return meta;
         return RealmMeta(layer, occupier) ?? meta;
     }
@@ -420,7 +420,7 @@ public static partial class SmoothBorders
     public static void FrameTick()
     {
         // 初次进图：读档完、地图画得出来时来一遍全图换色(读档时分帧画上的颜色可能还不全、不对)
-        if (_entryPending && Enabled && Config.game_loaded && !SmoothLoader.isLoading() &&
+        if (_entryPending && Enabled && GameClock.Running && !SmoothLoader.isLoading() &&
             EmpireWorld.Current?.getCachedMapMetaAsset() != null && EmpireWorld.Current.zone_calculator?._mode_asset != null)
         {
             _entryPending = false;
@@ -1661,7 +1661,7 @@ public static partial class SmoothBorders
         if (flip.Computing)
         {
             if (now - flip.start >= LayerComputeMaxSeconds + 0.5f) Computed(flip, now, 0);
-            else if (calc != null && Config.game_loaded && !SmoothLoader.isLoading()) ZonePaintBudget.ForceRound(calc);
+            else if (calc != null && GameClock.Running && !SmoothLoader.isLoading()) ZonePaintBudget.ForceRound(calc);
         }
         float dt = Mathf.Clamp(now - flip.lastTick, 0f, 0.1f);
         flip.lastTick = now;
@@ -2504,7 +2504,7 @@ public static partial class SmoothBorders
     public static void RefreshWar(War war)
     {
         if (!Enabled || war == null) return;
-        foreach (Realm kingdom in war.getAttackers().Concat(war.getDefenders()))
+        foreach (Realm kingdom in war.GetAttackers().Concat(war.GetDefenders()))
             foreach (City city in kingdom?.Cities ?? new List<City>())
                 foreach (TileZone zone in city?.zones ?? new List<TileZone>())
                     zone?.resetRenderHelpers();

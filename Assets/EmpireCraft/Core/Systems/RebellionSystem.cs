@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/RebellionSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/RebellionSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -9,7 +9,6 @@ namespace EmpireCraft.Core
 
 public static class RebellionSystem
 {
-#if EC_PENDING
     public static int GraceYearsRemaining(Realm kingdom)
     {
         Empire empire = kingdom?.GetEmpire();
@@ -19,7 +18,6 @@ public static class RebellionSystem
         return RebellionRules.GraceYearsRemaining(true, joinedAt, now,
             joinedAt >= 0d && now >= joinedAt ? GameClock.YearsSince(joinedAt) : 0);
     }
-#endif
 
     // 世界法则「禁止叛乱」(见 EmpireCraftWorldLawLibrary.empirecraft_law_ban_rebellion)：开着时一切自动起事都不发动。
     // 2026-11-12 起并进不许自立的闸(见 SecessionGate)：「禁止AI外交」「禁止AI宣战」开着、原版「外交」「叛乱」关着也一样不起事；
@@ -153,7 +151,7 @@ public static class RebellionSystem
         string details = string.IsNullOrWhiteSpace(cause.detail) ? reason : reason + "：" + cause.detail;
         string text = string.Format(LM.Get("rebellion_cause_history"), rebel.GetKingdomFullName(), details,
             cause.origin_name, Metrics(cause));
-        Empire origin = cause.origin_empire_id >= 0 ? ModClass.EMPIRE_MANAGER?.get(cause.origin_empire_id) : null;
+        Empire origin = cause.origin_empire_id >= 0 ? ModClass.EMPIRE_MANAGER?.Get(cause.origin_empire_id) : null;
         EventRecorder.Record(origin, text, rebel.Ruler, rebel);
     }
 #endif

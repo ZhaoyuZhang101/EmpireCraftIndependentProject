@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/PapacySystem.Events.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/PapacySystem.Events.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -72,7 +72,7 @@ public static partial class PapacySystem
     {
         if (!IsCaptive(religion)) return false;
         Realm captor = ModRealm(Papacy(religion));
-        if (captor == null || captor == empire.CoreKingdom || !empire.CoreKingdom.isInWarWith(captor) ||
+        if (captor == null || captor == empire.CoreKingdom || !empire.CoreKingdom.IsAtWarWith(captor) ||
             EcRandom.value >= Authority(religion) / 100f) return false;
         Excommunicate(empire, state, "papal_ban_reason_captor");
         return true;

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/MaladySystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/MaladySystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -237,9 +237,7 @@ public static class MaladySystem
 
     #region 各处调用的效果
 
-#if EC_PENDING
     private static Empire EmpireOf(Realm kingdom) => kingdom?.GetEmpire();
-#endif
 
     // 土地兼并：有地农民卖地的速度
 #if EC_PENDING

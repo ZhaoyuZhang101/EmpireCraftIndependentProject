@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/FrontSystem.Parallel.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/FrontSystem.Parallel.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -314,6 +314,7 @@ public static partial class FrontSystem
             }
         }
     }
+#endif
 
     private static int Slot(Realm kingdom)
     {
@@ -326,7 +327,6 @@ public static partial class FrontSystem
         SlotGone.Add(kingdom.Record == null || kingdom.IsGone());
         return slot;
     }
-#endif
 
     // 主线程：本方的敌友、本方的城、要看的敌城(顺序同 LandSectors 的 Collect)
 #if EC_PENDING
@@ -346,11 +346,11 @@ public static partial class FrontSystem
             if (side.Record != null && other.Record != null && side != other && !sideGone && !SlotGone[i])
             {
                 Realm otherRealm = SlotRealm[i];
-                hostile = side.isInWarWith(other) || realm != otherRealm &&
-                    (realm.isInWarWith(otherRealm) || realm.isInWarWith(other) || side.isInWarWith(otherRealm));
+                hostile = side.IsAtWarWith(other) || realm != otherRealm &&
+                    (realm.IsAtWarWith(otherRealm) || realm.IsAtWarWith(other) || side.IsAtWarWith(otherRealm));
             }
             if (hostile) relation |= RelHostile;
-            if (side.Record != null && other.Record != null && (side == other || !hostile && (realm == SlotRealm[i] || side.isInWarOnSameSide(other))))
+            if (side.Record != null && other.Record != null && (side == other || !hostile && (realm == SlotRealm[i] || side.IsOnSameSide(other))))
                 relation |= RelFriendly;
             if (MilitaryAccessSystem.Grants(other, side)) relation |= RelGrants;
             if (other.IsWild) relation |= RelWild;

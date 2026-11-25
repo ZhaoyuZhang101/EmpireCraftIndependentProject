@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/BackgroundReligionSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/BackgroundReligionSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -70,10 +70,10 @@ public static class BackgroundReligionSystem
     // 原版创教谋划(new_religion)在无小人模式下停用，改由这里按人口创教
 #if EC_PENDING
     public static bool ReplacesVanillaPlot(string plotId) => plotId == "new_religion" && Active;
+#endif
 
     private static bool Valid(City city) => city?.Record != null && !city.IsGone() && city.Realm?.Record != null &&
                                            !city.Realm.IsWild && !AncientWarfareCompatibility.OwnsObject(city);
-#endif
 
     private static bool Alive(Person actor) => actor?.Record != null && !actor.IsGone() && actor.Alive;
 

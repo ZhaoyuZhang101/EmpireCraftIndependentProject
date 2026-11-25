@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/CompanySystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/CompanySystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -82,15 +82,17 @@ public static class CompanySystem
     // 公司的国籍：总部那座城眼下归谁
 #if EC_PENDING
     public static Empire RealmOf(CompanyData company) => Home(company)?.kingdom?.GetEmpire();
+#endif
 
     private static Empire Living(long id)
     {
-        Empire empire = id < 0 ? null : ModClass.EMPIRE_MANAGER?.get(id);
+        Empire empire = id < 0 ? null : ModClass.EMPIRE_MANAGER?.Get(id);
         return empire?.data == null || empire.IsGone() || empire.IsArchived() || empire.CoreKingdom == null ? null : empire;
     }
 
     public static Empire ForeignOwner(CompanyData company) => company == null ? null : Living(company.foreign_empire_id);
 
+#if EC_PENDING
     public static List<FactorySite> Sites(CompanyData company)
     {
         var list = new List<FactorySite>();
@@ -719,7 +721,7 @@ public static class CompanySystem
     {
         ConstitutionalEconomyState state = host?.data?.constitutional_economy;
         if (state == null || host.CoreKingdom == null || host.IsGone() || host.IsArchived()) return false;
-        if (state.nationalization >= ModernPolicySystem.Nationalized || buyer.CoreKingdom.isEnemy(host.CoreKingdom)) return false;
+        if (state.nationalization >= ModernPolicySystem.Nationalized || buyer.CoreKingdom.IsEnemy(host.CoreKingdom)) return false;
         Realm leader = CommodityMarketSystem.MarketOf(host.CoreKingdom)?.leader ?? host.CoreKingdom;
         if (CommodityMarketSystem.PolicyOf(leader) == TradePolicy.Closed) return false;
         return !(state.seizures != null && state.seizures.TryGetValue(buyer.Key, out double at) && GameClock.YearsSince(at) < SeizureGrudgeYears);
@@ -727,7 +729,6 @@ public static class CompanySystem
 #endif
 
     // 各外国在本国关键行业里控着几成
-#if EC_PENDING
     private static void ControlLedger(ConstitutionalEconomyState state, List<CompanyData> own)
     {
         state.foreign_control.Clear();
@@ -740,30 +741,25 @@ public static class CompanySystem
             state.foreign_control[company.foreign_empire_id] = share + company.scale / (float)total;
         }
     }
-#endif
 
     public static float ForeignControl(Empire host, Empire foreign) =>
         host?.data?.constitutional_economy?.foreign_control is { } ledger && foreign != null &&
         ledger.TryGetValue(foreign.Key, out float share) ? share : 0f;
 
     // 受制于人：对方在本国关键行业里控到三成(见 WarGate、TradeWarSystem、好感)
-#if EC_PENDING
     public static bool Beholden(Realm host, Realm foreign)
     {
         Empire a = host?.GetEmpire(), b = foreign?.GetEmpire();
         return a != null && b != null && a != b && ForeignControl(a, b) >= InfluenceAt;
     }
-#endif
 
     // 命脉操于人手：有外国控到六成，返回那个国家
-#if EC_PENDING
     public static Empire Master(Empire host)
     {
         if (!(host?.data?.constitutional_economy?.foreign_control is { Count: > 0 } ledger)) return null;
         KeyValuePair<long, float> top = ledger.OrderByDescending(pair => pair.Value).First();
         return top.Value >= ControlAt ? Living(top.Key) : null;
     }
-#endif
 
     // 没收外资(国有化、厂区改官营)：被没收的一方记恨二十年，当场打起关税战
 #if EC_PENDING
@@ -782,7 +778,6 @@ public static class CompanySystem
 #endif
 
     // 好感：受制于对方 +20；自己的产业被对方没收过(二十年内) −40
-#if EC_PENDING
     public static int OpinionOf(Realm main, Realm target)
     {
         Empire a = main?.GetEmpire(), b = target?.GetEmpire();
@@ -792,7 +787,6 @@ public static class CompanySystem
             GameClock.YearsSince(at) < SeizureGrudgeYears) opinion += SeizureOpinion;
         return opinion;
     }
-#endif
 
     #endregion
 
@@ -913,7 +907,6 @@ public static class CompanySystem
 #endif
 
     // 阶层怨气的目标值加减(见 InstitutionSystem)：垄断抬价；命脉操于外人之手
-#if EC_PENDING
     public static float GrievanceShift(Empire empire, SocialClass socialClass)
     {
         if (socialClass is not (SocialClass.Citizen or SocialClass.Labour)) return 0f;
@@ -921,7 +914,6 @@ public static class CompanySystem
         if (state == null) return 0f;
         return state.price_gouging * 40f + (Master(empire) != null ? 6f : 0f);
     }
-#endif
 
     #endregion
 }

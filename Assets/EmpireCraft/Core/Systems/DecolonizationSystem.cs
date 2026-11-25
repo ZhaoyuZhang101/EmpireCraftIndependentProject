@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/DecolonizationSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/DecolonizationSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -63,7 +63,7 @@ public static class DecolonizationSystem
             ColonyState state = ColonySystem.Of(colony);
             Realm metropole = ColonySystem.MetropoleOf(colony);
             if (state == null || metropole == null || state.kind == ColonyState.Lease || state.autonomy < ReleaseAutonomy ||
-                colony.hasEnemies() || metropole.hasEnemies()) continue;
+                colony.HasEnemies() || metropole.HasEnemies()) continue;
             Empire lord = metropole.GetEmpire();
             PartyIdeology ideology = IdeologyFamilies.StateIdeology(metropole);
             bool willing = IdeologyFamilies.IsLeft(ideology) || IdeologyFamilies.IsLiberal(ideology) || ideology == PartyIdeology.Centrism;

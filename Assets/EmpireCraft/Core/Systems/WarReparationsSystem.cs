@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/WarReparationsSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/WarReparationsSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -83,6 +83,7 @@ public static class WarReparationsSystem
             }
         }
     }
+#endif
 
     private static void Service(Realm debtor, List<WarReparation> reparations)
     {
@@ -94,7 +95,7 @@ public static class WarReparationsSystem
             Realm creditor = EmpireWorld.Current.RealmByKey(item.creditor_kingdom_id);
             // 收款方灭亡或双方再度开战：和约作废
             if (item.months_left <= 0 || creditor == null || creditor.IsGone() ||
-                debtor.isInWarWith(creditor))
+                debtor.IsAtWarWith(creditor))
             {
                 reparations.RemoveAt(i--);
                 continue;
@@ -108,7 +109,6 @@ public static class WarReparationsSystem
             if (item.months_left <= 0) reparations.RemoveAt(i--);
         }
     }
-#endif
 
     public static (long monthly, int monthsLeft) Owed(Realm debtor)
     {
@@ -124,13 +124,10 @@ public static class WarReparationsSystem
         return (monthly, months);
     }
 
-#if EC_PENDING
     private static long Monthly(Realm loser) =>
         Math.Max(1L, (long)(StateDebtSystem.AnnualStableIncome(loser) / 12d * MonthlyIncomeShare));
-#endif
 
     // 三年分付合计多少(议和台给赔款折价用)
-#if EC_PENDING
     public static long InstallmentTotal(Realm loser) =>
         loser?.Record == null || loser.IsGone() ? 0L : Monthly(loser) * Months;
 
@@ -144,6 +141,5 @@ public static class WarReparationsSystem
             amount -= chunk;
         }
     }
-#endif
 }
 }

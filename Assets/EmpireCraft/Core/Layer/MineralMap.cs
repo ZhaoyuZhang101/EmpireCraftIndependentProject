@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/Layer/MineralMap.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/Layer/MineralMap.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
@@ -39,10 +39,10 @@ public static class MineralMap
 #if EC_PENDING
     private static MineralMapColor WithDeposits => _withDeposits ??= MineralMapColor.Create("mineral_has", "#b08a4a");
     private static MineralMapColor Empty => _empty ??= MineralMapColor.Create("mineral_none", "#5a5a5a");
+#endif
 
     private static bool Shown(City city) =>
         city != null && !city.IsGone() && city.Realm != null && !AncientWarfareCompatibility.OwnsObject(city);
-#endif
 
     // 按模式筛选后本城要显示的矿
     // 每座城的矿藏一秒刷新一次(每帧逐城数矿场太费)

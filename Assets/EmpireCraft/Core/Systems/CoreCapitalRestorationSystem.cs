@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/CoreCapitalRestorationSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/CoreCapitalRestorationSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 
@@ -38,7 +38,6 @@ public static class CoreCapitalRestorationSystem
 
     // 还于旧都后的首都锚定：帝国核心王国坐镇记录的旧都时，封号同步与迁都决议不再把首都
     // 迁回主封号首府——否则它们和本系统每月互相迁都，世界日志反复刷"还于旧都"
-#if EC_PENDING
     public static bool IsAnchored(Realm kingdom)
     {
         if (kingdom?.Capital == null) return false;
@@ -48,7 +47,6 @@ public static class CoreCapitalRestorationSystem
         if (empire == null || empire.CoreKingdom != kingdom) return false;
         return EmpireCoreManager.Get(empire)?.GetCoreCapital() == kingdom.Capital;
     }
-#endif
 
     // 迁都后行政区随都城走：
     //   古代：王畿(核心主封号)切到新都所在法理，旧王畿在随后的重组里按法理划出去成为正常行政区("换直隶省")；
@@ -87,7 +85,7 @@ public static class CoreCapitalRestorationSystem
         // 代管、被占领、持有者与中央交战或正在叛乱时不动
         if (WartimeCustodySystem.InCustody(capital)) return;
         if (capital.GetOrCreate().OccupiedStatus?.Count > 0) return;
-        if (owner != core && (owner.isInWarWith(core) || owner.IsFactionRebelling() || owner.IsLocalRebelling())) return;
+        if (owner != core && (owner.IsAtWarWith(core) || owner.IsFactionRebelling() || owner.IsLocalRebelling())) return;
         if (owner != core)
         {
             // 旧都在成员手里：划归中央再迁。成员只剩这一座城就等于灭国，不拿

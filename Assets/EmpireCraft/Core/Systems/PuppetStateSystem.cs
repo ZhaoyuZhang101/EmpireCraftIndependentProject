@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/PuppetStateSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/PuppetStateSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -57,7 +57,6 @@ public static class PuppetStateSystem
                                                          Master(kingdom) == master);
 
     // 主国一方：主国在帝国里时按帝国中央(日本帝国的核心)，仗多半是中央在打
-#if EC_PENDING
     private static Realm ModRealm(Realm kingdom)
     {
         Empire empire = kingdom?.GetEmpire();
@@ -65,10 +64,8 @@ public static class PuppetStateSystem
     }
 
     private static bool SameRealm(Realm a, Realm b) => a != null && b != null && (a == b || a.IsInSameEmpire(b));
-#endif
 
     // 主国与傀儡、同一主国的两个傀儡：互不开战
-#if EC_PENDING
     public static bool Bound(Realm a, Realm b)
     {
         if (a == null || b == null || a == b) return false;
@@ -76,7 +73,6 @@ public static class PuppetStateSystem
         if (ma != null && (SameRealm(ma, b) || mb != null && SameRealm(ma, mb))) return true;
         return mb != null && SameRealm(mb, a);
     }
-#endif
 
     // 立为傀儡；做不了返回原因(语言键)
 #if EC_PENDING
@@ -228,13 +224,13 @@ public static class PuppetStateSystem
         foreach (Realm side in sides.ToList())
         {
             if (side?.Record == null || side.IsGone()) continue;
-            foreach (War war in side.getWars().ToList())
+            foreach (War war in side.GetWars().ToList())
             {
-                if (war?.data == null || war.hasEnded() || war.hasKingdom(puppet)) continue;
+                if (war?.Record == null || war.HasEnded() || war.HasRealm(puppet)) continue;
                 try
                 {
-                    if (war.isAttacker(side)) war.joinAttackers(puppet);
-                    else if (war.isDefender(side)) war.joinDefenders(puppet);
+                    if (war.IsAttacker(side)) war.JoinAttackers(puppet);
+                    else if (war.IsDefender(side)) war.JoinDefenders(puppet);
                 }
                 catch (Exception exception)
                 {

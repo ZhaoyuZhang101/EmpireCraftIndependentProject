@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/Layer/RadianceMap.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/Layer/RadianceMap.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Color = EmpireCraft.Core.EcColor;
 using ColorUtility = EmpireCraft.Core.EcColorUtility;
@@ -34,11 +34,11 @@ public sealed class RadianceMapColor : RecordObject<IdeologyMapColorData>
 // 两个图层共用的画法：每座城一个档(同档连成一片只描交界，或按城市边界描)，悬停显示本城明细
 internal static class RadianceLayers
 {
-#if EC_PENDING
     public static bool Shown(City city) =>
         city != null && !city.IsGone() && city.Record != null && !AncientWarfareCompatibility.OwnsObject(city) &&
         city.Realm != null && !city.Realm.IsWild;
 
+#if EC_PENDING
     public static void Configure(MetaTypeAsset asset, global::System.Func<City, (string key, RadianceMapColor color)> bucketOf,
         string tooltipType)
     {

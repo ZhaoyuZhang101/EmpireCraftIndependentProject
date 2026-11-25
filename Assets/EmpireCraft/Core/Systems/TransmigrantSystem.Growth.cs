@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/TransmigrantSystem.Growth.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/TransmigrantSystem.Growth.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System.Collections.Generic;
@@ -141,7 +141,7 @@ public static partial class TransmigrantSystem
         float factor = 1f;
         CityPopulationData data = CityPopulationSystem.Get(city);
         if (data != null && data.last_food_shortage > 0f) factor *= 3f;
-        if (city.Realm != null && city.Realm.hasEnemies()) factor *= 2f;
+        if (city.Realm != null && city.Realm.HasEnemies()) factor *= 2f;
         if (CityStabilitySystem.Effective(city) < 40f) factor *= 1.5f;
         return factor;
     }
@@ -257,7 +257,7 @@ public static partial class TransmigrantSystem
     {
         if (!CorpsSystem.Enabled || kingdom.Capital == null) return;
         float wanted = Mathf.Min(ArmyMax, (ArmyBase + NaturalizedPopulation(kingdom) * NationalArmyShare) *
-                                          (kingdom.hasEnemies() ? WarSurge : 1f));
+                                          (kingdom.HasEnemies() ? WarSurge : 1f));
         CorpsData fubo = Fubo(kingdom);
         if (fubo == null)
         {
@@ -309,7 +309,7 @@ public static partial class TransmigrantSystem
         foreach (City from in EmpireWorld.Current.Cities)
         {
             if (from?.Record == null || from.IsGone() || from.Realm == null || homes.Contains(from) ||
-                from.Realm.isEnemy(kingdom)) continue;
+                from.Realm.IsEnemy(kingdom)) continue;
             if (Nearest(homes, from, out int distance) == null || distance > RefugeeReach) continue;
             sources.Add((from, distance));
         }
@@ -357,9 +357,7 @@ public static partial class TransmigrantSystem
 #endif
 
     // 归化民：走完流程的人(见 NaturalizationSystem)，不看文化；元老不算
-#if EC_PENDING
     public static float NaturalizedPopulation(Realm kingdom) => NaturalizationSystem.CompletedPopulation(kingdom);
-#endif
 
     // 还要多少合格军人：伏波军的缺额，加一点预备；还没有伏波军时按成军的底数
     public static float SoldierDemand(Realm kingdom)
@@ -380,7 +378,7 @@ public static partial class TransmigrantSystem
     private static void Campaign(Realm kingdom, TransmigrantState state)
     {
         double now = GameClock.Now;
-        if (now < state.next_campaign_at || kingdom.hasEnemies() || Random.value >= CampaignChance) return;
+        if (now < state.next_campaign_at || kingdom.HasEnemies() || Random.value >= CampaignChance) return;
         float army = ArmyOf(kingdom);
         if (army < CampaignMinArmy || CorpsSystem.CannotFundWar(kingdom)) return;
         Realm target = null;
@@ -393,7 +391,7 @@ public static partial class TransmigrantSystem
                 ArmyOf(other) * CampaignOdds > army) continue;
             City home = Nearest(kingdom.Cities.ToList(), city, out int distance);
             if (home == null || distance > (state.mainland ? CampaignReach * 3 / 2 : CampaignReach) || distance >= best) continue;
-            if (!WarReach.MayDeclare(kingdom, other, WarTypeLibrary.normal)) continue;
+            if (!WarReach.MayDeclare(kingdom, other, WarKinds.Normal)) continue;
             best = distance;
             target = other;
         }
@@ -401,7 +399,7 @@ public static partial class TransmigrantSystem
         // 大陆攻略开始以后用兵更勤
         state.next_campaign_at = now + (target == null || state.mainland ? 1 : CampaignYears) * 60d;
         if (target == null) return;
-        War war = EmpireWorld.Current.diplomacy.startWar(kingdom, target, WarTypeLibrary.normal);
+        War war = EmpireWorld.Current.StartWar(kingdom, target, WarKinds.Normal);
         if (war == null) return;
         WarGoalSystem.Preset(war, WarGoal.夺城);
         TranslateHelper.LogEventOnly(string.Format(LM.Get("transmigrant_campaign_history"), kingdom.GetKingdomFullName(),
@@ -436,23 +434,21 @@ public static partial class TransmigrantSystem
         Empire holder = lead == null ? null : TianxiaSystem.Holder(lead)?.GetEmpire();
         if (Valid(holder)) return holder;
         return ModClass.EMPIRE_MANAGER.Where(Valid)
-            .OrderBy(empire => ZoneDistance(empire.CoreKingdom.capital, capital)).FirstOrDefault();
+            .OrderBy(empire => ZoneDistance(empire.CoreKingdom.Capital, capital)).FirstOrDefault();
     }
 #endif
 
     // 还在伪装：返回名义上的宗主(撕破脸了、宗主没了返回 null)
-#if EC_PENDING
     public static Empire DisguiseLord(Realm kingdom)
     {
         TransmigrantState state = Of(kingdom);
         if (state == null || state.revealed || state.disguise_lord_id < 0 || ModClass.EMPIRE_MANAGER == null) return null;
-        Empire lord = ModClass.EMPIRE_MANAGER.get(state.disguise_lord_id);
+        Empire lord = ModClass.EMPIRE_MANAGER.Get(state.disguise_lord_id);
         return lord?.data != null && !lord.IsGone() && !lord.IsArchived() && lord.CoreKingdom != null ? lord : null;
     }
 
     private static bool LordSide(Empire lord, Realm kingdom) =>
         kingdom != null && (kingdom == lord.CoreKingdom || kingdom.GetEmpire() == lord);
-#endif
 
     // 开战闸门(见 WarGate.Forbidden)：伪装期间朝廷与各省不来开战，临高也不碰朝廷本部
 #if EC_PENDING
@@ -474,7 +470,7 @@ public static partial class TransmigrantSystem
         Realm lingao = Active();
         Empire lord = DisguiseLord(lingao);
         if (lord == null) return false;
-        Realm attacker = war.getMainAttacker(), defender = war.getMainDefender();
+        Realm attacker = war.GetMainAttacker(), defender = war.GetMainDefender();
         if (attacker != lingao && defender != lingao || kingdom == attacker || kingdom == defender) return false;
         return LordSide(lord, kingdom);
     }

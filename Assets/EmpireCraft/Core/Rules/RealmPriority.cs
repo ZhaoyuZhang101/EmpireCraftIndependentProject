@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/RealmPriority.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/RealmPriority.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Time = EmpireCraft.Core.FrameClock;
 using System;
@@ -20,7 +20,6 @@ public static class RealmPriority
     private static float _refreshAt = -1f;
     private static EmpireWorld _world;
 
-#if EC_PENDING
     public static IReadOnlyList<Realm> Majors
     {
         get
@@ -36,10 +35,8 @@ public static class RealmPriority
         Refresh();
         return Major.Contains(kingdom.Key);
     }
-#endif
 
     // 属于重要的一家：自己是，或者所在帝国的核心国是、宗主是
-#if EC_PENDING
     public static bool InMajorRealm(Realm kingdom)
     {
         if (kingdom?.Record == null) return false;
@@ -50,10 +47,8 @@ public static class RealmPriority
         Realm sovereign = EmpireCoreControl.Sovereign(kingdom);
         return sovereign != null && Major.Contains(sovereign.Key);
     }
-#endif
 
     // 按重要的一家在前排进队列(同一档里照原来的次序)
-#if EC_PENDING
     public static void EnqueueByPriority(Queue<Realm> queue, IEnumerable<Realm> kingdoms)
     {
         var rest = new List<Realm>();
@@ -107,7 +102,6 @@ public static class RealmPriority
             LogService.LogWarning($"[EmpireCraft][帧预算] 重要国家名单没算成：{exception.Message}");
         }
     }
-#endif
 
     private static void Add(Realm kingdom)
     {

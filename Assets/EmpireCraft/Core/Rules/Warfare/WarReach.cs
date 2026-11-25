@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/WarReach.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/WarReach.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -53,13 +53,11 @@ public static class WarReach
     // 甲申之变刚把北京、大同献给顺，同一帧的清军入关还按旧城表算，就成了够不着。开起来之后每月照常算
     public static bool ScenarioDeclaring;
 
-#if EC_PENDING
-    public static bool IsFar(War war) => war?.data != null && Far.Contains(war.data.id);
-#endif
+    public static bool IsFar(War war) => war?.Record != null && Far.Contains(war.Key);
 
     // 开战闸：够不着又不是内乱的不开
 #if EC_PENDING
-    public static bool MayDeclare(Realm attacker, Realm defender, WarTypeAsset type)
+    public static bool MayDeclare(Realm attacker, Realm defender, WarKind type)
     {
         if (attacker?.Record == null || defender?.Record == null || attacker == defender) return true;
         // 宗主与殖民地、同一宗主的殖民地不开战(殖民地起兵独立、神力开战除外，见 ColonySystem)
@@ -82,7 +80,7 @@ public static class WarReach
     //   · 剧本点名的战争、神力挑拨煽动、全面战争不拦；
     //   · 起兵、内乱一类不算外交，归「禁止叛乱」管(见 Uprising)。
 #if EC_PENDING
-    public static bool LawForbids(Realm attacker, Realm defender, WarTypeAsset type)
+    public static bool LawForbids(Realm attacker, Realm defender, WarKind type)
     {
         if (attacker?.Record == null || defender?.Record == null || attacker == defender) return false;
         if (!DiplomacyLaws.WarBlocked) return false;
@@ -96,7 +94,6 @@ public static class WarReach
 
     // 起兵、内乱：同一帝国里有一方正在叛乱，刚离开或反过对方帝国(起兵、叛离、独立)，封建上下级，宗主与殖民地。
     // 同一帝国里两个都没在叛乱的成员互相开战(私战、诸侯互伐)照样算 AI 宣战
-#if EC_PENDING
     private static bool Uprising(Realm a, Realm b)
     {
         if (LeftFrom(a, b) || LeftFrom(b, a)) return true;
@@ -107,14 +104,12 @@ public static class WarReach
                (a.IsFactionRebelling() || a.IsLocalRebelling() || b.IsFactionRebelling() || b.IsLocalRebelling());
     }
 
-    private static bool ExemptType(WarTypeAsset type) =>
-        type != null && (type.total_war || type == WarTypeLibrary.rebellion || type == WarTypeLibrary.inspire ||
-                         type == WarTypeLibrary.whisper_of_war);
-#endif
+    private static bool ExemptType(WarKind type) =>
+        type != null && (type.TotalWar || type == WarKinds.Rebellion || type == WarKinds.Inspire ||
+                         type == WarKinds.WhisperOfWar);
 
     // 同一帝国内、封建上下级；刚离开对方帝国(起兵、叛离、独立，一年内)或反过对方帝国的
     // (好几处先请出帝国再开战，以前因此被当成两个外国拦下：成员直接独立、没有战争，史书照写起兵)
-#if EC_PENDING
     private static bool Related(Realm a, Realm b)
     {
         Empire empire = a.GetEmpire();
@@ -133,7 +128,6 @@ public static class WarReach
         return data.left_empire_id == empire.Key && data.left_empire_at >= 0d &&
                GameClock.Now >= data.left_empire_at && GameClock.YearsSince(data.left_empire_at) < 1f;
     }
-#endif
 
     // 读档：上一个存档的标记与计数作废(读档时世界对象不换，战争编号又从头来)
     public static void ResetWorldState()
@@ -335,7 +329,6 @@ public static class WarReach
             .Where(city => city?.Record != null && !city.IsGone())
             .ToList();
 
-#if EC_PENDING
     private static List<Realm> Members(Realm kingdom)
     {
         Empire empire = kingdom.GetEmpire();
@@ -344,7 +337,6 @@ public static class WarReach
         if (!members.Contains(kingdom)) members.Add(kingdom);
         return members;
     }
-#endif
 
     // 哪一处开的战(日志用)：调用栈里头一个本模组、又不是这道闸自己的方法
     private static string Caller()
@@ -370,7 +362,7 @@ public static class WarReach
 #if EC_PENDING
     public static void TryMonthlyScan()
     {
-        if (EmpireWorld.Current?.wars == null || ModClass.IS_CLEAR) return;
+        if (EmpireWorld.Current?.LiveWars == null || ModClass.IS_CLEAR) return;
         if (!ReferenceEquals(_world, EmpireWorld.Current))
         {
             _world = EmpireWorld.Current;
@@ -399,16 +391,16 @@ public static class WarReach
         var alive = new HashSet<long>();
         // 本月已算过的两家(按政权)是否够得着
         var cache = new Dictionary<(long, long), bool>();
-        foreach (War war in EmpireWorld.Current.wars.list.ToList())
+        foreach (War war in EmpireWorld.Current.LiveWars.ToList())
         {
-            if (war?.data == null || !war.Alive || war.hasEnded() || war.isTotalWar()) continue;
-            Realm attacker = war.main_attacker, defender = war.main_defender;
+            if (war?.Record == null || !war.Alive || war.HasEnded() || war.IsTotalWar()) continue;
+            Realm attacker = war.MainAttacker, defender = war.MainDefender;
             if (attacker?.Record == null || defender?.Record == null || attacker.IsGone() || defender.IsGone()) continue;
-            long id = war.data.id;
+            long id = war.Key;
             alive.Add(id);
-            if (ExemptType(war.getAsset()) || Related(attacker, defender))
+            if (ExemptType(war.GetKind()) || Related(attacker, defender))
             {
-                if (war.getAsset() == WarTypeLibrary.rebellion && !Reachable(attacker, defender) && !AnyPairReachable(war))
+                if (war.GetKind() == WarKinds.Rebellion && !Reachable(attacker, defender) && !AnyPairReachable(war))
                     SweepRebellion(war, attacker, defender);
                 else
                 {
@@ -436,9 +428,9 @@ public static class WarReach
             if (months < ClearMonths) continue;
             FarMonths.Remove(id);
             Far.Remove(id);
-            LogService.LogInfo($"{LogTag} {war.data.name}：{attacker.GetKingdomName()} 与 {defender.GetKingdomName()} " +
+            LogService.LogInfo($"{LogTag} {war.Name}：{attacker.GetKingdomName()} 与 {defender.GetKingdomName()} " +
                                $"连着 {ClearMonths} 个月两边够不着，判和");
-            EmpireWorld.Current.wars.endWar(war, WarWinner.Peace);
+            EmpireWorld.Current.EndWar(war, WarOutcome.Peace);
         }
         Far.RemoveWhere(id => !alive.Contains(id));
         foreach (long id in FarMonths.Keys.Where(id => !alive.Contains(id)).ToList()) FarMonths.Remove(id);
@@ -452,16 +444,16 @@ public static class WarReach
 #if EC_PENDING
     private static void SweepRebellion(War war, Realm attacker, Realm defender)
     {
-        long id = war.data.id;
+        long id = war.Key;
         Far.Add(id);
         int months = FarMonths.TryGetValue(id, out int count) ? count + 1 : 1;
         FarMonths[id] = months;
         if (months < RebelClearMonths) return;
         FarMonths.Remove(id);
         Far.Remove(id);
-        LogService.LogInfo($"{LogTag} {war.data.name}：{attacker.GetKingdomName()} 与 {defender.GetKingdomName()} " +
+        LogService.LogInfo($"{LogTag} {war.Name}：{attacker.GetKingdomName()} 与 {defender.GetKingdomName()} " +
                            $"连着 {RebelClearMonths} 个月两边够不着，判和，叛军自立");
-        EmpireWorld.Current.wars.endWar(war, WarWinner.Peace);
+        EmpireWorld.Current.EndWar(war, WarOutcome.Peace);
     }
 
     private static bool Near(Realm a, Realm b, Dictionary<(long, long), bool> cache)
@@ -480,7 +472,7 @@ public static class WarReach
 #if EC_PENDING
     private static bool Refocus(War war, Realm attacker, Realm defender, Dictionary<(long, long), bool> cache)
     {
-        List<Realm> attackers = Ranked(war._list_attackers), defenders = Ranked(war._list_defenders);
+        List<Realm> attackers = Ranked(war.Attackers), defenders = Ranked(war.Defenders);
         Realm newAttacker = null, newDefender = defenders.FirstOrDefault(d => d != defender && Near(attacker, d, cache));
         if (newDefender == null)
         {
@@ -495,12 +487,12 @@ public static class WarReach
                 }
         }
         if (newAttacker == null && newDefender == null) return false;
-        string before = war.data.name;
-        if (newAttacker != null) war.data.main_attacker = newAttacker.Key;
-        if (newDefender != null) war.data.main_defender = newDefender.Key;
+        string before = war.Name;
+        if (newAttacker != null) war.Record.MainAttacker = newAttacker.Key;
+        if (newDefender != null) war.Record.MainDefender = newDefender.Key;
         WarGoalSystem.Refocus(war);
         LogService.LogInfo($"{LogTag} {before}：{attacker.GetKingdomName()} 与 {defender.GetKingdomName()} 够不着，" +
-                           $"主攻主守改为够得着的 {war.main_attacker.GetKingdomName()} 与 {war.main_defender.GetKingdomName()}(今称 {war.data.name})");
+                           $"主攻主守改为够得着的 {war.MainAttacker.GetKingdomName()} 与 {war.MainDefender.GetKingdomName()}(今称 {war.Name})");
         return true;
     }
 
@@ -516,15 +508,15 @@ public static class WarReach
 #if EC_PENDING
     private static void PruneDistant(War war, Dictionary<(long, long), bool> cache)
     {
-        Realm mainA = war.main_attacker, mainD = war.main_defender;
+        Realm mainA = war.MainAttacker, mainD = war.MainDefender;
         foreach (bool attackerSide in new[] { true, false })
         {
-            List<Realm> own = (attackerSide ? war._list_attackers : war._list_defenders)?.Where(Alive).ToList() ?? new List<Realm>();
-            List<Realm> enemies = Distinct(attackerSide ? war._list_defenders : war._list_attackers);
+            List<Realm> own = (attackerSide ? war.Attackers : war.Defenders)?.Where(Alive).ToList() ?? new List<Realm>();
+            List<Realm> enemies = Distinct(attackerSide ? war.Defenders : war.Attackers);
             foreach (Realm kingdom in own)
             {
                 if (kingdom == mainA || kingdom == mainD) continue;
-                var key = (war.data.id, kingdom.Key);
+                var key = (war.Key, kingdom.Key);
                 if (enemies.Any(enemy => Near(kingdom, enemy, cache)))
                 {
                     AllyFarMonths.Remove(key);
@@ -537,8 +529,8 @@ public static class WarReach
                     continue;
                 }
                 AllyFarMonths.Remove(key);
-                LogService.LogInfo($"{LogTag} {war.data.name}：{kingdom.GetKingdomName()} 连着 {ClearMonths} 个月一个敌方都够不着，退出战争");
-                war.leaveWar(kingdom);
+                LogService.LogInfo($"{LogTag} {war.Name}：{kingdom.GetKingdomName()} 连着 {ClearMonths} 个月一个敌方都够不着，退出战争");
+                war.Leave(kingdom);
             }
         }
     }
@@ -549,13 +541,14 @@ public static class WarReach
 #if EC_PENDING
     private static bool AnyPairReachable(War war)
     {
-        List<Realm> attackers = Distinct(war._list_attackers), defenders = Distinct(war._list_defenders);
-        Realm mainA = RealmOf(war.main_attacker), mainD = RealmOf(war.main_defender);
+        List<Realm> attackers = Distinct(war.Attackers), defenders = Distinct(war.Defenders);
+        Realm mainA = RealmOf(war.MainAttacker), mainD = RealmOf(war.MainDefender);
         foreach (Realm a in attackers)
         foreach (Realm d in defenders)
             if ((a != mainA || d != mainD) && Reachable(a, d)) return true;
         return false;
     }
+#endif
 
     private static List<Realm> Distinct(List<Realm> side) =>
         side?.Where(Alive).Select(RealmOf).Distinct().ToList() ?? new List<Realm>();
@@ -565,7 +558,6 @@ public static class WarReach
         Empire empire = kingdom?.GetEmpire();
         return empire != null && !empire.IsGone() && empire.CoreKingdom != null ? empire.CoreKingdom : kingdom;
     }
-#endif
 
     private static bool Alive(Realm kingdom) => kingdom?.Record != null && !kingdom.IsGone();
 }

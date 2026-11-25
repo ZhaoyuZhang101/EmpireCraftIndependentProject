@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/Layer/MarketMap.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/Layer/MarketMap.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
@@ -70,7 +70,6 @@ public static class MarketMap
     private static readonly Dictionary<long, Realm> LeaderCache = new();
     private static int _cacheFrame = -1;
 
-#if EC_PENDING
     public static Realm LeaderOf(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || !kingdom.IsCivilized()) return null;
@@ -87,7 +86,6 @@ public static class MarketMap
 
     private static bool Shown(City city) =>
         city != null && !city.IsGone() && !AncientWarfareCompatibility.OwnsObject(city) && LeaderOf(city.Realm) != null;
-#endif
 
     // ───────── 产地模式(用户 2026-11-02 问答选"界面看得懂")：一样物资各城一年出多少，由淡到浓分五档，不产的城不上色 ─────────
     private static readonly string[] GoodHex = { "#55784a", "#7fa34f", "#b6c249", "#e3bf38", "#f4932a" };
@@ -207,7 +205,6 @@ public static class MarketMap
     private static readonly Dictionary<long, List<City>> CitiesByLeader = new();
     private static float _groupedAt = -10f;
 
-#if EC_PENDING
     private static Dictionary<long, List<City>> Grouped()
     {
         float now = Time.unscaledTime;
@@ -225,6 +222,7 @@ public static class MarketMap
         return CitiesByLeader;
     }
 
+#if EC_PENDING
     public static void Configure(MetaTypeAsset asset)
     {
         asset.draw_zones = (MetaZoneDrawAction)(meta =>

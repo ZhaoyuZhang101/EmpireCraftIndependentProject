@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/CourtSystem.Year.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/CourtSystem.Year.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -327,7 +327,7 @@ public static partial class CourtSystem
         double now = GameClock.Now;
         if (state.last_escalation >= 0d && now >= state.last_escalation && GameClock.YearsSince(state.last_escalation) < 5)
             return;
-        if (core.getWars().Any(war => war != null && !war.hasEnded() &&
+        if (core.GetWars().Any(war => war != null && !war.HasEnded() &&
                 war.GetEmpireWarType() is EmpireWarType.派系叛乱 or EmpireWarType.清君侧)) return;
         if (TryCoalition(empire, state, factions)) return;
         foreach (FixedFaction faction in factions.OrderByDescending(faction => FactionState(empire, faction).grievance))
@@ -338,7 +338,7 @@ public static partial class CourtSystem
                 .Where(kingdom => kingdom != null && !kingdom.IsGone() && kingdom != core &&
                                   kingdom.Ruler?.GetFaction() == faction && RebellionSystem.CanAttempt(kingdom) &&
                                   kingdom.Capital != null && CityStabilitySystem.CanRise(kingdom.Capital) &&
-                                  !kingdom.IsFactionRebelling() && !kingdom.getWars().Any())
+                                  !kingdom.IsFactionRebelling() && !kingdom.GetWars().Any())
                 .OrderByDescending(kingdom => kingdom.countTotalWarriors()).FirstOrDefault();
             if (rebel == null)
             {
@@ -359,7 +359,7 @@ public static partial class CourtSystem
             }
             RebellionCauseData cause = RebellionSystem.Capture(rebel, rebel.Capital, "rebellion_reason_court", faction.Name);
             rebel.StartFactionRebelling(faction);
-            War war = EmpireWorld.Current.diplomacy.startWar(rebel, core, WarTypeLibrary.normal);
+            War war = EmpireWorld.Current.StartWar(rebel, core, WarKinds.Normal);
             if (war == null)
             {
                 rebel.EndFactionRebelling();
@@ -368,7 +368,7 @@ public static partial class CourtSystem
             war.SetEmpireWarType(EmpireWarType.派系叛乱);
             // 战争按首领起名(见 FactionRebelNaming)
             string warName = FactionRebelNaming.WarName(new[] { rebel });
-            if (!string.IsNullOrWhiteSpace(warName)) war.data.name = warName;
+            if (!string.IsNullOrWhiteSpace(warName)) war.Name = warName;
             RebellionSystem.Record(rebel, war, cause);
             // 郡县多不许养兵，起兵时就地武装义军(见 RebellionStartupService)，按怨望定规模
             RebellionStartupService.RaiseUprisingMilitia(rebel, data.grievance / 100f);

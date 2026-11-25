@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/WarObjective.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/WarObjective.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -64,7 +64,7 @@ public static class WarObjective
         // 圣战收复圣地：主城池就是圣地
         if (goal == WarGoal.割地 && war.GetEmpireWarType() == EmpireWarType.神圣 && data.crusade_city_id >= 0 &&
             EmpireWorld.Current.CityByKey(data.crusade_city_id) is City holy && holy.Record != null && !holy.IsGone() &&
-            holy.Realm != null && war._list_defenders.Contains(holy.Realm))
+            holy.Realm != null && war.Defenders.Contains(holy.Realm))
         {
             data.goal_city_ids.Add(holy.Key);
             SetMain(data, holy);
@@ -125,7 +125,7 @@ public static class WarObjective
 #if EC_PENDING
     internal static void Aim(War war, City city)
     {
-        if (war?.data == null || city?.Record == null || city.IsGone()) return;
+        if (war?.Record == null || city?.Record == null || city.IsGone()) return;
         WarExtension.WarExtraData data = war.GetOrCreate();
         data.war_goal = WarGoal.夺城;
         data.goal_city_ids ??= new List<long>();
@@ -163,11 +163,13 @@ public static class WarObjective
         string theirs = ReligionSphere.SphereOfCulture(CultureService.GetRealmCulture(defender));
         return !string.IsNullOrEmpty(theirs) && !string.Equals(ours, theirs, StringComparison.Ordinal);
     }
+#endif
 
-    private static List<City> DefenderCities(War war) => war._list_defenders
-        .Where(kingdom => kingdom?.cities != null && !kingdom.IsGone())
-        .SelectMany(kingdom => kingdom.cities).Where(city => city?.data != null && !city.IsGone()).Distinct().ToList();
+    private static List<City> DefenderCities(War war) => war.Defenders
+        .Where(kingdom => kingdom?.Cities != null && !kingdom.IsGone())
+        .SelectMany(kingdom => kingdom.Cities).Where(city => city?.Record != null && !city.IsGone()).Distinct().ToList();
 
+#if EC_PENDING
     private static int Size(City city) => (city.zones?.Count ?? 0) + (city.IsCapital() ? 1000 : 0);
 #endif
 
@@ -195,7 +197,7 @@ public static class WarObjective
         // 割地不要对方都城(要都城的是吞并、臣服)；只挨着都城的改求赔款
         border.RemoveAll(city => city == defender.Capital);
         if (border.Count == 0) return WarGoal.赔款;
-        var defenders = new HashSet<Realm>(war._list_defenders.Where(kingdom => kingdom?.data != null));
+        var defenders = new HashSet<Realm>(war.Defenders.Where(kingdom => kingdom?.Record != null));
         // 争法理(同属一个帝国的两家，法理都算在帝国名下，不争)
         bool sameRealm = FrontSystem.Realm(defender) == realm;
         KingdomTitle bestTitle = null;
@@ -261,7 +263,7 @@ public static class WarObjective
         var result = new List<City>();
         Realm realm = FrontSystem.Realm(attacker);
         bool sameRealm = realm != null && FrontSystem.Realm(defender) == realm;
-        bool Ours(Realm kingdom) => kingdom != null && (war._list_attackers.Contains(kingdom) ||
+        bool Ours(Realm kingdom) => kingdom != null && (war.Attackers.Contains(kingdom) ||
                                                           !sameRealm && FrontSystem.Realm(kingdom) == realm);
         foreach (City city in defender.Cities ?? new List<City>())
         {
@@ -326,6 +328,7 @@ public static class WarObjective
 #if EC_PENDING
     internal static int Pastures(City city) =>
         RuralSettlementSystem.InCity(city).Count(settlement => settlement.trade == LivelihoodSystem.Pasture);
+#endif
 
     private static IEnumerable<City> RealmCities(Realm realm)
     {
@@ -334,7 +337,6 @@ public static class WarObjective
         return kingdoms.Where(kingdom => kingdom?.Cities != null && !kingdom.IsGone())
             .SelectMany(kingdom => kingdom.Cities).Where(city => city?.Record != null && !city.IsGone());
     }
-#endif
 
     #endregion
 
@@ -349,12 +351,12 @@ public static class WarObjective
 #if EC_PENDING
     public static float HeldShareOf(War war, City city)
     {
-        if (war?.data == null || city?.Record == null || city.IsGone()) return 0f;
-        if (city.Realm != null && war._list_attackers.Contains(city.Realm)) return 1f;
+        if (war?.Record == null || city?.Record == null || city.IsGone()) return 0f;
+        if (city.Realm != null && war.Attackers.Contains(city.Realm)) return 1f;
         int total = city.zones?.Count ?? 0;
         if (total == 0) return 0f;
         int held = 0;
-        foreach (Realm kingdom in war._list_attackers)
+        foreach (Realm kingdom in war.Attackers)
             if (kingdom?.Record != null && !kingdom.IsGone()) held += city.GetOccupiedTileZoneCount(kingdom);
         return Math.Min(1f, held / (float)total);
     }
@@ -364,10 +366,10 @@ public static class WarObjective
 #if EC_PENDING
     public static void Check(War war)
     {
-        if (war?.data == null || war.hasEnded() || EmpireWorld.Current == null) return;
+        if (war?.Record == null || war.HasEnded() || EmpireWorld.Current == null) return;
         double now = GameClock.Now;
-        if (LastCheck.TryGetValue(war.data.id, out double at) && now >= at && now - at < CheckSeconds) return;
-        LastCheck[war.data.id] = now;
+        if (LastCheck.TryGetValue(war.Key, out double at) && now >= at && now - at < CheckSeconds) return;
+        LastCheck[war.Key] = now;
         try
         {
             if (TakesCapital(war)) return;
@@ -379,8 +381,8 @@ public static class WarObjective
             {
                 data.goal_achieved = true;
                 WarChronicle.Record(war, WarChronicle.Goal, string.Format(LM.Get("war_log_goal_achieved"),
-                    war.main_attacker.GetKingdomName(), main.GetCityName()));
-                EmpireWorld.Current.wars.endWar(war, WarWinner.Attackers);
+                    war.MainAttacker.GetKingdomName(), main.GetCityName()));
+                EmpireWorld.Current.EndWar(war, WarOutcome.Attackers);
                 return;
             }
             if (main?.Record == null || main.IsGone() || !OnDefenderSide(war, main)) Retarget(war, data);
@@ -390,9 +392,9 @@ public static class WarObjective
             LogService.LogWarning($"[EmpireCraft][战争目标] 查主城池失败: {exception.Message}");
         }
     }
-
-    private static bool OnDefenderSide(War war, City city) => city.Realm != null && war._list_defenders.Contains(city.Realm);
 #endif
+
+    private static bool OnDefenderSide(War war, City city) => city.Realm != null && war.Defenders.Contains(city.Realm);
 
     // 主城池落到第三家手里或没了：换目标里还在对方一边的另一座；都没了就改为赔款
 #if EC_PENDING
@@ -402,7 +404,7 @@ public static class WarObjective
             .Where(city => city?.Record != null && !city.IsGone() && OnDefenderSide(war, city)).OrderByDescending(Size).FirstOrDefault();
         if (next == null && data.war_goal is WarGoal.吞并 or WarGoal.迫使附庸 or WarGoal.羁縻 or WarGoal.继承 or WarGoal.扶立 or WarGoal.改宗 or
                 WarGoal.保护国)
-            next = war.main_defender?.capital;
+            next = war.MainDefender?.Capital;
         if (next?.Record != null && !next.IsGone())
         {
             data.goal_main_city_id = next.Key;
@@ -410,7 +412,7 @@ public static class WarObjective
         }
         data.war_goal = WarGoal.赔款;
         data.goal_main_city_id = -1L;
-        WarChronicle.Record(war, WarChronicle.Goal, string.Format(LM.Get("war_log_goal_lost"), war.main_attacker.GetKingdomName()));
+        WarChronicle.Record(war, WarChronicle.Goal, string.Format(LM.Get("war_log_goal_lost"), war.MainAttacker.GetKingdomName()));
     }
 #endif
 
@@ -423,10 +425,10 @@ public static class WarObjective
         City capital = RebelTarget(war);
         if (capital?.Record == null || capital.IsGone() || !Held(war, capital)) return false;
         WarChronicle.Record(war, WarChronicle.Goal, string.Format(LM.Get("war_log_capital_taken"),
-            war.main_attacker.GetKingdomName(), capital.GetCityName()));
-        if (capital.Realm != null && !war._list_attackers.Contains(capital.Realm))
-            WarGoalSystem.QueueCession(capital, war.main_attacker);
-        EmpireWorld.Current.wars.endWar(war, WarWinner.Attackers);
+            war.MainAttacker.GetKingdomName(), capital.GetCityName()));
+        if (capital.Realm != null && !war.Attackers.Contains(capital.Realm))
+            WarGoalSystem.QueueCession(capital, war.MainAttacker);
+        EmpireWorld.Current.EndWar(war, WarOutcome.Attackers);
         return true;
     }
 #endif
@@ -437,12 +439,12 @@ public static class WarObjective
     {
         long id = war.GetOrCreate().war_goal_capital_id;
         City city = id >= 0 ? EmpireWorld.Current?.cities?.get(id) : null;
-        return city?.Record != null && !city.IsGone() ? city : war.main_defender?.capital;
+        return city?.Record != null && !city.IsGone() ? city : war.MainDefender?.Capital;
     }
-
-    public static bool RebelWar(War war) => war?.data != null &&
-                                            war.GetEmpireWarType() is EmpireWarType.派系叛乱 or EmpireWarType.地方叛乱;
 #endif
+
+    public static bool RebelWar(War war) => war?.Record != null &&
+                                            war.GetEmpireWarType() is EmpireWarType.派系叛乱 or EmpireWarType.地方叛乱;
 
     #endregion
 
@@ -494,12 +496,10 @@ public static class WarObjective
 #endif
 
     // 目标城里还在对方一边手里的(落到第三家、已单独议和的盟国手里的不算)
-#if EC_PENDING
     public static List<City> Targets(War war, WarExtension.WarExtraData data) =>
         (data?.goal_city_ids ?? new List<long>()).Select(id => EmpireWorld.Current.CityByKey(id))
-        .Where(city => city?.Record != null && !city.IsGone() && city.Realm != null && war._list_defenders.Contains(city.Realm))
+        .Where(city => city?.Record != null && !city.IsGone() && city.Realm != null && war.Defenders.Contains(city.Realm))
         .ToList();
-#endif
 
     // 内附为羁縻州(同降部戍边，见 FrontierRelations.SettleSurrenderedTribe，不限游牧)
 #if EC_PENDING

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/SurnameInheritanceSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/SurnameInheritanceSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Time = EmpireCraft.Core.FrameClock;
 using System;
@@ -49,7 +49,6 @@ public static class SurnameInheritanceSystem
     private static float _rulingAt = -100f;
     private static object _rulingWorld;
 
-#if EC_PENDING
     private static int RulingRank(SpecificClan clan)
     {
         if (clan == null || EmpireWorld.Current?.LiveRealms == null) return 0;
@@ -74,6 +73,7 @@ public static class SurnameInheritanceSystem
         return RulingRanks.TryGetValue(clan.GetRootClan().id, out int value) ? value : 0;
     }
 
+#if EC_PENDING
     private static int ParentPriority(Person parent)
     {
         // 君主、储君的子女随君主姓(女帝与皇夫所生的也是皇族，以前跟了皇夫的姓，帝系断开、姓氏跳来跳去)

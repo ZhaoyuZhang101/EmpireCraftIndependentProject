@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/WorldWarSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/WorldWarSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -25,15 +25,15 @@ public static class WorldWarSystem
 #if EC_PENDING
     public static void TryEscalate(War war, bool force = false)
     {
-        if (war == null || war.data == null || war.hasEnded() || EmpireWorld.Current == null) return;
+        if (war == null || war.Record == null || war.HasEnded() || EmpireWorld.Current == null) return;
         WarExtension.WarExtraData data = war.GetOrCreate();
         if (data.world_war) return;
         if (!force && data.world_war_last_check >= 0d &&
             GameClock.MonthsSince(data.world_war_last_check) < 1) return;
         data.world_war_last_check = GameClock.Now;
 
-        List<PoliticalBloc> attackers = BuildBlocs(war._list_attackers);
-        List<PoliticalBloc> defenders = BuildBlocs(war._list_defenders);
+        List<PoliticalBloc> attackers = BuildBlocs(war.Attackers);
+        List<PoliticalBloc> defenders = BuildBlocs(war.Defenders);
         if (attackers.Count < 2 || defenders.Count < 2) return;
         List<PoliticalBloc> participants = attackers.Concat(defenders)
             .GroupBy(bloc => bloc.Key).Select(group => group.First()).ToList();
@@ -48,29 +48,29 @@ public static class WorldWarSystem
         data.world_war = true;
         data.world_war_bloc_count = participants.Count;
         data.world_war_power_share = powerShare;
-        string attackerName = GetPolityName(war.getMainAttacker());
-        string defenderName = GetPolityName(war.getMainDefender());
-        war.data.name = string.Format(LM.Get("world_war_name"), attackerName, defenderName);
-        string text = string.Format(LM.Get("world_war_started_history"), war.data.name,
+        string attackerName = GetPolityName(war.GetMainAttacker());
+        string defenderName = GetPolityName(war.GetMainDefender());
+        war.Name = string.Format(LM.Get("world_war_name"), attackerName, defenderName);
+        string text = string.Format(LM.Get("world_war_started_history"), war.Name,
             participants.Count, Mathf.RoundToInt(powerShare * 100f));
         RecordForParticipants(participants, text);
-        TranslateHelper.LogEventMessage(text, war.getMainAttacker());
+        TranslateHelper.LogEventMessage(text, war.GetMainAttacker());
     }
 
-    public static void Resolve(War war, WarWinner winner)
+    public static void Resolve(War war, WarOutcome winner)
     {
         if (war == null) return;
         WarExtension.WarExtraData data = war.GetOrCreate();
         if (!data.world_war || data.world_war_end_recorded) return;
         data.world_war_end_recorded = true;
-        List<PoliticalBloc> participants = BuildBlocs(war._list_attackers.Concat(war._list_defenders));
-        Realm winnerKingdom = winner == WarWinner.Attackers ? war.getMainAttacker() :
-            winner == WarWinner.Defenders ? war.getMainDefender() : null;
+        List<PoliticalBloc> participants = BuildBlocs(war.Attackers.Concat(war.Defenders));
+        Realm winnerKingdom = winner == WarOutcome.Attackers ? war.GetMainAttacker() :
+            winner == WarOutcome.Defenders ? war.GetMainDefender() : null;
         string text = winnerKingdom == null
-            ? string.Format(LM.Get("world_war_peace_history"), war.data.name)
-            : string.Format(LM.Get("world_war_victory_history"), GetPolityName(winnerKingdom), war.data.name);
+            ? string.Format(LM.Get("world_war_peace_history"), war.Name)
+            : string.Format(LM.Get("world_war_victory_history"), GetPolityName(winnerKingdom), war.Name);
         RecordForParticipants(participants, text);
-        TranslateHelper.LogEventMessage(text, winnerKingdom ?? war.getMainAttacker());
+        TranslateHelper.LogEventMessage(text, winnerKingdom ?? war.GetMainAttacker());
         // 战后秩序：战败国正统大跌、革命形势陡增，战胜国发起万国公会(见 WorldOrderSystem)
         WorldOrderSystem.OnWorldWarEnded(war, winner);
     }

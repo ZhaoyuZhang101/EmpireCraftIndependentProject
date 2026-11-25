@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/CityStabilitySystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/CityStabilitySystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
@@ -377,11 +377,11 @@ public static class CityStabilitySystem
         return suppression > 0f && CityStabilityRules.Clamp(state.stability + suppression + state.fear) >=
             CityStabilityRules.RebellionThreshold;
     }
+#endif
 
     public static int FundedSlots(City city) => TreasurySystem.Enabled(city) &&
         city.GetOrCreate().stability is CityStabilityData state && state.owner_id == city.Realm.Key && !state.withdrawn
         ? state.funded_slots : 0;
-#endif
 
     private static float Funding(int due, int paid, bool fractionalBudget) => due > 0
         ? Mathf.Clamp01(paid / (float)due) : fractionalBudget ? 1f : 0f;
@@ -416,6 +416,7 @@ public static class CityStabilitySystem
         present = (int)Math.Min(int.MaxValue, Math.Floor(local));
         GuardCounts[city] = new GuardCount(assigned, present);
     }
+#endif
 
     private static IEnumerable<Realm> Payers(City city)
     {
@@ -428,6 +429,7 @@ public static class CityStabilitySystem
     private static long Available(City city) => Math.Max(0, city.GetMoney()) +
         Payers(city).Sum(kingdom => (long)Math.Max(0, kingdom.GetMoney()));
 
+#if EC_PENDING
     private static int Pay(City city, int bill, TreasuryCategory category, bool municipalFirst, bool discretionary = false)
     {
         int remaining = Math.Max(0, bill);
@@ -545,7 +547,7 @@ public static class CityStabilitySystem
         float guardFunding = Funding(state.garrison_due, state.garrison_paid, guardBudget);
         // 超出本城驻防需求的现有部队另记野战军费，替代旧的“国库增长×比例”账单。
         state.military_due = CityStabilityRules.Invoice(CityStabilityRules.MilitaryAnnual(
-            Math.Max(0, assigned - maintained), city.Realm.hasEnemies()), ref state.military_carry);
+            Math.Max(0, assigned - maintained), city.Realm.HasEnemies()), ref state.military_carry);
         state.military_paid = Pay(city, state.military_due, TreasuryCategory.Military, false);
         long unpaid = (long)state.governance_due - state.governance_paid + state.garrison_due - state.garrison_paid +
                       state.military_due - state.military_paid;
@@ -614,7 +616,6 @@ public static class CityStabilitySystem
 #endif
 
     // 城库该留的钱：两年开支与安全储备取大的；多出来的是余钱(上缴见 RemitSurplus，积压损耗见 TreasuryHoardSystem)
-#if EC_PENDING
     public static long SurplusReserve(City city)
     {
         // 只读现有的账(换了主人的城下回结算时再重建，见 State)
@@ -628,13 +629,14 @@ public static class CityStabilitySystem
         return Math.Max(TreasurySystem.SafetyReserve(city), monthly * 24L);
     }
 
+#if EC_PENDING
     private static void ReviewWithdrawal(City city, CityStabilityData state, double monthlyCost)
     {
         Realm origin = city.Realm;
         Empire empire = origin.GetEmpire();
         Realm authority = empire?.CoreKingdom ?? origin;
         // 神力拉入未满期的成员同新入帝国(见 MembershipCooldown)
-        if (city == authority.Capital || origin.hasEnemies() || authority.hasEnemies() ||
+        if (city == authority.Capital || origin.HasEnemies() || authority.HasEnemies() ||
             RebellionSystem.GraceYearsRemaining(origin) > 0 || UnificationSystem.InGrace(origin) ||
             MembershipCooldown.ManualJoinActive(origin)) return;
         if (state.unfunded_months < CityStabilityRules.WithdrawalMonths ||

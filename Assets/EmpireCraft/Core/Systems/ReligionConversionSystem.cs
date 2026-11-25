@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/ReligionConversionSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/ReligionConversionSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -50,9 +50,7 @@ public static class ReligionConversionSystem
 
     private static bool Alive(Realm kingdom) => kingdom?.Record != null && !kingdom.IsGone() && !kingdom.IsWild;
 
-#if EC_PENDING
     private static Realm ModRealm(Realm kingdom) => kingdom?.GetEmpire()?.CoreKingdom ?? kingdom;
-#endif
 
     private static bool Within(double at, int years) =>
         at >= 0d && GameClock.Now >= at && GameClock.YearsSince(at) < years;
@@ -65,6 +63,7 @@ public static class ReligionConversionSystem
         return Alive(realm) && kingdom.hasReligion() && kingdom.religion == realm.religion &&
                Within(realm.GetOrCreate().religion_converted_at, ConversionPushYears);
     }
+#endif
 
     private static List<Realm> Members(Realm realm)
     {
@@ -75,7 +74,6 @@ public static class ReligionConversionSystem
     }
 
     private static int Cities(Realm realm) => Members(realm).Sum(member => member.Cities.Count);
-#endif
 
     // 每年一次(挂在 ReligiousTension 的年度扫描上)
 #if EC_PENDING
@@ -113,7 +111,7 @@ public static class ReligionConversionSystem
         foreach (Realm other in realms)
         {
             if (other == realm || !other.hasReligion() || other.religion == current || !Candidate(other.religion, sphere) ||
-                realm.isInWarWith(other)) continue;
+                realm.IsAtWarWith(other)) continue;
             // 帝国中央的 IsNeighbourWith 已按全体成员的城算
             bool adjacent = Members(other).Any(realm.IsNeighbourWith);
             float reach = 1f;

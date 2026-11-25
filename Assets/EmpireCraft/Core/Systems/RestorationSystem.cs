@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/RestorationSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/RestorationSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -81,7 +81,7 @@ public static class RestorationSystem
         if (InstitutionSystem.GetFeature(culture, RepublicSystem.FeatureAbolishMonarchy) <= 0f) return false;
         if (state.tenure_since < 0d || GameClock.YearsSince(state.tenure_since) < MinTenureYears) return false;
         if (empire.Mandate < MinMandate) return false;
-        if (empire.CoreKingdom.getWars().Any(war => war != null && !war.hasEnded())) return false;
+        if (empire.CoreKingdom.GetWars().Any(war => war != null && !war.HasEnded())) return false;
         PartyIdeology ideology = IdeologyFamilies.StateIdeology(empire);
         if (!IdeologyFamilies.IsTraditional(ideology) && !IdeologyFamilies.IsAuthoritarian(ideology) &&
             ideology != PartyIdeology.ConservativeLiberalism) return false;
@@ -138,7 +138,7 @@ public static class RestorationSystem
             float chance = Mathf.Min(0.9f, (0.3f + republican) * (autonomous ? 1.5f : 1f));
             if (EcRandom.value >= chance) continue;
             empire.leave(member);
-            War war = DiplomacyHelpers.wars.newWar(member, core, WarTypeLibrary.normal);
+            War war = DiplomacyHelpers.wars.newWar(member, core, WarKinds.Normal);
             war?.SetEmpireWarType(EmpireWarType.地方独立);
             EventRecorder.Record(empire, actor: member.Ruler, logKingdom: member, text: string.Format(
                 LM.Get("restoration_uprising_history"), member.GetKingdomFullName(), ImperialName(empire)));
@@ -150,7 +150,7 @@ public static class RestorationSystem
         empire.AddMandate(-5);
         float years = GameClock.YearsSince(state.restoration_started);
         bool headGone = head == null || head.IsGone() || head.Key != state.restoration_head_id;
-        bool uprising = empire.CoreKingdom.getWars().Any(war => war != null && !war.hasEnded() &&
+        bool uprising = empire.CoreKingdom.GetWars().Any(war => war != null && !war.HasEnded() &&
                                                                 war.GetEmpireWarType() == EmpireWarType.地方独立);
         float republican = RepublicanShare(empire);
         // 一丝成功的可能(拿破仑三世式)：称帝满一年，护国起兵已平定，民间共和思想不超过一成五，

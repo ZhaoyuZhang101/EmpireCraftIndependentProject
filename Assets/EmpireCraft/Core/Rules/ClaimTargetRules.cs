@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/ClaimTargetRules.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/ClaimTargetRules.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -331,7 +331,7 @@ public static class ClaimTargetRules
                     if (option.Kingdom?.data != null && !option.Kingdom.IsGone()) yield return (option.Kingdom, option.Kingdom, option);
                 break;
             case "enemies":
-                foreach (Realm enemy in c.Core.getEnemiesKingdoms())
+                foreach (Realm enemy in c.Core.GetEnemies())
                 {
                     if (enemy == null || enemy.IsGone() || enemy.IsInSameEmpire(c.Core)) continue;
                     Realm target = enemy.IsInEmpire() ? enemy.GetEmpire()?.CoreKingdom : enemy;
@@ -339,14 +339,14 @@ public static class ClaimTargetRules
                 }
                 break;
             case "enemy_kingdoms":
-                foreach (Realm enemy in c.Core.getEnemiesKingdoms())
+                foreach (Realm enemy in c.Core.GetEnemies())
                     if (enemy?.Record != null && !enemy.IsGone() && !enemy.IsInSameEmpire(c.Core)) yield return (enemy, enemy, null);
                 break;
             case "war_opponents":
-                foreach (War war in c.Core.getWars())
+                foreach (War war in c.Core.GetWars())
                 {
                     if (war == null) continue;
-                    Realm other = war.main_attacker == c.Core ? war.main_defender : war.main_defender == c.Core ? war.main_attacker : null;
+                    Realm other = war.MainAttacker == c.Core ? war.MainDefender : war.MainDefender == c.Core ? war.MainAttacker : null;
                     if (other?.Record != null && !other.IsGone()) yield return (other, other, null);
                 }
                 break;
@@ -443,7 +443,7 @@ public static class ClaimTargetRules
             case "neighbour": return c.Empire.IsNeighbourWith(k);
             case "neighbour_or_strait": return c.Empire.IsNeighbourWith(k) || StraitReach.Across(c.Core, k);
             case "war_reach": return c.Near.Contains(k) || StraitReach.Across(c.Core, k);
-            case "not_at_war": return !k.isInWarWith(c.Core);
+            case "not_at_war": return !k.IsAtWarWith(c.Core);
             case "not_deterred": return !EmpireCraft.Core.NuclearDoctrineSystem.IsDeterred(c.Core, k);
             case "can_declare": return WarGate.CanDeclare(c.Core, k);
             case "opinion_not_good": return !c.Core.isOpinionTowardsKingdomGood(k);
@@ -477,8 +477,8 @@ public static class ClaimTargetRules
             // 削藩、撤销军府
             case "has_crime": return c.Claim.TargetCrimeOk(k);
             case "not_faction_rebelling": return !k.IsFactionRebelling();
-            case "at_peace": return !k.getWars().Any();
-            case "no_enemies": return !k.hasEnemies();
+            case "at_peace": return !k.GetWars().Any();
+            case "no_enemies": return !k.HasEnemies();
             case "renown_enough": return c.Claim.OwnEnoughRenown(k);
             case "king_defiant": return (k.Ruler?.GetViolateValue() ?? 0) >= 90;
             // 政教合一的成员(教会领地)不动；世袭的埃米尔照动，圣城之主除外
@@ -520,7 +520,7 @@ public static class ClaimTargetRules
                     score += weight * theirs / Math.Max(1f, c.Ours);
                     break;
                 case "at_war":
-                    if (!k.isInWarWith(c.Core)) break;
+                    if (!k.IsAtWarWith(c.Core)) break;
                     score += weight;
                     tags.Add(LM.Get("claim_target_tag_at_war"));
                     break;
@@ -608,9 +608,9 @@ public static class ClaimTargetRules
     {
         if (core == null || other == null) return null;
         War best = null;
-        foreach (War war in core.getWars())
+        foreach (War war in core.GetWars())
         {
-            if (war == null || !(war.main_attacker == core && war.main_defender == other || war.main_defender == core && war.main_attacker == other) ||
+            if (war == null || !(war.MainAttacker == core && war.MainDefender == other || war.MainDefender == core && war.MainAttacker == other) ||
                 !Negotiable(war)) continue;
             if (best == null || WarSituation.WarYears(war) > WarSituation.WarYears(best)) best = war;
         }
@@ -618,7 +618,7 @@ public static class ClaimTargetRules
     }
 
     public static bool Negotiable(War war) =>
-        war != null && PeaceTable.Usable(war) && !war.GetOrCreate().scripted_war && !war.isTotalWar() && !UnificationSystem.IsUnificationWar(war) &&
+        war != null && PeaceTable.Usable(war) && !war.GetOrCreate().scripted_war && !war.IsTotalWar() && !UnificationSystem.IsUnificationWar(war) &&
         !RulerTraitSystem.IsFounderUnificationWar(war) && !WarlordEraSystem.IsCivilWar(war) &&
         WarSituation.WarYears(war) >= WarPeaceRules.MinWarYears;
 #endif

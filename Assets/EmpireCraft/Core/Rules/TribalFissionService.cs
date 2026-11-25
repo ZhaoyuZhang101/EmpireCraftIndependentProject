@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/TribalFissionService.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/TribalFissionService.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System.Collections.Generic;
@@ -61,7 +61,7 @@ public static class TribalFissionService
         if (kingdom?.Record == null || kingdom.IsGone() || kingdom.GetEmpire() != null || ModClass.EMPIRE_MANAGER == null) return null;
         long id = kingdom.GetOrCreate().tribal_overlord_id;
         if (id < 0) return null;
-        Empire empire = ModClass.EMPIRE_MANAGER.get(id);
+        Empire empire = ModClass.EMPIRE_MANAGER.Get(id);
         return IsConfederation(empire) && empire.CoreKingdom != kingdom ? empire : null;
     }
 #endif
@@ -140,7 +140,7 @@ public static class TribalFissionService
         if (EmpireWorld.Current?.LiveRealms == null || ModClass.EMPIRE_MANAGER == null) return map;
         foreach (KeyValuePair<long, List<Realm>> entry in VassalIndex().ToList())
         {
-            List<Realm> vassals = VassalsOf(ModClass.EMPIRE_MANAGER.get(entry.Key));
+            List<Realm> vassals = VassalsOf(ModClass.EMPIRE_MANAGER.Get(entry.Key));
             if (vassals.Count > 0) map[entry.Key] = vassals;
         }
         return map;
@@ -601,7 +601,7 @@ public static class TribalFissionService
             if (kingdom?.Record == null || kingdom.IsGone()) continue;
             KingdomExtension.KingdomExtraData data = kingdom.GetOrCreate();
             if (data.tribal_overlord_id < 0) continue;
-            Empire empire = ModClass.EMPIRE_MANAGER.get(data.tribal_overlord_id);
+            Empire empire = ModClass.EMPIRE_MANAGER.Get(data.tribal_overlord_id);
             if (kingdom.GetEmpire() != null || kingdom.IsEmpire() || empire?.data == null || empire.IsGone() || empire.IsArchived() ||
                 empire.CoreKingdom == kingdom)
             {
@@ -621,7 +621,7 @@ public static class TribalFissionService
         }
         foreach (KeyValuePair<long, List<Realm>> entry in batches)
         {
-            Empire empire = ModClass.EMPIRE_MANAGER.get(entry.Key);
+            Empire empire = ModClass.EMPIRE_MANAGER.Get(entry.Key);
             List<Realm> tribes = entry.Value.OrderBy(SubmittedAt).ThenBy(tribe => tribe.Key).ToList();
             List<Realm> unpinned = tribes.Where(tribe => string.IsNullOrEmpty(tribe.GetOrCreate().tribal_peerage)).ToList();
             var early = new HashSet<Realm>(unpinned.Count >= EarlySeniorBatch ? unpinned.Take(EarlySeniors) : Enumerable.Empty<Realm>());
@@ -733,19 +733,16 @@ public static class TribalFissionService
 #endif
 
     // 奉谁为共主：不论那个共主还是不是原始政体(推行宗法分封的共主已改了政体，OverlordOf 不再认它，部落要到 Enfeoff 才并入)
-#if EC_PENDING
     private static Empire Liege(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || kingdom.GetEmpire() != null || ModClass.EMPIRE_MANAGER == null) return null;
         long id = kingdom.GetOrCreate().tribal_overlord_id;
-        Empire empire = id < 0 ? null : ModClass.EMPIRE_MANAGER.get(id);
+        Empire empire = id < 0 ? null : ModClass.EMPIRE_MANAGER.Get(id);
         return empire?.data != null && !empire.IsGone() && !empire.IsArchived() && empire.CoreKingdom != null &&
                empire.CoreKingdom != kingdom ? empire : null;
     }
-#endif
 
     // 共事 empire 的部落(Liege)，连同帝国名下的成员
-#if EC_PENDING
     private static List<Realm> Followers(Empire empire)
     {
         var result = EmpireWorld.Current.LiveRealms.Where(kingdom => Liege(kingdom) == empire).ToList();
@@ -753,7 +750,6 @@ public static class TribalFissionService
             if (member?.Record != null && !member.IsGone() && member != empire.CoreKingdom && !result.Contains(member)) result.Add(member);
         return result;
     }
-#endif
 
     // 共事的部落都已离去、帝国里也只有自己的部落联盟(按资历定下的周室除外，见 Migrate)
     // 神力立的帝国不算(见 EmpireData.formed_by_god)：没有共事的部落也留着帝号

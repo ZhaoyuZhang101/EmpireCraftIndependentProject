@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GameClassExtensions/WarExtension.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GameClassExtensions/WarExtension.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Newtonsoft.Json.Converters;
 using Newtonsoft.Json;
@@ -174,14 +174,14 @@ public static class WarExtension
     public static void SetEmpireWarType(this War w, EmpireWarType type, string pre="", Entity nanoObject = null, bool isRebelling = false, FixedFaction belongingFaction = null)
     {
         GetOrCreate(w).empireWarType = type;
-        Empire empire = w.main_attacker.GetEmpire();
+        Empire empire = w.MainAttacker.GetEmpire();
         if (empire != null)
         {
-            w.data.name = DisplayName(empire.CoreKingdom, empire.Name) + type + (!isRebelling?"战争":"");
+            w.Name = DisplayName(empire.CoreKingdom, empire.Name) + type + (!isRebelling?"战争":"");
         }
         else
         {
-            w.data.name = (string.IsNullOrEmpty(pre)?DisplayName(w.main_attacker, w.main_attacker?.name):pre) + type + (!isRebelling?"战争":"");
+            w.Name = (string.IsNullOrEmpty(pre)?DisplayName(w.MainAttacker, w.MainAttacker?.Name):pre) + type + (!isRebelling?"战争":"");
         }
         if (belongingFaction != null)
         {
@@ -196,8 +196,8 @@ public static class WarExtension
         {
             case EmpireWarType.索取法理:
                 var title = (KingdomTitle)nanoObject;
-                w.data.name = $"{DisplayName(w.getMainAttacker(), w.getMainAttacker()?.name)}索取{title?.Name}法理战争";
-                Realm defender = w.getMainDefender();
+                w.Name = $"{DisplayName(w.GetMainAttacker(), w.GetMainAttacker()?.Name)}索取{title?.Name}法理战争";
+                Realm defender = w.GetMainDefender();
                 defender?.SyncRealmTitlesFromRuler();
                 w.GetOrCreate().defender_realm_title_ids = defender?.GetRealmTitleIds()
                     .Distinct().ToList() ?? new List<long>();
@@ -212,17 +212,19 @@ public static class WarExtension
         switch (metaType)
         {
             case MetaTypeExtension.KingdomTitle:
-                return ModClass.KINGDOM_TITLE_MANAGER.get(w.GetOrCreate().metaID);
+                return ModClass.KINGDOM_TITLE_MANAGER.Get(w.GetOrCreate().metaID);
         }
         return null;
     }
+#endif
 
     public static bool IsMainDefenderEliminated(this War war)
     {
-        Realm defender = war?.getMainDefender();
+        Realm defender = war?.GetMainDefender();
         return defender == null || defender.IsGone() || defender.Cities == null || defender.Cities.Count == 0;
     }
 
+#if EC_PENDING
     public static bool AreAllDeJureTitleZonesControlledByAttackers(this War war,
         KingdomTitle title)
     {
@@ -245,9 +247,9 @@ public static class WarExtension
                 if (zone == null || zone.world_edge || zone.city != city || !seenZones.Add(zone.id)) continue;
                 total++;
                 Realm controller = city.Realm;
-                if (controller == null || !war._list_attackers.Contains(controller))
+                if (controller == null || !war.Attackers.Contains(controller))
                     controller = city.GetTileZoneOccupier(zone);
-                if (controller != null && war._list_attackers.Contains(controller)) controlled++;
+                if (controller != null && war.Attackers.Contains(controller)) controlled++;
             }
         }
         return new OccupationReadIndex.Control(controlled, total);
@@ -311,9 +313,9 @@ public static class WarExtension
             {
                 if (zone == null || zone.world_edge || zone.city != city || !seenZones.Add(zone.id)) continue;
                 Realm controller = city.Realm;
-                if (controller == null || !war._list_attackers.Contains(controller))
+                if (controller == null || !war.Attackers.Contains(controller))
                     controller = city.GetTileZoneOccupier(zone);
-                if (controller != null && war._list_attackers.Contains(controller)) controlled++;
+                if (controller != null && war.Attackers.Contains(controller)) controlled++;
             }
         }
         return new OccupationReadIndex.Control(controlled, seenZones.Count);
@@ -325,10 +327,11 @@ public static class WarExtension
         switch (metaType)
         {
             case MetaTypeExtension.Empire:
-                return ModClass.EMPIRE_MANAGER.get(w.GetOrCreate().metaID);
+                return ModClass.EMPIRE_MANAGER.Get(w.GetOrCreate().metaID);
         }
         return null;
     }
+#endif
     public static EmpireWarType GetEmpireWarType(this War w)
     {
         return GetOrCreate(w).empireWarType;
@@ -342,6 +345,5 @@ public static class WarExtension
         var ed = a.GetOrCreate<War, WarExtraData>(isSave);
         return ed;
     }
-#endif
 }
 }

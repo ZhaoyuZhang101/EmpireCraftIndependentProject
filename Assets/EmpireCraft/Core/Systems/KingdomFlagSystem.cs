@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/KingdomFlagSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/KingdomFlagSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System.Collections.Generic;
 
@@ -41,11 +41,11 @@ public static class KingdomFlagSystem
         string culture = CultureService.GetRealmCulture(realm);
         return string.IsNullOrEmpty(culture) || Load("culture_" + culture) == null ? null : "culture_" + culture;
     }
+#endif
 
     private static bool Flies(Realm kingdom) =>
         kingdom?.Record != null && !kingdom.IsGone() && !kingdom.IsWild && !kingdom.IsNeutral() &&
         !AncientWarfareCompatibility.Owns(kingdom);
-#endif
 
     // 旗帜框里挂的徽章；没有徽章图的照整面旗
 #if EC_PENDING

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/RebellionSnowballSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/RebellionSnowballSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -48,15 +48,15 @@ public static class RebellionSnowballSystem
 #endif
 
     // 正在与帝国打叛乱/革命战争的叛军(进攻方主帅)
-#if EC_PENDING
-    internal static IEnumerable<Realm> FindRebels(Empire empire, Realm core) => core.getWars()
-        .Where(war => war != null && !war.hasEnded() && war.getMainDefender() != null &&
-                      war.getMainDefender().GetEmpire() == empire &&
-                      (RebellionTypes.Contains(war.GetEmpireWarType()) || war.getAsset() == WarTypeLibrary.rebellion))
-        .Select(war => war.getMainAttacker())
+    internal static IEnumerable<Realm> FindRebels(Empire empire, Realm core) => core.GetWars()
+        .Where(war => war != null && !war.HasEnded() && war.GetMainDefender() != null &&
+                      war.GetMainDefender().GetEmpire() == empire &&
+                      (RebellionTypes.Contains(war.GetEmpireWarType()) || war.GetKind() == WarKinds.Rebellion))
+        .Select(war => war.GetMainAttacker())
         .Where(rebel => rebel != null && !rebel.IsGone() && rebel.GetEmpire() != empire)
         .Distinct();
 
+#if EC_PENDING
     private static void Snowball(Empire empire, Realm core, Realm rebel, float intensity)
     {
         List<City> rebelCities = rebel.Cities?.Where(city => city != null && !city.IsGone()).ToList() ?? new List<City>();

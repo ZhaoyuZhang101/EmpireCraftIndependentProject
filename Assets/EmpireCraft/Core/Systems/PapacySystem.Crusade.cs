@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/PapacySystem.Crusade.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/PapacySystem.Crusade.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -33,8 +33,8 @@ public static partial class PapacySystem
     {
         if (religion?.data == null) return null;
         long id = religion.GetOrCreate().CrusadeWarId;
-        War war = id >= 0 ? EmpireWorld.Current.wars.get(id) : null;
-        return war != null && war.Alive && !war.hasEnded() ? war : null;
+        War war = id >= 0 ? EmpireWorld.Current.WarByKey(id) : null;
+        return war != null && war.Alive && !war.HasEnded() ? war : null;
     }
 #endif
 
@@ -69,7 +69,7 @@ public static partial class PapacySystem
         float authority = Authority(religion);
         Realm papacy = Papacy(religion);
         Realm caller = papacy != null && !IsCaptive(religion) ? papacy : Strongest(religion);
-        if (caller == null || caller.hasEnemies() && papacy != null) return;
+        if (caller == null || caller.HasEnemies() && papacy != null) return;
         (Realm target, int kind) = FindTarget(religion, caller, authority);
         if (target == null || target == caller || EcRandom.value >= CrusadeChance) return;
         Declare(religion, caller, target, kind);
@@ -82,10 +82,10 @@ public static partial class PapacySystem
         // 讨伐异端：宗教改革分出去的国教会
         if (authority >= 40f && HereticTarget(religion) is Realm heretic) return (heretic, CrusadeHeretic);
         if (authority < 50f) return (null, 0);
-        foreach (War war in EmpireWorld.Current.wars)
+        foreach (War war in EmpireWorld.Current.LiveWars)
         {
-            if (war == null || war.hasEnded()) continue;
-            Realm attacker = war.main_attacker, defender = war.main_defender;
+            if (war == null || war.HasEnded()) continue;
+            Realm attacker = war.MainAttacker, defender = war.MainDefender;
             if (attacker?.Record == null || defender?.Record == null || defender.religion != religion ||
                 attacker.religion == religion || !attacker.hasReligion()) continue;
             if (WarSituation.CitiesLost(war, defender) > 0) return (ModRealm(attacker), CrusadeRescue);
@@ -97,7 +97,7 @@ public static partial class PapacySystem
                 State(empire).banned_by_rival) continue;
             if (GameClock.YearsSince(State(empire).excommunicated_at) >= 2) return (empire.CoreKingdom, CrusadeHeretic);
         }
-        if (authority < 80f || caller.hasEnemies()) return (null, 0);
+        if (authority < 80f || caller.HasEnemies()) return (null, 0);
         Realm best = null;
         foreach (Realm kingdom in EmpireWorld.Current.LiveRealms)
         {
@@ -108,9 +108,9 @@ public static partial class PapacySystem
         }
         return (best, CrusadeInfidel);
     }
+#endif
 
     private static Realm ModRealm(Realm kingdom) => kingdom?.GetEmpire()?.CoreKingdom ?? kingdom;
-#endif
 
     // 本宗教最强的国家(帝国按中央)
 #if EC_PENDING
@@ -123,11 +123,11 @@ public static partial class PapacySystem
     {
         // 远距离不开战：发起国(帝国按全体成员)与目标接壤或隔海相望才发(见 StraitReach.Within)
         if (!StraitReach.Within(caller, target)) return;
-        War war = EmpireWorld.Current.diplomacy.startWar(caller, target, WarTypeLibrary.normal);
+        War war = EmpireWorld.Current.StartWar(caller, target, WarKinds.Normal);
         if (war == null) return;
         var data = religion.GetOrCreate();
         data.CrusadeCount++;
-        data.CrusadeWarId = war.data.id;
+        data.CrusadeWarId = war.Key;
         war.SetEmpireWarType(EmpireWarType.神圣, pre: religion.name);
         WarExtension.WarExtraData snapshot = war.GetOrCreate();
         snapshot.crusade_religion_id = religion.data.id;
@@ -135,7 +135,7 @@ public static partial class PapacySystem
         City holyLand = CrusadeCity(religion);
         snapshot.crusade_city_id = holyLand?.data?.id ?? -1L;
         WarGoalSystem.Preset(war, WarGoal.割地);
-        war.data.name = string.Format(LM.Get("crusade_war_name"), data.CrusadeCount, religion.name);
+        war.Name = string.Format(LM.Get("crusade_war_name"), data.CrusadeCount, religion.name);
         string goal = kind switch
         {
             CrusadeHolyLand => string.Format(LM.Get("crusade_kind_holy"), holyLand?.GetCityName() ?? ""),
@@ -165,8 +165,8 @@ public static partial class PapacySystem
         {
             if (joined >= MaxResponders) break;
             if (kingdom?.Record == null || kingdom.IsGone() || kingdom.IsWild || kingdom == caller || kingdom.religion != religion ||
-                ModRealm(kingdom) != kingdom || ModRealm(kingdom) == ModRealm(target) || war.hasKingdom(kingdom) ||
-                kingdom.isInWarWith(caller)) continue;
+                ModRealm(kingdom) != kingdom || ModRealm(kingdom) == ModRealm(target) || war.HasRealm(kingdom) ||
+                kingdom.IsAtWarWith(caller)) continue;
             Empire empire = kingdom.GetEmpire();
             if (empire != null && IsExcommunicated(empire) || FollowsAntipope(kingdom)) continue;
             float chance = 0.35f + popeBonus;
@@ -180,7 +180,7 @@ public static partial class PapacySystem
             if (seat != null && kingdom.Capital != null)
                 chance -= Vector2.Distance(kingdom.Capital.city_center, seat.city_center) / 8f / 20f * 0.05f;
             if (EcRandom.value >= chance) continue;
-            war.joinAttackers(kingdom);
+            war.JoinAttackers(kingdom);
             joined++;
             TranslateHelper.LogEventMessage(string.Format(LM.Get("crusade_join_log"), kingdom.GetKingdomName(),
                 target.GetKingdomName()), kingdom);
@@ -192,9 +192,9 @@ public static partial class PapacySystem
         {
             if (defenders >= MaxDefenders) break;
             if (kingdom?.Record == null || kingdom.IsGone() || kingdom.IsWild || kingdom == target ||
-                kingdom.religion != target.religion || ModRealm(kingdom) != kingdom || war.hasKingdom(kingdom) ||
+                kingdom.religion != target.religion || ModRealm(kingdom) != kingdom || war.HasRealm(kingdom) ||
                 EcRandom.value >= 0.3f) continue;
-            war.joinDefenders(kingdom);
+            war.JoinDefenders(kingdom);
             defenders++;
             TranslateHelper.LogEventMessage(string.Format(LM.Get("crusade_defend_log"), kingdom.GetKingdomName(),
                 target.GetKingdomName()), kingdom);
@@ -204,7 +204,7 @@ public static partial class PapacySystem
 
     // 战争结束(WarPatch 在开战目标结算之后调用)：圣地交接、教权与正统
 #if EC_PENDING
-    public static void OnWarEnded(War war, WarWinner winner)
+    public static void OnWarEnded(War war, WarOutcome winner)
     {
         try
         {
@@ -218,12 +218,12 @@ public static partial class PapacySystem
             (int attackerGain, int defenderGain) = WarGoalSystem.Gains(war);
             // 讨伐异端打完：教随国定
             if (snapshot.crusade_kind == CrusadeHeretic) ReligiousPeace(religion);
-            bool won = winner == WarWinner.Attackers || winner == WarWinner.Peace && attackerGain >= defenderGain + 1;
-            Realm caller = war.main_attacker;
+            bool won = winner == WarOutcome.Attackers || winner == WarOutcome.Peace && attackerGain >= defenderGain + 1;
+            Realm caller = war.MainAttacker;
             if (won)
             {
                 AddAuthority(religion, 15f);
-                foreach (Realm kingdom in war._list_attackers.ToList())
+                foreach (Realm kingdom in war.Attackers.ToList())
                     if (kingdom?.Record != null && !kingdom.IsGone() && kingdom.IsEmpire()) kingdom.GetEmpire()?.AddMandate(25);
                 // 收复圣地：圣地交给教廷；没有教廷时由骑士团在圣地立国，没有骑士团就交给号召者。
                 // 收复的是圣地以外另记的那处(耶路撒冷)：不交教廷，骑士团立国，没有骑士团就归出力最多的同教国(十字军国家)
@@ -243,18 +243,18 @@ public static partial class PapacySystem
                 // 圣战告捷，可能成立骑士团(驻在号召国)
                 if (caller?.Record != null && !caller.IsGone() && caller.religion == religion) TryFoundOrder(religion, caller);
                 if (caller?.Record != null && !caller.IsGone())
-                    RecordReligion(caller, string.Format(LM.Get("crusade_won_history"), war.data.name, religion.name));
+                    RecordReligion(caller, string.Format(LM.Get("crusade_won_history"), war.Name, religion.name));
                 ReligionChronicle.Record(religion, ReligionChronicle.KindHolyWar,
-                    string.Format(LM.Get("crusade_won_history"), war.data.name, religion.name));
+                    string.Format(LM.Get("crusade_won_history"), war.Name, religion.name));
             }
             else
             {
                 AddAuthority(religion, -10f);
                 data.CrusadeLosses++;
                 if (caller?.Record != null && !caller.IsGone())
-                    RecordReligion(caller, string.Format(LM.Get("crusade_lost_history"), war.data.name, religion.name));
+                    RecordReligion(caller, string.Format(LM.Get("crusade_lost_history"), war.Name, religion.name));
                 ReligionChronicle.Record(religion, ReligionChronicle.KindHolyWar,
-                    string.Format(LM.Get("crusade_lost_history"), war.data.name, religion.name));
+                    string.Format(LM.Get("crusade_lost_history"), war.Name, religion.name));
             }
         }
         catch (Exception exception)

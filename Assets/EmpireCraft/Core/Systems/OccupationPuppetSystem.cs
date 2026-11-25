@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/OccupationPuppetSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/OccupationPuppetSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -112,7 +112,6 @@ public static class OccupationPuppetSystem
 #endif
 
     // 一方直接管着的城：本国与帝国成员的(傀儡、殖民地的不算)
-#if EC_PENDING
     private static IEnumerable<City> DirectCities(Realm realm)
     {
         Empire empire = realm.GetEmpire();
@@ -121,7 +120,6 @@ public static class OccupationPuppetSystem
                                                           !PuppetStateSystem.IsPuppet(city.Realm) && !ColonySystem.IsColony(city.Realm))
             .ToList();
     }
-#endif
 
     #region 交给傀儡
 
@@ -135,7 +133,6 @@ public static class OccupationPuppetSystem
     }
 
     // 这座城所在一片(帝国法理；没有的按王国法理)
-#if EC_PENDING
     private static long Sphere(City city)
     {
         EmpireCore core = city?.GetEmpireCore();
@@ -143,14 +140,11 @@ public static class OccupationPuppetSystem
         KingdomTitle title = city?.GetTitle();
         return title?.data != null ? -1000000L - title.data.id : -1L;
     }
-#endif
 
     // 占领者在这一片的傀儡(治所在这一片的)
-#if EC_PENDING
     private static Realm PuppetIn(Realm occupier, long sphere) =>
         sphere == -1L ? null : PuppetStateSystem.PuppetsOf(occupier)
             .FirstOrDefault(puppet => puppet.Capital != null && !puppet.Capital.IsGone() && Sphere(puppet.Capital) == sphere);
-#endif
 
     // 把这些城交给占领者这一片的傀儡；这一片还没有的立一个。返回交出去几座
 #if EC_PENDING

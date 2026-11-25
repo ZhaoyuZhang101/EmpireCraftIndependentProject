@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/GentrySystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/GentrySystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -120,6 +120,7 @@ public static partial class GentrySystem
             .Where(clan => clan != null && clan.gentry && clan.Count > 0 && RealmOf(Seat(clan)) == empire)
             .OrderByDescending(clan => clan.gentry_pedigree).ToList();
     }
+#endif
 
     private static Empire RealmOf(City city)
     {
@@ -128,6 +129,7 @@ public static partial class GentrySystem
         return kingdom.IsEmpire() || kingdom.IsInEmpire() ? kingdom.GetEmpire() : null;
     }
 
+#if EC_PENDING
     private static bool Huaxia(City city)
     {
         if (city == null) return false;
@@ -292,15 +294,15 @@ public static partial class GentrySystem
             Record(seat, string.Format(LM.Get("gentry_retainers_history"), JunWang(clan), raised, seat.GetCityName()), force: true);
         }
     }
+#endif
 
     private static bool Threatened(City city)
     {
         if (FrontSystem.Battles.Values.Any(battle => battle.city_id == city.Key)) return true;
         Dictionary<int, long> occupied = ScorchedEarthSystem.OccupiedZones(city);
         return occupied != null && occupied.Values.Any(owner => EmpireWorld.Current.RealmByKey(owner) is Realm enemy &&
-                                                                 enemy.isEnemy(city.Realm));
+                                                                 enemy.IsEnemy(city.Realm));
     }
-#endif
 
     // 据城自守：族中名望最高的人(实体优先，没有把郡望之城的虚拟族人落成实体)据郡望之城自立
 #if EC_PENDING
@@ -331,7 +333,7 @@ public static partial class GentrySystem
     {
         bool fortress = HasFortress(seat);
         if (Grade(clan.gentry_pedigree) > (fortress ? 3 : 2) || seat?.Realm == null || seat.Realm.Capital == seat ||
-            !seat.Realm.hasEnemies())
+            !seat.Realm.HasEnemies())
             return;
         Empire realm = RealmOf(seat);
         bool weak = realm == null ? seat.Realm.Ruler == null
@@ -563,7 +565,6 @@ public static partial class GentrySystem
     }
 
     // 在位皇帝的宗室(连同分出去的各支)：是皇族，不算世家
-#if EC_PENDING
     private static void BuildRuling()
     {
         Ruling.Clear();
@@ -575,6 +576,7 @@ public static partial class GentrySystem
         }
     }
 
+#if EC_PENDING
     private static void Assess(long id)
     {
         SpecificClan clan = SpecificClanManager.Get(id);

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/BannerSystem.Frontier.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/BannerSystem.Frontier.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System.Collections.Generic;
@@ -72,7 +72,6 @@ public static partial class BannerSystem
     private const float MigrantShare = 0.01f;
 
     // 封禁之城：入关以后、没弛禁的旗下旧地
-#if EC_PENDING
     public static bool Sealed(City city)
     {
         if (city?.Record == null || !city.GetOrCreate().banner_home) return false;
@@ -81,12 +80,11 @@ public static partial class BannerSystem
         var extra = empire.CoreKingdom.GetOrCreate();
         return extra.banner_entered_at >= 0d && !extra.banner_seal_lifted;
     }
-#endif
 
     // 迁徙(见 CityPopulationSystem.Migrate)：属地之民不许迁进封禁之城，旧地之间照常
-#if EC_PENDING
     public static bool MigrationBarred(City from, City to) => Sealed(to) && !from.GetOrCreate().banner_home;
 
+#if EC_PENDING
     private static void SealYearly(Empire empire, Realm core, KingdomExtension.KingdomExtraData extra)
     {
         if (extra.banner_entered_at < 0d) return;

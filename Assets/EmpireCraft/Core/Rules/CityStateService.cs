@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/CityStateService.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/CityStateService.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System.Collections.Generic;
 using System.Linq;
@@ -227,11 +227,11 @@ public static class CityStateService
 
     private static void EndWarsBetween(Realm victor, Realm loser)
     {
-        foreach (War war in loser.getWars().ToList())
+        foreach (War war in loser.GetWars().ToList())
         {
-            bool opposing = (war._list_attackers.Contains(victor) && war._list_defenders.Contains(loser)) ||
-                            (war._list_defenders.Contains(victor) && war._list_attackers.Contains(loser));
-            if (opposing && war.Alive && !war.hasEnded()) war.lostWar(loser);
+            bool opposing = (war.Attackers.Contains(victor) && war.Defenders.Contains(loser)) ||
+                            (war.Defenders.Contains(victor) && war.Attackers.Contains(loser));
+            if (opposing && war.Alive && !war.HasEnded()) war.lostWar(loser);
         }
     }
 #endif

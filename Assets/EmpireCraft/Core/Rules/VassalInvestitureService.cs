@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/VassalInvestitureService.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/VassalInvestitureService.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -250,7 +250,7 @@ public static class VassalInvestitureService
 #if EC_PENDING
     private static bool StartDefianceWar(Empire empire, Realm vassal, Person heir, Person replacement)
     {
-        War war = DiplomacyHelpers.diplomacy.startWar(empire.CoreKingdom, vassal, WarTypeLibrary.normal);
+        War war = DiplomacyHelpers.diplomacy.startWar(empire.CoreKingdom, vassal, WarKinds.Normal);
         if (war == null) return false;
         war.SetEmpireWarType(EmpireWarType.不奉诏);
         WarExtension.WarExtraData data = war.GetOrCreate();
@@ -265,10 +265,10 @@ public static class VassalInvestitureService
 #if EC_PENDING
     public static bool IsDefiantCapitalTaken(War war)
     {
-        Realm vassal = war?.getMainDefender();
+        Realm vassal = war?.GetMainDefender();
         City capital = vassal?.Capital;
         if (capital?.zones == null || capital.IsGone()) return false;
-        if (war._list_attackers.Contains(capital.Realm)) return true;
+        if (war.Attackers.Contains(capital.Realm)) return true;
         int total = 0;
         int controlled = 0;
         foreach (TileZone zone in capital.zones)
@@ -276,7 +276,7 @@ public static class VassalInvestitureService
             if (zone == null || zone.world_edge || zone.city != capital) continue;
             total++;
             Realm occupier = capital.GetTileZoneOccupier(zone);
-            if (occupier != null && war._list_attackers.Contains(occupier)) controlled++;
+            if (occupier != null && war.Attackers.Contains(occupier)) controlled++;
         }
         return total > 0 && controlled * 2 >= total;
     }
@@ -286,25 +286,25 @@ public static class VassalInvestitureService
 #if EC_PENDING
     public static void CheckDefianceWar(War war)
     {
-        if (war == null || war.hasEnded()) return;
+        if (war == null || war.HasEnded()) return;
         if (war.IsMainDefenderEliminated() || IsDefiantCapitalTaken(war))
-            EmpireWorld.Current.wars.endWar(war, WarWinner.Attackers);
-        else if (war.getDuration() >= DefianceWarYears)
-            EmpireWorld.Current.wars.endWar(war, WarWinner.Defenders);
+            EmpireWorld.Current.EndWar(war, WarOutcome.Attackers);
+        else if (war.DurationMonths() >= DefianceWarYears)
+            EmpireWorld.Current.EndWar(war, WarOutcome.Defenders);
     }
 
-    public static void ResolveDefianceWar(War war, WarWinner winner)
+    public static void ResolveDefianceWar(War war, WarOutcome winner)
     {
         WarExtension.WarExtraData data = war.GetOrCreate();
         Realm vassal = EmpireWorld.Current.RealmByKey(data.investiture_vassal_kingdom_id);
-        Realm core = war.getMainAttacker();
+        Realm core = war.GetMainAttacker();
         Empire empire = core?.GetEmpire();
         if (vassal == null || vassal.IsGone() || empire == null || empire.IsGone()) return;
         Person heir = EmpireWorld.Current.PersonByKey(data.investiture_heir_id);
         string heirName = heir?.FullName() ?? "";
         string vassalName = vassal.GetKingdomName();
 
-        if (winner == WarWinner.Attackers)
+        if (winner == WarOutcome.Attackers)
         {
             Person replacement = EmpireWorld.Current.PersonByKey(data.investiture_replacement_id);
             if (replacement == null || replacement.IsGone() || !replacement.Alive || replacement.IsRuler())

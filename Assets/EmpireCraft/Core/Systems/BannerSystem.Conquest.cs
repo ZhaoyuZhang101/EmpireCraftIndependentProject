@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/BannerSystem.Conquest.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/BannerSystem.Conquest.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System.Collections.Generic;
@@ -73,7 +73,7 @@ public static partial class BannerSystem
             Announce(empire, core, string.Format(LM.Get("banner_law_history"), empire.GetEmpireName()));
         }
         if (BannerRules.StopDue(years, extra.banner_enclosure_stopped)) StopEnclosure(empire, core, extra);
-        if (BannerRules.RelaxDue(years, extra.banner_fugitive_law, extra.banner_law_relaxed, core.hasEnemies()))
+        if (BannerRules.RelaxDue(years, extra.banner_fugitive_law, extra.banner_law_relaxed, core.HasEnemies()))
             RelaxFugitiveLaw(empire, core, extra);
     }
 

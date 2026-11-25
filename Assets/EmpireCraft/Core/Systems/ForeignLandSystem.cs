@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/ForeignLandSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/ForeignLandSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -174,7 +174,7 @@ public static class ForeignLandSystem
     {
         foreach (long id in Overdue.ToList())
         {
-            Empire empire = ModClass.EMPIRE_MANAGER?.get(id);
+            Empire empire = ModClass.EMPIRE_MANAGER?.Get(id);
             if (empire?.data == null || empire.IsGone() || empire.IsArchived() || !Alive(empire.CoreKingdom))
             {
                 Overdue.Remove(id);
@@ -223,6 +223,7 @@ public static class ForeignLandSystem
         LogService.LogInfo($"[EmpireCraft][异族之地] {empire.GetEmpireName()} 正统{legitimacy}，出兵镇压三代未附的 {cities.Count} 城，耗银 {cost}");
         return true;
     }
+#endif
 
     private static int YearlyRevenue(Realm kingdom)
     {
@@ -231,7 +232,6 @@ public static class ForeignLandSystem
             return (int)Math.Min(int.MaxValue, report.income * 12L / report.months);
         return Math.Max(0, kingdom.GetMoney()) / 10;
     }
-#endif
 
     // 全部自立：都城是三代未附之地的成员国离开，中央直辖的(京城所在的王国法理除外)按王国法理各自立国
 #if EC_PENDING
@@ -247,7 +247,7 @@ public static class ForeignLandSystem
         foreach (Realm member in empire.kingdoms_list.ToList())
         {
             if (member == core || !Alive(member) || member.Capital == null || !overdue.Contains(member.Capital) ||
-                member.isInWarWith(core)) continue;
+                member.IsAtWarWith(core)) continue;
             member.FinishedSelfPlot();
             empire.leave(member, true, false);
             if (member.IsInEmpire()) continue;

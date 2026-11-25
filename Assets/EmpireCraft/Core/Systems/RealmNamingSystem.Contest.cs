@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/RealmNamingSystem.Contest.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/RealmNamingSystem.Contest.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -220,14 +220,12 @@ public static partial class RealmNamingSystem
 #endif
 
     // 天下的正统：据有整个天下一半以上城(多京那条线用)
-#if EC_PENDING
     public static bool HoldsHalfOfRealm(Empire empire, EmpireCore lead)
     {
         if (empire?.CoreKingdom == null || lead == null) return false;
         (Dictionary<Realm, int> held, int total) = TianxiaSystem.Holdings(lead);
         return total > 0 && held.TryGetValue(empire.CoreKingdom, out int count) && count * 2 >= total;
     }
-#endif
 
     // 让出：改用自家王国法理名(都城所在的，其次主法理)，没有就用美号(以前用都城名，国号成了城名)；与别国重名加方位
 #if EC_PENDING
@@ -243,7 +241,7 @@ public static partial class RealmNamingSystem
         if (!holy) data.directPre = "";
         // 与别国完全同名(前缀也一样，让出后不带前缀)才加方位
         Empire namesake = ModClass.EMPIRE_MANAGER.FirstOrDefault(other => other?.data != null && other != empire && !other.IsGone() &&
-                                                                         !other.IsArchived() && other.CoreKingdom?.capital != null &&
+                                                                         !other.IsArchived() && other.CoreKingdom?.Capital != null &&
                                                                          string.Equals(other.GetEmpireName(), own, StringComparison.Ordinal) &&
                                                                          PrefixOf(other.data).Length == 0);
         City mine = empire.CoreKingdom.Capital, theirs = namesake?.CoreKingdom?.Capital;

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/SectUprisingSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/SectUprisingSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System.Collections.Generic;
 using System.Linq;
@@ -17,9 +17,9 @@ public static class SectUprisingSystem
     private const float HarshThreshold = 40f;
     private const int SectNames = 8;
 
-#if EC_PENDING
     private static Realm ModRealm(Realm kingdom) => kingdom?.GetEmpire()?.CoreKingdom ?? kingdom;
 
+#if EC_PENDING
     public static void YearlyPass()
     {
         if (EmpireWorld.Current?.Cities == null || ModClass.IS_CLEAR) return;

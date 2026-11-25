@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/Layer/DeJureMap.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/Layer/DeJureMap.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Time = EmpireCraft.Core.FrameClock;
 using System.Collections.Generic;
@@ -111,14 +111,12 @@ public static class DeJureMap
 #endif
 
     // 城在帝国法理视图上属于哪个帝国法理：城的王国法理在帝国法理里才算
-#if EC_PENDING
     public static EmpireCore CoreOf(City city)
     {
         KingdomTitle title = city?.GetTitle();
         EmpireCore core = city?.GetEmpireCore();
         return core != null && title != null && EmpireCoreManager.ContainsTitle(core, title) ? core : null;
     }
-#endif
 
     private static int Preferred(long id, int count) => (int)((id % count + count) % count);
 

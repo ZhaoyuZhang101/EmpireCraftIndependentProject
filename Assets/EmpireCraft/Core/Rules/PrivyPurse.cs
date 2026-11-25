@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/PrivyPurse.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/PrivyPurse.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -88,6 +88,7 @@ public static class PrivyPurse
         realm.Ruler.addMoney(amount);
         Note(realm, source, amount);
     }
+#endif
 
     private static int MonthlyIncome(Realm realm)
     {
@@ -98,7 +99,6 @@ public static class PrivyPurse
 
     public static int AllowanceOf(Realm realm, int tier) =>
         tier <= 0 || tier >= TierShare.Length ? 0 : (int)(MonthlyIncome(realm) * TierShare[tier]);
-#endif
 
     // ───────── 每月(战略调度经 FrameJobs 调来) ─────────
 #if EC_PENDING
@@ -202,9 +202,9 @@ public static class PrivyPurse
 
     // 卖官：中枢空着的官，价钱 = 上月岁入的两成，至少 OfficeFloor
     public const int OfficeFloor = 40;
-#if EC_PENDING
     public static int OfficePrice(Realm realm) => Math.Max(OfficeFloor, MonthlyIncome(realm) / 5);
 
+#if EC_PENDING
     public static List<(int slot, OfficeObject office)> VacantOffices(Empire empire)
     {
         var list = new List<(int, OfficeObject)>();

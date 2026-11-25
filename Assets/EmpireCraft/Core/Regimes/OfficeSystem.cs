@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/Regimes/OfficeSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/Regimes/OfficeSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Time = EmpireCraft.Core.FrameClock;
 using System;
@@ -134,7 +134,7 @@ public static class OfficeManager
 #if EC_PENDING
     public static void Tick()
     {
-        if (EmpireWorld.Current == null || !Config.game_loaded || SmoothLoader.isLoading() || Time.unscaledTime < _pruneAt) return;
+        if (EmpireWorld.Current == null || !GameClock.Running || SmoothLoader.isLoading() || Time.unscaledTime < _pruneAt) return;
         _pruneAt = Time.unscaledTime + 60f;
         Prune();
     }
@@ -657,6 +657,7 @@ public class CenterOffice
 
         return officers;
     }
+#endif
 
     public List<OfficeObject> GetAllOffices(Empire empire)
     {
@@ -705,6 +706,5 @@ public class CenterOffice
         }
         return offices;
     }
-#endif
 }
 }

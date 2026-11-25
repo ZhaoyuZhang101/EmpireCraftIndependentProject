@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/SecessionSpread.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/SecessionSpread.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -53,9 +53,11 @@ public static class SecessionSpread
             LogService.LogInfo($"[EmpireCraft][自立成片] {rebel.GetKingdomName()} 起于 {seed.Name}，同一法理里 {joined} 座城跟着脱离 {former.GetKingdomName()}");
         return joined;
     }
+#endif
 
     private static Realm ModRealm(Realm kingdom) => kingdom?.GetEmpire()?.CoreKingdom ?? kingdom;
 
+#if EC_PENDING
     private static IEnumerable<City> Neighbours(City city) => (IEnumerable<City>)city.neighbours_cities ?? Array.Empty<City>();
 #endif
 

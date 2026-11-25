@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/SchismSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/SchismSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -94,7 +94,6 @@ public static class SchismSystem
 
     // 割据中(不缴税、不随征、不奉诏)：割据、争位、首义观望三个阶段里名单上的成员。国家上的标记要与所在帝国、该帝国的进程对得上，
     // 离开了帝国、进程已收场的旧标记不算
-#if EC_PENDING
     public static bool IsBreakaway(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone()) return false;
@@ -104,10 +103,8 @@ public static class SchismSystem
         return empire?.data != null && empire.Key == extra.schism_breakaway_empire_id && empire.data.schism_kind != None &&
                empire.data.schism_stage >= Breakaway && kingdom != empire.CoreKingdom;
     }
-#endif
 
     // 名单上还在帝国里的成员(预警时离心、之后割据、首义后观望)
-#if EC_PENDING
     public static List<Realm> Members(Empire empire)
     {
         var list = new List<Realm>();
@@ -119,22 +116,17 @@ public static class SchismSystem
         }
         return list;
     }
-#endif
 
     // 土崩瓦解首义之后还在观望的割据之省(ProvincialCollapseSystem 按它们判响应)
-#if EC_PENDING
     public static List<Realm> Watchers(Empire empire) => InRising(empire) ? Members(empire) : new List<Realm>();
-#endif
 
     // 争位之战(CheckJoinWar 据此不把别的成员拉进来)：守方是中央，按守方所在帝国的进程认
-#if EC_PENDING
     public static bool IsContestWar(War war)
     {
-        if (war?.data == null || war.GetEmpireWarType() != EmpireWarType.对立国王) return false;
-        Empire empire = war.getMainDefender()?.GetEmpire();
-        return StageOf(empire) == Contest && empire.data.schism_war_id == war.data.id;
+        if (war?.Record == null || war.GetEmpireWarType() != EmpireWarType.对立国王) return false;
+        Empire empire = war.GetMainDefender()?.GetEmpire();
+        return StageOf(empire) == Contest && empire.data.schism_war_id == war.Key;
     }
-#endif
 
     // 日志用："汗位更替之乱·割据"
     public static string Describe(Empire empire) =>
@@ -264,7 +256,6 @@ public static class SchismSystem
 #endif
 
     // 名单上已不在帝国里的(覆灭、被吞、另行离开、成了中央)移出，割据标记一并清掉
-#if EC_PENDING
     private static void Prune(Empire empire)
     {
         EmpireData data = empire.data;
@@ -278,7 +269,6 @@ public static class SchismSystem
             if (alive) Unflag(kingdom, empire);
         }
     }
-#endif
 
     // 看"新君在位满三年"的那位：汗位、雄主身后、哈里发、土崩瓦解看皇帝，苏丹、应仁看将军、苏丹；进程里又换了人，从这时起算
 #if EC_PENDING
@@ -378,23 +368,23 @@ public static class SchismSystem
         Declaring = true;
         try
         {
-            war = EmpireWorld.Current.diplomacy.startWar(claimant, core, WarTypeLibrary.normal);
+            war = EmpireWorld.Current.StartWar(claimant, core, WarKinds.Normal);
         }
         finally
         {
             Declaring = false;
         }
-        if (war?.data == null)
+        if (war?.Record == null)
         {
             Resolve(empire, $"{claimant.GetKingdomName()} 举兵未成(开不了战)");
             return;
         }
         war.SetEmpireWarType(EmpireWarType.对立国王);
-        war.data.name = string.Format(LM.Get("schism_war_name"), claimant.GetKingdomName());
+        war.Name = string.Format(LM.Get("schism_war_name"), claimant.GetKingdomName());
         data.schism_claimant_id = claimant.Key;
         data.schism_claimant_name = claimant.Ruler?.FullName() ?? "";
         data.schism_claimant_realm = claimant.GetKingdomName();
-        data.schism_war_id = war.data.id;
+        data.schism_war_id = war.Key;
         data.schism_core_capital_id = core.Capital?.data?.id ?? -1L;
         data.schism_claimant_capital_id = claimant.Capital?.data?.id ?? -1L;
         EnterStage(data, Contest, 0, GameClock.Now);
@@ -402,9 +392,9 @@ public static class SchismSystem
         var followers = new List<Realm>();
         foreach (Realm member in rebels)
         {
-            if (member == claimant || war.hasKingdom(member) || EcRandom.value >= RebelJoinChance) continue;
-            war.joinAttackers(member);
-            if (war.isAttacker(member)) followers.Add(member);
+            if (member == claimant || war.HasRealm(member) || EcRandom.value >= RebelJoinChance) continue;
+            war.JoinAttackers(member);
+            if (war.IsAttacker(member)) followers.Add(member);
         }
         // 哈里发、苏丹争位：争位一方可能另奉什叶派(见 ReligionSchismSystem)
         ReligionSchismSystem.OnSuccessionContest(empire, kind, claimant, followers);
@@ -413,16 +403,16 @@ public static class SchismSystem
         foreach (Realm member in empire.kingdoms_list.ToList())
         {
             if (member?.Record == null || member.IsGone() || member == core || listed.Contains(member.Key) ||
-                member.GetEmpire() != empire || member.IsFactionRebelling() || member.IsLocalRebelling() || war.hasKingdom(member) ||
-                member.isInWarWith(core) || EcRandom.value >= LoyalJoinChance) continue;
-            war.joinDefenders(member);
-            if (war.isDefender(member)) loyal.Add(member);
+                member.GetEmpire() != empire || member.IsFactionRebelling() || member.IsLocalRebelling() || war.HasRealm(member) ||
+                member.IsAtWarWith(core) || EcRandom.value >= LoyalJoinChance) continue;
+            war.JoinDefenders(member);
+            if (war.IsDefender(member)) loyal.Add(member);
         }
         LogService.LogInfo($"{Tag} {empire.GetEmpireName()} {KindName(kind)}·破局：{data.schism_claimant_name}({claimant.GetKingdomName()}，" +
-                           $"国力 {claimant.GetNationalPower():0})举兵争位，开{war.data.name}；随攻方 {LogNames(followers)}，" +
+                           $"国力 {claimant.GetNationalPower():0})举兵争位，开{war.Name}；随攻方 {LogNames(followers)}，" +
                            $"随守方 {LogNames(loyal)}，割据观望 {Math.Max(0, rebels.Count - 1 - followers.Count)} 家；满{ContestMaxYears}年强制议和");
         Chronicle(empire, kind, "contest", empire.GetEmpireName(), data.schism_claimant_name, claimant.GetKingdomName(),
-            Title(empire, kind), war.data.name);
+            Title(empire, kind), war.Name);
     }
 #endif
 
@@ -460,27 +450,27 @@ public static class SchismSystem
             return;
         }
         Realm claimant = LiveKingdom(data.schism_claimant_id);
-        if (claimant == null || claimant.GetEmpire() != empire || !war.hasKingdom(claimant))
+        if (claimant == null || claimant.GetEmpire() != empire || !war.HasRealm(claimant))
         {
-            EmpireWorld.Current.wars.endWar(war, WarWinner.Defenders);
+            EmpireWorld.Current.EndWar(war, WarOutcome.Defenders);
             return;
         }
-        if (!war.hasKingdom(empire.CoreKingdom))
+        if (!war.HasRealm(empire.CoreKingdom))
         {
-            EmpireWorld.Current.wars.endWar(war, WarWinner.Attackers);
+            EmpireWorld.Current.EndWar(war, WarOutcome.Attackers);
             return;
         }
         // 决胜：攻下对方都城即定胜负(都城落到对方那一边任何一家手里都算)
         if (CapitalFallen(war, data.schism_core_capital_id, attackerSide: true))
         {
             LogService.LogInfo($"{Tag} {empire.GetEmpireName()} 争位之战：{data.schism_claimant_name}一方攻下中央都城，定局");
-            EmpireWorld.Current.wars.endWar(war, WarWinner.Attackers);
+            EmpireWorld.Current.EndWar(war, WarOutcome.Attackers);
             return;
         }
         if (CapitalFallen(war, data.schism_claimant_capital_id, attackerSide: false))
         {
             LogService.LogInfo($"{Tag} {empire.GetEmpireName()} 争位之战：中央攻下{data.schism_claimant_realm}都城，定局");
-            EmpireWorld.Current.wars.endWar(war, WarWinner.Defenders);
+            EmpireWorld.Current.EndWar(war, WarOutcome.Defenders);
             return;
         }
         float years = WarSituation.WarYears(war);
@@ -492,47 +482,45 @@ public static class SchismSystem
                 bool attackersWin = attackers > defenders;
                 LogService.LogInfo($"{Tag} {empire.GetEmpireName()} 争位之战打满{years:0.0}年，兵力 攻{attackers}/守{defenders}，" +
                                    $"{(attackersWin ? "守方" : "攻方")}认输");
-                EmpireWorld.Current.wars.endWar(war, attackersWin ? WarWinner.Attackers : WarWinner.Defenders);
+                EmpireWorld.Current.EndWar(war, attackersWin ? WarOutcome.Attackers : WarOutcome.Defenders);
                 return;
             }
         }
-        if (years >= ContestMaxYears) EmpireWorld.Current.wars.endWar(war, WarWinner.Peace);
+        if (years >= ContestMaxYears) EmpireWorld.Current.EndWar(war, WarOutcome.Peace);
     }
 #endif
 
     // 开战时某一方的都城(cityId)眼下落在另一方手里
-#if EC_PENDING
     private static bool CapitalFallen(War war, long cityId, bool attackerSide)
     {
         if (cityId < 0 || EmpireWorld.Current?.Cities == null) return false;
         City city = EmpireWorld.Current.CityByKey(cityId);
         Realm holder = city?.Realm;
-        if (holder?.Record == null || holder.IsGone() || !war.hasKingdom(holder)) return false;
-        return attackerSide ? war.isAttacker(holder) : war.isDefender(holder);
+        if (holder?.Record == null || holder.IsGone() || !war.HasRealm(holder)) return false;
+        return attackerSide ? war.IsAttacker(holder) : war.IsDefender(holder);
     }
-#endif
 
     // 一方(连同随它参战的成员)眼下的兵力
 #if EC_PENDING
     private static int SideWarriors(War war, bool attackers) =>
-        (attackers ? war._list_attackers : war._list_defenders)
-        .Where(kingdom => kingdom?.data != null && !kingdom.IsGone()).Sum(kingdom => kingdom.countTotalWarriors());
+        (attackers ? war.Attackers : war.Defenders)
+        .Where(kingdom => kingdom?.Record != null && !kingdom.IsGone()).Sum(kingdom => kingdom.countTotalWarriors());
 #endif
 
     // 战争结束(WarPatch.end_war，在神罗的结算之后)：记中央打赢一仗(化解用)；争位之战的结局
 #if EC_PENDING
-    public static void OnWarEnded(War war, WarWinner winner)
+    public static void OnWarEnded(War war, WarOutcome winner)
     {
         try
         {
-            if (war?.data == null || ModClass.EMPIRE_MANAGER == null || EmpireWorld.Current == null) return;
+            if (war?.Record == null || ModClass.EMPIRE_MANAGER == null || EmpireWorld.Current == null) return;
             // 打赢一仗：核心是主攻方或主守方，且是胜方
-            Realm victor = winner == WarWinner.Attackers ? war.getMainAttacker()
-                : winner == WarWinner.Defenders ? war.getMainDefender() : null;
+            Realm victor = winner == WarOutcome.Attackers ? war.GetMainAttacker()
+                : winner == WarOutcome.Defenders ? war.GetMainDefender() : null;
             if (victor?.Record != null && !victor.IsGone() && victor.GetEmpire() is Empire won && won.data != null &&
                 won.CoreKingdom == victor)
                 won.data.schism_last_victory_at = GameClock.Now;
-            long id = war.data.id;
+            long id = war.Key;
             foreach (Empire empire in ModClass.EMPIRE_MANAGER.ToList())
             {
                 if (empire?.data == null || empire.IsGone() || empire.IsArchived() || empire.data.schism_kind == None ||
@@ -551,12 +539,12 @@ public static class SchismSystem
     // 争位之战的结局：攻方胜且争位者还在帝国里——立为新君(新苏丹、新将军)，立不起来按相持分裂；守方胜或争位者已亡、已离开——兵败，
     // 诸部复服(守方胜正统 +5)；议和(满五年强制或中途)——相持分裂，争位者与随攻方的割据成员离开帝国各自独立
 #if EC_PENDING
-    private static void Settle(Empire empire, War war, WarWinner winner)
+    private static void Settle(Empire empire, War war, WarOutcome winner)
     {
         EmpireData data = empire.data;
         int kind = data.schism_kind;
         // 同盟把两场仗并成一场(Merged)不是议和：争位之战已不单独存在，进程作罢，不按相持分裂
-        if (winner == WarWinner.Merged)
+        if (winner == WarOutcome.Merged)
         {
             data.schism_war_id = -1L;
             Abandon(empire, "争位之战并入了另一场仗");
@@ -569,9 +557,9 @@ public static class SchismSystem
         string name = empire.GetEmpireName(), title = Title(empire, kind);
         int years = Mathf.Max(1, Mathf.FloorToInt(WarSituation.WarYears(war)));
         // 随攻方的割据成员(争位者之外、还在帝国里的)：结束钩子里双方名单还在
-        List<Realm> followers = Members(empire).Where(member => member != claimant && war.isAttacker(member)).ToList();
+        List<Realm> followers = Members(empire).Where(member => member != claimant && war.IsAttacker(member)).ToList();
         data.schism_war_id = -1L;
-        if (winner == WarWinner.Attackers && present)
+        if (winner == WarOutcome.Attackers && present)
         {
             // 先记冷却再立新君：换了家族时先朝宗室下个月的另立随之被挡住(见 EmpirePartitionSystem.Restore)
             UpheavalGuard.Mark(empire, $"{KindName(kind)}·争位者得胜", detail: $"{realm}的{person}入主");
@@ -587,7 +575,7 @@ public static class SchismSystem
             }
             LogService.LogInfo($"{Tag} {name} {KindName(kind)}·争位之战攻方胜，但{person}({realm})立不起来，按相持分裂收场");
         }
-        if (!present || winner == WarWinner.Defenders)
+        if (!present || winner == WarOutcome.Defenders)
         {
             // 汗位、雄主身后的争位兵败(用户 2026-10-27 选"远的兀鲁思不复归")：随之起事的部里离汗廷远的(连争位者自己)不再奉令，
             // 各自为汗(离开帝国，不另开战)；近的复归
@@ -615,11 +603,11 @@ public static class SchismSystem
             }
             List<Realm> back = Members(empire);
             Restore(empire, back);
-            if (winner == WarWinner.Defenders) empire.AddMandate(DefenderMandate);
+            if (winner == WarOutcome.Defenders) empire.AddMandate(DefenderMandate);
             UpheavalGuard.Mark(empire, $"{KindName(kind)}·争位者兵败", detail: present ? $"{realm}归降" : $"{realm}已亡或已离开帝国");
-            LogService.LogInfo($"{Tag} {name} {KindName(kind)}·争位之战{(winner == WarWinner.Defenders ? "守方胜" : $"收场({winner})")}：" +
+            LogService.LogInfo($"{Tag} {name} {KindName(kind)}·争位之战{(winner == WarOutcome.Defenders ? "守方胜" : $"收场({winner})")}：" +
                                $"{person}({realm}){(present ? "兵败归降" : "已亡或已离开帝国")}，{LogNames(back)} 复奉号令" +
-                               $"{(winner == WarWinner.Defenders ? $"，中央正统 +{DefenderMandate}" : "")}");
+                               $"{(winner == WarOutcome.Defenders ? $"，中央正统 +{DefenderMandate}" : "")}");
             Chronicle(empire, kind, "failed", name, person, realm, title);
             Clear(empire);
             return;
@@ -1021,7 +1009,7 @@ public static class SchismSystem
     private static War LiveWar(long id)
     {
         War war = id >= 0 ? EmpireWorld.Current?.wars?.get(id) : null;
-        return war?.data != null && war.Alive && !war.hasEnded() ? war : null;
+        return war?.Record != null && war.Alive && !war.HasEnded() ? war : null;
     }
 #endif
 

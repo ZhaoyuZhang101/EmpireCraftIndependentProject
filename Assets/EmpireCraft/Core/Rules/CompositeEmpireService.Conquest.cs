@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/CompositeEmpireService.Conquest.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/CompositeEmpireService.Conquest.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -91,7 +91,7 @@ public static partial class CompositeEmpireService
                 EcRandom.value >= OldGuardChance) continue;
             string name = member.GetKingdomFullName();
             empire.leave(member);
-            War war = DiplomacyHelpers.wars.newWar(member, core, WarTypeLibrary.normal);
+            War war = DiplomacyHelpers.wars.newWar(member, core, WarKinds.Normal);
             war?.SetEmpireWarType(EmpireCraft.Core.EmpireWarType.地方独立);
             EventRecorder.Record(empire, actor: member.Ruler, logKingdom: member, text: string.Format(
                 LM.Get("composite_old_guard_history"), oldRuling.GetCultureTranslate(), empire.GetEmpireName(),

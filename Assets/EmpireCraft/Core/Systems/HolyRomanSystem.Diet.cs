@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/HolyRomanSystem.Diet.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/HolyRomanSystem.Diet.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -46,6 +46,7 @@ public static partial class HolyRomanSystem
         empire?.data != null && !empire.IsGone() && !empire.IsArchived() && empire.CoreKingdom?.Record != null &&
         !empire.CoreKingdom.IsGone() && empire.CoreKingdom.GetRegime()?.type == RegimeType.Feudalism &&
         !PapacySystem.IsHolySee(empire) && Members(empire).Count >= 2;
+#endif
 
     public static List<Realm> Members(Empire empire) =>
         empire?.kingdoms_list?.Where(kingdom => kingdom?.Record != null && !kingdom.IsGone() && kingdom != empire.CoreKingdom &&
@@ -57,7 +58,6 @@ public static partial class HolyRomanSystem
         HolyRomanState state = State(empire);
         return state != null && kingdom.Key == state.banned_kingdom_id;
     }
-#endif
 
     // 三院席位：选帝侯(本人)，其余成员国按自由城市与诸侯分院；被禁者不得列席
 #if EC_PENDING
@@ -130,9 +130,9 @@ public static partial class HolyRomanSystem
             case AgendaWar when subject != null:
                 score += 0.05f;
                 if (subject.hasReligion() && core.hasReligion() && subject.religion != core.religion) score += 0.3f;
-                if (CoreWarWith(empire, subject)?.isDefender(core) == true) score += 0.3f;
+                if (CoreWarWith(empire, subject)?.IsDefender(core) == true) score += 0.3f;
                 if (realm != core && realm.IsNeighbourWith(subject)) score += 0.15f;
-                if (realm.isInWarWith(subject)) score += 0.4f;
+                if (realm.IsAtWarWith(subject)) score += 0.4f;
                 if (Allied(realm, subject)) score -= 0.6f;
                 if (SameHouse(realm.Ruler, subject.Ruler)) score -= 0.5f;
                 break;
@@ -168,14 +168,13 @@ public static partial class HolyRomanSystem
 #endif
 
     // 中央与外敌(不在本帝国的)交战、中央领头的仗
-#if EC_PENDING
     private static IEnumerable<Realm> OutsideFoes(Empire empire)
     {
         Realm core = empire.CoreKingdom;
-        foreach (War war in core.getWars())
+        foreach (War war in core.GetWars())
         {
-            if (war?.data == null || !war.Alive || war.hasEnded()) continue;
-            Realm foe = war.main_attacker == core ? war.main_defender : war.main_defender == core ? war.main_attacker : null;
+            if (war?.Record == null || !war.Alive || war.HasEnded()) continue;
+            Realm foe = war.MainAttacker == core ? war.MainDefender : war.MainDefender == core ? war.MainAttacker : null;
             if (foe?.Record != null && !foe.IsGone() && foe.GetEmpire() != empire) yield return foe;
         }
     }
@@ -183,18 +182,19 @@ public static partial class HolyRomanSystem
     private static War CoreWarWith(Empire empire, Realm foe)
     {
         Realm core = empire.CoreKingdom;
-        return core.getWars().FirstOrDefault(war => war?.data != null && war.Alive && !war.hasEnded() &&
-                                                     (war.main_attacker == core && war.main_defender == foe ||
-                                                      war.main_defender == core && war.main_attacker == foe));
+        return core.GetWars().FirstOrDefault(war => war?.Record != null && war.Alive && !war.HasEnded() &&
+                                                     (war.MainAttacker == core && war.MainDefender == foe ||
+                                                      war.MainDefender == core && war.MainAttacker == foe));
     }
 
+#if EC_PENDING
     public static War ImperialWar(Empire empire) => LiveWar(State(empire)?.imperial_war_id ?? -1L);
     public static War BanWar(Empire empire) => LiveWar(State(empire)?.ban_war_id ?? -1L);
 
     private static War LiveWar(long id)
     {
         War war = id >= 0 ? EmpireWorld.Current?.wars?.get(id) : null;
-        return war?.data != null && war.Alive && !war.hasEnded() ? war : null;
+        return war?.Record != null && war.Alive && !war.HasEnded() ? war : null;
     }
 #endif
 
@@ -246,7 +246,7 @@ public static partial class HolyRomanSystem
         foreach (Realm foe in OutsideFoes(empire))
         {
             War war = CoreWarWith(empire, foe);
-            if (war != null && war.data.id != state.imperial_war_id && war.data.id != state.last_war_agenda_id)
+            if (war != null && war.Key != state.imperial_war_id && war.Key != state.last_war_agenda_id)
                 return (AgendaWar, foe);
         }
         // 禁令要花权威 10，AI 留 10 的余量(权威不到 20 不提)
@@ -364,16 +364,16 @@ public static partial class HolyRomanSystem
                 subject.Ruler?.RecordPersonalHistory(string.Format(LM.Get("personal_history_imperial_ban"), empire.GetEmpireFullName()));
                 Realm executor = Executor(empire, subject);
                 if (executor == null) return LM.Get("hre_diet_ban_no_executor");
-                War war = EmpireWorld.Current.diplomacy.startWar(executor, subject, WarTypeLibrary.normal);
-                if (war?.data == null) return LM.Get("hre_diet_ban_no_executor");
+                War war = EmpireWorld.Current.StartWar(executor, subject, WarKinds.Normal);
+                if (war?.Record == null) return LM.Get("hre_diet_ban_no_executor");
                 war.SetEmpireWarType(EmpireWarType.伐不臣);
                 WarGoalSystem.Preset(war, WarGoal.割地);
-                war.data.name = string.Format(LM.Get("hre_ban_war_name"), subject.GetKingdomName());
-                state.ban_war_id = war.data.id;
+                war.Name = string.Format(LM.Get("hre_ban_war_name"), subject.GetKingdomName());
+                state.ban_war_id = war.Key;
                 foreach (Realm member in Members(empire).Where(member => member != executor && member != subject &&
                              ballots.TryGetValue(member, out bool yes) && yes && member.IsNeighbourWith(subject) &&
-                             !war.hasKingdom(member) && !Allied(member, subject)).Take(2))
-                    war.joinAttackers(member);
+                             !war.HasRealm(member) && !Allied(member, subject)).Take(2))
+                    war.JoinAttackers(member);
                 return string.Format(LM.Get("hre_diet_ban_outcome"), executor.GetKingdomName());
             }
             case AgendaMediatize:
@@ -396,7 +396,7 @@ public static partial class HolyRomanSystem
                 long total = 0;
                 foreach (Realm member in Members(empire))
                 {
-                    if (member.isInWarWith(core) || IsBanned(member)) continue;
+                    if (member.IsAtWarWith(core) || IsBanned(member)) continue;
                     if (Refuses(empire, member, ballots))
                     {
                         refused.Add(member.GetKingdomName());
@@ -423,7 +423,7 @@ public static partial class HolyRomanSystem
     private static string CallToArms(Empire empire, HolyRomanState state, War war, Realm subject, Dictionary<Realm, bool> ballots)
     {
         Realm core = empire.CoreKingdom;
-        bool attacking = war.isAttacker(core);
+        bool attacking = war.IsAttacker(core);
         var refused = new List<string>();
         int answered = 0, already = 0, opposed = 0, allied = 0, banned = 0, failed = 0;
         float troops = 0f;
@@ -435,8 +435,8 @@ public static partial class HolyRomanSystem
                 banned++;
                 continue;
             }
-            bool inWar = war.hasKingdom(member);
-            if (member.isInWarWith(core) || inWar && (attacking ? !war.isAttacker(member) : !war.isDefender(member)))
+            bool inWar = war.HasRealm(member);
+            if (member.IsAtWarWith(core) || inWar && (attacking ? !war.IsAttacker(member) : !war.IsDefender(member)))
             {
                 opposed++;
                 continue;
@@ -455,22 +455,22 @@ public static partial class HolyRomanSystem
             if (inWar) already++;
             else
             {
-                if (attacking) war.joinAttackers(member);
-                else war.joinDefenders(member);
-                if (!war.hasKingdom(member))
+                if (attacking) war.JoinAttackers(member);
+                else war.JoinDefenders(member);
+                if (!war.HasRealm(member))
                 {
                     failed++;
                     continue;
                 }
             }
             WarScopeSystem.Dispatch(member, war);
-            FrontSystem.Log(member, string.Format(LM.Get("hre_corps_log_call_to_arms"), war.data.name));
+            FrontSystem.Log(member, string.Format(LM.Get("hre_corps_log_call_to_arms"), war.Name));
             answered++;
             troops += Troops(member);
             if (!state.imperial_war_members.Contains(member.Key)) state.imperial_war_members.Add(member.Key);
         }
-        state.imperial_war_id = war.data.id;
-        LogService.LogInfo($"[EmpireCraft][神罗诊断] {empire.GetEmpireFullName()} 帝国战争「{war.data.name}」：应征出兵 {answered} 国" +
+        state.imperial_war_id = war.Key;
+        LogService.LogInfo($"[EmpireCraft][神罗诊断] {empire.GetEmpireFullName()} 帝国战争「{war.Name}」：应征出兵 {answered} 国" +
                            $"(原已随中央参战 {already}、新加入 {answered - already})，兵力约 {troops:0}；抗命 {refused.Count}；" +
                            $"未征——与中央交战或在敌方 {opposed}、与敌国同盟 {allied}、被禁 {banned}、加入失败 {failed}");
         return string.Format(LM.Get("hre_diet_war_troops_outcome"), answered, Names(refused), CorpsSystem.ShortStrength(troops));
@@ -506,7 +506,7 @@ public static partial class HolyRomanSystem
     private static Realm Executor(Empire empire, Realm target)
     {
         int strength = target.countTotalWarriors();
-        bool Eligible(Realm kingdom) => kingdom != target && !kingdom.isInWarWith(target) && !Allied(kingdom, target) &&
+        bool Eligible(Realm kingdom) => kingdom != target && !kingdom.IsAtWarWith(target) && !Allied(kingdom, target) &&
                                           !SameHouse(kingdom.Ruler, target.Ruler) && kingdom.HasRuler() &&
                                           kingdom.countTotalWarriors() >= strength * 0.8f;
         HolyRomanState state = State(empire);
@@ -520,7 +520,7 @@ public static partial class HolyRomanSystem
             .OrderByDescending(kingdom => kingdom.countTotalWarriors()).FirstOrDefault();
         if (neighbour != null) return neighbour;
         Realm core = empire.CoreKingdom;
-        return core.countTotalWarriors() >= strength && !core.isInWarWith(target) ? core : null;
+        return core.countTotalWarriors() >= strength && !core.IsAtWarWith(target) ? core : null;
     }
 #endif
 
@@ -551,12 +551,12 @@ public static partial class HolyRomanSystem
 
     // 战争结束(WarPatch 在开战目标结算之后调用)：帝国战争、执行禁令的战争、宗教战争、护佑之战、诸侯私战
 #if EC_PENDING
-    public static void OnWarEnded(War war, WarWinner winner)
+    public static void OnWarEnded(War war, WarOutcome winner)
     {
         try
         {
-            if (war?.data == null || ModClass.EMPIRE_MANAGER == null) return;
-            long id = war.data.id;
+            if (war?.Record == null || ModClass.EMPIRE_MANAGER == null) return;
+            long id = war.Key;
             foreach (Empire empire in ModClass.EMPIRE_MANAGER.ToList())
             {
                 HolyRomanState state = empire?.data?.holy_roman;
@@ -574,19 +574,19 @@ public static partial class HolyRomanSystem
                 if (id != state.imperial_war_id && id != state.ban_war_id && id != state.league_war_id &&
                     state.protect_wars?.ContainsKey(id) != true) continue;
                 (int attackerGain, int defenderGain) = WarGoalSystem.Gains(war);
-                bool attackersWon = winner == WarWinner.Attackers || winner == WarWinner.Peace && attackerGain >= defenderGain + 1;
-                bool defendersWon = winner == WarWinner.Defenders || winner == WarWinner.Peace && defenderGain >= attackerGain + 1;
+                bool attackersWon = winner == WarOutcome.Attackers || winner == WarOutcome.Peace && attackerGain >= defenderGain + 1;
+                bool defendersWon = winner == WarOutcome.Defenders || winner == WarOutcome.Peace && defenderGain >= attackerGain + 1;
                 if (id == state.imperial_war_id)
                 {
-                    bool coreAttacking = war._list_attackers.Contains(empire.CoreKingdom) || war.main_attacker == empire.CoreKingdom;
+                    bool coreAttacking = war.Attackers.Contains(empire.CoreKingdom) || war.MainAttacker == empire.CoreKingdom;
                     bool won = coreAttacking ? attackersWon : defendersWon;
                     bool lost = coreAttacking ? defendersWon : attackersWon;
                     if (won) empire.AddMandate(ImperialWarWin);
                     if (lost) empire.AddMandate(ImperialWarLoss);
-                    if (won) ChangeAuthority(empire, AuthImperialWarWin, "hre_auth_imperial_war_won", war.data.name);
-                    if (lost) ChangeAuthority(empire, AuthImperialWarLoss, "hre_auth_imperial_war_lost", war.data.name);
+                    if (won) ChangeAuthority(empire, AuthImperialWarWin, "hre_auth_imperial_war_won", war.Name);
+                    if (lost) ChangeAuthority(empire, AuthImperialWarLoss, "hre_auth_imperial_war_lost", war.Name);
                     Record(empire, string.Format(LM.Get(won ? "hre_imperial_war_won_history" : lost ? "hre_imperial_war_lost_history"
-                        : "hre_imperial_war_peace_history"), war.data.name));
+                        : "hre_imperial_war_peace_history"), war.Name));
                     state.imperial_war_id = -1L;
                     state.imperial_war_members?.Clear();
                 }

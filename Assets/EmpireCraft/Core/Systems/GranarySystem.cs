@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/GranarySystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/GranarySystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System.Collections.Generic;
@@ -18,9 +18,7 @@ public static class GranarySystem
     private static readonly Dictionary<Realm, (int cities, float amount)> ReliefThisYear = new();
     private static readonly Dictionary<Realm, (double at, float value)> EfficiencyCache = new();
 
-#if EC_PENDING
     public static Realm ModRealm(Realm kingdom) => kingdom?.GetEmpire()?.CoreKingdom ?? kingdom;
-#endif
 
     // 推行郡县制(各文明的中央集权官僚制度，制度特性 state_granary)之后才有国家粮仓；现代国家都有。
     // 之前的分封时代收成全留地方，也没有国家赈灾
@@ -36,6 +34,7 @@ public static class GranarySystem
         string culture = CultureService.GetInstitutionCulture(realm);
         return CultureService.IsValidCulture(culture) && InstitutionSystem.HasFeature(culture, FeatureStateGranary);
     }
+#endif
 
     public static ConstitutionGrain Policy(Realm kingdom)
     {
@@ -43,7 +42,6 @@ public static class GranarySystem
         return empire == null ? ConstitutionGrain.Tribute
             : ConstitutionSystem.GetClauses(empire)?.grain ?? ConstitutionGrain.Tribute;
     }
-#endif
 
     public static float LevyShare(ConstitutionGrain policy) => policy switch
     {
@@ -52,13 +50,11 @@ public static class GranarySystem
         _ => 0.3f
     };
 
-#if EC_PENDING
     public static float Stock(Realm kingdom)
     {
         Realm realm = ModRealm(kingdom);
         return realm == null || realm.IsGone() ? 0f : realm.GetOrCreate().granary;
     }
-#endif
 
     // 收成：按政策交国家粮仓的部分存进粮仓，返回留给本城的部分。只从余粮里征(见 SurplusShare)
 #if EC_PENDING

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/Layer/Empire.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/Layer/Empire.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -737,6 +737,7 @@ public class Empire : RecordObject<EmpireData>
         if (installed) TransferSovereignTitles(previousHead, actor, core, stateTitleIds);
         return installed;
     }
+#endif
 
     private static List<long> SnapshotSovereignTitles(Person head, Realm core)
     {
@@ -746,16 +747,17 @@ public class Empire : RecordObject<EmpireData>
             foreach (long titleId in core.GetRealmTitleIds()) titleIds.Add(titleId);
         }
         return titleIds.Where(titleId => titleId > 0 &&
-            ModClass.KINGDOM_TITLE_MANAGER.get(titleId) != null).ToList();
+            ModClass.KINGDOM_TITLE_MANAGER.Get(titleId) != null).ToList();
     }
 
+#if EC_PENDING
     private static void TransferSovereignTitles(Person previousHead, Person newHead, Realm core,
         IEnumerable<long> titleIds)
     {
         if (newHead == null || core == null || titleIds == null) return;
         foreach (long titleId in titleIds.Distinct())
         {
-            KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER.get(titleId);
+            KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER.Get(titleId);
             if (title == null || title.IsGone()) continue;
             if (previousHead != null && previousHead != newHead)
                 previousHead.GetOwnedTitle()?.Remove(title.Key);
@@ -841,7 +843,7 @@ public class Empire : RecordObject<EmpireData>
                     if (clan.id == data.empire_specific_clan)
                     {
                         leave(k);
-                        DiplomacyHelpers.wars.newWar(k, CoreKingdom, WarTypeLibrary.normal);
+                        DiplomacyHelpers.wars.newWar(k, CoreKingdom, WarKinds.Normal);
                     }
                 }
                 bool restoredHouse = currentSpecificClan.HasHistoryEmpire();
@@ -1237,7 +1239,6 @@ public class Empire : RecordObject<EmpireData>
         return GameClock.YearsSince(this.data.newEmperor_timestamp) + 1;
     }
 
-#if EC_PENDING
     public string GetYearNameWithTime()
     {
         if (IsRepublicState) return RepublicSystem.GetCalendarText(this);
@@ -1266,7 +1267,6 @@ public class Empire : RecordObject<EmpireData>
         }
         return "";
     }
-#endif
 
     public bool CanJoinWar()
     {
@@ -1633,7 +1633,7 @@ public class Empire : RecordObject<EmpireData>
             lineage = new List<long>();
             ModClass.FEUDAL_EMPIRE_LINEAGE[coreName] = lineage;
         }
-        int fallen = lineage.Count(id => id != data.id && ModClass.EMPIRE_MANAGER.get(id) == null);
+        int fallen = lineage.Count(id => id != data.id && ModClass.EMPIRE_MANAGER.Get(id) == null);
         if (!lineage.Contains(data.id)) lineage.Add(data.id);
         data.western_ordinal = fallen + 1;
         if (data.western_ordinal >= 2) data.directPre = "";
@@ -2657,7 +2657,6 @@ public class Empire : RecordObject<EmpireData>
 #endif
 
     // Token: 0x06001126 RID: 4390 RVA: 0x000C7810 File Offset: 0x000C5A10
-#if EC_PENDING
     public void RefreshCompatibilityMembership()
     {
         if (!AncientWarfareCompatibility.Loaded || AncientWarfareCompatibility.Owns(CoreKingdom)) return;
@@ -2666,6 +2665,7 @@ public class Empire : RecordObject<EmpireData>
         cities_list.RemoveAll(c => AncientWarfareCompatibility.OwnsObject(c));
     }
 
+#if EC_PENDING
     public void recalculate()
     {
         if (AncientWarfareCompatibility.Owns(CoreKingdom)) return;
@@ -2923,7 +2923,7 @@ public class Empire : RecordObject<EmpireData>
         // 不许自立(见 SecessionGate)：开关开着时成员国不叛离；已经在叛乱、在跟中央打的照原规矩收尾。
         // 调用方离开后都看 GetEmpire / IsInEmpire 判成没成
         if (isLeave && pKingdom != CoreKingdom && !pKingdom.IsGone() && !pKingdom.IsLocalRebelling() &&
-            !pKingdom.IsFactionRebelling() && (CoreKingdom == null || !pKingdom.isInWarWith(CoreKingdom)) &&
+            !pKingdom.IsFactionRebelling() && (CoreKingdom == null || !pKingdom.IsAtWarWith(CoreKingdom)) &&
             SecessionGate.Forbids("叛离帝国", $"{pKingdom.Record?.Name}(离 {data?.name})"))
             return;
         if (isLeave)
@@ -3070,6 +3070,7 @@ public class Empire : RecordObject<EmpireData>
         }
         return tResult;
     }
+#endif
 
     public List<City> AllCities()
     {
@@ -3077,6 +3078,7 @@ public class Empire : RecordObject<EmpireData>
     }
 
 
+#if EC_PENDING
     public int countCities()
     {
         int tResult = 0;
@@ -3119,7 +3121,6 @@ public class Empire : RecordObject<EmpireData>
     {
         return data.cached_warriors_max;
     }
-#if EC_PENDING
     public void calculateDoesHaveTitle ()
     {
         foreach(KingdomTitle title in ModClass.KINGDOM_TITLE_MANAGER)
@@ -3127,7 +3128,6 @@ public class Empire : RecordObject<EmpireData>
             var title_cities = title.city_list;
         }
     }
-#endif
     // Token: 0x06001134 RID: 4404 RVA: 0x000C7ED5 File Offset: 0x000C60D5
 #if EC_PENDING
     public static bool isSame(Alliance pAlliance1, Alliance pAlliance2)
@@ -3137,21 +3137,19 @@ public class Empire : RecordObject<EmpireData>
 #endif
 
     // Token: 0x06001135 RID: 4405 RVA: 0x000C7EE4 File Offset: 0x000C60E4
-#if EC_PENDING
     public bool hasWarsWith(Realm pKingdom)
     {
         List<Realm> tKingdoms = this.kingdoms_list;
         for (int i = 0; i < tKingdoms.Count; i++)
         {
             Realm tAllianceKingdom = tKingdoms[i];
-            if (pKingdom.isInWarWith(tAllianceKingdom))
+            if (pKingdom.IsAtWarWith(tAllianceKingdom))
             {
                 return true;
             }
         }
         return false;
     }
-#endif
 
     // Token: 0x06001136 RID: 4406 RVA: 0x000C7F1D File Offset: 0x000C611D
 #if EC_PENDING
@@ -3188,7 +3186,7 @@ public class Empire : RecordObject<EmpireData>
 #if EC_PENDING
     public bool hasWars()
     {
-        return EmpireWorld.Current.wars.hasWars(this.CoreKingdom);
+        return EmpireWorld.Current.HasWars(this.CoreKingdom);
     }
 #endif
 
@@ -3196,7 +3194,7 @@ public class Empire : RecordObject<EmpireData>
 #if EC_PENDING
     public IEnumerable<War> getWars(bool pRandom = false)
     {
-        return EmpireWorld.Current.wars.getWars(this.CoreKingdom, pRandom);
+        return EmpireWorld.Current.LiveWars.getWars(this.CoreKingdom, pRandom);
     }
 #endif
 
@@ -3213,20 +3211,20 @@ public class Empire : RecordObject<EmpireData>
             for (int i = 0; i < tWars.Count(); i++)
             {
                 War tWar = tWars.ElementAt(i);
-                if (!tWar.hasEnded())
+                if (!tWar.HasEnded())
                 {
                     for (int j = i + 1; j < tWars.Count(); j++)
                     {
                         War tWar2 = tWars.ElementAt(j);
-                        if (!tWar2.hasEnded() && tWar.isSameAs(tWar2))
+                        if (!tWar2.HasEnded() && tWar.isSameAs(tWar2))
                         {
-                            if (tWar.data.created_time < tWar2.data.created_time)
+                            if (tWar.StartedStamp < tWar2.StartedStamp)
                             {
-                                EmpireWorld.Current.wars.endWar(tWar2, WarWinner.Merged);
+                                EmpireWorld.Current.EndWar(tWar2, WarOutcome.Merged);
                             }
                             else
                             {
-                                EmpireWorld.Current.wars.endWar(tWar, WarWinner.Merged);
+                                EmpireWorld.Current.EndWar(tWar, WarOutcome.Merged);
                             }
                             this.mergeWars();
                             return;
@@ -3507,12 +3505,14 @@ public class Empire : RecordObject<EmpireData>
         }
         return changed;
     }
+#endif
 
     private bool IsLandedLegalTitleRealm(Realm kingdom)
     {
         return kingdom != null && (kingdom.GetEmpire() == this || kingdom.GetTakenAllianceEmpire() == this);
     }
 
+#if EC_PENDING
     private bool SynchronizeLandedLegalTitle(KingdomTitle title, Realm kingdom)
     {
         Person ruler = kingdom?.Ruler;
@@ -3730,13 +3730,13 @@ public class Empire : RecordObject<EmpireData>
                data.powerful_minister_id == actor.Key;
     }
 
-#if EC_PENDING
     private bool IsValidRegencyCandidate(Person actor)
     {
         return actor != null && !actor.IsGone() && actor.IsAdult() && actor != Emperor &&
                actor.Realm?.GetEmpire() == this;
     }
 
+#if EC_PENDING
     private bool HasPowerfulMinisterSupport(Person actor, Regime currentRegime)
     {
         return IsEmpressDowager(actor) ||
@@ -4407,9 +4407,9 @@ public class Empire : RecordObject<EmpireData>
             if (IsLocal(seat)) return seat;
         }
         // An honorary/virtual title alone does not command any land or army.
-        return actor.GetOwnedTitle().Select(id => ModClass.KINGDOM_TITLE_MANAGER.get(id))
+        return actor.GetOwnedTitle().Select(id => ModClass.KINGDOM_TITLE_MANAGER.Get(id))
             .Where(title => title != null && !title.IsGone() && title.owner == actor)
-            .SelectMany(title => title.getCities()).Where(IsLocal).OrderBy(city => city.id).FirstOrDefault();
+            .SelectMany(title => title.getCities()).Where(IsLocal).OrderBy(city => city.Key).FirstOrDefault();
     }
 
     private void ResolveMinisterOpposition(Person minister, int? influence = null)
@@ -4433,7 +4433,7 @@ public class Empire : RecordObject<EmpireData>
                 leader.Realm?.GetEmpire() != this || seat == CoreKingdom?.Capital) continue;
             Realm rebels = leader.IsRuler() && leader.Realm != CoreKingdom ? leader.Realm : null;
             if (rebels != null && (rebels.IsLocalRebelling() || rebels.IsFactionRebelling() ||
-                rebels.isInWarWith(CoreKingdom))) continue;
+                rebels.IsAtWarWith(CoreKingdom))) continue;
             if (rebels == null)
             {
                 leader.joinCity(seat);
@@ -4442,7 +4442,7 @@ public class Empire : RecordObject<EmpireData>
             if (rebels == null || rebels == CoreKingdom) continue;
             rebels.GetRegime()?.SetAllowArmy(true);
             rebels.GetRegime()?.SetAllowSupportCenterArmy(false);
-            War war = EmpireWorld.Current.diplomacy.startWar(rebels, CoreKingdom, WarTypeLibrary.rebellion);
+            War war = EmpireWorld.Current.StartWar(rebels, CoreKingdom, WarKinds.Rebellion);
             if (war == null) continue;
             war.SetEmpireWarType(EmpireWarType.地方叛乱, pre: CoreKingdom.Name,
                 nanoObject: this, belongingFaction: leader.GetFaction());
@@ -4459,7 +4459,7 @@ public class Empire : RecordObject<EmpireData>
     public bool CompletePowerfulMinisterUsurpation(Person actor)
     {
         if (!CanPowerfulMinisterUsurp(actor)) return false;
-        KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER.get(data.powerful_minister_title_id);
+        KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER.Get(data.powerful_minister_title_id);
         Realm coreKingdom = CoreKingdom;
         City capital = coreKingdom?.Capital;
         if (title == null || coreKingdom == null || capital == null) return false;
@@ -4793,9 +4793,11 @@ public class Empire : RecordObject<EmpireData>
         // 郡县制/中央集权/神权国家：核心王国除开国法理外还直辖别的法理时，一律划出行政区(同"普天之下")
         if (data.territorial_enfeoff_pending || acquiredCity || completedTitle || HoldsExtraDirectTitles()) AutoEnfeoff();
     }
+#endif
 
-    public bool HasTerritorialWar() => kingdoms_list.Any(kingdom => kingdom != null && !kingdom.IsGone() && kingdom.hasEnemies());
+    public bool HasTerritorialWar() => kingdoms_list.Any(kingdom => kingdom != null && !kingdom.IsGone() && kingdom.HasEnemies());
 
+#if EC_PENDING
     private bool HoldsExtraDirectTitles()
     {
         HashSet<long> protectedCities = GetProtectedDirectCityIds();
@@ -4919,6 +4921,7 @@ public class Empire : RecordObject<EmpireData>
         if (IsValidTerritorialPartition(landed) && !result.Contains(landed)) result.Add(landed);
         return result.OrderBy(kingdom => kingdom.Key).ToList();
     }
+#endif
 
     private bool IsValidTerritorialPartition(Realm kingdom)
     {
@@ -4926,6 +4929,7 @@ public class Empire : RecordObject<EmpireData>
                !AncientWarfareCompatibility.Owns(kingdom) && kingdom.GetEmpire() == this;
     }
 
+#if EC_PENDING
     private void CompleteTitlePartition(KingdomTitle title, List<Realm> targets,
         HashSet<long> protectedCities, bool atWar)
     {

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/WorldMap/ScenarioWorldExport.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/WorldMap/ScenarioWorldExport.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -706,11 +706,11 @@ public static class ScenarioWorldExport
 
         Guard("在打的仗", () =>
         {
-            foreach (War war in EmpireWorld.Current.wars.list.ToList())
+            foreach (War war in EmpireWorld.Current.LiveWars.ToList())
             {
-                if (war?.data == null || war.hasEnded() || war.isTotalWar()) continue;
+                if (war?.Record == null || war.HasEnded() || war.IsTotalWar()) continue;
                 WarGoal goal = WarGoalSystem.Get(war);
-                Add(realmId(war.main_attacker), realmId(war.main_defender), "war", true, goal == WarGoal.None ? null : goal.ToString());
+                Add(realmId(war.MainAttacker), realmId(war.MainDefender), "war", true, goal == WarGoal.None ? null : goal.ToString());
             }
         });
         Guard("同盟", () =>

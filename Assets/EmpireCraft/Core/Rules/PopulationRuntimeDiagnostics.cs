@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/PopulationRuntimeDiagnostics.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/PopulationRuntimeDiagnostics.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Time = EmpireCraft.Core.FrameClock;
 using System.Linq;
@@ -17,7 +17,7 @@ public static class PopulationRuntimeDiagnostics
     {
         // 性能诊断日志关着时不记(见 FrameProfiler.Enabled)
         if (!CityPopulationSystem.AbstractPopulationEnabled || !FrameProfiler.Enabled) { _active = false; return; }
-        if (EmpireWorld.Current?.Cities == null || !Config.game_loaded || Config.paused || SmoothLoader.isLoading()) return;
+        if (EmpireWorld.Current?.Cities == null || !GameClock.Running || GameClock.Paused || SmoothLoader.isLoading()) return;
         bool started = !_active || !ReferenceEquals(_world, EmpireWorld.Current) || Time.unscaledTime < _at;
         if (started)
         {

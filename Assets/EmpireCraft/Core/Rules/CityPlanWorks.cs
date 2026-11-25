@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/CityPlanWorks.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/CityPlanWorks.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
@@ -78,12 +78,9 @@ public static class CityPlanWorks
     #region 城墙
 
     // 这一格是城池全图筑的城墙(由城市平面图画，MapWallOverlay 不画成长城)
-#if EC_PENDING
     internal static bool Planned(int tileId) => Registry() && PlannedWalls.Contains(tileId);
-#endif
 
     // 各城城墙上的城门格(WallGateSystem 收作关门)
-#if EC_PENDING
     internal static IReadOnlyCollection<int> PlannedGates
     {
         get
@@ -92,10 +89,8 @@ public static class CityPlanWorks
             return PlannedGateTiles;
         }
     }
-#endif
 
     // 按各城的存档重收(自己改了、读档、隔 RegistrySeconds 秒；城没了的不收)；收到的变了 WallRevision 加一。有城墙格返回 true
-#if EC_PENDING
     private static bool Registry()
     {
         float now = Time.unscaledTime;
@@ -127,7 +122,6 @@ public static class CityPlanWorks
         }
         return PlannedWalls.Count > 0;
     }
-#endif
 
     // 每帧(MapWallSystem.Tick，读档同步以后)：纯净地图下隔 TickSeconds 秒给开了城墙、筑过城墙的城对一次账；城没了拆它筑的城墙
 #if EC_PENDING

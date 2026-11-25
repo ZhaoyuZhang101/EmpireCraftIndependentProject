@@ -15,6 +15,8 @@ namespace EmpireCraft.Core
         public readonly List<Person> People=new List<Person>();
         public readonly List<Clan> Clans=new List<Clan>();
         public readonly List<Realm> LiveRealms=new List<Realm>(); // living realms in founding order, kept by WorldOps
+        public readonly List<War> Wars=new List<War>();          // every war, by id
+        public readonly List<War> LiveWars=new List<War>();      // running wars, kept by WorldOps
         public readonly List<Person> Living=new List<Person>(); // living people, insertion order
         public readonly int[] TileCity;                        // city id per tile, -1 unclaimed
         public readonly Annals Annals=new Annals();
@@ -40,6 +42,11 @@ namespace EmpireCraft.Core
         // The world the ported systems act on. They are static, as in the mod, and
         // reach the world through this; EmpireSimulation sets it before every step.
         public static EmpireWorld Current;
+        // The record stores of the ported layer objects, one set per world.
+        public readonly EmpireManager Empires=new EmpireManager();
+        public readonly KingdomTitleManager Titles=new KingdomTitleManager();
+        // Makes this the world the static ported systems act on.
+        public void Activate(){Current=this;ModClass.EMPIRE_MANAGER=Empires;ModClass.KINGDOM_TITLE_MANAGER=Titles;ModClass.IS_CLEAR=false;}
 
         // Lookups by the key a ported system stored; null for none and for an entity that has ended.
         public Realm RealmByKey(long key){var x=key>=0&&key<Realms.Count?Realms[(int)key]:null;return x!=null&&x.Alive?x:null;}
@@ -47,6 +54,10 @@ namespace EmpireCraft.Core
         public Person PersonByKey(long key){var x=key>=0&&key<People.Count?People[(int)key]:null;return x!=null&&x.Alive?x:null;}
         public Clan ClanByKey(long key)=>key>=0&&key<Clans.Count?Clans[(int)key]:null;
         public double Now()=>Month;   // GameClock timestamp of this world
+        public War WarByKey(long key){var x=key>=0&&key<Wars.Count?Wars[(int)key]:null;return x!=null&&x.Alive?x:null;}
+        public bool HasWars()=>LiveWars.Count>0;
+        public War StartWar(Realm attacker,Realm defender,WarKind kind=null,bool log=true)=>WorldOps.StartWar(this,attacker,defender,kind);
+        public void EndWar(War war,WarOutcome outcome=WarOutcome.Peace){if(war!=null&&war.Alive)WorldOps.EndWar(this,war,outcome);}
 
         // Stateless deterministic randomness: the same world seed, stream, month and
         // subject always give the same draw, independent of iteration order or saves.
@@ -76,7 +87,7 @@ namespace EmpireCraft.Core
         public bool Claimable(int tile)=>tile>=0&&(Map.Water[tile]==WaterKind.Land||Map.Water[tile]==WaterKind.River);
     }
 
-    public enum AnnalKind : byte { RealmFounded, CityFounded, CityTransferred, RealmEnded, Accession, RulerDied, CapitalMoved, Secession, NewDynasty }
+    public enum AnnalKind : byte { RealmFounded, CityFounded, CityTransferred, RealmEnded, Accession, RulerDied, CapitalMoved, Secession, NewDynasty, WarStarted, WarEnded }
 
     public readonly struct AnnalEntry
     {
@@ -95,6 +106,7 @@ namespace EmpireCraft.Core
             string R(int id)=>id>=0&&id<w.Realms.Count?w.Realms[id].Name:"?";
             string C(int id)=>id>=0&&id<w.Cities.Count?w.Cities[id].Name:"?";
             string P(int id)=>id>=0&&id<w.People.Count?w.FullName(w.People[id]):"?";
+            string W(int id)=>id>=0&&id<w.Wars.Count?w.Wars[id].Name:"?";
             switch(e.Kind)
             {
                 case AnnalKind.RealmFounded: return when+"，"+P(e.B)+"据"+C(e.C)+"立"+R(e.A)+"。";
@@ -105,6 +117,8 @@ namespace EmpireCraft.Core
                 case AnnalKind.RulerDied: return when+"，"+R(e.A)+"之主"+P(e.B)+"卒，年"+e.C+"。";
                 case AnnalKind.CapitalMoved: return when+"，"+R(e.A)+"迁都"+C(e.B)+"。";
                 case AnnalKind.Secession: return when+"，"+C(e.B)+"脱离"+R(e.C)+"，自立为"+R(e.A)+"。";
+                case AnnalKind.WarStarted: return when+"，"+R(e.B)+"兴兵伐"+R(e.C)+"。";
+                case AnnalKind.WarEnded: return when+"，"+W(e.A)+"罢兵。";
                 case AnnalKind.NewDynasty: return when+"，"+R(e.A)+"易姓，"+P(e.B)+"立"+(e.C>=0&&e.C<w.Clans.Count?w.Clans[e.C].Surname:"")+"氏之朝。";
                 default: return when+"。";
             }

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/CityPopulationSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/CityPopulationSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
@@ -315,10 +315,10 @@ public static class CityPopulationSystem
         Realm realm = kingdom.GetEmpire()?.CoreKingdom ?? kingdom;
         foreach (Realm side in new[] { kingdom, realm })
         {
-            foreach (War war in side.getWars())
+            foreach (War war in side.GetWars())
             {
-                if (war == null || war.hasEnded()) continue;
-                Realm enemy = war.main_attacker == side ? war.main_defender : war.main_attacker;
+                if (war == null || war.HasEnded()) continue;
+                Realm enemy = war.MainAttacker == side ? war.MainDefender : war.MainAttacker;
                 if (enemy != null && !enemy.IsGone() && enemy != kingdom) return enemy;
             }
         }
@@ -589,7 +589,7 @@ public static class CityPopulationSystem
     public static void Tick()
     {
         EmpireWorld world = EmpireWorld.Current;
-        if (world?.Cities == null || !Config.game_loaded || Config.paused || SmoothLoader.isLoading()) return;
+        if (world?.Cities == null || !GameClock.Running || GameClock.Paused || SmoothLoader.isLoading()) return;
         if (!ReferenceEquals(_world, world)) ResetWorldState();
 
         double now = world.Now();
@@ -1440,7 +1440,7 @@ public static class CityPopulationSystem
     public static void TickFoldsOnly()
     {
         EmpireWorld world = EmpireWorld.Current;
-        if (world?.Cities == null || !Config.game_loaded || Config.paused || SmoothLoader.isLoading() ||
+        if (world?.Cities == null || !GameClock.Running || GameClock.Paused || SmoothLoader.isLoading() ||
             !ReferenceEquals(_world, world) || !AbstractPopulationEnabled) return;
         TickFolds(world, world.Now());
     }
@@ -2093,9 +2093,9 @@ public static class CityPopulationSystem
 #if EC_PENDING
     private static int GeneralRank(Person actor) =>
         (actor.is_army_captain ? 4 : 0) + (actor.army != null ? 2 : 0) + (actor.IsAdult() ? 1 : 0);
-
-    public static bool IsAtWar(City city) => city?.Realm != null && city.Realm.hasEnemies();
 #endif
+
+    public static bool IsAtWar(City city) => city?.Realm != null && city.Realm.HasEnemies();
 
     #endregion
 
@@ -2951,7 +2951,7 @@ public static class CityPopulationSystem
     {
         if (!AbstractPopulationEnabled || city?.Record == null || city.IsGone() || city.Realm == null ||
             city.Realm.IsWild || city.HasLeader()) return;
-        if (EmpireWorld.Current == null || !Config.game_loaded || SmoothLoader.isLoading()) return;
+        if (EmpireWorld.Current == null || !GameClock.Running || SmoothLoader.isLoading()) return;
         double now = GameClock.Now;
         if (LeaderRetryAt.TryGetValue(city, out double retry) && now >= 0d && now < retry) return;
         LeaderRetryAt[city] = now + LeaderRetrySeconds;
@@ -3190,7 +3190,6 @@ public static class CityPopulationSystem
     }
 
     // 这些王国名下的城市(去重，跳过已灭亡和兼容模组接管的王国)
-#if EC_PENDING
     public static IEnumerable<City> CitiesOf(IEnumerable<Realm> kingdoms)
     {
         if (kingdoms == null) yield break;
@@ -3203,7 +3202,6 @@ public static class CityPopulationSystem
                 if (city?.Record != null && !city.IsGone() && seen.Add(city)) yield return city;
         }
     }
-#endif
 
     // 把这些城市的背景人口按 keyOf 分类后加进按实体单位数出来的 counts。没开无小人模式时什么都不做
 #if EC_PENDING

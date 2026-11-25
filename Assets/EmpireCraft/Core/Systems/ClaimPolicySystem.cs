@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/ClaimPolicySystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/ClaimPolicySystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -43,13 +43,13 @@ public static class ClaimPolicySystem
         LM.Get(level > 0 ? "finance_policy_hegemony" : level < 0 ? "finance_policy_curbed" : "finance_policy_normal");
 
     // 城市公营贸易收入的倍率(MarketSystem 卖方入账时乘)
-#if EC_PENDING
     public static float TradeIncomeFactor(Realm kingdom)
     {
         int level = FinancePolicy(kingdom?.GetEmpire());
         return level > 0 ? 1.15f : level < 0 ? 0.9f : 1f;
     }
 
+#if EC_PENDING
     public static void UpdateYear(Empire empire, ConstitutionalEconomyState state)
     {
         if (empire == null || state == null) return;

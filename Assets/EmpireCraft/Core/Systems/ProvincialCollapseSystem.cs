@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/ProvincialCollapseSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/ProvincialCollapseSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -237,7 +237,7 @@ public static class ProvincialCollapseSystem
                      InstitutionSystem.HasFeature(empire, CityPopulationSystem.FeatureRegional))
                 value += ProvinceUnrest;
         }
-        if (province.getWars().Any(war => war != null && !war.hasEnded())) value -= 0.2f;
+        if (province.GetWars().Any(war => war != null && !war.HasEnded())) value -= 0.2f;
         return Mathf.Max(0f, value);
     }
 #endif
@@ -377,8 +377,8 @@ public static class ProvincialCollapseSystem
                 SchismSystem.EndRising(empire, watchers, fell);
                 return;
             }
-            War war = state.collapse_modern ? EmpireWorld.Current.wars.get(state.collapse_war_id) : null;
-            if (state.collapse_modern && (war == null || war.hasEnded()))
+            War war = state.collapse_modern ? EmpireWorld.Current.WarByKey(state.collapse_war_id) : null;
+            if (state.collapse_modern && (war == null || war.HasEnded()))
             {
                 End(state);
                 SchismSystem.EndRising(empire, SchismSystem.ReleaseWatchers(empire), false);
@@ -443,7 +443,6 @@ public static class ProvincialCollapseSystem
 #endif
 
     // 起义各省离开时带走的城；旧档(瓦解进行到一半读进来，没记过)按还在帝国外的起义各省眼下的城数估
-#if EC_PENDING
     private static int RisenCities(Empire empire, ConstitutionalEconomyState state)
     {
         if (empire.data.collapse_risen_cities >= 0) return empire.data.collapse_risen_cities;
@@ -451,7 +450,6 @@ public static class ProvincialCollapseSystem
             .Where(kingdom => kingdom?.Record != null && !kingdom.IsGone() && kingdom.GetEmpire() != empire)
             .Sum(kingdom => kingdom.Cities?.Count ?? 0);
     }
-#endif
 
     // 帝国灭亡时，没有响应起义、听命于中央的直辖成员(道、阿拉伯行省、元首制行省、军府等没有自主外交权、朝廷任命的，
     // 见 EmpirePeacePatch.Obeys)把城并入核心王国，不再随解散各自独立(用户 2026-10-21 选"瓦解收束不再全散")；
@@ -506,7 +504,7 @@ public static class ProvincialCollapseSystem
         }
         else
         {
-            war = DiplomacyHelpers.wars.newWar(province, core, WarTypeLibrary.normal);
+            war = DiplomacyHelpers.wars.newWar(province, core, WarKinds.Normal);
             if (war == null) return false;
             empire.leave(province, true, true);
             war.SetEmpireWarType(EmpireWarType.地方独立);
@@ -530,12 +528,12 @@ public static class ProvincialCollapseSystem
     private static War RiseModern(Empire empire, ConstitutionalEconomyState state, Realm province, PartyIdeology ideology)
     {
         Realm core = empire.CoreKingdom;
-        War war = EmpireWorld.Current.wars.get(state.collapse_war_id);
-        if (war == null || war.hasEnded())
+        War war = EmpireWorld.Current.WarByKey(state.collapse_war_id);
+        if (war == null || war.HasEnded())
         {
             empire.leave(province, pRecalc: true, isLeave: true);
             province.StartFactionRebelling(null);
-            war = EmpireWorld.Current.diplomacy.startWar(province, core, WarTypeLibrary.rebellion);
+            war = EmpireWorld.Current.StartWar(province, core, WarKinds.Rebellion);
             if (war == null)
             {
                 province.EndFactionRebelling();
@@ -555,13 +553,13 @@ public static class ProvincialCollapseSystem
             snapshot.republic_regional_alliance_id = -1L;
             snapshot.republic_revolution_allied_kingdom_ids = new List<long>();
             snapshot.republic_provincial = true;
-            war.data.name = string.Format(LM.Get("collapse_war_name"), province.GetKingdomName());
-            state.collapse_war_id = war.data.id;
+            war.Name = string.Format(LM.Get("collapse_war_name"), province.GetKingdomName());
+            state.collapse_war_id = war.Key;
             return war;
         }
         empire.leave(province, pRecalc: true, isLeave: true);
         province.StartFactionRebelling(null);
-        war.joinAttackers(province);
+        war.JoinAttackers(province);
         WarExtension.WarExtraData data = war.GetOrCreate();
         data.republic_revolution_allied_kingdom_ids ??= new List<long>();
         data.republic_revolution_allied_kingdom_ids.Add(province.Key);
@@ -589,12 +587,12 @@ public static class ProvincialCollapseSystem
 #if EC_PENDING
     private static void CheckAbdication(ConstitutionalEconomyState state, War war)
     {
-        if (war == null || war.hasEnded() || state.collapse_origin_cities <= 0) return;
+        if (war == null || war.HasEnded() || state.collapse_origin_cities <= 0) return;
         int held = state.collapse_risen.Select(id => EmpireWorld.Current.RealmByKey(id))
             .Where(kingdom => kingdom?.Record != null && !kingdom.IsGone() && kingdom.GetEmpire() == null)
             .Sum(kingdom => kingdom.Cities?.Count ?? 0);
         if (held < state.collapse_origin_cities * AbdicationShare) return;
-        DiplomacyHelpers.wars.endWar(war, WarWinner.Attackers);
+        DiplomacyHelpers.wars.endWar(war, WarOutcome.Attackers);
     }
 #endif
 }

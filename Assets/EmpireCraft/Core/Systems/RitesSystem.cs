@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/RitesSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/RitesSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 
@@ -63,7 +63,7 @@ public static class RitesSystem
 #if EC_PENDING
     public static void OnWarDeclared(War war)
     {
-        Realm attacker = war?.main_attacker, defender = war?.main_defender;
+        Realm attacker = war?.MainAttacker, defender = war?.MainDefender;
         if (attacker == null || attacker.IsGone() || defender == null || !Has(CultureService.GetInstitutionCulture(attacker), FeatureDivination))
             return;
         float omen = Random.value;

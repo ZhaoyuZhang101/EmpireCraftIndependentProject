@@ -24,6 +24,7 @@ public static class Suspend
     {
         public string Path, Relative; public string[] Lines; public bool[] Off; public bool Dirty = true; public SyntaxTree Tree;
         public int Members; public bool Whole;
+        public readonly JArray Why = new JArray();   // one entry per suspended member: where, in which round, the first error that did it
         public string Text() { var copy = new string[Lines.Length]; for (int i = 0; i < copy.Length; i++) copy[i] = Off[i] ? "" : Lines[i]; return string.Join("\n", copy); }
     }
 
@@ -67,7 +68,7 @@ public static class Suspend
                 {
                     var span = d.Location.SourceSpan;
                     var node = root.FindNode(span.Start < root.FullSpan.End ? span : new TextSpan(Math.Max(0, root.FullSpan.End - 1), 0), getInnermostNodeForTie: true);
-                    if (Take(f, text, node)) suspended++;
+                    if (Take(f, text, node, round, d)) suspended++;
                 }
             }
             Console.WriteLine("round " + round + ": " + errors.Count + " errors" + (foreign > 0 ? " (" + foreign + " outside the sources)" : "") + ", " + suspended + " more members suspended");
@@ -96,7 +97,7 @@ public static class Suspend
             bool live = !f.Whole && HasLiveDeclaration(f);
             total += f.Lines.Length; offLines += off;
             if (live) { liveFiles++; liveLines += f.Lines.Length - off; }
-            summary[f.Relative] = new JObject { ["lines"] = f.Lines.Length, ["suspended_lines"] = off, ["suspended_members"] = f.Members, ["live"] = live };
+            summary[f.Relative] = new JObject { ["lines"] = f.Lines.Length, ["suspended_lines"] = off, ["suspended_members"] = f.Members, ["live"] = live, ["why"] = f.Why };
             File.WriteAllText(f.Path, Wrap(f));
         }
         File.WriteAllText(report, new JObject { ["files"] = files.Count, ["lines"] = total, ["live_files"] = liveFiles, ["live_lines"] = liveLines, ["suspended_lines"] = offLines, ["per_file"] = summary }.ToString());
@@ -113,7 +114,21 @@ public static class Suspend
     static void All(Source f) { for (int i = 0; i < f.Off.Length; i++) f.Off[i] = true; f.Whole = true; f.Dirty = true; }
 
     // Suspend the smallest whole-line unit around the node: its member, else its type, else the file.
-    static bool Take(Source f, SourceText text, SyntaxNode node)
+    static string NameOf(SyntaxNode unit)
+    {
+        switch (unit)
+        {
+            case MethodDeclarationSyntax m: return m.Identifier.Text;
+            case ConstructorDeclarationSyntax c: return c.Identifier.Text + "..ctor";
+            case PropertyDeclarationSyntax p: return p.Identifier.Text;
+            case BaseFieldDeclarationSyntax field: return string.Join(",", field.Declaration.Variables.Select(v => v.Identifier.Text));
+            case BaseTypeDeclarationSyntax t: return "type " + t.Identifier.Text;
+            case DelegateDeclarationSyntax d: return "delegate " + d.Identifier.Text;
+            default: return unit.Kind().ToString();
+        }
+    }
+
+    static bool Take(Source f, SourceText text, SyntaxNode node, int round, Diagnostic cause)
     {
         if (f.Whole) return false;
         for (var current = node; current != null; current = current.Parent)
@@ -143,10 +158,16 @@ public static class Suspend
             if (!balanced || depth != 0) continue;
             bool changed = false;
             for (int i = first; i <= last; i++) if (!f.Off[i]) { f.Off[i] = true; changed = true; }
-            if (changed) { f.Members++; f.Dirty = true; }
+            if (changed)
+            {
+                f.Members++; f.Dirty = true;
+                string owner = current.Ancestors().OfType<BaseTypeDeclarationSyntax>().FirstOrDefault()?.Identifier.Text;
+                f.Why.Add(new JObject { ["line"] = first + 1, ["member"] = (owner == null ? "" : owner + ".") + NameOf(current), ["round"] = round, ["error"] = cause.Id + ": " + cause.GetMessage() });
+            }
             return changed;
         }
         All(f);
+        f.Why.Add(new JObject { ["line"] = 1, ["member"] = "(whole file)", ["round"] = round, ["error"] = cause.Id + ": " + cause.GetMessage() });
         return true;
     }
 

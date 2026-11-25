@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/FrontCollapse.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/FrontCollapse.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System.Collections.Generic;
@@ -69,7 +69,7 @@ public static class FrontCollapse
     public static void Check(Realm victor, Realm foe, War war)
     {
         Realm a = ModRealm(foe), b = ModRealm(victor);
-        if (!Alive(a) || !Alive(b) || a == b || war?.data == null || EmpireWorld.Current == null) return;
+        if (!Alive(a) || !Alive(b) || a == b || war?.Record == null || EmpireWorld.Current == null) return;
         double now = GameClock.Now;
         if (CheckedAt.TryGetValue(a.Key, out double at) && now >= at && now - at < HalfMonth) return;
         CheckedAt[a.Key] = now;
@@ -128,10 +128,10 @@ public static class FrontCollapse
         foreach (long id in Collapsed.Where(pair => pair.Value == b.Key).Select(pair => pair.Key).ToList())
             Collapsed.Remove(id);
     }
+#endif
 
     private static IEnumerable<Realm> Members(Realm realm) =>
         realm.GetEmpire()?.kingdoms_list?.Where(Alive) ?? new[] { realm };
-#endif
 
     // 正规军(帝国连同各成员国)现有兵力与满编；不开军团时按士兵(连同可征之兵)与历来最多的士兵
 #if EC_PENDING
@@ -187,9 +187,9 @@ public static class FrontCollapse
         if (Weariness.TryGetValue(realm.Key, out var hit) && now >= hit.at && now - hit.at < HalfMonth * 2d) return hit.loss;
         float loss = 0f;
         if (!UnificationSystem.Unifying(realm) && !RulerTraitSystem.FounderReigns(realm))
-            foreach (War war in realm.getWars())
+            foreach (War war in realm.GetWars())
             {
-                if (war?.data == null || war.hasEnded() || !RulerTraitSystem.IsFounderUnificationWar(war)) continue;
+                if (war?.Record == null || war.HasEnded() || !RulerTraitSystem.IsFounderUnificationWar(war)) continue;
                 float years = WarSituation.WarYears(war);
                 if (years < WearyGraceYears) continue;
                 float wear = Mathf.Min(WearyYearsCap, (years - WearyGraceYears) * WearyPerYear);

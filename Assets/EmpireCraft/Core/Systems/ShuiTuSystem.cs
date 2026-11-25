@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/ShuiTuSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/ShuiTuSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -98,10 +98,10 @@ public static partial class ShuiTuSystem
         _cursor = 0;
     }
 
-#if EC_PENDING
     private static bool Valid(Realm kingdom) => kingdom?.Record != null && !kingdom.IsGone() && !kingdom.IsWild &&
                                                   !AncientWarfareCompatibility.Owns(kingdom);
 
+#if EC_PENDING
     private static bool Valid(City city) => city?.Record != null && !city.IsGone() && city.zones != null && Valid(city.Realm) &&
                                             !AncientWarfareCompatibility.OwnsObject(city);
 #endif
@@ -185,7 +185,6 @@ public static partial class ShuiTuSystem
 #endif
 
     // 政权(按所属政权)的离草档位；不在离草 0
-#if EC_PENDING
     public static int OffGrassTier(Realm kingdom)
     {
         // 开局定下朝廷的(大清、大金)本来就不是逐水草的部族，不算离草
@@ -193,7 +192,6 @@ public static partial class ShuiTuSystem
         UnitInfo unit = UnitInfoOf(kingdom);
         return unit?.Fit == Fit.Nomad && unit.OffGrass ? unit.OffTier : 0;
     }
-#endif
 
     // 只宜农地的政权直辖的旱地城：不服水土的档位；别的城 0
 #if EC_PENDING
@@ -389,7 +387,7 @@ public static partial class ShuiTuSystem
 #if EC_PENDING
     public static void Tick()
     {
-        if (EmpireWorld.Current?.LiveRealms == null || ModClass.IS_CLEAR || !Config.game_loaded || SmoothLoader.isLoading()) return;
+        if (EmpireWorld.Current?.LiveRealms == null || ModClass.IS_CLEAR || !GameClock.Running || SmoothLoader.isLoading()) return;
         if (!SimulationFrameBudget.HasTime) return;
         if (Pending.Count == 0) Refill();
         if (Pending.Count == 0) return;

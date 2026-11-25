@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/MilitaryRegency.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/MilitaryRegency.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -122,7 +122,6 @@ public static class MilitaryRegency
 #endif
 
     // 执政者本人还活着，却已不在帝国里(他的国离开了帝国)
-#if EC_PENDING
     private static bool Departed(Empire empire)
     {
         long id = empire.data.powerful_minister_id;
@@ -131,7 +130,6 @@ public static class MilitaryRegency
         return former?.Record != null && !former.IsGone() && former.Alive && former.Realm != null &&
                former.Realm.GetEmpire() != empire;
     }
-#endif
 
     // 将军、苏丹在任：保持挟制(别处的清算、换代会把挟制解开)
 #if EC_PENDING
@@ -308,7 +306,7 @@ public static class MilitaryRegency
     {
         if (member?.Record == null || member.IsGone() || member == empire.CoreKingdom || member.GetEmpire() != empire ||
             !member.HasRuler() || member.Capital == null || member.Cities == null || member.Cities.Count == 0 ||
-            member.IsFactionRebelling() || member.IsLocalRebelling() || member.isInWarWith(empire.CoreKingdom) ||
+            member.IsFactionRebelling() || member.IsLocalRebelling() || member.IsAtWarWith(empire.CoreKingdom) ||
             !RebellionSystem.CanAttempt(member)) return false;
         if (member.GetKingdomType() == KingdomType.Bakufu_tenryo || JimiSystem.IsJimiAdministration(member) ||
             JimiSystem.IsJimiRegion(member, empire)) return false;
@@ -320,9 +318,7 @@ public static class MilitaryRegency
 #endif
 
     // 够不够格执政(分裂进程挑争位者用，见 SchismSystem.PickClaimant)：有将军、苏丹的帝国里，不属皇族一系的成年人
-#if EC_PENDING
     public static bool CanTakeOver(Empire empire, Person actor) => Active(empire) && Eligible(empire, actor);
-#endif
 
     // 分裂进程的争位之战里争位者得胜(见 SchismSystem，用户 2026-10-21 选"争位内战代替集体出走")：争位者一家取代原执政家，
     // 成为将军家、苏丹家——照被拉下马另择一家的写法(Install；将军家换了一家另开幕府，王朝积弊重新起算，见 Succeed)。
@@ -356,12 +352,12 @@ public static class MilitaryRegency
         if (historyKey != null && regent != null && empire.Emperor != null)
             Record(empire, string.Format(LM.Get(historyKey), empire.GetEmpireName(), regent.FullName(), empire.Emperor.FullName()));
     }
+#endif
 
     private static bool Eligible(Empire empire, Person actor) =>
         actor?.Record != null && !actor.IsGone() && actor.Alive && actor.IsAdult() && actor != empire.Emperor &&
         actor.Realm?.GetEmpire() == empire &&
         !SpecificClanManager.SameLineage(actor.GetSpecificClan(), empire.EmpireSpecificClan);
-#endif
 
     // 人选：不属皇族一系、领地最大的成员国君主(苏丹国、镇守府优先)；没有就取朝中最高的武官。
     // formerHouse：将军家易主时不再选原将军家一系(见 Succeed)

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/CityLedger.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/CityLedger.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
@@ -22,12 +22,10 @@ namespace EmpireCraft.Core
 // 台账里已有的数任何模式下都算数(中途关掉纯净地图，记过账的民居不会凭空没了)；Active 只决定新盖的记账还是落成实体、旧实体并不并入。
 public static class CityLedger
 {
-#if EC_PENDING
     public static bool Active => PureMapMode.Enabled;
 
     public static bool Uses(City city) =>
         Active && city?.Record != null && !city.IsGone() && !AncientWarfareCompatibility.OwnsObject(city);
-#endif
 
     public const string HouseType = "type_house", StockpileType = "type_stockpile", BonfireType = "type_bonfire";
 

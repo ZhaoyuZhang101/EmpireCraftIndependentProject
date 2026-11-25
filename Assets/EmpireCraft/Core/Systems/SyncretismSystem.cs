@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/SyncretismSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/SyncretismSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -26,9 +26,11 @@ public static class SyncretismSystem
 {
 #if EC_PENDING
     private static bool Alive(Religion religion) => religion?.data != null && !religion.IsGone();
+#endif
 
     private static Realm ModRealm(Realm kingdom) => kingdom?.GetEmpire()?.CoreKingdom ?? kingdom;
 
+#if EC_PENDING
     public static void YearlyPass()
     {
         ReligionSyncretismConfig config = ReligionTenets.Syncretism;

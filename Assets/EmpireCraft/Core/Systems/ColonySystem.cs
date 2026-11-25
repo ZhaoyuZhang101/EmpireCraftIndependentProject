@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/ColonySystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/ColonySystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -138,17 +138,15 @@ public static class ColonySystem
     }
 
     // 这场仗是不是殖民地起兵独立(攻方是殖民地、守方是它的宗主)
-#if EC_PENDING
     public static bool IsIndependenceWar(War war) =>
-        war?.data != null && MetropoleOf(war.getMainAttacker()) is Realm metropole && metropole == war.getMainDefender();
-#endif
+        war?.Record != null && MetropoleOf(war.GetMainAttacker()) is Realm metropole && metropole == war.GetMainDefender();
 
     // 参战闸：不站到自己宗主、自己殖民地的对面(殖民地自己的独立战争除外)
 #if EC_PENDING
     public static bool JoinsAgainstKin(War war, Realm kingdom, bool attackers)
     {
-        if (war?.data == null || kingdom == null || IsIndependenceWar(war)) return false;
-        IEnumerable<long> opposite = attackers ? war.data.list_defenders : war.data.list_attackers;
+        if (war?.Record == null || kingdom == null || IsIndependenceWar(war)) return false;
+        IEnumerable<long> opposite = attackers ? war.Record.list_defenders : war.Record.list_attackers;
         if (opposite == null) return false;
         foreach (long id in opposite)
         {
@@ -639,7 +637,7 @@ public static class ColonySystem
         }
         if (HasGovernor(state.kind))
         {
-            if (state.governor_since >= 0d && now - state.governor_since >= GovernorTermYears * 60d && !colony.hasEnemies())
+            if (state.governor_since >= 0d && now - state.governor_since >= GovernorTermYears * 60d && !colony.HasEnemies())
             {
                 Person next = AppointGovernor(colony, metropole);
                 if (next != null)
@@ -678,7 +676,6 @@ public static class ColonySystem
 #endif
 
     // 把经常收入的几成解送宗主国
-#if EC_PENDING
     private static void Remit(Realm colony, Realm metropole, float share)
     {
         int remit = Mathf.Min(Mathf.Max(0, colony.GetMoney()), (int)(StateDebtSystem.AnnualStableIncome(colony) * share));
@@ -686,7 +683,6 @@ public static class ColonySystem
         colony.SubMoney(remit, TreasuryCategory.Tribute);
         metropole.AddMoney(remit, TreasuryCategory.Tribute);
     }
-#endif
 
     // 租期届满：城交还出租国(出租国亡了，租借地就此留给宗主，改为直辖殖民地)
 #if EC_PENDING
@@ -728,7 +724,7 @@ public static class ColonySystem
         float gain = 2f + Mathf.Min(4f, Distance(colony.Capital, metropole.Capital) / 40f);
         double own = colony.GetNationalPower(), lord = metropole.GetNationalPower();
         if (lord < own * 1.5d) gain += 4f;
-        if (metropole.hasEnemies()) gain += 3f;
+        if (metropole.HasEnemies()) gain += 3f;
         // 去殖民浪潮里各地离心大涨(见 DecolonizationSystem)
         gain += DecolonizationSystem.DriftBonus;
         gain *= state.kind switch
@@ -750,7 +746,7 @@ public static class ColonySystem
             return;
         }
         // 委任统治：托管满 MandateYears 年、离心过半又不在打仗，期满独立
-        if (state.kind == ColonyState.Mandate && years >= MandateYears && state.autonomy >= 50f && !colony.hasEnemies() && !metropole.hasEnemies())
+        if (state.kind == ColonyState.Mandate && years >= MandateYears && state.autonomy >= 50f && !colony.HasEnemies() && !metropole.HasEnemies())
         {
             Release(colony, string.Format(LM.Get("colony_mandate_ended"), colony.GetKingdomFullName(), metropole.GetKingdomFullName()),
                 friendly: metropole);
@@ -764,15 +760,15 @@ public static class ColonySystem
             BecomeDominion(colony, metropole, state);
             return;
         }
-        if (state.autonomy < 100f || now - state.founded_at < RiseMinYears * 60d || colony.hasEnemies() || !colony.HasRuler() ||
+        if (state.autonomy < 100f || now - state.founded_at < RiseMinYears * 60d || colony.HasEnemies() || !colony.HasRuler() ||
             state.rising_at >= 0d && now - state.rising_at < RiseCooldownYears * 60d) return;
         // 宗主强过自己三倍(去殖民浪潮里六倍)又不在打仗的，不敢起兵
-        if (lord > own * DecolonizationSystem.DareRatio && !metropole.hasEnemies()) return;
+        if (lord > own * DecolonizationSystem.DareRatio && !metropole.HasEnemies()) return;
         War war;
         _rising = true;
         try
         {
-            war = EmpireWorld.Current.diplomacy.startWar(colony, metropole, WarTypeLibrary.normal);
+            war = EmpireWorld.Current.StartWar(colony, metropole, WarKinds.Normal);
         }
         finally
         {
@@ -806,12 +802,12 @@ public static class ColonySystem
 
     // 独立战争结束(见 FeudalVassalService.ResolveIndependenceWar)：殖民地胜则脱离，败则离心压回去
 #if EC_PENDING
-    public static void ResolveIndependenceWar(War war, WarWinner winner)
+    public static void ResolveIndependenceWar(War war, WarOutcome winner)
     {
         if (!IsIndependenceWar(war)) return;
-        Realm colony = war.getMainAttacker();
-        if (winner == WarWinner.Attackers) Release(colony, string.Format(LM.Get("colony_independent"), colony.GetKingdomFullName(),
-            war.getMainDefender().GetKingdomFullName()));
+        Realm colony = war.GetMainAttacker();
+        if (winner == WarOutcome.Attackers) Release(colony, string.Format(LM.Get("colony_independent"), colony.GetKingdomFullName(),
+            war.GetMainDefender().GetKingdomFullName()));
         else if (Of(colony) is ColonyState state) state.autonomy = 30f;
     }
 #endif
@@ -854,7 +850,7 @@ public static class ColonySystem
             return;
         }
         if (data.colonial_voyage_at >= 0d && now < data.colonial_voyage_at) return;
-        if (realm.hasEnemies() || realm.GetMoney() < VoyageCost * 2 ||
+        if (realm.HasEnemies() || realm.GetMoney() < VoyageCost * 2 ||
             CityPopulationSystem.GetBackgroundTotal(realm.Capital) < VoyageMinCapital || EcRandom.value >= VoyageChance) return;
         TileZone target = FindSite(realm, out int distance);
         data.colonial_voyage_at = now + VoyageCooldownYears * 60d;

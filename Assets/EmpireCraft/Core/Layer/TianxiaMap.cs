@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/Layer/TianxiaMap.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/Layer/TianxiaMap.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System.Collections.Generic;
 using System.Linq;
@@ -111,11 +111,13 @@ public static class TianxiaMap
             ColorIndex[lead.id] = pick;
         }
     }
+#endif
 
     private static bool Shown(City city) =>
         city != null && !city.IsGone() && !AncientWarfareCompatibility.OwnsObject(city) &&
         (TianxiaSystem.LeadOf(city) != null || UnificationSystem.UncoredRealmOf(city) != null);
 
+#if EC_PENDING
     public static void Configure(MetaTypeAsset asset)
     {
         asset.draw_zones = (MetaZoneDrawAction)(meta =>

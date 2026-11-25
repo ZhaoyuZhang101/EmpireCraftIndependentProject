@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/RealmNamingSystem.Modern.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/RealmNamingSystem.Modern.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Linq;
@@ -34,8 +34,8 @@ public static partial class RealmNamingSystem
         if (!Enabled || lead == null || !IsHuaxia(empire) || !IsModernGovernment(empire)) return false;
         if (WarlordEraSystem.CentralOf(lead) == empire) return !WarlordEraSystem.IsProvisionalGovernment(empire);
         return ModClass.EMPIRE_MANAGER?.Any(other => other != empire && IsModernGovernment(other) &&
-                                                     other.CoreKingdom.capital != null &&
-                                                     TianxiaSystem.LeadOf(other.CoreKingdom.capital) == lead) != true;
+                                                     other.CoreKingdom.Capital != null &&
+                                                     TianxiaSystem.LeadOf(other.CoreKingdom.Capital) == lead) != true;
     }
 #endif
 

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/TribalAssemblySystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/TribalAssemblySystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -138,7 +138,7 @@ public static class TribalAssemblySystem
     public static float AttendChance(Empire overlord, Realm tribe)
     {
         Realm core = overlord?.CoreKingdom;
-        if (core?.Record == null || tribe?.Record == null || tribe.isInWarWith(core)) return 0f;
+        if (core?.Record == null || tribe?.Record == null || tribe.IsAtWarWith(core)) return 0f;
         KingdomExtension.KingdomExtraData data = tribe.GetOrCreate();
         int opinion = EmpireWorld.Current.diplomacy?.getOpinion(tribe, core)?.total ?? 0;
         double corePower = core.GetNationalPower();
@@ -211,7 +211,7 @@ public static class TribalAssemblySystem
         foreach ((Realm tribe, Empire overlord) in defiant)
         {
             Realm core = overlord.CoreKingdom;
-            if (core?.Record == null || core.IsGone() || busy.Contains(overlord.Key) || core.isInWarWith(tribe)) continue;
+            if (core?.Record == null || core.IsGone() || busy.Contains(overlord.Key) || core.IsAtWarWith(tribe)) continue;
             int missed = tribe.GetOrCreate().tribal_missed_assemblies;
             float chance = Math.Min(PunishChanceMax, PunishChancePerMiss * (missed - DefiantStreak + 1));
             if (EcRandom.value >= chance) continue;
@@ -219,12 +219,12 @@ public static class TribalAssemblySystem
                 EmpireCraft.Core.AncientWarfareCompatibility.OwnsObject(tribe) ||
                 WarSituation.TooBusyForWar(core) || CorpsSystem.CannotFundWar(core) || !WarGate.CanDeclare(core, tribe) ||
                 !WarReach.Reachable(core, tribe)) continue;
-            War war = EmpireWorld.Current.diplomacy?.startWar(core, tribe, WarTypeLibrary.normal);
-            if (war?.data == null) continue;
+            War war = EmpireWorld.Current.diplomacy?.startWar(core, tribe, WarKinds.Normal);
+            if (war?.Record == null) continue;
             busy.Add(overlord.Key);
             string lord = TribalFissionService.OverlordName(overlord);
             war.SetEmpireWarType(EmpireWarType.伐不臣);
-            war.data.name = string.Format(LM.Get("tribal_punish_war_name"), lord, tribe.GetKingdomName());
+            war.Name = string.Format(LM.Get("tribal_punish_war_name"), lord, tribe.GetKingdomName());
             EventRecorder.Record(overlord, string.Format(LM.Get("tribal_punish_history"), lord, tribe.GetKingdomName()),
                 logKingdom: core);
         }

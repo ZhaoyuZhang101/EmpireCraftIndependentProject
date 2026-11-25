@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/EncirclementSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/EncirclementSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -276,7 +276,6 @@ public static class EncirclementSystem
     public static void ResetWorldState() => PocketCities.Clear();
 
     // 这段战线上有被围的军：友军赶去解围、敌军赶去收拾
-#if EC_PENDING
     public static float ScoreBonus(Realm kingdom, City city)
     {
         if (PocketCities.Count == 0 || city == null || !PocketCities.TryGetValue(city.Key, out List<Realm> list)) return 0f;
@@ -288,6 +287,5 @@ public static class EncirclementSystem
         }
         return bonus;
     }
-#endif
 }
 }

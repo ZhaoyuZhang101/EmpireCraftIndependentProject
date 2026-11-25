@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/ConglomerateSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/ConglomerateSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -35,9 +35,7 @@ public static class ConglomerateSystem
     private const int AntitrustCooldownYears = 15;
 
     private static ConstitutionalEconomyState State(Empire empire) => empire?.data?.constitutional_economy;
-#if EC_PENDING
     private static ConstitutionalEconomyState State(Realm kingdom) => kingdom?.GetEmpire()?.data?.constitutional_economy;
-#endif
 
     // 垄断程度(0~0.8)：各家财阀份额之和
     public static float Monopoly(Empire empire) => Monopoly(State(empire));
@@ -338,9 +336,7 @@ public static class ConglomerateSystem
     #region 效果
 
     // 工厂产值(见 FactorySystem.Produce)：规模
-#if EC_PENDING
     public static float OutputFactor(City city) => 1f + OutputPerMonopoly * Monopoly(State(city?.Realm));
-#endif
 
     // 阶层怨气的目标值加减(见 InstitutionSystem)：垄断抬价、压工钱、挤垮小商号
     public static float GrievanceShift(Empire empire, SocialClass socialClass)

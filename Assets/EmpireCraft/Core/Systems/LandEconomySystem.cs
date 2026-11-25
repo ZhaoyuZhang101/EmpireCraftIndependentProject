@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/LandEconomySystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/LandEconomySystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
@@ -330,7 +330,7 @@ public static class LandEconomySystem
         DetachPeasantRebelFromOriginEmpire(rebel, origin);
         KingdomExtension.KingdomExtraData rebelData = rebel.GetOrCreate();
         rebelData.is_peasant_land_rebellion = true;
-        rebelData.peasant_land_rebellion_war_id = war.id;
+        rebelData.peasant_land_rebellion_war_id = war.Key;
         rebelData.peasant_land_rebellion_origin_kingdom_id = origin.Key;
     }
 
@@ -342,13 +342,13 @@ public static class LandEconomySystem
             originEmpire.leave(rebel, pRecalc: true, isLeave: true);
     }
 
-    public static void ResolvePeasantLandRebellion(War war, WarWinner winner)
+    public static void ResolvePeasantLandRebellion(War war, WarOutcome winner)
     {
         if (war == null) return;
         WarExtension.WarExtraData warData = war.GetOrCreate();
         if (!warData.peasant_land_rebellion) return;
-        Realm rebel = war.getMainAttacker() ?? EmpireWorld.Current?.kingdoms?.get(warData.peasant_land_rebellion_kingdom_id);
-        bool won = winner == WarWinner.Attackers && rebel != null && !rebel.IsGone();
+        Realm rebel = war.GetMainAttacker() ?? EmpireWorld.Current?.kingdoms?.get(warData.peasant_land_rebellion_kingdom_id);
+        bool won = winner == WarOutcome.Attackers && rebel != null && !rebel.IsGone();
         if (won)
         {
             OpenPrivateLandMarket(rebel, redistribute: true, revolutionary: true);
@@ -959,10 +959,8 @@ public static class LandEconomySystem
 #endif
 
     // 起义门槛随苛政降低(见 HarshRuleSystem)：苛政 60 时无地一成二即可起义，最低一成二
-#if EC_PENDING
     public static float EffectiveRebellionThreshold(City city) =>
         RebellionLandlessThreshold - Mathf.Min(0.08f, HarshRuleSystem.GetRealmBurden(city?.Realm) / 750f);
-#endif
 
     // 苛政民变的城市土地兼并严重时，改为农民土地起义(见 HarshRuleSystem)
 #if EC_PENDING
@@ -974,7 +972,7 @@ public static class LandEconomySystem
         RebellionSystem.CanAttempt(city.Realm) &&
         CityStabilitySystem.CanRise(city) &&
         ratio >= EffectiveRebellionThreshold(city) &&
-        (!city.Realm.getWars().Any() || DynasticCycleSystem.InCrisis(city.Realm.GetEmpire()));
+        (!city.Realm.GetWars().Any() || DynasticCycleSystem.InCrisis(city.Realm.GetEmpire()));
 
     private static bool TryStartPeasantLandRebellion(City city, float ratio)
     {
@@ -1000,7 +998,7 @@ public static class LandEconomySystem
             return false;
         }
         rebel.Name = string.Format(LM.Get("land_rebel_kingdom_name"), city.GetCityName());
-        War war = EmpireWorld.Current.diplomacy.startWar(rebel, origin, WarTypeLibrary.rebellion);
+        War war = EmpireWorld.Current.StartWar(rebel, origin, WarKinds.Rebellion);
         if (war == null)
         {
             RebellionStartupService.RollbackCitySplit(city, origin, rebel);
@@ -1008,7 +1006,7 @@ public static class LandEconomySystem
         }
         war.SetEmpireWarType(EmpireWarType.地方叛乱);
         string cause = string.Format(LM.Get("land_rebellion_cause"), city.GetCityName(), ratio * 100f);
-        war.data.name = LM.Get("land_rebellion_war_name");
+        war.Name = LM.Get("land_rebellion_war_name");
         MarkPeasantSocialRebellion(war, rebel, origin, city, ratio, cause);
         RebellionSystem.Record(rebel, war, rebellionCause);
         RebellionStartupService.RaiseUprisingMilitia(rebel, ratio);
@@ -1060,14 +1058,14 @@ public static class LandEconomySystem
             return null;
         }
         rebel.Name = string.Format(LM.Get("famine_rebel_kingdom_name"), city.GetCityName());
-        War war = EmpireWorld.Current.diplomacy.startWar(rebel, origin, WarTypeLibrary.rebellion);
+        War war = EmpireWorld.Current.StartWar(rebel, origin, WarKinds.Rebellion);
         if (war == null)
         {
             RebellionStartupService.RollbackCitySplit(city, origin, rebel);
             return null;
         }
         war.SetEmpireWarType(EmpireWarType.地方叛乱);
-        war.data.name = LM.Get("famine_rebellion_war_name");
+        war.Name = LM.Get("famine_rebellion_war_name");
         float ratio = CalculateLandlessPopulationRatio(city);
         MarkPeasantSocialRebellion(war, rebel, origin, city, ratio, cause);
         rebel.GetOrCreate().is_famine_rebellion = true;
@@ -1094,7 +1092,7 @@ public static class LandEconomySystem
         KingdomExtension.KingdomExtraData rebelData = rebel.GetOrCreate();
         if (!rebelData.is_famine_rebellion || rebelData.peasant_land_rebellion_war_id <= 0) return false;
         War war = EmpireWorld.Current?.wars?.get(rebelData.peasant_land_rebellion_war_id);
-        if (war == null || war.hasEnded() || !war.isDefender(origin)) return false;
+        if (war == null || war.HasEnded() || !war.IsDefender(origin)) return false;
         float grievance = FamineUnrestSystem.FervorFactor(origin);
         int years = city.GetOrCreate().famine_years;
         city.JoinRealm(rebel, pCaptured: true, pRebellion: true);
@@ -1136,7 +1134,7 @@ public static class LandEconomySystem
                 return true;
             }
             War war = EmpireWorld.Current?.wars?.get(rebelData.peasant_land_rebellion_war_id);
-            if (war == null || war.hasEnded() || !war.isDefender(city.Realm)) continue;
+            if (war == null || war.HasEnded() || !war.IsDefender(city.Realm)) continue;
             city.JoinRealm(rebel, pCaptured: true, pRebellion: true);
             string history = string.Format(LM.Get("land_rebellion_city_joined_history"), city.GetCityName(),
                 ratio * 100f, rebel.GetKingdomName());
@@ -1209,6 +1207,7 @@ public static class LandEconomySystem
             ? LM.Get("city_land_crown")
             : string.Format(LM.Get("city_land_crown_holder"), ruler.FullName());
     }
+#endif
 
     private static float GetCrownShare(City city)
     {
@@ -1217,6 +1216,7 @@ public static class LandEconomySystem
         return empire?.CoreKingdom == city.Realm ? 50f : 20f;
     }
 
+#if EC_PENDING
     private static float GetNobleShare(City city)
     {
         if (city?.Realm == null || city.Realm.GetOrCreate().is_peasant_revolutionary_government) return 0f;

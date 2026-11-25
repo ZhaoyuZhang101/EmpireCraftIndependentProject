@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/WarSituation.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/WarSituation.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System.Collections.Generic;
@@ -14,13 +14,13 @@ namespace EmpireCraft.Core
 //   · 战争年数。
 public static class WarSituation
 {
-#if EC_PENDING
     public static long SideKey(Realm kingdom)
     {
         Empire empire = kingdom?.GetEmpire();
         return empire != null && !empire.IsGone() ? empire.Key : kingdom?.Key ?? -1L;
     }
 
+#if EC_PENDING
     public static int SideCities(Realm kingdom)
     {
         Empire empire = kingdom?.GetEmpire();
@@ -65,11 +65,11 @@ public static class WarSituation
 
     public static bool Overstretched(Realm kingdom) =>
         kingdom?.Record == null || kingdom.IsGone() ||
-        kingdom.getWars().Count(war => war?.data != null && !war.hasEnded()) >= 2 || WarGoalSystem.FightingForSurvival(kingdom);
+        kingdom.GetWars().Count(war => war?.Record != null && !war.HasEnded()) >= 2 || WarGoalSystem.FightingForSurvival(kingdom);
 
     public static void RecordParticipant(War war, Realm kingdom)
     {
-        if (war?.data == null || kingdom?.Record == null || kingdom.IsGone()) return;
+        if (war?.Record == null || kingdom?.Record == null || kingdom.IsGone()) return;
         Dictionary<long, int> initial = war.GetOrCreate().initial_cities ??= new Dictionary<long, int>();
         long key = SideKey(kingdom);
         if (key >= 0 && !initial.ContainsKey(key)) initial[key] = SideCities(kingdom);
@@ -77,17 +77,15 @@ public static class WarSituation
 #endif
 
     // 我方(core)与 enemy 交战中的战争(双方分属攻守两边)
-#if EC_PENDING
     public static War FindWar(Realm core, Realm enemy)
     {
         if (core == null || enemy == null) return null;
-        return core.getWars().FirstOrDefault(war => war != null && !war.hasEnded() &&
-            (war.isAttacker(core) && war.isDefender(enemy) || war.isDefender(core) && war.isAttacker(enemy)));
+        return core.GetWars().FirstOrDefault(war => war != null && !war.HasEnded() &&
+            (war.IsAttacker(core) && war.IsDefender(enemy) || war.IsDefender(core) && war.IsAttacker(enemy)));
     }
 
     public static float WarYears(War war) =>
-        war?.data == null ? 0f : GameClock.YearsSince(war.data.created_time);
-#endif
+        war?.Record == null ? 0f : GameClock.YearsSince(war.StartedStamp);
 
     // 这场仗里我方丢了多少城；没记录(旧存档里开打的战争)返回 -1
 #if EC_PENDING

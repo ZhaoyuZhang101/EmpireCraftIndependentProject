@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/RealmNamingSystem.Founding.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/RealmNamingSystem.Founding.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -303,7 +303,7 @@ public static partial class RealmNamingSystem
             City seat = core.GetCoreCapital() ?? EmpireCoreManager.GetRepresentativeCity(core);
             foreach (long id in core.empire_history_ids ?? new List<long>())
             {
-                Empire living = ModClass.EMPIRE_MANAGER.get(id);
+                Empire living = ModClass.EMPIRE_MANAGER.Get(id);
                 if (living?.data != null && !living.IsGone() && !living.IsArchived()) continue;
                 if (!ModClass.ALL_HISTORY_DATA.TryGetValue(id, out var histories) || histories == null) continue;
                 foreach (EmpireCraftHistory history in histories)
@@ -446,7 +446,7 @@ public static partial class RealmNamingSystem
         // 照地名起的封国不当帝国号，改用美号
         foreach (long titleId in usurper?.GetOwnedTitle()?.ToList() ?? new List<long>())
         {
-            KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER?.get(titleId);
+            KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER?.Get(titleId);
             if (title == null || title == seatTitle || title == capitalTitle || PlaceTitle(title)) continue;
             fief = EmpireCoreManager.NormalizeCoreName(title.data?.name);
             if (!string.IsNullOrWhiteSpace(fief)) break;

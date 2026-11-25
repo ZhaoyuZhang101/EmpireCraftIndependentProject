@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/KingdomColorService.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/KingdomColorService.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Color = EmpireCraft.Core.EcColor;
@@ -154,7 +154,7 @@ public static class KingdomColorService
         if (core?.Record == null || core.IsGone() || AncientWarfareCompatibility.Owns(core)) return false;
         List<Realm> vassals = members
             .Where(kingdom => kingdom?.Record != null && !kingdom.IsGone() && kingdom != core && !AncientWarfareCompatibility.Owns(kingdom))
-            .OrderBy(kingdom => kingdom.id).ToList();
+            .OrderBy(kingdom => kingdom.Key).ToList();
         if (vassals.Count == 0) return false;
         List<ColorAsset> colors = core.getColorLibrary()?.list;
         ColorAsset royal = sphere.getColor() ?? core.getColor();

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/PapacySystem.Seat.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/PapacySystem.Seat.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -60,7 +60,7 @@ public static partial class PapacySystem
             return SeatOk;
         }
         if (PopeLegitimacy.Applies(religion) && PopeLegitimacy.Get(religion) < PopeLegitimacy.CoronationBelow) return "pope_weak";
-        if (papacy.isInWarWith(core)) return "at_war";
+        if (papacy.IsAtWarWith(core)) return "at_war";
         int romzug = HolyRomanSystem.Romzug(empire);
         if (romzug == HolyRomanSystem.RomzugTravelling) return "travelling";
         if (romzug != HolyRomanSystem.RomzugArrived && HolyRomanSystem.StartRomzug(empire, papacy)) return SeatRomzug;

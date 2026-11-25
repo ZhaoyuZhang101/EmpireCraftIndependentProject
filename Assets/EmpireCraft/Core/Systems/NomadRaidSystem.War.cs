@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/NomadRaidSystem.War.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/NomadRaidSystem.War.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -26,8 +26,8 @@ public static partial class NomadRaidSystem
     {
         var extra = war.GetOrCreate();
         if (extra.raid != null) return extra.raid;
-        Realm leader = war.main_attacker, target = war.main_defender;
-        List<Realm> members = war._list_attackers.Where(Alive).ToList();
+        Realm leader = war.MainAttacker, target = war.MainDefender;
+        List<Realm> members = war.Attackers.Where(Alive).ToList();
         extra.raid = new RaidWarState
         {
             leader_id = leader?.Key ?? -1L, leader_name = leader?.GetKingdomName() ?? "", target_name = target?.GetKingdomName() ?? "",
@@ -40,14 +40,14 @@ public static partial class NomadRaidSystem
 #endif
 
     // 劫掠打了几年(从开战或读档后头一回看到时起算)
-#if EC_PENDING
     private static float RaidAge(War war, RaidWarState state) =>
         state.started_at >= 0d ? YearsSince(state.started_at) : WarSituation.WarYears(war);
 
     private static List<War> RaidWars() =>
-        EmpireWorld.Current.wars.list.Where(war => war?.data != null && war.Alive && !war.hasEnded() &&
+        EmpireWorld.Current.LiveWars.Where(war => war?.Record != null && war.Alive && !war.HasEnded() &&
                                            war.GetEmpireWarType() == EmpireWarType.劫掠).ToList();
 
+#if EC_PENDING
     private static void MonthTick()
     {
         Aftermath();
@@ -57,8 +57,8 @@ public static partial class NomadRaidSystem
             RaidWarState state = Ensure(war);
             if (RaidAge(war, state) >= RaidYears)
             {
-                LogService.LogInfo($"{LogTag} {war.data.name} 打满一年退兵(洗劫{state.sacked:0.#}/{state.goal:0.#}城)");
-                EmpireWorld.Current.wars.endWar(war, state.sacked > 0f ? WarWinner.Attackers : WarWinner.Defenders);
+                LogService.LogInfo($"{LogTag} {war.Name} 打满一年退兵(洗劫{state.sacked:0.#}/{state.goal:0.#}城)");
+                EmpireWorld.Current.EndWar(war, state.sacked > 0f ? WarOutcome.Attackers : WarOutcome.Defenders);
                 continue;
             }
             MonthlyCourse(war, state);
@@ -67,9 +67,7 @@ public static partial class NomadRaidSystem
 #endif
 
     // 劫掠之战每月的进展(关隘折损、买和，见应对一节)
-#if EC_PENDING
     static partial void MonthlyCourse(War war, RaidWarState state);
-#endif
 
     #region 洗劫
 
@@ -80,7 +78,7 @@ public static partial class NomadRaidSystem
         try
         {
             Realm victim = city?.Realm;
-            if (war?.data == null || victim?.Record == null) return false;
+            if (war?.Record == null || victim?.Record == null) return false;
             RaidWarState state = Ensure(war);
             victim.GetOrCreate().raided_at = GameClock.Now;
             if (state.sacked_cities.Contains(city.Key)) return state.sacked >= state.goal;
@@ -115,7 +113,7 @@ public static partial class NomadRaidSystem
             string name = raider?.GetKingdomName() ?? state.leader_name;
             TranslateHelper.LogEventOnly(string.Format(LM.Get(held ? "nomad_raid_sack_held_log" : "nomad_raid_sack_log"), name,
                 victim.GetKingdomName(), city.GetCityName(), money, food, Mathf.RoundToInt(people)), raider ?? victim);
-            LogService.LogInfo($"{LogTag} {war.data.name}：{name}洗劫{victim.GetKingdomName()}的{city.GetCityName()}" +
+            LogService.LogInfo($"{LogTag} {war.Name}：{name}洗劫{victim.GetKingdomName()}的{city.GetCityName()}" +
                                $"{(held ? "(屯田边城，守住大半)" : "")}，金帛{money} 粮{food} 人口{people:0}，" +
                                $"已抢{state.sacked:0.#}/{state.goal:0.#}城，关隘之固{state.defense:0.00}");
             return state.sacked >= state.goal;
@@ -129,24 +127,21 @@ public static partial class NomadRaidSystem
 #endif
 
     // 出兵各部分战利品的份额：开战时的兵力占比；已退出、亡了的不分
-#if EC_PENDING
     private static List<(Realm member, float share)> Shares(War war, RaidWarState state)
     {
         var alive = new List<(Realm, float)>();
         foreach (long id in state.members)
         {
             Realm member = LiveKingdom(id);
-            if (member == null || !war.isAttacker(member)) continue;
+            if (member == null || !war.IsAttacker(member)) continue;
             alive.Add((member, state.troops.TryGetValue(id, out float troops) ? Mathf.Max(1f, troops) : 1f));
         }
-        if (alive.Count == 0 && war.main_attacker is Realm main && Alive(main)) alive.Add((main, 1f));
+        if (alive.Count == 0 && war.MainAttacker is Realm main && Alive(main)) alive.Add((main, 1f));
         float total = alive.Sum(entry => entry.Item2);
         return alive.Select(entry => (entry.Item1, entry.Item2 / Mathf.Max(1f, total))).ToList();
     }
-#endif
 
     // 金帛：都城拿国库、别的城拿城库，只拿现钱(欠债不能当战利品转给胜方)
-#if EC_PENDING
     private static int TakeMoney(City city, Realm victim, float factor)
     {
         bool capital = city.IsCapital();
@@ -156,7 +151,6 @@ public static partial class NomadRaidSystem
         else city.SubMoney(amount, TreasuryCategory.Diplomacy);
         return amount;
     }
-#endif
 
     private static List<string> _foodIds;
 
@@ -212,9 +206,9 @@ public static partial class NomadRaidSystem
 
     // 战争收尾(WarPatch.end_war，结算占领之前)：联盟散伙、记史书，盟主威望(见雄主一节)
 #if EC_PENDING
-    public static void OnWarEnded(War war, WarWinner winner)
+    public static void OnWarEnded(War war, WarOutcome winner)
     {
-        if (war?.data == null || war.GetEmpireWarType() != EmpireWarType.劫掠) return;
+        if (war?.Record == null || war.GetEmpireWarType() != EmpireWarType.劫掠) return;
         try
         {
             RaidWarState state = Ensure(war);
@@ -222,16 +216,16 @@ public static partial class NomadRaidSystem
             state.settled = true;
             double now = GameClock.Now;
             // 得手：买了和、判攻方胜(抢够了，或守方欠饷求和)、议和时抢到过；被打退：判守方胜，或一城没抢到就罢兵
-            bool success = state.bought_off > 0 || winner == WarWinner.Attackers || winner != WarWinner.Defenders && state.sacked > 0f;
+            bool success = state.bought_off > 0 || winner == WarOutcome.Attackers || winner != WarOutcome.Defenders && state.sacked > 0f;
             var members = state.members.Select(LiveKingdom).Where(member => member != null).ToList();
             foreach (Realm member in members)
             {
                 SteppeState steppe = State(member);
-                if (steppe.raid_war_id == war.data.id) steppe.raid_war_id = -1L;
+                if (steppe.raid_war_id == war.Key) steppe.raid_war_id = -1L;
                 steppe.last_raid_at = now;
             }
             Realm leader = LiveKingdom(state.leader_id);
-            Realm target = war.main_defender;
+            Realm target = war.MainDefender;
             var involved = members.Concat(new[] { target }).ToList();
             if (state.bought_off == 0)
             {
@@ -241,22 +235,20 @@ public static partial class NomadRaidSystem
             }
             if (state.members.Count > 1)
                 Chronicle(string.Format(LM.Get("nomad_raid_disband_history"), state.leader_name), members);
-            LogService.LogInfo($"{LogTag} {war.data.name} 收场({winner}{(state.bought_off > 0 ? "，买和" + state.bought_off : "")})：" +
+            LogService.LogInfo($"{LogTag} {war.Name} 收场({winner}{(state.bought_off > 0 ? "，买和" + state.bought_off : "")})：" +
                                $"{(success ? "得手" : "被打退")}，洗劫{state.sacked:0.#}/{state.goal:0.#}城，金帛{state.loot_money}" +
                                $" 粮{state.loot_food} 人口{state.loot_people}，买和金{state.ransom}，出兵{state.members.Count}部");
             AfterRaid(war, state, leader, members, success);
         }
         catch (Exception exception)
         {
-            LogService.LogWarning($"{LogTag} {war.data.name} 收场结算失败: {exception.Message}");
+            LogService.LogWarning($"{LogTag} {war.Name} 收场结算失败: {exception.Message}");
         }
     }
 #endif
 
     // 盟主威望与成雄主、失败内讧(见雄主一节)
-#if EC_PENDING
     static partial void AfterRaid(War war, RaidWarState state, Realm leader, List<Realm> members, bool success);
-#endif
 
     #endregion
 

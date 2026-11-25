@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/Decisions/DecisionSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/Decisions/DecisionSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -795,7 +795,7 @@ public static class DecisionSystem
                     _restoring = false;
                 }
                 if (plot?.data == null) continue;
-                plot.target_war = item.war >= 0 ? EmpireWorld.Current.wars.get(item.war) : null;
+                plot.target_war = item.war >= 0 ? EmpireWorld.Current.WarByKey(item.war) : null;
                 plot.target_kingdom = item.kingdom >= 0 ? EmpireWorld.Current.RealmByKey(item.kingdom) : null;
                 plot.target_city = item.city >= 0 ? EmpireWorld.Current.CityByKey(item.city) : null;
                 plot.target_actor = item.actor >= 0 ? EmpireWorld.Current.PersonByKey(item.actor) : null;

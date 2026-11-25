@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/HolyRomanSystem.Authority.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/HolyRomanSystem.Authority.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -147,23 +147,23 @@ public static partial class HolyRomanSystem
 #if EC_PENDING
     public static void NoteProtection(Empire empire, War war, Realm member)
     {
-        if (war?.data == null || member?.Record == null || !HasDiet(empire)) return;
+        if (war?.Record == null || member?.Record == null || !HasDiet(empire)) return;
         HolyRomanState state = State(empire);
         state.protect_wars ??= new Dictionary<long, long>();
-        state.protect_wars[war.data.id] = member.Key;
+        state.protect_wars[war.Key] = member.Key;
     }
 #endif
 
     // 护佑之战收场：守方胜 +6；议和而成员一方没丢城 +2
 #if EC_PENDING
     private static void SettleProtection(Empire empire, HolyRomanState state, War war, bool defendersWon, int attackerGain,
-        WarWinner winner)
+        WarOutcome winner)
     {
-        if (state.protect_wars == null || !state.protect_wars.TryGetValue(war.data.id, out long memberId)) return;
-        state.protect_wars.Remove(war.data.id);
+        if (state.protect_wars == null || !state.protect_wars.TryGetValue(war.Key, out long memberId)) return;
+        state.protect_wars.Remove(war.Key);
         string name = EmpireWorld.Current.RealmByKey(memberId)?.GetKingdomName() ?? "";
         if (defendersWon) ChangeAuthority(empire, AuthProtected, "hre_auth_protected", name);
-        else if (winner == WarWinner.Peace && attackerGain <= 0) ChangeAuthority(empire, AuthProtectedPeace, "hre_auth_protected_peace", name);
+        else if (winner == WarOutcome.Peace && attackerGain <= 0) ChangeAuthority(empire, AuthProtectedPeace, "hre_auth_protected_peace", name);
     }
 #endif
 

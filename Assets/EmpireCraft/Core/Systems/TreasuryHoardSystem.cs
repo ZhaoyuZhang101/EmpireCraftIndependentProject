@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/TreasuryHoardSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/TreasuryHoardSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -44,12 +44,10 @@ public static class TreasuryHoardSystem
     }
 
     // 国库超出储备的余钱(没有就是 0)
-#if EC_PENDING
     public static long Surplus(Realm kingdom) =>
         kingdom?.Record == null || kingdom.IsGone() || !TreasurySystem.Enabled(kingdom)
             ? 0L
             : Math.Max(0L, kingdom.GetTreasuryBalance() - Reserve(kingdom));
-#endif
 
     public static void RecordSubsidy(Realm core, int amount)
     {
@@ -120,6 +118,7 @@ public static class TreasuryHoardSystem
         if (empire?.data != null) factor *= 1f + MaladySystem.Average(empire) / 200f;
         return factor;
     }
+#endif
 
     private static void DecayCity(City city)
     {
@@ -133,6 +132,7 @@ public static class TreasuryHoardSystem
         _cityCount++;
     }
 
+#if EC_PENDING
     private static void LogYear()
     {
         if (_kingdomCount > 0 || _cityCount > 0 || _subsidy > 0)

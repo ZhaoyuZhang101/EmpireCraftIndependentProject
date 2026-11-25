@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/ThroneSuspicion.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/ThroneSuspicion.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -119,7 +119,7 @@ public static class ThroneSuspicion
         rebel.GetRegime()?.SetAllowArmy(true);
         CorpsSystem.Transfer(corps, kingdom, rebel, seat);
         Realm target = empire?.CoreKingdom ?? kingdom;
-        War war = DiplomacyHelpers.wars.newWar(rebel, target, WarTypeLibrary.normal);
+        War war = DiplomacyHelpers.wars.newWar(rebel, target, WarKinds.Normal);
         war?.SetEmpireWarType(EmpireWarType.地方独立);
         Report(kingdom, empire, string.Format(LM.Get("overshadow_rebel_history"), actor.FullName(), ruler.FullName(), seat.GetCityName()), actor);
         BiographySystem.Note(actor, string.Format(LM.Get("bio_overshadow_rebel"), ruler.FullName(), seat.GetCityName()), ruler);

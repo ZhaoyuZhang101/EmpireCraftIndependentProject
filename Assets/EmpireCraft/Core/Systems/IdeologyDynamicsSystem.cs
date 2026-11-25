@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/IdeologyDynamicsSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/IdeologyDynamicsSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -249,7 +249,7 @@ public static class IdeologyDynamicsSystem
         float liberalShare = total == 0 ? 0f
             : counts.Where(pair => IdeologyFamilies.IsLiberal(pair.Key)).Sum(pair => pair.Value) / (float)total;
         float hostile = state.ideology_pressure?.Sum(source => source.amount) ?? 0f;
-        bool atWar = empire.CoreKingdom.getWars().Any(war => war != null && !war.hasEnded());
+        bool atWar = empire.CoreKingdom.GetWars().Any(war => war != null && !war.HasEnded());
 
         float loosen = state.demonstration_share * 40f +
                        (grievance > 0.5f ? (grievance - 0.5f) * 30f : 0f) +
@@ -343,7 +343,7 @@ public static class IdeologyDynamicsSystem
             _ => 2f
         };
         bool atWar = empire.kingdoms_list.Any(kingdom => kingdom != null && !kingdom.IsGone() &&
-                                                         kingdom.getWars().Any(war => war != null && !war.hasEnded()));
+                                                         kingdom.GetWars().Any(war => war != null && !war.HasEnded()));
         if (atWar) growth -= 5f;
         // 言论自由：宽松时思想交锋让理念保持活力，严格时宣传显得空洞
         growth += SpeechFreedomSystem.FatigueModifier(empire);
@@ -412,7 +412,7 @@ public static class IdeologyDynamicsSystem
         float reform = 1f + grievance * 2f + Mathf.Max(0f, -state.economic_trend) * 5f +
                        state.ideology_fatigue / 50f + (state.economic_crisis ? 1f : 0f);
         float hostile = state.ideology_pressure?.Sum(source => source.amount) ?? 0f;
-        bool atWar = empire.CoreKingdom.getWars().Any(war => war != null && !war.hasEnded());
+        bool atWar = empire.CoreKingdom.GetWars().Any(war => war != null && !war.HasEnded());
         float hardline = 1f + (state.opinion_level >= 2 ? 1f : 0f) + Mathf.Min(1f, hostile / 100f) +
                          (atWar ? 0.5f : 0f);
         const float continuity = 1.5f;

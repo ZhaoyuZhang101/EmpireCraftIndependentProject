@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/SteppeOrderSystem.Feuds.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/SteppeOrderSystem.Feuds.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -28,10 +28,8 @@ public static partial class SteppeOrderSystem
     private static bool Alive(Realm kingdom) =>
         kingdom?.Record != null && !kingdom.IsGone() && !kingdom.IsWild && kingdom.HasCapital() && kingdom.Cities?.Count > 0;
 
-#if EC_PENDING
     private static bool IsRealm(Realm kingdom) =>
         Alive(kingdom) && (kingdom.GetEmpire() is not Empire empire || empire.CoreKingdom == kingdom);
-#endif
 
     private static Realm LiveKingdom(long id)
     {
@@ -59,7 +57,7 @@ public static partial class SteppeOrderSystem
 #if EC_PENDING
     private static bool FeudCapable(Realm kingdom) =>
         Alive(kingdom) && NomadRaidSystem.IsNomad(kingdom) && !TribalFissionService.IsTribal(kingdom) && kingdom.HasRuler() &&
-        !kingdom.hasEnemies() && !kingdom.IsFactionRebelling() && !kingdom.IsLocalRebelling();
+        !kingdom.HasEnemies() && !kingdom.IsFactionRebelling() && !kingdom.IsLocalRebelling();
 #endif
 
     // 两家能不能争草场(不看机会)：同为一方之主而不在同一帝国(过开战闸门)，或同一汗国的两个兀鲁思(只看停战年限)
@@ -138,16 +136,16 @@ public static partial class SteppeOrderSystem
         Declaring = true;
         try
         {
-            war = EmpireWorld.Current.diplomacy.startWar(attacker, defender, WarTypeLibrary.normal);
-            if (war?.data != null) war.SetEmpireWarType(EmpireWarType.草场之争);
+            war = EmpireWorld.Current.StartWar(attacker, defender, WarKinds.Normal);
+            if (war?.Record != null) war.SetEmpireWarType(EmpireWarType.草场之争);
         }
         finally
         {
             Declaring = false;
         }
-        if (war?.data == null) return false;
+        if (war?.Record == null) return false;
         string names = string.Join("、", cities.Select(city => city.GetCityName()));
-        war.data.name = string.Format(LM.Get("steppe_feud_war_name"), attacker.GetKingdomName(), cities[0].GetCityName());
+        war.Name = string.Format(LM.Get("steppe_feud_war_name"), attacker.GetKingdomName(), cities[0].GetCityName());
         war.GetOrCreate().pasture = new PastureFeudState
         {
             attacker_id = attacker.Key, defender_id = defender.Key, attacker_name = attacker.GetKingdomName(),
@@ -162,34 +160,31 @@ public static partial class SteppeOrderSystem
                            $"(压力{NomadRaidSystem.State(defender).herd:0}，国力{defender.GetNationalPower():0})的{names}");
         return true;
     }
-
-    private static List<War> FeudWars() =>
-        EmpireWorld.Current.wars.list.Where(war => war?.data != null && war.Alive && !war.hasEnded() &&
-                                           war.GetEmpireWarType() == EmpireWarType.草场之争).ToList();
 #endif
 
+    private static List<War> FeudWars() =>
+        EmpireWorld.Current.LiveWars.Where(war => war?.Record != null && war.Alive && !war.HasEnded() &&
+                                           war.GetEmpireWarType() == EmpireWarType.草场之争).ToList();
+
     // 每月：打满两年强制议和
-#if EC_PENDING
     private static void FeudsMonthly()
     {
         foreach (War war in FeudWars())
             if (WarSituation.WarYears(war) >= FeudYears)
-                EmpireWorld.Current.wars.endWar(war, WarWinner.Peace);
+                EmpireWorld.Current.EndWar(war, WarOutcome.Peace);
     }
-#endif
 
     // 争草场进行中：两家之间不在争城清单里的城一律打不下(CityPatch 攻城结算调用)
-#if EC_PENDING
     public static bool BlocksPastureCity(Realm newKingdom, City city)
     {
         Realm holder = city?.Realm;
         if (newKingdom?.Record == null || holder?.Record == null || holder == newKingdom) return false;
         try
         {
-            foreach (War war in newKingdom.getWars())
+            foreach (War war in newKingdom.GetWars())
             {
-                if (war?.data == null || war.hasEnded() || war.GetEmpireWarType() != EmpireWarType.草场之争) continue;
-                if (!(war.isAttacker(newKingdom) && war.isDefender(holder) || war.isDefender(newKingdom) && war.isAttacker(holder)))
+                if (war?.Record == null || war.HasEnded() || war.GetEmpireWarType() != EmpireWarType.草场之争) continue;
+                if (!(war.IsAttacker(newKingdom) && war.IsDefender(holder) || war.IsDefender(newKingdom) && war.IsAttacker(holder)))
                     continue;
                 PastureFeudState record = war.GetOrCreate().pasture;
                 return record != null && !record.city_ids.Contains(city.Key);
@@ -201,20 +196,19 @@ public static partial class SteppeOrderSystem
         }
         return false;
     }
-#endif
 
     // 收场(WarPatch.end_war)：攻方胜或议和，争城里攻方占了一半以上地块的割给攻方；守方胜，攻方赔款、打下的争城退还
 #if EC_PENDING
-    public static void OnWarEnded(War war, WarWinner winner)
+    public static void OnWarEnded(War war, WarOutcome winner)
     {
-        if (war?.data == null || war.GetEmpireWarType() != EmpireWarType.草场之争) return;
+        if (war?.Record == null || war.GetEmpireWarType() != EmpireWarType.草场之争) return;
         PastureFeudState record = war.GetOrCreate().pasture;
         if (record == null || record.settled) return;
         record.settled = true;
         try
         {
             Realm attacker = LiveKingdom(record.attacker_id), defender = LiveKingdom(record.defender_id);
-            bool defendersWon = winner == WarWinner.Defenders;
+            bool defendersWon = winner == WarOutcome.Defenders;
             var taken = new List<string>();
             int returned = 0;
             foreach (long id in record.city_ids)
@@ -253,7 +247,7 @@ public static partial class SteppeOrderSystem
         }
         catch (Exception exception)
         {
-            LogService.LogWarning($"{LogTag} {war.data.name} 争草场收场失败: {exception.Message}");
+            LogService.LogWarning($"{LogTag} {war.Name} 争草场收场失败: {exception.Message}");
         }
     }
 #endif

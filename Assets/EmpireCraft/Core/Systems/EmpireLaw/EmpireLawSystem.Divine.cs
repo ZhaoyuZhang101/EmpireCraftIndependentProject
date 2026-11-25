@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/EmpireLaw/EmpireLawSystem.Divine.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/EmpireLaw/EmpireLawSystem.Divine.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -87,7 +87,6 @@ public static partial class EmpireLawSystem
     #region 神力
 
     // 未发之罪(本朝管得着、还没了结的)
-#if EC_PENDING
     public static List<CrimeRecord> PendingCrimes(Person actor)
     {
         PersonalClanIdentity identity = actor?.GetPersonalIdentity();
@@ -95,7 +94,6 @@ public static partial class EmpireLawSystem
         if (identity?.crime_records == null || kingdom == null) return new List<CrimeRecord>();
         return identity.crime_records.Where(record => record != null && !record.resolved && InJurisdiction(record, kingdom)).ToList();
     }
-#endif
 
     // 记得上的罪名：本朝律里有的(过于强大那一条另有专门的判法，不在此列)
 #if EC_PENDING

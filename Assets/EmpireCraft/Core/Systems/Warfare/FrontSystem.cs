@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/FrontSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/FrontSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
@@ -125,25 +125,22 @@ public static partial class FrontSystem
 
     #region 敌我
 
-#if EC_PENDING
     public static Realm ModRealm(Realm kingdom) =>
         kingdom?.GetEmpire()?.CoreKingdom is Realm core && core.Record != null && !core.IsGone() ? core : kingdom;
 
     public static bool Hostile(Realm a, Realm b)
     {
         if (a?.Record == null || b?.Record == null || a == b || a.IsGone() || b.IsGone()) return false;
-        if (a.isInWarWith(b)) return true;
+        if (a.IsAtWarWith(b)) return true;
         Realm ra = ModRealm(a), rb = ModRealm(b);
         if (ra == rb) return false;
-        return ra.isInWarWith(rb) || ra.isInWarWith(b) || a.isInWarWith(rb);
+        return ra.IsAtWarWith(rb) || ra.IsAtWarWith(b) || a.IsAtWarWith(rb);
     }
-#endif
 
     // 真打起来的两方(各取所在帝国的核心)：本月有战线段的(见 Assign)。地图上的战线朱红只画在这几对之间
     // (用户 2026-10-17 "明明没大仗还有战线"，选"真打起来的地方才画"：以前只看两国交没交战，宣了战却够不着、没接上火的也画)
     private static HashSet<(long, long)> _fronts = new(), _frontsNext = new();
 
-#if EC_PENDING
     public static bool HasFront(Realm a, Realm b)
     {
         if (a?.Record == null || b?.Record == null) return false;
@@ -151,10 +148,8 @@ public static partial class FrontSystem
         Realm ra = ModRealm(a), rb = ModRealm(b);
         return ra?.Record != null && rb?.Record != null && _fronts.Contains((ra.Key, rb.Key));
     }
-#endif
 
     // 记两国本身(同一帝国的成员互相打时只有这一对)，再记各自帝国的核心
-#if EC_PENDING
     private static void NoteFront(Realm side, Realm enemy)
     {
         if (side?.Record == null || enemy?.Record == null || side == enemy) return;
@@ -165,7 +160,6 @@ public static partial class FrontSystem
         _frontsNext.Add((ra.Key, rb.Key));
         _frontsNext.Add((rb.Key, ra.Key));
     }
-#endif
 
     // 本月的名单换上；变了的几方各城重画
 #if EC_PENDING
@@ -180,20 +174,20 @@ public static partial class FrontSystem
         _frontsNext.Clear();
         if (changed.Count > 0) SmoothBorders.RefreshFronts(changed);
     }
-
-    public static bool Friendly(Realm a, Realm b) =>
-        a?.Record != null && b?.Record != null && (a == b || !Hostile(a, b) && (ModRealm(a) == ModRealm(b) || a.isInWarOnSameSide(b)));
 #endif
 
+    public static bool Friendly(Realm a, Realm b) =>
+        a?.Record != null && b?.Record != null && (a == b || !Hostile(a, b) && (ModRealm(a) == ModRealm(b) || a.IsOnSameSide(b)));
+
     // 占领记在谁名下：本国与城主正式交战就是本国，否则(帝国藩属替宗主作战)记在宗主名下
-#if EC_PENDING
     public static Realm Belligerent(Realm side, Realm owner)
     {
-        if (side == null || owner == null || side.isInWarWith(owner)) return side;
+        if (side == null || owner == null || side.IsAtWarWith(owner)) return side;
         Realm realm = ModRealm(side);
-        return realm != null && realm != side && (realm.isInWarWith(owner) || realm.isInWarWith(ModRealm(owner))) ? realm : side;
+        return realm != null && realm != side && (realm.IsAtWarWith(owner) || realm.IsAtWarWith(ModRealm(owner))) ? realm : side;
     }
 
+#if EC_PENDING
     public static Realm Controller(TileZone zone)
     {
         City city = zone?.city;
@@ -292,7 +286,6 @@ public static partial class FrontSystem
     private static readonly Dictionary<string, (List<Sector> land, bool landing)> SectorCache = new();
     private static readonly Dictionary<Realm, string> SectorSignatures = new();
 
-#if EC_PENDING
     private static string SectorSignature(Realm side)
     {
         if (SectorSignatures.TryGetValue(side, out string signature)) return signature;
@@ -303,6 +296,7 @@ public static partial class FrontSystem
         return SectorSignatures[side] = key.ToString();
     }
 
+#if EC_PENDING
     private static List<Sector> CachedSectors(Realm side)
     {
         string signature = SectorSignature(side);
@@ -320,7 +314,6 @@ public static partial class FrontSystem
 #endif
 
     // 本方(连同所在帝国各成员国)的城
-#if EC_PENDING
     private static HashSet<City> HomeCities(Realm side)
     {
         var home = new HashSet<City>();
@@ -334,7 +327,6 @@ public static partial class FrontSystem
         }
         return home;
     }
-#endif
 
     // 够得着这座城：本方的城、与本方的城接壤、同一块陆地上离本方某座城不远，或隔海不远
 #if EC_PENDING
@@ -604,7 +596,7 @@ public static partial class FrontSystem
         MusterSystem.MonthTick();
         FactionPurgeSystem.MonthTick();
         _atWar = EmpireWorld.Current.LiveRealms.Where(kingdom => kingdom?.Record != null && !kingdom.IsGone() &&
-                                                       (kingdom.hasEnemies() || ModRealm(kingdom).hasEnemies())).ToList();
+                                                       (kingdom.HasEnemies() || ModRealm(kingdom).HasEnemies())).ToList();
         AtWarSet.Clear();
         AtWarSet.UnionWith(_atWar);
         PrefetchedLand.Clear();
@@ -740,7 +732,7 @@ public static partial class FrontSystem
                 corps.sector_city_id = -1L;
                 if (corps.task == "retreat") { corps.target_zone_id = HomeZone(corps); continue; }
                 // 手令：太平时开到指的那座城驻着(见 CorpsDirectOrders)
-                if (CorpsDirectOrders.Target(kingdom, corps) is City post && !kingdom.isInWarWith(post.Realm) && post.getTile()?.zone is TileZone postZone)
+                if (CorpsDirectOrders.Target(kingdom, corps) is City post && !kingdom.IsAtWarWith(post.Realm) && post.getTile()?.zone is TileZone postZone)
                 {
                     corps.task = "reserve";
                     corps.target_zone_id = postZone.id;
@@ -797,7 +789,7 @@ public static partial class FrontSystem
                 City goal = CorpsDirectOrders.Target(kingdom, corps);
                 if (goal == null) continue;
                 // 不是敌城就是自家的城(本国的、同一帝国里的)：去驻守
-                if (!kingdom.isInWarWith(goal.Realm))
+                if (!kingdom.IsAtWarWith(goal.Realm))
                 {
                     TileZone anchor = DefenseZone(kingdom, goal);
                     if (!Walkable(kingdom, corps, anchor)) continue;
@@ -1498,7 +1490,6 @@ public static partial class FrontSystem
     private const int MassWaitMonths = 4;
     private static readonly Dictionary<(long city, long attacker), double> MassSince = new();
 
-#if EC_PENDING
     private static bool WaitsForMass(City city, Realm attacker, List<(Realm kingdom, CorpsData corps)> attackers,
         List<(Realm kingdom, CorpsData corps)> holders, double now)
     {
@@ -1523,7 +1514,6 @@ public static partial class FrontSystem
         // 等够了就打，记录留着(后面的军到齐了才清)，免得下个月又从头等
         return GameClock.MonthsSince(since) < MassWaitMonths;
     }
-#endif
 
     // 严加防范(群友"听闻邻国大军集结，严加防范，沿边境修筑防御工事")：察觉对方集结而预先动员的(见 CityPopulationSystem.Alert)，
     // 之后 ForewarnedMonths 个月里守军的工事不低于 ForewarnedEntrench(平时要守着打上三个月才攒得到)
@@ -1972,7 +1962,7 @@ public static partial class FrontSystem
         foreach (City city in EmpireWorld.Current.Cities)
         {
             if (city?.Record == null || city.IsGone() || city.zones == null || city.Realm == null) continue;
-            if (!city.Realm.hasEnemies() && !ModRealm(city.Realm).hasEnemies()) continue;
+            if (!city.Realm.HasEnemies() && !ModRealm(city.Realm).HasEnemies()) continue;
             foreach (TileZone zone in city.zones)
             {
                 Realm controller = Controller(zone);

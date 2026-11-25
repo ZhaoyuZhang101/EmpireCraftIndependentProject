@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/FormationDiagnostics.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/FormationDiagnostics.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -38,7 +38,7 @@ public static class FormationDiagnostics
                                        $"(城{best.Cities?.Count ?? 0} 人口{EmpireFormationService.Population(best)} 国库{best.GetMoney()})：" +
                                        EmpireFormationService.Diagnose(best));
                 }
-                if (ranked.Any(kingdom => kingdom.hasEnemies() || YearsSinceWar(kingdom) < QuietYears)) continue;
+                if (ranked.Any(kingdom => kingdom.HasEnemies() || YearsSinceWar(kingdom) < QuietYears)) continue;
                 foreach (Realm kingdom in ranked.Take(2))
                     LogService.LogInfo($"[EmpireCraft][开战诊断] {culture} {kingdom.GetKingdomName()} {YearsSinceWar(kingdom):0} 年没打仗：" +
                                        WarGate(kingdom));

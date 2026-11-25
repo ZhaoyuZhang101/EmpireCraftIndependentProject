@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/TreasurySystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/TreasurySystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -74,6 +74,7 @@ public static class TreasurySystem
                 MoneyDisplay.Format(income), MoneyDisplay.Format(expense)));
         }
     }
+#endif
 
     public static TreasuryReport Consolidated(Realm authority)
     {
@@ -92,10 +93,8 @@ public static class TreasurySystem
         }
         return TreasuryRules.Consolidate(Accounts());
     }
-#endif
 
     // 撤军看实际能支付这座城费用的三个账户，避免每座危机城市都重新汇总整个帝国。
-#if EC_PENDING
     public static TreasuryReport FundingReport(City city)
     {
         var total = new TreasuryReport();
@@ -111,6 +110,7 @@ public static class TreasurySystem
         if (central != city.Realm && Enabled(central)) Add(Report(central));
         return total;
     }
+#if EC_PENDING
     public static string FlowText(TreasuryReport report) => string.Format(LM.Get("fiscal_flows_format"),
         report.months, MoneyDisplay.Format(report.income), MoneyDisplay.Format(report.expense));
     public static string TransferText(TreasuryReport report) => string.Format(LM.Get("fiscal_transfers_format"),
@@ -118,6 +118,7 @@ public static class TreasurySystem
     public static string SpendingText(TreasuryReport report) => string.Format(LM.Get("fiscal_spending_format"),
         MoneyDisplay.Format(report.military), MoneyDisplay.Format(report.research), MoneyDisplay.Format(report.construction),
         MoneyDisplay.Format(report.corruption));
+#endif
     public static bool Enabled(Realm kingdom) => !ModClass.IS_CLEAR && EmpireWorld.Current != null &&
         kingdom?.Record != null && !kingdom.IsGone() &&
         !kingdom.IsWild && !AncientWarfareCompatibility.Owns(kingdom);
@@ -143,7 +144,7 @@ public static class TreasurySystem
 
     public static long SafetyReserve(Realm kingdom) => Enabled(kingdom)
         ? Math.Max(Math.Max(0, ModClass.SETTLEMENT_RESERVE_GOLD), TreasuryRules.EssentialExpense(
-            kingdom.GetOrCreate().treasury, GameClock.Now, GameClock.MonthsSince) * (kingdom.hasEnemies() ? 2 : 1)) : 0;
+            kingdom.GetOrCreate().treasury, GameClock.Now, GameClock.MonthsSince) * (kingdom.HasEnemies() ? 2 : 1)) : 0;
 
     public static long SafetyReserve(City city) => Enabled(city)
         ? Math.Max(Math.Max(0, ModClass.SETTLEMENT_RESERVE_GOLD / 4), TreasuryRules.EssentialExpense(
@@ -155,6 +156,7 @@ public static class TreasurySystem
     public static long DiscretionaryBalance(City city) => city == null || city.IsGone() ? 0L
         : TreasuryRules.AvailableBalance(city.GetTreasuryBalance(), SafetyReserve(city), 0);
 
+#if EC_PENDING
     public static bool TrySpend(Realm kingdom, int amount, TreasuryCategory category, bool discretionary = true)
     {
         if (kingdom == null || kingdom.IsGone() || amount < 0) return false;
@@ -272,7 +274,6 @@ public static class TreasurySystem
 
     // 劫掠只转移现有现金；债务不能作为负数战利品转嫁给胜方。
     // share：拿走几成(劫掠三成，用户 2026-10-17 选"劫掠只拿三成国库")
-#if EC_PENDING
     public static void TransferWarSpoils(City city, Realm recipient, float share = 1f)
     {
         if (city?.Record == null || city.IsGone() || recipient == null || recipient.IsGone() ||
@@ -284,7 +285,6 @@ public static class TreasurySystem
         else city.SubMoney(amount, TreasuryCategory.Diplomacy);
         recipient.AddMoney(amount, TreasuryCategory.Diplomacy);
     }
-#endif
 
     // 两种人口模式共用实际税款分成；年度 AI 不再抽取历史余额。
 #if EC_PENDING

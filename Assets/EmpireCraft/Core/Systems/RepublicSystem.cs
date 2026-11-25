@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/RepublicSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/RepublicSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -37,9 +37,7 @@ public static class RepublicSystem
     public static bool IsRepublic(Empire empire) => State(empire)?.is_republic == true;
 
     // 改制共和的帝国不受文化政体同步(复合帝国区域制度、文化变更、制度同步)的影响，否则刚改制就被拉回君主制
-#if EC_PENDING
     public static bool IsRegimeLocked(Realm kingdom) => IsRepublic(kingdom?.GetEmpire());
-#endif
 
     public static bool IsOneParty(Empire empire) => !string.IsNullOrWhiteSpace(State(empire)?.one_party_id);
 
@@ -113,7 +111,6 @@ public static class RepublicSystem
 
     // 剧本定下的元首职位(委员长、总书记、元首、国王……用户 2026-11-10"不能按照历史职位来?")：
     // 政体没改(共和或君主与定下时一样)、没复辟才用，否则 null，照理念与文化的通称
-#if EC_PENDING
     public static string CustomHeadTitle(Empire empire)
     {
         EmpireData data = empire?.data;
@@ -125,7 +122,6 @@ public static class RepublicSystem
         string text = WorldMapData.PickParts(data.head_title);
         return string.IsNullOrWhiteSpace(text) ? null : text;
     }
-#endif
 
     public static bool IsTransitioning(Empire empire) => IsRepublic(empire) &&
         State(empire)?.republic_transition_stage > 0;
@@ -361,7 +357,7 @@ public static class RepublicSystem
         List<Realm> members = empire.kingdoms_list.Where(kingdom => kingdom != null && !kingdom.IsGone() &&
             kingdom != empire.CoreKingdom && kingdom.HasRuler() && kingdom.HasMainTitle() &&
             RebellionSystem.CanAttempt(kingdom) && CityStabilitySystem.CanRise(kingdom.Capital) &&
-            (mandateCollapse || !kingdom.getWars().Any()) &&
+            (mandateCollapse || !kingdom.GetWars().Any()) &&
             !kingdom.IsFactionRebelling() && !kingdom.IsLocalRebelling()).ToList();
         if (members.Count < 2) return false;
         FixedFaction party = PartySystem.GetParties(empire)
@@ -375,7 +371,7 @@ public static class RepublicSystem
         PartyIdeology ideology = party?.Ideology ?? StrongestReformIdeology(empire);
         float chance = mandateCollapse
             ? 0.3f + 0.5f * Mathf.Clamp01((RevolutionMandate - empire.Legitimacy) / (float)RevolutionMandate)
-            : 0.03f + (empire.CoreKingdom.hasEnemies() ? 0.06f : 0f) +
+            : 0.03f + (empire.CoreKingdom.HasEnemies() ? 0.06f : 0f) +
               Mathf.Clamp01((60f - empire.Legitimacy) / 60f) * 0.09f;
         if (EcRandom.value >= chance * RebellionSystem.ChanceFactor(empire.CoreKingdom)) return false;
 
@@ -409,7 +405,7 @@ public static class RepublicSystem
         foreach (Realm member in coalition.Skip(2)) alliance.join(member, true, true);
         foreach (Realm member in coalition) member.StartFactionRebelling(party);
 
-        War war = EmpireWorld.Current.diplomacy.startWar(leaderRealm, empire.CoreKingdom, WarTypeLibrary.rebellion);
+        War war = EmpireWorld.Current.StartWar(leaderRealm, empire.CoreKingdom, WarKinds.Rebellion);
         if (war == null)
         {
             EmpireWorld.Current.alliances.dissolveAlliance(alliance);
@@ -420,10 +416,10 @@ public static class RepublicSystem
             }
             return false;
         }
-        foreach (Realm member in coalition.Skip(1)) war.joinAttackers(member);
+        foreach (Realm member in coalition.Skip(1)) war.JoinAttackers(member);
         war.SetEmpireWarType(EmpireWarType.派系叛乱);
         foreach (Realm member in coalition) RebellionSystem.Record(member, war, causes[member]);
-        war.data.name = string.Format(LM.Get("regional_republic_war_name"), alliance.name);
+        war.Name = string.Format(LM.Get("regional_republic_war_name"), alliance.name);
         WarExtension.WarExtraData snapshot = war.GetOrCreate();
         snapshot.republic_revolution_empire_id = empire.Key;
         snapshot.republic_revolution_party_id = party?.GetID() ?? "";
@@ -493,7 +489,7 @@ public static class RepublicSystem
         .Where(kingdom => kingdom != null && !kingdom.IsGone() && kingdom != empire.CoreKingdom &&
                           RebellionSystem.CanAttempt(kingdom) && CityStabilitySystem.CanRise(kingdom.Capital) &&
                           kingdom.HasRuler() && !kingdom.IsFactionRebelling() &&
-                          !kingdom.IsLocalRebelling() && !kingdom.getWars().Any() &&
+                          !kingdom.IsLocalRebelling() && !kingdom.GetWars().Any() &&
                           (party.AllMembers.Any(actor => actor?.Realm == kingdom) ||
                            // 无小人模式：党员实体很少，本藩国该理念支持率达到两成也算有群众基础
                            CityPopulationSystem.AbstractPopulationEnabled &&
@@ -552,7 +548,7 @@ public static class RepublicSystem
             RebellionStartupService.RollbackCitySplit(splitSeat, splitOrigin, rebel);
             return false;
         }
-        War war = EmpireWorld.Current.diplomacy.startWar(rebel, empire.CoreKingdom, WarTypeLibrary.rebellion);
+        War war = EmpireWorld.Current.StartWar(rebel, empire.CoreKingdom, WarKinds.Rebellion);
         if (war == null)
         {
             if (splitSeat == null) rebel.EndFactionRebelling();
@@ -565,7 +561,7 @@ public static class RepublicSystem
         }
         war.SetEmpireWarType(splitSeat == null ? EmpireWarType.派系叛乱 : EmpireWarType.地方叛乱);
         RebellionSystem.Record(rebel, war, cause);
-        war.data.name = string.Format(LM.Get(modern ? "republic_modern_revolution_war_name"
+        war.Name = string.Format(LM.Get(modern ? "republic_modern_revolution_war_name"
             : "republic_revolution_war_name"), party.Name);
         WarExtension.WarExtraData snapshot = war.GetOrCreate();
         snapshot.republic_revolution_empire_id = empire.Key;
@@ -602,8 +598,8 @@ public static class RepublicSystem
             if (member == null || member.IsGone() || member == empire.CoreKingdom || member == rebel ||
                 member.IsFactionRebelling() || member.IsLocalRebelling() ||
                 !RebellionSystem.CanAttempt(member) || !CityStabilitySystem.CanRise(member.Capital) ||
-                member.getWars().Any(other => other != war && !other.hasEnded())) continue;
-            if (war._list_attackers.Contains(member) || war._list_defenders.Contains(member)) continue;
+                member.GetWars().Any(other => other != war && !other.HasEnded())) continue;
+            if (war.Attackers.Contains(member) || war.Defenders.Contains(member)) continue;
 
             int supporters = party.AllMembers.Count(actor => actor != null && actor.Realm == member);
             float localSupport = IdeologyPopulationSystem.GetKingdomShare(member, party.Ideology);
@@ -613,8 +609,8 @@ public static class RepublicSystem
                 0.12f, 0.85f);
             if (EcRandom.value < chance)
             {
-                war.joinAttackers(member);
-                if (war._list_attackers.Contains(member))
+                war.JoinAttackers(member);
+                if (war.Attackers.Contains(member))
                 {
                     member.StartFactionRebelling(party);
                     snapshot.republic_revolution_allied_kingdom_ids.Add(member.Key);
@@ -623,7 +619,7 @@ public static class RepublicSystem
             }
             else if (EcRandom.value < 0.35f)
             {
-                war.joinDefenders(member);
+                war.JoinDefenders(member);
             }
         }
         return joined;
@@ -642,7 +638,7 @@ public static class RepublicSystem
         foreach (Realm source in empire.kingdoms_list.ToList())
         {
             if (source?.units == null || source == rebel || source.IsGone() ||
-                !war._list_defenders.Contains(source)) continue;
+                !war.Defenders.Contains(source)) continue;
             List<Person> soldiers = source.units.ToList().Where(actor => actor != null && !actor.IsGone() &&
                 actor.Alive && actor.isWarrior() && !actor.isKing()).ToList();
             int limit = Mathf.CeilToInt(soldiers.Count * 0.45f);
@@ -707,14 +703,16 @@ public static class RepublicSystem
             }
         }
     }
+#endif
 
     public static bool IsRevolutionWar(War war) =>
         war != null && war.GetOrCreate().republic_revolution_empire_id > 0;
 
+#if EC_PENDING
     public static bool HasActiveRevolutionWar(Empire empire) => empire?.CoreKingdom?.getWars()
         ?.Any(war => war != null && !war.hasEnded() && IsRevolutionWar(war)) == true;
 
-    public static void ResolveRevolutionWar(War war, WarWinner winner)
+    public static void ResolveRevolutionWar(War war, WarOutcome winner)
     {
         if (!IsRevolutionWar(war)) return;
         WarExtension.WarExtraData snapshot = war.GetOrCreate();
@@ -728,15 +726,15 @@ public static class RepublicSystem
             Realm ally = EmpireWorld.Current.LiveRealms?.get(kingdomId);
             if (ally != null && !ally.IsGone()) ally.EndFactionRebelling();
         }
-        Empire empire = ModClass.EMPIRE_MANAGER?.get(snapshot.republic_revolution_empire_id);
+        Empire empire = ModClass.EMPIRE_MANAGER?.Get(snapshot.republic_revolution_empire_id);
         if (empire?.CoreKingdom == null || empire.IsArchived()) return;
         FixedFaction party = PartySystem.GetParties(empire)
             .FirstOrDefault(candidate => candidate.GetID() == snapshot.republic_revolution_party_id);
         Person leader = EmpireWorld.Current.Living?.get(snapshot.republic_revolution_leader_id);
-        if (leader == null || leader.IsGone() || !leader.Alive) leader = war.getMainAttacker()?.king;
-        Realm rebelKingdom = war.getMainAttacker();
+        if (leader == null || leader.IsGone() || !leader.Alive) leader = war.GetMainAttacker()?.Ruler;
+        Realm rebelKingdom = war.GetMainAttacker();
         // 打成僵局、被强制停战：立宪收场或各据一方(见 RevolutionSystem.OnPeace)
-        if (winner == WarWinner.Peace)
+        if (winner == WarOutcome.Peace)
         {
             RevolutionSystem.OnPeace(empire, war, party, snapshot.republic_revolution_ideology,
                 snapshot.republic_revolution_split_realm);
@@ -744,7 +742,7 @@ public static class RepublicSystem
         }
         if (snapshot.republic_modern_revolution && IsRepublic(empire))
         {
-            if (winner == WarWinner.Attackers && rebelKingdom != null && !rebelKingdom.IsGone())
+            if (winner == WarOutcome.Attackers && rebelKingdom != null && !rebelKingdom.IsGone())
             {
                 if (snapshot.republic_revolution_split_realm)
                     empire.join(rebelKingdom, pForce: true, pLegitimacyTransfer: true);
@@ -752,7 +750,7 @@ public static class RepublicSystem
                 RevolutionSystem.OnVictory(empire, snapshot.republic_revolution_ideology, leader, war);
                 return;
             }
-            if (winner == WarWinner.Defenders)
+            if (winner == WarOutcome.Defenders)
             {
                 party?.BanFaction();
                 Record(empire, string.Format(LM.Get("republic_revolution_failed_history"),
@@ -761,7 +759,7 @@ public static class RepublicSystem
             }
             return;
         }
-        if (winner == WarWinner.Attackers && rebelKingdom != null && !rebelKingdom.IsGone())
+        if (winner == WarOutcome.Attackers && rebelKingdom != null && !rebelKingdom.IsGone())
         {
             Person formerMonarch = empire.Emperor;
             List<Person> royalFamily = SnapshotImmediateRoyalFamily(formerMonarch);
@@ -776,7 +774,7 @@ public static class RepublicSystem
             RevolutionSystem.OnVictory(empire, snapshot.republic_revolution_ideology, leader, war);
             return;
         }
-        if (winner == WarWinner.Defenders)
+        if (winner == WarOutcome.Defenders)
         {
             party?.BanFaction();
             Record(empire, string.Format(LM.Get("republic_revolution_failed_history"),
@@ -813,7 +811,7 @@ public static class RepublicSystem
             RebellionStartupService.RollbackCitySplit(seat, origin, rebel);
             return false;
         }
-        War war = EmpireWorld.Current.diplomacy.startWar(rebel, empire.CoreKingdom, WarTypeLibrary.rebellion);
+        War war = EmpireWorld.Current.StartWar(rebel, empire.CoreKingdom, WarKinds.Rebellion);
         if (war == null)
         {
             rebel.EndLocalRebelling();
@@ -822,24 +820,24 @@ public static class RepublicSystem
         }
         war.SetEmpireWarType(EmpireWarType.地方叛乱);
         RebellionSystem.Record(rebel, war, cause);
-        war.data.name = string.Format(LM.Get("counter_revolution_war_name"), seat.GetCityName());
+        war.Name = string.Format(LM.Get("counter_revolution_war_name"), seat.GetCityName());
         war.GetOrCreate().counter_revolution_empire_id = empire.Key;
         Record(empire, string.Format(LM.Get("counter_revolution_started_history"), leader.FullName(), seat.GetCityName(),
             empire.GetEmpireFullName()), leader);
         return true;
     }
 
-    public static void ResolveCounterRevolution(War war, WarWinner winner)
+    public static void ResolveCounterRevolution(War war, WarOutcome winner)
     {
         long empireId = war?.GetOrCreate().counter_revolution_empire_id ?? -1L;
         if (empireId <= 0) return;
-        Empire empire = ModClass.EMPIRE_MANAGER?.get(empireId);
+        Empire empire = ModClass.EMPIRE_MANAGER?.Get(empireId);
         ConstitutionalEconomyState state = State(empire);
         if (state == null || empire.CoreKingdom == null || empire.IsArchived() || !IsRepublic(empire)) return;
-        Realm rebel = war.getMainAttacker();
-        if (winner != WarWinner.Attackers || rebel == null || rebel.IsGone())
+        Realm rebel = war.GetMainAttacker();
+        if (winner != WarOutcome.Attackers || rebel == null || rebel.IsGone())
         {
-            if (winner == WarWinner.Defenders)
+            if (winner == WarOutcome.Defenders)
                 Record(empire, string.Format(LM.Get("counter_revolution_failed_history"), empire.GetEmpireFullName()),
                     empire.Emperor);
             return;
@@ -891,19 +889,19 @@ public static class RepublicSystem
             PartySystem.GetIdeologyName(ideology), oldName, empire.GetEmpireFullName()), leader);
     }
 
-    private static void ResolveRegionalRepublicCoalition(War war, WarWinner winner,
+    private static void ResolveRegionalRepublicCoalition(War war, WarOutcome winner,
         WarExtension.WarExtraData snapshot)
     {
-        Empire origin = ModClass.EMPIRE_MANAGER?.get(snapshot.republic_revolution_empire_id);
+        Empire origin = ModClass.EMPIRE_MANAGER?.Get(snapshot.republic_revolution_empire_id);
         Realm leaderRealm = EmpireWorld.Current.LiveRealms?.get(snapshot.republic_regional_leader_kingdom_id) ??
-                              war.getMainAttacker();
+                              war.GetMainAttacker();
         List<Realm> coalition = new[] { leaderRealm }.Concat(
                 (snapshot.republic_revolution_allied_kingdom_ids ?? new List<long>())
                 .Select(id => EmpireWorld.Current.LiveRealms?.get(id)))
             .Where(kingdom => kingdom != null && !kingdom.IsGone()).Distinct().ToList();
         Alliance alliance = EmpireWorld.Current.alliances?.get(snapshot.republic_regional_alliance_id);
         // 正统崩溃时的互保同盟打赢了：不另立国家，逼皇帝退位，各省回归，原帝国改行共和
-        if (winner == WarWinner.Attackers && snapshot.republic_regional_forced_abdication && origin != null &&
+        if (winner == WarOutcome.Attackers && snapshot.republic_regional_forced_abdication && origin != null &&
             !origin.IsGone() && !origin.IsArchived() && origin.CoreKingdom != null && !origin.CoreKingdom.IsGone() &&
             !IsRepublic(origin))
         {
@@ -920,8 +918,8 @@ public static class RepublicSystem
                 "regional_republic_abdication_history");
         }
         // 各省陆续独立(见 ProvincialCollapseSystem)：议和收场、三省以上的，联合建立共和国
-        else if ((winner == WarWinner.Attackers ||
-                  snapshot.republic_provincial && winner == WarWinner.Peace && coalition.Count >= 3) &&
+        else if ((winner == WarOutcome.Attackers ||
+                  snapshot.republic_provincial && winner == WarOutcome.Peace && coalition.Count >= 3) &&
                  leaderRealm != null && (leaderRealm.HasMainTitle() || snapshot.republic_provincial))
         {
             foreach (Realm member in coalition)

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/ImperialSealSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/ImperialSealSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -158,10 +158,10 @@ public static class ImperialSealSystem
     }
 
     private static Item ItemOf(long id) => id > 0 ? EmpireWorld.Current.items.get(id) : null;
+#endif
 
     private static Empire RealmOf(Realm kingdom) =>
         kingdom == null || kingdom.IsGone() ? null : kingdom.IsEmpire() || kingdom.IsInEmpire() ? kingdom.GetEmpire() : null;
-#endif
 
     private static bool Alive(Empire empire) => empire?.data != null && !empire.IsGone() && !empire.IsArchived();
 
@@ -361,7 +361,7 @@ public static class ImperialSealSystem
         if (Reconciled.TryGetValue(key, out double at) && now >= at && GameClock.YearsSince(at) < 1) return;
         Reconciled[key] = now;
         Item item = ItemOf(state.imperial_seal_item_id);
-        Empire holder = state.imperial_seal_empire_id > 0 ? ModClass.EMPIRE_MANAGER?.get(state.imperial_seal_empire_id) : null;
+        Empire holder = state.imperial_seal_empire_id > 0 ? ModClass.EMPIRE_MANAGER?.Get(state.imperial_seal_empire_id) : null;
         // 玉玺在哪：佩着它的人所在的国、存着它的城库所在的国；都没有就是原来的持有者，持有者亡了看它最后的都城
         Person owner = item?.getActor();
         City place;

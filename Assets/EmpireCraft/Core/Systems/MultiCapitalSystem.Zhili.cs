@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/MultiCapitalSystem.Zhili.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/MultiCapitalSystem.Zhili.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System.Collections.Generic;
 using System.Linq;
@@ -16,7 +16,6 @@ namespace EmpireCraft.Core
 public static partial class MultiCapitalSystem
 {
     // 第二直隶(不调 GetKingdomType：类别判定 CalcKingdomType 会调到这里)
-#if EC_PENDING
     public static bool IsZhili(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone()) return false;
@@ -25,7 +24,6 @@ public static partial class MultiCapitalSystem
     }
 
     public static bool IsVacantZhili(Realm kingdom) => IsZhili(kingdom) && !kingdom.HasRuler();
-#endif
 
     // 名号前缀：南北两京照明制称"南直隶""北直隶"(用户 10-29 "我大明的南直隶呢"，文本 zhili_front_方位)；东西两京仍是京名(东京直隶)
 #if EC_PENDING

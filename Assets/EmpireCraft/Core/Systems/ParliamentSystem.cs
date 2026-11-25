@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/ParliamentSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/ParliamentSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -531,7 +531,6 @@ public static partial class ParliamentSystem
 
     // 最大余额法：先按份额取整，剩余议席给小数部分最大的派系
     // weightOf 为空时按中央占比分(党禁时期的派系)；政党选举时传入得票
-#if EC_PENDING
     public static Dictionary<FixedFaction, int> AllocateSeats(List<FixedFaction> factions, int seats,
         Func<FixedFaction, float> weightOf = null)
     {
@@ -554,7 +553,6 @@ public static partial class ParliamentSystem
             result[faction]++;
         return result;
     }
-#endif
 
     // 派系推举议员的顺序：有官职者优先，其次政绩，再次声望
 #if EC_PENDING

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/ModernTitleCentralization.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/ModernTitleCentralization.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System.Collections.Generic;
 using System.Linq;
@@ -67,7 +67,7 @@ public static class ModernTitleCentralization
             if (owned != null)
                 foreach (long id in owned.ToList())
                 {
-                    KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER.get(id);
+                    KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER.Get(id);
                     if (title != null && !title.IsGone()) centralTitles.Add(title);
                 }
             // 没有法理的成员国也受托管理都城所在的法理，国名用它的省份名
@@ -129,13 +129,11 @@ public static class ModernTitleCentralization
 #endif
 
     // 只挪归属名单，不走 Person.removeTitle(那会连带改动旧主人所在王国的主法理、甚至脱离帝国)
-#if EC_PENDING
     private static void GiveToHead(KingdomTitle title, Person head)
     {
         if (title == null || title.data == null || title.owner == head) return;
         title.owner?.GetOwnedTitle()?.Remove(title.data.id);
         head.AddOwnedTitle(title);
     }
-#endif
 }
 }

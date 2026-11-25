@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/CivMusic.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/CivMusic.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
@@ -100,7 +100,7 @@ public static class CivMusic
     private static void Update(float dt)
     {
         bool on = SwitchCivMusicButton.On && MusicBox.music_on;
-        bool world = EmpireWorld.Current != null && Config.game_loaded && !SmoothLoader.isLoading() && EmpireWorld.Current.camera != null;
+        bool world = EmpireWorld.Current != null && GameClock.Running && !SmoothLoader.isLoading() && EmpireWorld.Current.camera != null;
         if (!on && Voices.Count == 0 && _vanilla >= 1f) return;
         if (!EnsureLoaded()) return;
 

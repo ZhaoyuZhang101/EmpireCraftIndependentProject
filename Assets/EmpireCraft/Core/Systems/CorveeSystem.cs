@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/CorveeSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/CorveeSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -75,16 +75,12 @@ public static class CorveeSystem
 #endif
 
     // 苛政：重徭役
-#if EC_PENDING
     public static float CorveeBurden(Realm core, int cities) =>
         Mathf.Min(CorveeCap, Intensity(core, cities).corvee * CorveePerIntensity);
-#endif
 
     // 苛政：大兴土木
-#if EC_PENDING
     public static float ConstructionBurden(Realm core, int cities) =>
         Mathf.Clamp((Intensity(core, cities).grand - GrandThreshold) * GrandPerIntensity, 0f, GrandCap);
-#endif
 
     // 苛政：好大喜功之君在位
 #if EC_PENDING
@@ -100,7 +96,6 @@ public static class CorveeSystem
 #endif
 
     // 农民(国人、野人)怨气目标值的徭役压力(InstitutionSystem.UpdateSocialUnrest 用)
-#if EC_PENDING
     public static float PeasantPressure(Empire empire)
     {
         Realm core = empire?.CoreKingdom;
@@ -109,10 +104,8 @@ public static class CorveeSystem
             .Sum(kingdom => kingdom.Cities?.Count ?? 0) ?? 0;
         return Mathf.Min(PeasantCap, Intensity(core, cities).corvee * PeasantPerIntensity);
     }
-#endif
 
     // 每城摊到的工役、大工程(已按经过的时间衰减，只读不写)
-#if EC_PENDING
     public static (float corvee, float grand) Intensity(Realm core, int cities)
     {
         if (core?.Record == null || core.IsGone() || EmpireWorld.Current == null) return (0f, 0f);
@@ -143,7 +136,6 @@ public static class CorveeSystem
         return empire?.kingdoms_list?.Where(member => member != null && !member.IsGone())
                    .Sum(member => member.Cities?.Count ?? 0) ?? kingdom.Cities?.Count ?? 0;
     }
-#endif
 
     // 把衰减结算进存档；不满一个月的不动时间戳(修路每月记一笔，零头不至于丢太多)
     private static void Settle(ref float load, ref float grand, ref double updated)

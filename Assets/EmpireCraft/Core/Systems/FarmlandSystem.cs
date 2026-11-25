@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/FarmlandSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/FarmlandSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -90,6 +90,7 @@ public static class FarmlandSystem
 
     public static float Productivity(City city) => Mathf.Max(ModernFloor(city), FarmTools[FarmToolTier(city) - 1].factor);
     public static float FishProductivity(City city) => Mathf.Max(ModernFloor(city), FishTools[FishToolTier(city) - 1].factor);
+#endif
 
     public static ConstitutionFarmland Policy(Realm kingdom)
     {
@@ -97,7 +98,6 @@ public static class FarmlandSystem
         return empire == null ? ConstitutionFarmland.Adaptive
             : ConstitutionSystem.GetClauses(empire)?.farmland ?? ConstitutionFarmland.Adaptive;
     }
-#endif
 
     // 耕地红线的规划目标比例，实际面积不能超过风车范围。
 #if EC_PENDING
@@ -107,9 +107,9 @@ public static class FarmlandSystem
         ConstitutionFarmland.Strict => RedLineBase,
         _ => RedLineBase / Productivity(city)
     };
+#endif
 
     public static bool IsProtected(City city) => city != null && Policy(city.Realm) != ConstitutionFarmland.None;
-#endif
 
     private static List<int> Zones(City city)
     {

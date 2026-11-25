@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/DeJureShareSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/DeJureShareSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Time = EmpireCraft.Core.FrameClock;
 using Color = EmpireCraft.Core.EcColor;
@@ -124,19 +124,16 @@ public static class DeJureShareSystem
         return true;
     }
 
-#if EC_PENDING
     private static KingdomTitle TitleOf(long id)
     {
-        KingdomTitle title = id < 0 ? null : ModClass.KINGDOM_TITLE_MANAGER?.get(id);
+        KingdomTitle title = id < 0 ? null : ModClass.KINGDOM_TITLE_MANAGER?.Get(id);
         return title == null || title.IsGone() ? null : title;
     }
-#endif
 
     private static bool Valid(City city) => city?.Record != null && !city.IsGone();
 
     #region 城兼属王国法理
 
-#if EC_PENDING
     public static List<KingdomTitle> SharedTitles(City city)
     {
         var result = new List<KingdomTitle>();
@@ -148,7 +145,6 @@ public static class DeJureShareSystem
                 result.Add(title);
         return result;
     }
-#endif
 
     // 兼属这个王国法理的城(不含它本来的城)
     public static List<City> SharedCities(KingdomTitle title)
@@ -207,7 +203,6 @@ public static class DeJureShareSystem
     #region 王国法理兼属帝国法理
 
     // 兼属这个帝国法理的王国法理(不含它本来的)
-#if EC_PENDING
     public static List<KingdomTitle> SharedTitles(EmpireCore core)
     {
         var result = new List<KingdomTitle>();
@@ -218,7 +213,6 @@ public static class DeJureShareSystem
                 result.Add(title);
         return result;
     }
-#endif
 
     // 兼收这个王国法理的帝国法理(不含它本来所在的)
     public static List<EmpireCore> SharedCores(KingdomTitle title)
@@ -327,7 +321,6 @@ public static class DeJureShareSystem
     #region 城的各层归属
 
     // 这座城的归属牵涉兼属没有(没有就只有本来的那一份，天下每帧扫城、图层每块问一遍，先用它挡掉)
-#if EC_PENDING
     public static bool Involved(City city)
     {
         if (!Valid(city) || !Any) return false;
@@ -336,10 +329,8 @@ public static class DeJureShareSystem
         if (own != null && CoresByTitle.ContainsKey(own.Key)) return true;
         return city.GetEmpireCore()?.shared_tianxia?.Count > 0;
     }
-#endif
 
     // 城所在的帝国法理：本来的在前，再是兼属的王国法理所在的、兼收它的王国法理的
-#if EC_PENDING
     public static List<EmpireCore> CoresOf(City city)
     {
         var result = new List<EmpireCore>();
@@ -360,10 +351,8 @@ public static class DeJureShareSystem
         }
         return result;
     }
-#endif
 
     // 城所在的天下(主核心)：本来的在前
-#if EC_PENDING
     public static List<EmpireCore> LeadsOf(City city)
     {
         var result = new List<EmpireCore>();
@@ -381,7 +370,6 @@ public static class DeJureShareSystem
         }
         return result;
     }
-#endif
 
     // 兼属方的帝国里有攻方一方(帝国按整个帝国算)、城又不在攻方手里：开战时算收复(见 WarGoalSystem.Claimed)
 #if EC_PENDING
@@ -462,6 +450,7 @@ public static class DeJureShareSystem
                 Touch(core);
         }
     }
+#endif
 
     private static bool Prune(List<DeJureShare> shares, double now, global::System.Predicate<DeJureShare> invalid)
     {
@@ -472,7 +461,6 @@ public static class DeJureShareSystem
         if (removed > 0) Changed();
         return removed > 0;
     }
-#endif
 
     // 本城有地块挨着这个王国法理(本来的城)
 #if EC_PENDING

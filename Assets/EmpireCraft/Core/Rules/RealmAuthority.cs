@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/RealmAuthority.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/RealmAuthority.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Time = EmpireCraft.Core.FrameClock;
 using System.Collections.Generic;
@@ -59,17 +59,15 @@ public static class RealmAuthority
 #endif
 
     // 叛乱未平：本国正在起兵(派系、地方叛乱)，或正被叛军攻打
-#if EC_PENDING
     public static bool InRebellion(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone()) return false;
         if (kingdom.IsFactionRebelling() || kingdom.IsLocalRebelling()) return true;
-        foreach (War war in kingdom.getWars())
-            if (war != null && !war.hasEnded() && war.main_defender == kingdom && MusterSystem.IsRebellion(war))
+        foreach (War war in kingdom.GetWars())
+            if (war != null && !war.HasEnded() && war.MainDefender == kingdom && MusterSystem.IsRebellion(war))
                 return true;
         return false;
     }
-#endif
 
     public static void Invalidate(Realm kingdom = null)
     {

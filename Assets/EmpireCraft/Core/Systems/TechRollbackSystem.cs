@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/TechRollbackSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/TechRollbackSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
@@ -285,7 +285,7 @@ public static class TechRollbackSystem
     public static void Tick()
     {
         if (_buildings == null && CityQueue.Count == 0 && Pending.Count == 0) return;
-        if (EmpireWorld.Current == null || !global::Config.game_loaded || SmoothLoader.isLoading()) return;
+        if (EmpireWorld.Current == null || !global::GameClock.Running || SmoothLoader.isLoading()) return;
         using (FrameProfiler.Measure("后台·科技回退"))
         {
             var watch = global::System.Diagnostics.Stopwatch.StartNew();
@@ -300,7 +300,7 @@ public static class TechRollbackSystem
                 }
                 StepCity(watch);
             }
-            if (global::Config.paused) return;
+            if (global::GameClock.Paused) return;
             _clock += Time.unscaledDeltaTime;
             int count = Math.Min(Pending.Count, PlacementsPerFrame);
             for (int i = 0; i < count && watch.ElapsedMilliseconds < BudgetMs * 2; i++)
@@ -419,6 +419,7 @@ public static class TechRollbackSystem
         _buildings = null;
         EndCity(city, job);
     }
+#endif
 
     private static void EndCity(City city, Job job)
     {
@@ -432,7 +433,6 @@ public static class TechRollbackSystem
             if (job != null && --job.Cities <= 0) Finish(job);
         }
     }
-#endif
 
     // 一座建筑：要的科技本文化没有，就换成升级链上本文化能建的最高一级(没有就拆；民居、城心留着)
 #if EC_PENDING

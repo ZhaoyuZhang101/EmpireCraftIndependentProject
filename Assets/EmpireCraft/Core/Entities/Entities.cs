@@ -22,6 +22,7 @@ namespace EmpireCraft.Core
         public int FoundedMonth;
         public int EndedMonth=-1;
         public readonly List<City> Cities=new List<City>();
+        public readonly List<War> Wars=new List<War>();   // running wars, kept by WorldOps and rebuilt on load
         public override bool Alive=>EndedMonth<0;
 
         public override long Key=>Id;               // stable key for tables and saves of ported systems

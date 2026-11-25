@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/SmoothBorders.Canvas.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/SmoothBorders.Canvas.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
@@ -214,7 +214,7 @@ public static partial class SmoothBorders
     private static bool DrawCanvas(ZoneCalculator calc)
     {
         MetaTypeAsset layer = calc?._mode_asset;
-        if (!Enabled || calc?.pixels == null || layer == null || EmpireWorld.Current == null || !Config.game_loaded || SmoothLoader.isLoading())
+        if (!Enabled || calc?.pixels == null || layer == null || EmpireWorld.Current == null || !GameClock.Running || SmoothLoader.isLoading())
         {
             if (_canvasLayer != null) CanvasRelease();
             return false;

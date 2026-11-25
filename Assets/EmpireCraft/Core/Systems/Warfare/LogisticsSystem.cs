@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/LogisticsSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/LogisticsSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -383,7 +383,7 @@ public static class LogisticsSystem
 #if EC_PENDING
     private static void TryForage(Realm realm)
     {
-        if (Foraging(realm) || !realm.hasEnemies()) return;
+        if (Foraging(realm) || !realm.HasEnemies()) return;
         Person commander = WarCommandSystem.Commander(realm);
         if (commander == null || commander.plot != null) return;
         if (!ForageWanted(realm)) return;
@@ -409,7 +409,7 @@ public static class LogisticsSystem
     {
         Realm realm = FrontSystem.Realm(actor?.Realm);
         if (realm?.Record == null || realm.IsGone() || WarCommandSystem.Commander(realm) != actor ||
-            !realm.hasEnemies() || Foraging(realm)) return false;
+            !realm.HasEnemies() || Foraging(realm)) return false;
         return !needy || ForageWanted(realm);
     }
 

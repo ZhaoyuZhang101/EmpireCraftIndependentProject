@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/HolyRomanSystem.Election.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/HolyRomanSystem.Election.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -303,44 +303,42 @@ public static partial class HolyRomanSystem
         DeclaringContest = true;
         try
         {
-            war = EmpireWorld.Current.diplomacy.startWar(realm, core, WarTypeLibrary.normal);
+            war = EmpireWorld.Current.StartWar(realm, core, WarKinds.Normal);
         }
         finally
         {
             DeclaringContest = false;
         }
-        if (war?.data == null) return;
+        if (war?.Record == null) return;
         war.SetEmpireWarType(EmpireWarType.对立国王);
-        war.data.name = string.Format(LM.Get("hre_contest_war_name"), realm.GetKingdomName());
-        state.anti_king_war_id = war.data.id;
+        war.Name = string.Format(LM.Get("hre_contest_war_name"), realm.GetKingdomName());
+        state.anti_king_war_id = war.Key;
         foreach (Realm member in antiVoters.Distinct())
             if (member?.Record != null && !member.IsGone() && member != realm && member != core && member.GetEmpire() == empire &&
-                !war.hasKingdom(member) && EcRandom.value < ContestJoinChance) war.joinAttackers(member);
+                !war.HasRealm(member) && EcRandom.value < ContestJoinChance) war.JoinAttackers(member);
         foreach (Realm member in loyalVoters.Distinct())
             if (member?.Record != null && !member.IsGone() && member != realm && member != core && member.GetEmpire() == empire &&
-                !war.hasKingdom(member) && EcRandom.value < ContestJoinChance) war.joinDefenders(member);
+                !war.HasRealm(member) && EcRandom.value < ContestJoinChance) war.JoinDefenders(member);
         LogService.LogInfo($"[EmpireCraft][神罗] {empire.GetEmpireFullName()} 双重选举：{emperor.FullName()}即位，" +
-                           $"{rival.FullName()}({realm.GetKingdomName()})自立为对立国王，开{war.data.name}");
+                           $"{rival.FullName()}({realm.GetKingdomName()})自立为对立国王，开{war.Name}");
     }
 
     public static War ContestWar(Empire empire) => LiveWar(State(empire)?.anti_king_war_id ?? -1L);
 #endif
 
     // 争位之战里攻下中央都城(CityPatch 用)：正统只扣 10
-#if EC_PENDING
     public static bool InContest(Realm a, Realm b)
     {
         if (a?.Record == null || b?.Record == null) return false;
-        foreach (War war in a.getWars())
-            if (war?.data != null && !war.hasEnded() && war.GetEmpireWarType() == EmpireWarType.对立国王 && war.hasKingdom(b))
+        foreach (War war in a.GetWars())
+            if (war?.Record != null && !war.HasEnded() && war.GetEmpireWarType() == EmpireWarType.对立国王 && war.HasRealm(b))
                 return true;
         return false;
     }
-#endif
 
     // 争位之战收场(OnWarEnded)：攻方胜，对立国王的领国成为中央；守方胜或议和，对立国王放弃
 #if EC_PENDING
-    private static void SettleContest(Empire empire, HolyRomanState state, WarWinner winner)
+    private static void SettleContest(Empire empire, HolyRomanState state, WarOutcome winner)
     {
         Realm realm = LiveKingdom(state.anti_king_realm_id);
         string name = state.anti_king_name;
@@ -348,7 +346,7 @@ public static partial class HolyRomanSystem
         state.anti_king_name = "";
         state.year_turmoil = true;
         Person claimant = realm?.Ruler;
-        if (winner == WarWinner.Attackers && realm != null && realm.GetEmpire() == empire && claimant?.Record != null &&
+        if (winner == WarOutcome.Attackers && realm != null && realm.GetEmpire() == empire && claimant?.Record != null &&
             realm != empire.CoreKingdom &&
             Install(empire, state, claimant, "hre_election_outcome_contest", name))
         {
@@ -391,7 +389,7 @@ public static partial class HolyRomanSystem
             else
             {
                 state.year_turmoil = true;
-                if (WarSituation.WarYears(war) >= ContestMaxYears) EmpireWorld.Current.wars.endWar(war, WarWinner.Peace);
+                if (WarSituation.WarYears(war) >= ContestMaxYears) EmpireWorld.Current.EndWar(war, WarOutcome.Peace);
             }
         }
         if (state.interregnum_since >= 0d)

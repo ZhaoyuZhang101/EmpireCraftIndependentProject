@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/BarrenLandSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/BarrenLandSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -43,7 +43,7 @@ public static class BarrenLandSystem
 
     public static void TryMonthlyScan()
     {
-        if (EmpireWorld.Current?.Cities == null || ModClass.IS_CLEAR || !Config.game_loaded || SmoothLoader.isLoading()) return;
+        if (EmpireWorld.Current?.Cities == null || ModClass.IS_CLEAR || !GameClock.Running || SmoothLoader.isLoading()) return;
         double now = GameClock.Now;
         if (_lastScan >= 0d && now >= _lastScan && GameClock.MonthsSince(_lastScan) < 1) return;
         _lastScan = now;

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/HelperFunc/TranslateHelper.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/HelperFunc/TranslateHelper.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Color = EmpireCraft.Core.EcColor;
 using System;
@@ -30,7 +30,6 @@ namespace EmpireCraft.Core
         /// </summary>
         /// <param name="args"></param>
         /// <returns>翻译完成并拼接的字段</returns>
-#if EC_PENDING
         public static string TryTranslate(params string[] args)
         {
             string result = "";
@@ -47,6 +46,7 @@ namespace EmpireCraft.Core
             }
             return result;
         }
+#if EC_PENDING
         public static void LogministerTryAqcuireEmpire(Person minister, Empire empire)
         {
             new WorldLogMessage(EmpireCraftWorldLogLibrary.minister_try_aqcuire_empire_log, minister.GetTitle(), minister.Name, empire.Name)
@@ -445,7 +445,6 @@ namespace EmpireCraft.Core
                 .Replace("$crime$", localizedCrimeName ?? "");
         }
 
-#if EC_PENDING
         public static bool ShouldBroadcastLawActor(Person actor)
         {
             if (actor == null || actor.IsGone())
@@ -460,11 +459,9 @@ namespace EmpireCraft.Core
 
             return actor.isOfficer() || actor.IsOnOffice() || actor.GetOffice() != null || actor.IsRuler() || actor.HasTitle() || actor.IsCityLeader();
         }
-#endif
 
         public static string GetPunishmentName(PunishmentLevel punishment) => EmpireLawSystem.GetPunishmentName(punishment);
 
-#if EC_PENDING
         private static bool ShouldRecordLawEnforcementHistory(Person actor, Empire empire)
         {
             if (actor == null || empire == null) return false;
@@ -486,6 +483,7 @@ namespace EmpireCraft.Core
 
             return false;
         }
+#if EC_PENDING
         public static void LogOfficerJoinFaction(OfficeObject office, Person pActor, FixedFaction faction)
         {
             new WorldLogMessage(EmpireCraftWorldLogLibrary.officer_join_faction,
@@ -678,7 +676,7 @@ namespace EmpireCraft.Core
                 default:
                     if (targetType == MetaTypeExtension.KingdomTitle)
                     {
-                        return ModClass.KINGDOM_TITLE_MANAGER.get(targetId)?.data?.name;
+                        return ModClass.KINGDOM_TITLE_MANAGER.Get(targetId)?.data?.name;
                     }
 
                     return null;

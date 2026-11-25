@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/CityZoningSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/CityZoningSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
@@ -842,12 +842,12 @@ public static class CityZoningSystem
         return count;
     }
 
-#if EC_PENDING
     public static void Later(City city)
     {
         if (city?.Record != null) Due[city] = Time.unscaledTime + SyncDelay;
     }
 
+#if EC_PENDING
     private static bool Alive(City city) => city?.Record != null && !city.IsGone() && city.zones != null;
 #endif
 

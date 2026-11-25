@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/MassacreSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/MassacreSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -32,7 +32,7 @@ public static class MassacreSystem
         if (attackerKingdom == null || targetKingdom == null || attackerKingdom == targetKingdom) return false;
         if (!attacker.isKingdomCiv() || !target.isKingdomCiv()) return false;
         if (!IsCivilian(attacker) && !IsCivilian(target)) return false;
-        return attackerKingdom.isEnemy(targetKingdom);
+        return attackerKingdom.IsEnemy(targetKingdom);
     }
 #endif
 
@@ -47,7 +47,7 @@ public static class MassacreSystem
         if (EmpireWorld.Current == null || !IsCivilian(victim) || killer == null || IsCivilian(killer)) return;
         Realm killerKingdom = killer.Realm;
         if (killerKingdom == null || victim.Realm == null || !killer.isKingdomCiv() || !victim.isKingdomCiv() ||
-            !killerKingdom.isEnemy(victim.Realm)) return;
+            !killerKingdom.IsEnemy(victim.Realm)) return;
         City city = victim.City ?? victim.current_tile?.zone_city;
         if (city == null || city.IsGone()) return;
         CityExtension.CityExtraData data = city.GetOrCreate();
@@ -104,7 +104,6 @@ public static class MassacreSystem
 #endif
 
     // 屠城之恨：城市现在归屠城者(或与之同一帝国)统治时的忠诚惩罚
-#if EC_PENDING
     public static int LoyaltyPenalty(City city)
     {
         if (city?.Realm == null || EmpireWorld.Current == null) return 0;
@@ -120,6 +119,5 @@ public static class MassacreSystem
         float fade = 1f - years / (float)MemoryYears;
         return -Mathf.RoundToInt(Math.Min(MaxLoyaltyPenalty, data.massacre_victims * LoyaltyPerVictim) * fade);
     }
-#endif
 }
 }

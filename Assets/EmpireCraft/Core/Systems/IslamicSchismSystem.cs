@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/IslamicSchismSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/IslamicSchismSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -91,9 +91,7 @@ public static class IslamicSchismSystem
 
     private static bool Alive(Person actor) => actor?.Record != null && !actor.IsGone() && actor.Alive;
 
-#if EC_PENDING
     private static Realm ModRealm(Realm kingdom) => kingdom?.GetEmpire()?.CoreKingdom ?? kingdom;
-#endif
 
     private static Realm LiveKingdom(long id)
     {
@@ -101,13 +99,11 @@ public static class IslamicSchismSystem
         return Alive(kingdom) ? kingdom : null;
     }
 
-#if EC_PENDING
     private static Empire LiveEmpire(long id)
     {
-        Empire empire = id >= 0 ? ModClass.EMPIRE_MANAGER?.get(id) : null;
+        Empire empire = id >= 0 ? ModClass.EMPIRE_MANAGER?.Get(id) : null;
         return empire?.data != null && !empire.IsGone() && !empire.IsArchived() ? empire : null;
     }
-#endif
 
     private static double Now => GameClock.Now;
 
@@ -359,7 +355,7 @@ public static class IslamicSchismSystem
         Empire twin = EmpirePartitionSystem.Twin(empire);
         Empire seeEmpire = see.GetEmpire();
         // 与哈里发座交战；哈里发之国衰微(正在闹更替之乱、正统低于 DeclineLegitimacy)；与哈里发座所在的那一朝分立相争
-        hostile = core.isInWarWith(see) ||
+        hostile = core.IsAtWarWith(see) ||
                   seeEmpire != null && seeEmpire.CoreKingdom == see && (SchismSystem.Active(seeEmpire) || seeEmpire.Legitimacy < DeclineLegitimacy) ||
                   twin != null && !empire.data.partition_amity && seeEmpire == twin;
         City holy = PapacySystem.HolyCity(religion);
@@ -552,7 +548,6 @@ public static class IslamicSchismSystem
 #endif
 
     // 易姓：帝国看皇室宗族，独立王国看君主宗族；与自立者不同世系即绝。宗族不可考(空)的不判
-#if EC_PENDING
     private static bool LineEnded(RivalCaliphateData rival, Realm seat)
     {
         if (rival.clan_id < 0) return false;
@@ -563,6 +558,7 @@ public static class IslamicSchismSystem
         return founder == null || !SpecificClanManager.SameLineage(current, founder);
     }
 
+#if EC_PENDING
     private static void End(Religion religion, RivalCaliphateData rival, string end, bool announce)
     {
         IslamicSchismState state = State(religion);
@@ -719,7 +715,7 @@ public static class IslamicSchismSystem
 #if EC_PENDING
     private static bool Acceptable(Empire empire, Religion religion, Realm seat)
     {
-        if (!Alive(seat) || seat.religion != religion || seat.isInWarWith(empire.CoreKingdom)) return false;
+        if (!Alive(seat) || seat.religion != religion || seat.IsAtWarWith(empire.CoreKingdom)) return false;
         Empire twin = EmpirePartitionSystem.Twin(empire);
         return twin == null || empire.data.partition_amity || seat.GetEmpire() != twin;
     }
@@ -799,7 +795,7 @@ public static class IslamicSchismSystem
     {
         if (faith.getAge() < ShiaMinAge || Cities(realm) < ShiaMinCities) return;
         bool alid = Alid(faith, realm.Ruler);
-        bool hostile = orthodox != null && realm.isInWarWith(ModRealm(orthodox));
+        bool hostile = orthodox != null && realm.IsAtWarWith(ModRealm(orthodox));
         if (!alid && !hostile) return;
         bool unhappy = Unhappy(realm);
         float chance = alid && (hostile || unhappy) ? ShiaAlidChance : hostile && unhappy ? ShiaGrievanceChance : alid ? ShiaClaimChance : 0f;
@@ -817,7 +813,7 @@ public static class IslamicSchismSystem
             return;
         float share = ShareFollowing(realm, shia);
         float chance = share >= ShiaAdoptMajority ? ShiaAdoptMajorityChance : share >= ShiaAdoptMinority ? ShiaAdoptMinorityChance : 0f;
-        if (chance <= 0f && orthodox != null && realm.isInWarWith(ModRealm(orthodox)) && Alid(faith, realm.Ruler)) chance = ShiaAdoptClaimChance;
+        if (chance <= 0f && orthodox != null && realm.IsAtWarWith(ModRealm(orthodox)) && Alid(faith, realm.Ruler)) chance = ShiaAdoptClaimChance;
         if (chance <= 0f || EcRandom.value >= chance) return;
         ReligionConversionSystem.Convert(realm, shia, faith, "shia_adopt_log");
         LogService.LogInfo($"{Tag} {realm.GetKingdomName()} 改奉{shia.name}(治下奉之者 {share:P0})");
@@ -966,7 +962,7 @@ public static class IslamicSchismSystem
         float burden = core ? HarshRuleSystem.GetBurden(empire) : HarshRuleSystem.GetBurden(realm);
         if (burden >= LaxHarshBurden) return true;
         Realm seat = core ? SeatFor(empire, religion) : PapacySystem.Papacy(religion);
-        if (seat != null && ModRealm(seat) != realm && realm.isInWarWith(ModRealm(seat))) return true;
+        if (seat != null && ModRealm(seat) != realm && realm.IsAtWarWith(ModRealm(seat))) return true;
         int total = 0, other = 0;
         foreach (City city in RealmCities(realm))
         {
@@ -1030,7 +1026,7 @@ public static class IslamicSchismSystem
             if (movement.stage == 0)
             {
                 Realm origin = LiveKingdom(movement.origin_kingdom_id);
-                if (rebel.IsLocalRebelling() || origin != null && rebel.isInWarWith(ModRealm(origin))) continue;
+                if (rebel.IsLocalRebelling() || origin != null && rebel.IsAtWarWith(ModRealm(origin))) continue;
                 BecomeJihadState(religion, movement, rebel);
                 continue;
             }
@@ -1040,7 +1036,7 @@ public static class IslamicSchismSystem
                 EndMovement(religion, movement, "reform_movement_settled_log", rebel);
                 continue;
             }
-            if (rebel.hasEnemies() || EcRandom.value >= JihadChance) continue;
+            if (rebel.HasEnemies() || EcRandom.value >= JihadChance) continue;
             DeclareJihad(religion, movement, rebel);
         }
     }
@@ -1083,11 +1079,11 @@ public static class IslamicSchismSystem
             size = cities;
         }
         if (target == null) return;
-        War war = EmpireWorld.Current.diplomacy.startWar(state, target, WarTypeLibrary.normal);
-        if (war?.data == null) return;
+        War war = EmpireWorld.Current.StartWar(state, target, WarKinds.Normal);
+        if (war?.Record == null) return;
         war.SetEmpireWarType(EmpireWarType.神圣, pre: religion.name);
         WarGoalSystem.Preset(war, WarGoal.割地);
-        war.data.name = string.Format(LM.Get("reform_jihad_war_name"), movement.name, target.GetKingdomName());
+        war.Name = string.Format(LM.Get("reform_jihad_war_name"), movement.name, target.GetKingdomName());
         movement.jihads++;
         string text = string.Format(LM.Get("reform_jihad_declared_log"), state.GetKingdomName(), movement.name, target.GetKingdomName());
         EventRecorder.Record(state, text);
@@ -1121,7 +1117,6 @@ public static class IslamicSchismSystem
 #endif
 
     // 一国治下的城(帝国中央按全体成员)
-#if EC_PENDING
     private static IEnumerable<City> RealmCities(Realm realm)
     {
         Empire empire = realm.GetEmpire();
@@ -1133,7 +1128,6 @@ public static class IslamicSchismSystem
                 if (city?.Record != null && !city.IsGone()) yield return city;
         }
     }
-#endif
 
     // 治下奉 faith 的人口占比
 #if EC_PENDING

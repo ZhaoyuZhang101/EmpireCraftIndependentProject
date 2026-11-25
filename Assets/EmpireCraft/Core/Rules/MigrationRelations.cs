@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/MigrationRelations.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/MigrationRelations.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System.Collections.Generic;
 
@@ -15,7 +15,6 @@ public static class MigrationRelations
     private const int DrainedOpinion = -25, ExpelledOpinion = -40;
     public const float RefugeeStabilityLoss = 6f;
 
-#if EC_PENDING
     private static Realm ModRealm(Realm kingdom) => kingdom?.GetEmpire()?.CoreKingdom ?? kingdom;
 
     public static void Drained(Realm victim, Realm culprit) => Note(victim, culprit, expelled: false);
@@ -32,10 +31,8 @@ public static class MigrationRelations
             : data.migration_drained ??= new Dictionary<long, double>();
         book[b.Key] = GameClock.Now;
     }
-#endif
 
     // 好感(见 EmpireCraftOpinionAddition)：main 对 target
-#if EC_PENDING
     public static int Opinion(Realm main, Realm target)
     {
         Realm a = ModRealm(main), b = ModRealm(target);
@@ -44,7 +41,6 @@ public static class MigrationRelations
         if (Recent(data.migration_expelled, b.Key, GrievanceYears)) return ExpelledOpinion;
         return Recent(data.migration_drained, b.Key, GrievanceYears) ? DrainedOpinion : 0;
     }
-#endif
 
     private static bool Recent(Dictionary<long, double> book, long id, int years) =>
         book != null && book.TryGetValue(id, out double at) && at >= 0d && GameClock.YearsSince(at) < years;

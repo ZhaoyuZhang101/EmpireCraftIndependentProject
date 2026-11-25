@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/HolyRomanSystem.Leagues.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/HolyRomanSystem.Leagues.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -78,6 +78,7 @@ public static partial class HolyRomanSystem
     }
 
     public static War LeagueWar(Empire empire) => LiveWar(State(empire)?.league_war_id ?? -1L);
+#endif
 
     public static List<Realm> LeagueMembers(Empire empire)
     {
@@ -85,7 +86,6 @@ public static partial class HolyRomanSystem
         return state?.league_member_ids?.Select(id => EmpireWorld.Current.RealmByKey(id))
             .Where(kingdom => kingdom?.Record != null && !kingdom.IsGone() && kingdom.GetEmpire() == empire).ToList() ?? new List<Realm>();
     }
-#endif
 
     // 两教有分合关系：一方是从另一方分出去的(宗教改革另立的新教会与它的母宗教)
 #if EC_PENDING
@@ -160,17 +160,17 @@ public static partial class HolyRomanSystem
     private static void DeclareReligiousWar(Empire empire, HolyRomanState state, Realm head, List<Realm> dissenters)
     {
         Realm core = empire.CoreKingdom;
-        if (head.isInWarWith(core)) return;
-        War war = EmpireWorld.Current.diplomacy.startWar(head, core, WarTypeLibrary.normal);
-        if (war?.data == null) return;
-        war.data.name = string.Format(LM.Get("hre_religious_war_name"), state.league_name);
-        state.league_war_id = war.data.id;
+        if (head.IsAtWarWith(core)) return;
+        War war = EmpireWorld.Current.StartWar(head, core, WarKinds.Normal);
+        if (war?.Record == null) return;
+        war.Name = string.Format(LM.Get("hre_religious_war_name"), state.league_name);
+        state.league_war_id = war.Key;
         state.year_turmoil = true;
         foreach (Realm member in dissenters)
-            if (member != head && !war.hasKingdom(member) && !member.isInWarWith(head)) war.joinAttackers(member);
+            if (member != head && !war.HasRealm(member) && !member.IsAtWarWith(head)) war.JoinAttackers(member);
         foreach (Realm member in Members(empire))
-            if (!war.hasKingdom(member) && member.religion == core.religion && !IsBanned(member) &&
-                EcRandom.value < CatholicLeagueChance) war.joinDefenders(member);
+            if (!war.HasRealm(member) && member.religion == core.religion && !IsBanned(member) &&
+                EcRandom.value < CatholicLeagueChance) war.JoinDefenders(member);
         Record(empire, string.Format(LM.Get("hre_religious_war_history"), state.league_name, head.GetKingdomName(),
             empire.Emperor?.FullName() ?? core.GetKingdomName()));
     }

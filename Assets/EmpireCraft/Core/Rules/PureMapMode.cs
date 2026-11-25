@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/PureMapMode.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/PureMapMode.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Time = EmpireCraft.Core.FrameClock;
 using System.Collections.Generic;
@@ -20,9 +20,7 @@ namespace EmpireCraft.Core
 //   · 实体一次清：读档后、积压时不是名人的普通人当场并回人口(几帧清完)，之后每 10 秒清一次零头，不等月度结算慢慢回收。
 public static class PureMapMode
 {
-#if EC_PENDING
     public static bool Enabled => ModClass.PURE_MAP_MODE;
-#endif
 
     // 本模式下打开的法则：无小人模式、占领模式(军团与战线这套虚拟军队要两者都开)
     private static readonly string[] ForcedOnLaws = { "empirecraft_law_no_commoners", "empirecraft_law_switch_occupy_mode" };
@@ -69,7 +67,7 @@ public static class PureMapMode
 #if EC_PENDING
     public static void Tick()
     {
-        if (!Enabled || EmpireWorld.Current == null || !Config.game_loaded || SmoothLoader.isLoading()) return;
+        if (!Enabled || EmpireWorld.Current == null || !GameClock.Running || SmoothLoader.isLoading()) return;
         // 开局提示：建筑、植物、小人不见了是纯净地图模式(见 PureMapNoticeWindow)
         EmpireCraft.Core.PureMapNoticeWindow.TryShow();
         if (!_spritesOff) TurnOffSprites();
@@ -92,7 +90,7 @@ public static class PureMapMode
 #if EC_PENDING
     private static void Purge()
     {
-        if (Config.paused || Time.unscaledTime < _purgeAt) return;
+        if (GameClock.Paused || Time.unscaledTime < _purgeAt) return;
         int folded = CityPopulationSystem.PurgeCommoners(PurgePerFrame, out bool more);
         _purgedTotal += folded;
         if (more) return;

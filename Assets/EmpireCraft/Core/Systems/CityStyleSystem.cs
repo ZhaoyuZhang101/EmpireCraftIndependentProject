@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/CityStyleSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/CityStyleSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System.Collections.Generic;
@@ -71,7 +71,7 @@ public static class CityStyleSystem
     // 读档、建图途中不判(那时城市风格还没读进来，免得按眼下文化先定了风格)
 #if EC_PENDING
     public static float CapacityFactor(City city) =>
-        global::Config.game_loaded && !SmoothLoader.isLoading() && Nomad(city) ? NomadCapacityShare : 1f;
+        global::GameClock.Running && !SmoothLoader.isLoading() && Nomad(city) ? NomadCapacityShare : 1f;
 #endif
 
     // 不修路的城：只有游牧营地(用户 2026-10-21 选：阿兹特克照定居城修路，林地只修最低一档，见 RoadGradeCap)

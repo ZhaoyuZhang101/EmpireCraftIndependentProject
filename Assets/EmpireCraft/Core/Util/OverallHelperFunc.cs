@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/HelperFunc/OverallHelperFunc.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/HelperFunc/OverallHelperFunc.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -40,7 +40,6 @@ namespace EmpireCraft.Core
         {
             return LM.Get(key);
         }
-#if EC_PENDING
         public static string AppendWithNarrowSpace(this string textA, string textB)
         {
             return JoinNameParts(textA, textB);
@@ -57,7 +56,6 @@ namespace EmpireCraft.Core
                     : ModClass.NARROW_SPACE;
             }
         }
-#endif
 
         public static bool IsEnglishLanguage()
         {
@@ -66,13 +64,11 @@ namespace EmpireCraft.Core
                    language == "en";
         }
 
-#if EC_PENDING
         public static string JoinNameParts(params string[] parts)
         {
             if (parts == null || parts.Length == 0) return "";
             return string.Join(NamePartSeparator, parts.Where(part => !string.IsNullOrWhiteSpace(part)));
         }
-#endif
 
         private static readonly char[] NarrowSplit = { '\u200A' };
 
@@ -92,7 +88,6 @@ namespace EmpireCraft.Core
             return parts;
         }
 
-#if EC_PENDING
         public static string ReduceNarrowSpaces(this string text)
         {
             return text.UseLocalizedNameSeparator();
@@ -137,7 +132,6 @@ namespace EmpireCraft.Core
             return JoinNameParts(words.Take(splitIndex).ToArray()) + "\n" +
                    JoinNameParts(words.Skip(splitIndex).ToArray());
         }
-#endif
 
         private static float MeasureEnglishText(string text)
         {
@@ -168,7 +162,6 @@ namespace EmpireCraft.Core
             return true;
         }
 
-#if EC_PENDING
         public static string FormatCountryTypeName(string coreName, string typeName, string cultureName)
         {
             coreName = coreName.UseLocalizedNameSeparator();
@@ -179,7 +172,6 @@ namespace EmpireCraft.Core
                 ? coreName
                 : JoinNameParts(coreName, typeName);
         }
-#endif
 
         public static bool TryExtractEnglishPrefixedCountryName(string fullName, out string coreName)
         {
@@ -191,7 +183,6 @@ namespace EmpireCraft.Core
             return !string.IsNullOrWhiteSpace(coreName);
         }
 
-#if EC_PENDING
         public static string FormatKingdomFullName(string coreName, string typeName, string cultureName)
         {
             if (string.IsNullOrWhiteSpace(coreName)) return "";
@@ -246,6 +237,7 @@ namespace EmpireCraft.Core
             return string.Equals(value, typeName, StringComparison.Ordinal) ? "" : value;
         }
 
+#if EC_PENDING
         public static string ResolveEmpireTypeKey(Regime regime, Realm coreKingdom)
         {
             string key = null;

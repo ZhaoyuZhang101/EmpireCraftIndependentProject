@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/ConstitutionalEconomySystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/ConstitutionalEconomySystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -137,7 +137,6 @@ public static class ConstitutionalEconomySystem
 #endif
 
     // 市场交换(无小人模式，见 MarketSystem)：记作一次商队往来，城市就业的"近期航运"、资本主义萌芽都会计入
-#if EC_PENDING
     public static void RecordTrade(City origin, City destination, bool foreign, int gold)
     {
         if (origin == null || destination == null || EmpireWorld.Current == null || gold <= 0) return;
@@ -163,7 +162,6 @@ public static class ConstitutionalEconomySystem
         });
         PruneTrade(state);
     }
-#endif
 
     private static void ClearPendingTrade(ActorExtension.ActorExtraData data)
     {

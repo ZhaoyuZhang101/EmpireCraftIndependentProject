@@ -29,7 +29,15 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import closure
 import port_tool as tool
 
-DIRS = closure.DEFAULT_DIRS + ["Scripts/GameClassExtensions"]
+DIRS = closure.DEFAULT_DIRS + ["Scripts/GameClassExtensions", "Scripts/AI"]
+
+
+def generated_header(text, path):
+    """The header of a generated file names its source but not the commit, which the manifest records."""
+    first, _, rest = text.partition("\n")
+    if first.startswith("// Ported from the EmpireCraft mod: "):
+        first = "// Generated from the EmpireCraft mod: %s. Do not edit by hand: Tools/PortTool/members.py rewrites it;" % path
+    return first + "\n" + rest
 
 
 def find(args):
@@ -49,6 +57,7 @@ def find(args):
         source = tool.show(mod, commit, path)
         sources[path] = hashlib.sha256(source.encode("utf-8")).hexdigest()
         text, _ = tool.transform(source, path, commit, namespaces, True, [])
+        text = generated_header(text, path)
         full = os.path.join(work, "src", *path.split("/"))
         os.makedirs(os.path.dirname(full), exist_ok=True)
         with open(full, "w", encoding="utf-8", newline="\n") as f:

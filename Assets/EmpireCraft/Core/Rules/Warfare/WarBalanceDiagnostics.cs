@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/WarBalanceDiagnostics.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/WarBalanceDiagnostics.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System.Collections.Generic;
@@ -89,10 +89,10 @@ public static class WarBalanceDiagnostics
         foreach (Realm side in new[] { kingdom, FrontSystem.Realm(kingdom) })
         {
             if (side?.Record == null || side.IsGone()) continue;
-            foreach (War war in side.getWars())
+            foreach (War war in side.GetWars())
             {
-                if (war?.data == null || war.hasEnded()) continue;
-                Realm foe = war.isAttacker(side) ? war.main_defender : war.main_attacker;
+                if (war?.Record == null || war.HasEnded()) continue;
+                Realm foe = war.IsAttacker(side) ? war.MainDefender : war.MainAttacker;
                 if (foe?.Record != null && !foe.IsGone() && watched(foe)) return true;
             }
         }

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/PublicOpinionSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/PublicOpinionSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -289,7 +289,7 @@ public static class PublicOpinionSystem
             float ratio = Mathf.Clamp((float)(source.CoreKingdom.GetNationalPower() / ownPower), 0.25f, 4f);
             int eraGap = TechnologySystem.GetEraTier(InstitutionSystem.GetPrimaryCulture(source)) - ownEra;
             float amount = BasePressure * ratio * (1f + 0.25f * Math.Max(0, eraGap));
-            if (empire.CoreKingdom.isEnemy(source.CoreKingdom)) amount *= 0.5f;
+            if (empire.CoreKingdom.IsEnemy(source.CoreKingdom)) amount *= 0.5f;
             if (remote.TryGetValue(source, out float linkFactor)) amount *= linkFactor;
             else if (geography.TryGetValue(source, out float strength)) amount *= strength;
             result.Add(new IdeologyPressureSource

@@ -46,7 +46,7 @@ PROJECT = """<Project Sdk="Microsoft.NET.Sdk">
 
 
 # Mod folders that keep a folder of their own in the core.
-FOLDERS = {"Layer": "Layer", "Regimes": "Regimes", "GameClassExtensions": "Extensions"}
+FOLDERS = {"Layer": "Layer", "Regimes": "Regimes", "GameClassExtensions": "Extensions", "AI": "Tasks"}
 
 
 def destination(path):

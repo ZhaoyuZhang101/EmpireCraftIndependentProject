@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/CorpsSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/CorpsSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
@@ -278,7 +278,7 @@ public static class CorpsSystem
     internal static float LimitMonthElapsed(float elapsed)
     {
         if (!SimulationFrameBudget.ServerMilliseconds.HasValue || _monthPhase == MonthPhase.Idle || _lastMonth < 0d || elapsed <= 0f ||
-            !ReferenceEquals(_world, EmpireWorld.Current) || !Config.game_loaded || Config.paused || SmoothLoader.isLoading()) return elapsed;
+            !ReferenceEquals(_world, EmpireWorld.Current) || !GameClock.Running || GameClock.Paused || SmoothLoader.isLoading()) return elapsed;
 
         double now = GameClock.Now;
         if (now < _lastMonth) return elapsed;
@@ -502,19 +502,18 @@ public static class CorpsSystem
         { EmpireWarType.地方叛乱, EmpireWarType.民族叛乱, EmpireWarType.宗教叛乱, EmpireWarType.派系叛乱, EmpireWarType.清君侧 };
     private static readonly Dictionary<long, (double at, bool value)> InsurgentCache = new();
 
-#if EC_PENDING
     public static bool Insurgent(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || EmpireWorld.Current == null) return false;
         double now = GameClock.Now;
         if (InsurgentCache.TryGetValue(kingdom.Key, out var cached) && now >= cached.at && now - cached.at < 5d) return cached.value;
         // 剧本点名的流寇(闯军、西军)：打仗就以战养战，攻守都算(见 ScenarioEventSystem.Roving)
-        bool value = ScenarioEventSystem.Roving(kingdom) && kingdom.hasEnemies();
-        foreach (War war in kingdom.getWars())
+        bool value = ScenarioEventSystem.Roving(kingdom) && kingdom.HasEnemies();
+        foreach (War war in kingdom.GetWars())
         {
             if (value) break;
-            if (war?.data == null || war.hasEnded() || !war.isAttacker(kingdom)) continue;
-            if (war.getAsset() != WarTypeLibrary.rebellion && !UprisingTypes.Contains(war.GetEmpireWarType())) continue;
+            if (war?.Record == null || war.HasEnded() || !war.IsAttacker(kingdom)) continue;
+            if (war.GetKind() != WarKinds.Rebellion && !UprisingTypes.Contains(war.GetEmpireWarType())) continue;
             value = true;
             break;
         }
@@ -522,6 +521,7 @@ public static class CorpsSystem
         return value;
     }
 
+#if EC_PENDING
     public static float InsurgentFactor(CorpsData corps) =>
         corps != null && Insurgent(EmpireWorld.Current?.kingdoms?.get(corps.kingdom_id)) ? InsurgentPower : 1f;
 #endif
@@ -699,14 +699,15 @@ public static class CorpsSystem
 #if EC_PENDING
     private static void SueForPeace(Realm kingdom)
     {
-        foreach (War war in kingdom.getWars().ToList())
+        foreach (War war in kingdom.GetWars().ToList())
         {
-            if (war?.data == null || war.hasEnded() || EcRandom.value >= SuePeaceChance) continue;
-            Realm foe = war.main_attacker == kingdom ? war.main_defender : war.main_attacker;
+            if (war?.Record == null || war.HasEnded() || EcRandom.value >= SuePeaceChance) continue;
+            Realm foe = war.MainAttacker == kingdom ? war.MainDefender : war.MainAttacker;
             if (WarGoalSystem.TrySueForPeace(war, kingdom))
                 FrontSystem.Log(kingdom, string.Format(LM.Get("corps_log_unpaid_peace"), foe?.GetKingdomName() ?? ""));
         }
     }
+#endif
 
     private static int Draw(Realm payer, int amount, TreasuryCategory category)
     {
@@ -715,7 +716,6 @@ public static class CorpsSystem
         if (paid > 0) payer.SubMoney(paid, category);
         return paid;
     }
-#endif
 
     // 量入为出养兵：兵额按养得起多少封顶——平时军饷不超过经常收入的 PeaceBudgetShare，战时(连粮秣军械)不超过
     // WarBudgetShare(被全面侵略时倾国而战，SurvivalBudgetShare)，国库存银另按 ReserveYears 年花掉；养不起就各军按比例缩编，
@@ -738,8 +738,8 @@ public static class CorpsSystem
         foreach (Realm side in new[] { kingdom, FrontSystem.Realm(kingdom) })
         {
             if (side?.Record == null || side.IsGone()) continue;
-            foreach (War war in side.getWars())
-                if (war?.data != null && !war.hasEnded()) months = Mathf.Max(months, GameClock.MonthsSince(war.data.created_time));
+            foreach (War war in side.GetWars())
+                if (war?.Record != null && !war.HasEnded()) months = Mathf.Max(months, GameClock.MonthsSince(war.StartedStamp));
         }
         // 部众思归：游牧汗国打满两年以后兵源逐年打九折，至多六折(见 NomadCycleSystem)
         return Mathf.Lerp(peace, 1f, Mathf.Clamp01((months + 1) / WarLevyMonths)) * NomadCycleSystem.HomesickLevy(kingdom, months);
@@ -1294,8 +1294,8 @@ public static class CorpsSystem
 
 #if EC_PENDING
     public static bool IsAtWar(Realm kingdom) =>
-        kingdom != null && (kingdom.hasEnemies() || CityPopulationSystem.IsMobilizing(kingdom) ||
-                            FrontSystem.Realm(kingdom) is Realm realm && realm != kingdom && realm.hasEnemies());
+        kingdom != null && (kingdom.HasEnemies() || CityPopulationSystem.IsMobilizing(kingdom) ||
+                            FrontSystem.Realm(kingdom) is Realm realm && realm != kingdom && realm.HasEnemies());
 #endif
 
     // 开局即有兵(世界地图剧本，见 WorldMapScenario)：照常按军制定各军镇的兵额、编军，编好的当场补满。返回全国兵力
@@ -1571,7 +1571,7 @@ public static class CorpsSystem
     private static void EnsureVanguard(Realm kingdom)
     {
         List<CorpsData> list = Of(kingdom);
-        if (Insurgent(kingdom) || !kingdom.hasEnemies() || list.Any(corps => corps.vanguard)) return;
+        if (Insurgent(kingdom) || !kingdom.HasEnemies() || list.Any(corps => corps.vanguard)) return;
         CorpsData parent = list.Where(corps => CanDetach(corps) && !corps.manual && corps.strength >= VanguardParent &&
                                                corps.pocket_months <= 0 && corps.task != "retreat")
             .OrderByDescending(corps => corps.strength).FirstOrDefault();
@@ -1619,7 +1619,6 @@ public static class CorpsSystem
 #endif
 
     // 阵亡：兵力减少，来源按比例扣减(死去的人不回人口)
-#if EC_PENDING
     public static void Casualties(CorpsData corps, float dead)
     {
         if (corps == null || dead <= 0f) return;
@@ -1629,6 +1628,7 @@ public static class CorpsSystem
         LegionPopulationRules.ReduceTo(corps.population, corps.strength);
     }
 
+#if EC_PENDING
     private static void Recover(Realm kingdom)
     {
         // 欠饷时组织度回不满(见 PayUpkeep)：溃退的军回到上限附近就归建，不会永远卡在溃退休整

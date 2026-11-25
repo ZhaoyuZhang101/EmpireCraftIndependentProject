@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/AirPowerSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/AirPowerSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -59,10 +59,10 @@ public static class AirPowerSystem
             if (arm == CorpsArmSystem.Arm.Bomber)
                 bombers[kingdom.Key] = (bombers.TryGetValue(kingdom.Key, out float load) ? load : 0f) + corps.strength;
         }
-        foreach (War war in EmpireWorld.Current.wars.list.ToList())
+        foreach (War war in EmpireWorld.Current.LiveWars.ToList())
         {
-            if (war == null || war.hasEnded()) continue;
-            List<Realm> attackers = Alive(war._list_attackers), defenders = Alive(war._list_defenders);
+            if (war == null || war.HasEnded()) continue;
+            List<Realm> attackers = Alive(war.Attackers), defenders = Alive(war.Defenders);
             if (attackers.Count == 0 || defenders.Count == 0) continue;
             float Sum(List<Realm> side, Dictionary<long, float> table) =>
                 side.Sum(kingdom => table.TryGetValue(kingdom.Key, out float value) ? value : 0f);

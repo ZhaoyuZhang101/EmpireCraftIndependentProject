@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/NationalUnificationSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/NationalUnificationSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -26,7 +26,7 @@ public static class NationalUnificationSystem
 #if EC_PENDING
     public static void Consider(Empire small)
     {
-        if (!IsModern(small) || small.CoreKingdom.hasEnemies()) return;
+        if (!IsModern(small) || small.CoreKingdom.HasEnemies()) return;
         // 傀儡由主国定去留(见 PuppetStateSystem)
         if (PuppetStateSystem.IsPuppet(small.CoreKingdom)) return;
         string culture = CultureService.GetRealmCulture(small.CoreKingdom);
@@ -43,7 +43,7 @@ public static class NationalUnificationSystem
                                 ? CultureService.SameKin(CultureService.GetRealmCulture(other.CoreKingdom), culture)
                                 : CultureService.GetRealmCulture(other.CoreKingdom) == culture) &&
                             Cities(other) >= Math.Max(LargeCities, Cities(small) * 2) &&
-                            !small.CoreKingdom.isEnemy(other.CoreKingdom) && !other.CoreKingdom.hasEnemies() &&
+                            !small.CoreKingdom.IsEnemy(other.CoreKingdom) && !other.CoreKingdom.HasEnemies() &&
                             !PuppetStateSystem.IsPuppet(other.CoreKingdom) &&
                             // 理念截然相反的政府(国民党与共产党)不会和平并入，要打或联合(同军阀时期的异见政府，见 WarlordEraSystem)
                             PartySystem.IdeologyDistance(WarlordEraSystem.GovernmentIdeology(small),
@@ -74,9 +74,9 @@ public static class NationalUnificationSystem
         if (Pending.Count == 0 || ModClass.EMPIRE_MANAGER == null) return;
         (long smallId, long largeId) = Pending[0];
         Pending.RemoveAt(0);
-        Empire small = ModClass.EMPIRE_MANAGER.ToList().FirstOrDefault(empire => empire?.id == smallId);
-        Empire large = ModClass.EMPIRE_MANAGER.ToList().FirstOrDefault(empire => empire?.id == largeId);
-        if (!IsModern(small) || !IsModern(large) || small == large || small.CoreKingdom.isEnemy(large.CoreKingdom)) return;
+        Empire small = ModClass.EMPIRE_MANAGER.ToList().FirstOrDefault(empire => empire?.Key == smallId);
+        Empire large = ModClass.EMPIRE_MANAGER.ToList().FirstOrDefault(empire => empire?.Key == largeId);
+        if (!IsModern(small) || !IsModern(large) || small == large || small.CoreKingdom.IsEnemy(large.CoreKingdom)) return;
         try
         {
             Merge(small, large);
@@ -114,7 +114,6 @@ public static class NationalUnificationSystem
 #endif
 
     // 法理上属于哪个帝国核心(军阀时期另立的临时子核心按上级核心算)
-#if EC_PENDING
     private static EmpireCore Lawful(Empire empire)
     {
         EmpireCore core = EmpireCoreManager.GetRiseCandidateCore(empire?.CoreKingdom) ?? EmpireCoreManager.Get(empire);
@@ -122,6 +121,7 @@ public static class NationalUnificationSystem
         return core.warlord_parent_core_id > 0 ? EmpireCoreManager.Get(core.warlord_parent_core_id) ?? core : core;
     }
 
+#if EC_PENDING
     private static bool IsModern(Empire empire) =>
         empire?.data != null && !empire.IsGone() && !empire.IsArchived() && empire.CoreKingdom != null &&
         !empire.CoreKingdom.IsGone() && empire.CoreKingdom.GetRegime()?.type == RegimeType.Modern;

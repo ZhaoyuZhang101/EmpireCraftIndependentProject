@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/WarGoalSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/WarGoalSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Time = EmpireCraft.Core.FrameClock;
 using System;
@@ -78,28 +78,26 @@ public static class WarGoalSystem
     }
 
     // 议和台管不管这场仗：有开战目标的国战(劫掠、叛乱、各有结局的仗不在此列，见 PeaceTable)
-#if EC_PENDING
     internal static bool UsesPeaceTable(War war) => Applies(war) && war.GetEmpireWarType() != EmpireWarType.劫掠;
 
     private static bool Applies(War war) =>
-        war?.data != null && war.getAsset() != WarTypeLibrary.rebellion && !OwnEnding.Contains(war.GetEmpireWarType());
+        war?.Record != null && war.GetKind() != WarKinds.Rebellion && !OwnEnding.Contains(war.GetEmpireWarType());
 
     public static WarGoal Get(War war)
     {
-        if (war?.data == null) return WarGoal.None;
+        if (war?.Record == null) return WarGoal.None;
         if (war.GetEmpireWarType() == EmpireWarType.劫掠) return WarGoal.劫掠;
         return Applies(war) ? war.GetOrCreate().war_goal : WarGoal.None;
     }
-#endif
 
     // 别的系统开战时直接定了目标(天下统一、雄主统一、圣战、帝国禁令)：照样落到具体目标上、起名、记宣战
 #if EC_PENDING
     public static void Preset(War war, WarGoal goal)
     {
-        if (war?.data == null) return;
+        if (war?.Record == null) return;
         var data = war.GetOrCreate();
         data.war_goal = goal;
-        Realm attacker = war.main_attacker, defender = war.main_defender;
+        Realm attacker = war.MainAttacker, defender = war.MainDefender;
         if (attacker?.Record == null || defender?.Record == null || attacker.IsGone() || defender.IsGone()) return;
         data.war_goal_capital_id = defender.Capital?.Record != null ? defender.Capital.Key : -1L;
         WarObjective.Refine(war, attacker, defender, WarSituation.StrengthRatio(defender, attacker), substitute: false);
@@ -200,8 +198,8 @@ public static class WarGoalSystem
 #if EC_PENDING
     public static GoalFacts? Facts(War war)
     {
-        if (war?.data == null) return null;
-        Realm attacker = war.main_attacker, defender = war.main_defender;
+        if (war?.Record == null) return null;
+        Realm attacker = war.MainAttacker, defender = war.MainDefender;
         if (attacker?.Record == null || defender?.Record == null || attacker.IsGone() || defender.IsGone()) return null;
         var data = war.GetOrCreate();
         string rule = data.war_goal_locked ? "locked" : !Reviewable(Get(war)) ? "fixed" : "yearly";
@@ -235,14 +233,14 @@ public static class WarGoalSystem
 #if EC_PENDING
     public static void Review(War war)
     {
-        if (war?.data == null || war.hasEnded() || EmpireWorld.Current == null) return;
+        if (war?.Record == null || war.HasEnded() || EmpireWorld.Current == null) return;
         var data = war.GetOrCreate();
         if (data.war_goal_locked || !Reviewable(data.war_goal) || !Applies(war)) return;
         double now = GameClock.Now;
         if (data.war_goal_reviewed_at >= 0d && now >= data.war_goal_reviewed_at &&
             GameClock.YearsSince(data.war_goal_reviewed_at) < 1) return;
         data.war_goal_reviewed_at = now;
-        Realm attacker = war.main_attacker, defender = war.main_defender;
+        Realm attacker = war.MainAttacker, defender = war.MainDefender;
         if (attacker?.Record == null || defender?.Record == null || attacker.IsGone() || defender.IsGone()) return;
         float strength = WarSituation.StrengthRatio(defender, attacker);
         WarGoal before = data.war_goal;
@@ -261,10 +259,10 @@ public static class WarGoalSystem
 #if EC_PENDING
     public static void Ensure(War war)
     {
-        if (war?.data == null || war.hasEnded()) return;
+        if (war?.Record == null || war.HasEnded()) return;
         var data = war.GetOrCreate();
         if (data.war_goal != WarGoal.None || !Applies(war)) return;
-        Realm attacker = war.main_attacker, defender = war.main_defender;
+        Realm attacker = war.MainAttacker, defender = war.MainDefender;
         if (attacker?.Record == null || defender?.Record == null || attacker.IsGone() || defender.IsGone()) return;
         if (war.GetEmpireWarType() == EmpireWarType.劫掠)
         {
@@ -421,13 +419,11 @@ public static class WarGoalSystem
     }
 
     // 窗口里能不能轮换目标：定了目标、还没打完、不是劫掠
-#if EC_PENDING
     public static bool Switchable(War war)
     {
         WarGoal goal = Get(war);
-        return goal != WarGoal.None && goal != WarGoal.劫掠 && war?.data != null && !war.hasEnded();
+        return goal != WarGoal.None && goal != WarGoal.劫掠 && war?.Record != null && !war.HasEnded();
     }
-#endif
 
     // 夺城、侵略、争法理、争夺资源都是割地落到具体上的，羁縻、继承是迫使附庸落到具体上的；轮换、重定目标时按大方向算
     internal static WarGoal Coarse(WarGoal goal) =>
@@ -438,8 +434,8 @@ public static class WarGoalSystem
 #if EC_PENDING
     public static void Refocus(War war)
     {
-        Realm attacker = war?.main_attacker, defender = war?.main_defender;
-        if (war?.data == null || attacker?.Record == null || defender?.Record == null || attacker.IsGone() || defender.IsGone()) return;
+        Realm attacker = war?.MainAttacker, defender = war?.MainDefender;
+        if (war?.Record == null || attacker?.Record == null || defender?.Record == null || attacker.IsGone() || defender.IsGone()) return;
         var data = war.GetOrCreate();
         data.war_goal = Coarse(data.war_goal);
         WarObjective.Refine(war, attacker, defender, WarSituation.StrengthRatio(defender, attacker), substitute: false);
@@ -458,7 +454,7 @@ public static class WarGoalSystem
         var data = war.GetOrCreate();
         WarGoal before = data.war_goal;
         if (Coarse(before) == goal) return false;
-        Realm attacker = war.main_attacker, defender = war.main_defender;
+        Realm attacker = war.MainAttacker, defender = war.MainDefender;
         if (attacker?.Record == null || defender?.Record == null || attacker.IsGone() || defender.IsGone()) return false;
         data.war_goal = goal;
         data.war_goal_locked = true;
@@ -479,9 +475,9 @@ public static class WarGoalSystem
         var data = war.GetOrCreate();
         int index = Array.IndexOf(Cycle, Coarse(data.war_goal));
         data.war_goal = Cycle[(index + 1) % Cycle.Length];
-        if (data.war_goal_capital_id < 0 && war.main_defender?.capital?.data != null)
-            data.war_goal_capital_id = war.main_defender.capital.id;
-        Realm attacker = war.main_attacker, defender = war.main_defender;
+        if (data.war_goal_capital_id < 0 && war.MainDefender?.capital?.data != null)
+            data.war_goal_capital_id = war.MainDefender.Capital.Key;
+        Realm attacker = war.MainAttacker, defender = war.MainDefender;
         if (attacker?.Record == null || defender?.Record == null || attacker.IsGone() || defender.IsGone()) return;
         WarObjective.Refine(war, attacker, defender, WarSituation.StrengthRatio(defender, attacker), substitute: false);
         // 名字是按目标起的才跟着改(圣战、禁令、革命这类专名不动)
@@ -571,7 +567,7 @@ public static class WarGoalSystem
     {
         WarGoal goal = Get(war);
         if (goal == WarGoal.None) return null;
-        if (war.hasEnded()) return WarCatalog.GoalText(war);
+        if (war.HasEnded()) return WarCatalog.GoalText(war);
         (int attackerGain, int defenderGain) = Gains(war);
         return string.Format(LM.Get("war_goal_standing"), WarCatalog.GoalText(war), attackerGain, defenderGain);
     }
@@ -581,11 +577,11 @@ public static class WarGoalSystem
 #if EC_PENDING
     public static (int attackerGain, int defenderGain) Gains(War war)
     {
-        Realm attacker = war.main_attacker, defender = war.main_defender;
+        Realm attacker = war.MainAttacker, defender = war.MainDefender;
         int defenderLost = Math.Max(0, WarSituation.CitiesLost(war, defender));
         int attackerLost = Math.Max(0, WarSituation.CitiesLost(war, attacker));
-        return (defenderLost + HeldCities(war, war._list_defenders, war._list_attackers).Count,
-            attackerLost + HeldCities(war, war._list_attackers, war._list_defenders).Count);
+        return (defenderLost + HeldCities(war, war.Defenders, war.Attackers).Count,
+            attackerLost + HeldCities(war, war.Attackers, war.Defenders).Count);
     }
 #endif
 
@@ -623,28 +619,28 @@ public static class WarGoalSystem
 
     // 战争收尾时(WarPatch.end_war，清掉占领之前)：判胜负、按目标结算
 #if EC_PENDING
-    public static void Settle(War war, WarWinner winner)
+    public static void Settle(War war, WarOutcome winner)
     {
         // 部落之间破城求和已经了结(见 TribalWarSystem)
         if (TribalWarSystem.Settling(war)) return;
         try
         {
-            if (war?.data == null || winner == WarWinner.Nobody || winner == WarWinner.Merged || !Applies(war) &&
+            if (war?.Record == null || winner == WarOutcome.Nobody || winner == WarOutcome.Merged || !Applies(war) &&
                 war.GetEmpireWarType() != EmpireWarType.劫掠) return;
-            Realm attacker = war.main_attacker, defender = war.main_defender;
+            Realm attacker = war.MainAttacker, defender = war.MainDefender;
             if (attacker?.Record == null || defender?.Record == null || attacker == defender) return;
             WarGoal goal = Get(war);
             if (goal == WarGoal.None) goal = WarGoal.赔款;
             (int attackerGain, int defenderGain) = Gains(war);
-            bool attackersWon = winner == WarWinner.Attackers || winner == WarWinner.Peace && attackerGain >= defenderGain + 1;
-            bool defendersWon = winner == WarWinner.Defenders || winner == WarWinner.Peace && defenderGain >= attackerGain + 1;
+            bool attackersWon = winner == WarOutcome.Attackers || winner == WarOutcome.Peace && attackerGain >= defenderGain + 1;
+            bool defendersWon = winner == WarOutcome.Defenders || winner == WarOutcome.Peace && defenderGain >= attackerGain + 1;
             // 议和(不分胜负)走议和台：神签的、两国自己谈成的照台上的条款；强制停战、罢兵、外交面板停战照目标开价后撮合出折中
             // (见 PeaceTable)。以前按"谁多得一城"套战争目标，多一城就全按目标拿，差一城就白和
-            if (winner == WarWinner.Peace && UsesPeaceTable(war) && !attacker.IsGone() && !defender.IsGone())
+            if (winner == WarOutcome.Peace && UsesPeaceTable(war) && !attacker.IsGone() && !defender.IsGone())
             {
                 PeaceTable.Conclude(war, attacker, defender);
-                if (attackersWon) Modernize(war, defender, attacker, war._list_defenders, war._list_attackers);
-                else if (defendersWon) Modernize(war, attacker, defender, war._list_attackers, war._list_defenders);
+                if (attackersWon) Modernize(war, defender, attacker, war.Defenders, war.Attackers);
+                else if (defendersWon) Modernize(war, attacker, defender, war.Attackers, war.Defenders);
                 return;
             }
             if (attackersWon)
@@ -708,8 +704,8 @@ public static class WarGoalSystem
             {
                 if (goal != WarGoal.劫掠 && !attacker.IsGone()) WarReparationsSystem.Impose(attacker, defender);
             }
-            if (attackersWon) Modernize(war, defender, attacker, war._list_defenders, war._list_attackers);
-            else if (defendersWon) Modernize(war, attacker, defender, war._list_attackers, war._list_defenders);
+            if (attackersWon) Modernize(war, defender, attacker, war.Defenders, war.Attackers);
+            else if (defendersWon) Modernize(war, attacker, defender, war.Attackers, war.Defenders);
             else if (!attacker.IsGone() && !defender.IsGone())
             {
                 TranslateHelper.LogEventMessage(string.Format(LM.Get("war_peace_white"), attacker.GetKingdomName(),
@@ -731,21 +727,21 @@ public static class WarGoalSystem
 #if EC_PENDING
     public static bool TrySueForPeace(War war, Realm broke)
     {
-        if (war?.data == null || war.hasEnded() || broke == null || war.isTotalWar()) return false;
+        if (war?.Record == null || war.HasEnded() || broke == null || war.IsTotalWar()) return false;
         if (!Applies(war) && war.GetEmpireWarType() != EmpireWarType.劫掠) return false;
-        Realm attacker = war.main_attacker, defender = war.main_defender;
+        Realm attacker = war.MainAttacker, defender = war.MainDefender;
         if (attacker?.Record == null || defender?.Record == null || attacker == defender) return false;
         // 开国雄主、天下统一的仗：欠饷只逃散减员，不罢兵(以前开战当月军饷掏空国库，三个月后攻方就"各守旧土")
         if (broke == attacker && RulerTraitSystem.IsFounderUnificationWar(war)) return false;
         if (war.GetOrCreate().scripted_war && WarSituation.WarYears(war) < ScriptedWarYears) return false;
         if (broke == attacker)
         {
-            EmpireWorld.Current.wars.endWar(war, WarWinner.Peace);
+            EmpireWorld.Current.EndWar(war, WarOutcome.Peace);
             return true;
         }
         // 本土帝国抵御异族入侵不求和(见 NativeDefenseSystem)
         if (broke != defender || Excessive(war, defender) || NativeDefenseSystem.Resisting(defender, attacker)) return false;
-        EmpireWorld.Current.wars.endWar(war, WarWinner.Attackers);
+        EmpireWorld.Current.EndWar(war, WarOutcome.Attackers);
         return true;
     }
 #endif
@@ -764,7 +760,7 @@ public static class WarGoalSystem
         if (goal is WarGoal.夺城 or WarGoal.侵略 or WarGoal.争法理 or WarGoal.争夺资源 &&
             war.GetOrCreate().goal_city_ids?.Contains(defender.Capital?.Key ?? -1L) == true) return true;
         if (goal is not (WarGoal.割地 or WarGoal.夺城 or WarGoal.侵略 or WarGoal.争法理 or WarGoal.争夺资源)) return false;
-        List<(City city, Realm holder)> held = HeldCities(war, new[] { defender }, war._list_attackers);
+        List<(City city, Realm holder)> held = HeldCities(war, new[] { defender }, war.Attackers);
         int cities = defender.Cities?.Count ?? 0;
         return held.Exists(entry => entry.city == defender.Capital) || held.Count * 2 >= Math.Max(1, cities);
     }
@@ -776,13 +772,13 @@ public static class WarGoalSystem
     public static bool FightingForSurvival(Realm kingdom)
     {
         if (kingdom == null) return false;
-        foreach (War war in kingdom.getWars())
+        foreach (War war in kingdom.GetWars())
         {
-            if (war?.data == null || war.hasEnded() || !war.isDefender(kingdom)) continue;
-            if (war.isTotalWar()) return true;
+            if (war?.Record == null || war.HasEnded() || !war.IsDefender(kingdom)) continue;
+            if (war.IsTotalWar()) return true;
             // 本土帝国抵御异族入侵，倾国而战(见 NativeDefenseSystem)
-            if (NativeDefenseSystem.Resisting(kingdom, war.main_attacker)) return true;
-            if (war.main_defender != kingdom) continue;
+            if (NativeDefenseSystem.Resisting(kingdom, war.MainAttacker)) return true;
+            if (war.MainDefender != kingdom) continue;
             if (!Applies(war) && war.GetEmpireWarType() != EmpireWarType.劫掠 || Excessive(war, kingdom)) return true;
         }
         return false;
@@ -815,7 +811,7 @@ public static class WarGoalSystem
 
     private static void CedeCities(War war, Realm attacker, Realm defender, bool annex)
     {
-        List<(City city, Realm holder)> held = Contiguous(HeldCities(war, war._list_defenders, war._list_attackers), out int dropped);
+        List<(City city, Realm holder)> held = Contiguous(HeldCities(war, war.Defenders, war.Attackers), out int dropped);
         // 连不上的城退还原主，改求赔款(见 Contiguous)
         if (dropped > 0)
         {
@@ -911,7 +907,7 @@ public static class WarGoalSystem
         Realm realm = FrontSystem.Realm(attacker);
         if (realm == null || held.Count == 0) return 0;
         var ceded = new HashSet<long>(held.Select(entry => entry.city.Key));
-        var defenders = new HashSet<Realm>(war._list_defenders.Where(kingdom => kingdom?.data != null));
+        var defenders = new HashSet<Realm>(war.Defenders.Where(kingdom => kingdom?.Record != null));
         bool Ours(City city) => ceded.Contains(city.Key) || city.Realm != null && FrontSystem.Realm(city.Realm) == realm;
         int added = 0;
         foreach (KingdomTitle title in held.Select(entry => entry.city.GetTitle()).Where(title => title != null && !title.IsGone())
@@ -937,15 +933,15 @@ public static class WarGoalSystem
 #if EC_PENDING
     private static void Reclaim(War war, Realm attacker, Realm defender)
     {
-        List<City> claimed = Claimed(attacker, war._list_defenders.Where(kingdom => kingdom?.cities != null)
-            .SelectMany(kingdom => kingdom.cities).ToList());
+        List<City> claimed = Claimed(attacker, war.Defenders.Where(kingdom => kingdom?.Cities != null)
+            .SelectMany(kingdom => kingdom.Cities).ToList());
         if (claimed.Count == 0)
         {
             Cede(war, attacker, defender, annex: false);
             return;
         }
         var claimedSet = new HashSet<City>(claimed);
-        List<(City city, Realm holder)> held = HeldCities(war, war._list_defenders, war._list_attackers)
+        List<(City city, Realm holder)> held = HeldCities(war, war.Defenders, war.Attackers)
             .Where(entry => claimedSet.Contains(entry.city)).ToList();
         var queued = new HashSet<long>();
         foreach ((City city, Realm holder) in held)

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GameClassExtensions/ActorExtension.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GameClassExtensions/ActorExtension.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Newtonsoft.Json.Converters;
@@ -565,7 +565,7 @@ public static class ActorExtension
             return false;
         }
 
-        if (!a.hasArmy() || a.Realm == null || !a.Realm.hasEnemies())
+        if (!a.hasArmy() || a.Realm == null || !a.Realm.HasEnemies())
         {
             return false;
         }
@@ -673,7 +673,7 @@ public static class ActorExtension
                 continue;
             }
 
-            if (other.Realm != null && actor.Realm.isInWarWith(other.Realm))
+            if (other.Realm != null && actor.Realm.IsAtWarWith(other.Realm))
             {
                 return true;
             }
@@ -1207,7 +1207,6 @@ public static class ActorExtension
         return officeIdentity.ViolateLevel;
     }
 
-#if EC_PENDING
     public static Empire GetEmpire(this Person a)
     {
         if (GetOrCreate(a).empire_id==-1L)
@@ -1215,9 +1214,10 @@ public static class ActorExtension
             return null;
         } else
         {
-            return ModClass.EMPIRE_MANAGER.get(GetOrCreate(a).empire_id);
+            return ModClass.EMPIRE_MANAGER.Get(GetOrCreate(a).empire_id);
         }
     }
+#if EC_PENDING
     public static string HereditaryRealmRank(Person a)
     {
         Realm realm = a?.Realm;
@@ -1648,6 +1648,7 @@ public static class ActorExtension
         }
         return false;
     }
+#endif
     public static string GetTitle(this Person a)
     {
         if (!a.HasTitle()) return "";
@@ -1655,7 +1656,7 @@ public static class ActorExtension
         if (a.Realm == null) return "";
         var ownedTitles = a.GetOwnedTitle();
         if (ownedTitles == null) return "";
-        KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER.get(ownedTitles.First());
+        KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER.Get(ownedTitles.First());
         return title?.data?.name??"";
     }
     public static KingdomTitle GetMainTitle(this Person a)
@@ -1663,9 +1664,10 @@ public static class ActorExtension
         var ownedTitles = a.GetOwnedTitle();
         if (ownedTitles == null) return null;
         if (ownedTitles.Count <= 0) return null;
-        KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER.get(ownedTitles.First());
+        KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER.Get(ownedTitles.First());
         return title;
     }
+#if EC_PENDING
     public static bool SetMainTitle(this Person a, KingdomTitle title)
     {
         var ownedTitles = a.GetOwnedTitle();
@@ -1696,7 +1698,6 @@ public static class ActorExtension
         return GetOrCreate(a).owned_title.Count>0;
     }
 
-#if EC_PENDING
     public static bool HasCapitalTitle(this Person a)
     {
         if (a.Realm.Capital.hasTitle())
@@ -1706,6 +1707,7 @@ public static class ActorExtension
         return false;
     }
 
+#if EC_PENDING
     public static bool IsCapitalTitleBelongsToEmperor(this Person a)
     {
         if (!a.hasKingdom()) return false;
@@ -1738,7 +1740,7 @@ public static class ActorExtension
         {
             if (ModClass.KINGDOM_TITLE_MANAGER.checkTitleExist(id))
             {
-                KingdomTitle kt = ModClass.KINGDOM_TITLE_MANAGER.get(id);
+                KingdomTitle kt = ModClass.KINGDOM_TITLE_MANAGER.Get(id);
                 if (kt == null) continue;
                 // 只销毁被本国完整控制满年限的法理(它的城市会全部并入主法理)。
                 // 城市分属多国(时间戳为 -1)或由别国控制(如现代国家收归中央、由省州受托管理的法理)的不能销毁，
@@ -1867,7 +1869,6 @@ public static class ActorExtension
         if (!ed.want_acuired_title.Contains(title.data.id)) ed.want_acuired_title.Add(title.data.id);
     }
 
-#if EC_PENDING
     public static void AddOwnedTitle(this Person a, KingdomTitle title)
     {
         var ed = GetOrCreate(a);
@@ -1885,6 +1886,7 @@ public static class ActorExtension
         }
     }
 
+#if EC_PENDING
     public static void removeTitle(this Person a, KingdomTitle title)
     {
         if (title == null) return;
@@ -1941,11 +1943,10 @@ public static class ActorExtension
         return ed.name;
     }
 
-#if EC_PENDING
     public static void ClearTitle(this Person a)
     {
         var ed = GetOrCreate(a);
-        ed.owned_title.Select(t=>ModClass.KINGDOM_TITLE_MANAGER.get(t)!.owner=null);
+        ed.owned_title.Select(t=>ModClass.KINGDOM_TITLE_MANAGER.Get(t)!.owner=null);
         ed.owned_title.Clear();
         ed.want_acuired_title.Clear();
     }
@@ -1953,13 +1954,12 @@ public static class ActorExtension
     public static bool IsEmperor(this Person a)
     {
         if (a==null) return false;
-        var empire = ModClass.EMPIRE_MANAGER.get(GetOrCreate(a).empire_id);
+        var empire = ModClass.EMPIRE_MANAGER.Get(GetOrCreate(a).empire_id);
         if (empire?.Emperor == a) return true;
 
         Empire kingdomEmpire = a.Realm?.GetEmpire();
         return kingdomEmpire?.CoreKingdom == a.Realm && kingdomEmpire.Emperor == a;
     }
-#endif
 
     public static void SetEmpire(this Person a, Empire empire)
     {
@@ -2009,7 +2009,7 @@ public static class ActorExtension
         string peerageKey = honorary ? data.honorary_peerage_key : data.virtual_enfeoff_peerage_key;
         if (a.HasVirtualEnfeoff() && string.IsNullOrWhiteSpace(peerageKey))
         {
-            Empire empire = ModClass.EMPIRE_MANAGER.get(data.virtual_enfeoff_empire_id);
+            Empire empire = ModClass.EMPIRE_MANAGER.Get(data.virtual_enfeoff_empire_id);
             peerageKey = a.GetSpecificClan() != null && SpecificClanManager.SameLineage(a.GetSpecificClan(), empire?.EmpireSpecificClan)
                 ? "default_peerages_2"
                 : "tang_peerage_guogong";
@@ -2023,7 +2023,7 @@ public static class ActorExtension
         if (!honorary && a.HasVirtualEnfeoff())
         {
             long titleId = data.virtual_enfeoff_title_id;
-            prefix = titleId > 0 ? ModClass.KINGDOM_TITLE_MANAGER.get(titleId)?.data?.name : null;
+            prefix = titleId > 0 ? ModClass.KINGDOM_TITLE_MANAGER.Get(titleId)?.data?.name : null;
             prefix ??= a.City?.GetCityName() ?? "";
         }
         else if (!honorary && a.HasTitle())

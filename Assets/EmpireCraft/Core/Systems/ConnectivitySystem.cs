@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/ConnectivitySystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/ConnectivitySystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Time = EmpireCraft.Core.FrameClock;
 using System;
@@ -481,13 +481,12 @@ public static class ConnectivitySystem
     }
 
     // 与这个政权交战的政权(下标)：货物路线绕开(战争封路)
-#if EC_PENDING
     private static int[] EnemiesOf(Realm realm)
     {
         var list = new List<int>();
         try
         {
-            foreach (Realm enemy in realm.getEnemiesKingdoms())
+            foreach (Realm enemy in realm.GetEnemies())
             {
                 Realm root = RealmOf(enemy);
                 if (root != null && PassRealmIndex.TryGetValue(root.Key, out int index) && !list.Contains(index)) list.Add(index);
@@ -499,7 +498,6 @@ public static class ConnectivitySystem
         }
         return list.Count == 0 ? null : list.ToArray();
     }
-#endif
 
     private static void StartCompute()
     {
@@ -672,7 +670,6 @@ public static class ConnectivitySystem
 
     #region 出行本事
 
-#if EC_PENDING
     public static Realm RealmOf(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone()) return null;
@@ -681,7 +678,6 @@ public static class ConnectivitySystem
             return empire.CoreKingdom;
         return kingdom;
     }
-#endif
 
     // 科技树没开(或这个文化还没起用)时：按中古的样子(近海引航、驿传、文字印刷)，不把海、路一概当成石器时代
     private static readonly HashSet<string> InactiveTechs = new(StringComparer.Ordinal)
@@ -768,7 +764,6 @@ public static class ConnectivitySystem
     private static Dictionary<int, ConnectivityPair>[] RealmOuts(ConnectivityMode mode) =>
         mode == ConnectivityMode.Ideas ? _result.RealmIdeasOut : _result.RealmPeopleOut;
 
-#if EC_PENDING
     private static bool TryRealms(Realm from, Realm to, out int a, out int b, out bool same)
     {
         a = b = -1;
@@ -783,29 +778,23 @@ public static class ConnectivitySystem
         }
         return _result.RealmIndex.TryGetValue(x.Key, out a) && _result.RealmIndex.TryGetValue(y.Key, out b);
     }
-#endif
 
     // 这个国(按所在政权)这一轮算进了通达层
-#if EC_PENDING
     public static bool Knows(Realm kingdom)
     {
         Realm realm = Ready ? RealmOf(kingdom) : null;
         return realm != null && _result.RealmIndex.ContainsKey(realm.Key);
     }
-#endif
 
     // from 一方(按它的本事)到 to 的强度 0~1；还没算(Ready 为假、新立的国)返回 -1。telecom 为假时不算电报、广播、航空
-#if EC_PENDING
     public static float Strength(Realm from, Realm to, ConnectivityMode mode = ConnectivityMode.Ideas, bool telecom = true)
     {
         if (!TryRealms(from, to, out int a, out int b, out bool same)) return -1f;
         if (same) return 1f;
         return RealmOuts(mode)[a].TryGetValue(b, out ConnectivityPair pair) ? telecom ? pair.Strength : pair.PathStrength : 0f;
     }
-#endif
 
     // 学的一方 ← 教的一方(两边谁过得去都算；只因列岛视距放宽才渡得过的，只算列岛那一边)
-#if EC_PENDING
     public static float LearnStrength(Realm learner, Realm source, bool telecom = true, ConnectivityMode mode = ConnectivityMode.Ideas)
     {
         if (!TryRealms(learner, source, out int a, out int b, out bool same)) return -1f;
@@ -813,7 +802,6 @@ public static class ConnectivitySystem
         Dictionary<int, ConnectivityPair>[] outs = RealmOuts(mode);
         return Learn(outs[a], outs[b], a, b, telecom);
     }
-#endif
 
     private static float Learn(Dictionary<int, ConnectivityPair> learnerOut, Dictionary<int, ConnectivityPair> sourceOut, int learner,
         int source, bool telecom)
@@ -826,7 +814,6 @@ public static class ConnectivitySystem
     }
 
     // 隔绝度 0~1(1 完全隔绝)；还没算返回 -1
-#if EC_PENDING
     public static float Isolation(Realm a, Realm b, ConnectivityMode mode = ConnectivityMode.Ideas)
     {
         float x = Strength(a, b, mode), y = Strength(b, a, mode);
@@ -841,7 +828,6 @@ public static class ConnectivitySystem
         Dictionary<int, ConnectivityPair>[] outs = RealmOuts(mode);
         return outs[a].TryGetValue(b, out ConnectivityPair pair) ? ConnectivityContact.Of(pair, Config) : ConnectivityContact.Unreachable;
     }
-#endif
 
     #endregion
 
@@ -1153,48 +1139,38 @@ public static class ConnectivitySystem
     #region 三档：外交与战争(查表)
 
     // 发起一方(按它的本事：航海档、路、驿传，不要战舰)派使节到对方的强度；还没算返回 -1
-#if EC_PENDING
     public static float ContactStrength(Realm initiator, Realm target) => Strength(initiator, target, ConnectivityMode.People);
-#endif
 
     // 外交够得着(议婚、通好、结盟)：强度不低于 diplomacy_min_strength；还没算返回 null(调用方照旧)
-#if EC_PENDING
     public static bool? CanContact(Realm initiator, Realm target)
     {
         float strength = ContactStrength(initiator, target);
         return strength < 0f ? null : strength >= Config.diplomacy_min_strength;
     }
-#endif
 
     // 两边谁派使节都行(通好这类没有发起一方的)：两个方向取好的
-#if EC_PENDING
     public static bool? CanContactEither(Realm a, Realm b)
     {
         float x = ContactStrength(a, b), y = ContactStrength(b, a);
         if (x < 0f || y < 0f) return null;
         return Math.Max(x, y) >= Config.diplomacy_min_strength;
     }
-#endif
 
     // from 一方人员走到 to 的成本(政权之间各取最近的一对城)：同一政权 0；远得不必算(强度不到 min_strength)为 +∞；还没算 -1
-#if EC_PENDING
     public static float PeopleCost(Realm from, Realm to)
     {
         if (!TryRealms(from, to, out int a, out int b, out bool same)) return -1f;
         if (same) return 0f;
         return _result.RealmPeopleOut[a].TryGetValue(b, out ConnectivityPair pair) ? pair.Cost : float.PositiveInfinity;
     }
-#endif
 
     // 挑战争目标排远近用：通达层算好后按人员成本(远得不必算的排在后面、再按直线)，没算好时照旧按直线距离 fallback
-#if EC_PENDING
     public static float WarTargetOrder(Realm from, Realm to, float fallback)
     {
         float cost = PeopleCost(from, to);
         if (cost < 0f) return Ready ? 1e5f + fallback : fallback;
         return float.IsPositiveInfinity(cost) ? 1e6f + fallback : cost;
     }
-#endif
 
     // 两城之间的陆路成本(近邻表里不走海的那一项，两边都查，取低的)：都不在表里为 +∞；
     // 近邻表满了、表里最远的还不到 within(说明对方可能只是被更近的城挤出了表)或还没算，返回 -1(调用方照旧估算)

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/OfficialRankSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/OfficialRankSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.IO;
@@ -57,9 +57,7 @@ public static class OfficialRankSystem
         }
     }
 
-#if EC_PENDING
     private static Realm RealmOf(Realm kingdom) => kingdom?.GetEmpire()?.CoreKingdom ?? kingdom;
-#endif
 
     // 看哪个政体的官职表：殖民地、特许公司和穿越政权看自己，其余看帝国核心
 #if EC_PENDING
@@ -70,10 +68,10 @@ public static class OfficialRankSystem
         RegimeType? type = RealmOf(kingdom)?.GetRegime()?.type;
         return type == RegimeType.Republic ? RegimeType.Modern : type;
     }
+#endif
 
     private static bool IsMonarchy(Realm kingdom, RegimeType regime) =>
         RegimeManager.IsMonarchy(regime) && !RepublicSystem.IsRepublic(kingdom?.GetEmpire());
-#endif
 
     // 政体形态：现代政体分一党与多党，君主国开了议会算立宪，其余就是政体本身
 #if EC_PENDING

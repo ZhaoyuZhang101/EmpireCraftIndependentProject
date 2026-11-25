@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/AdministrativeControlSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/AdministrativeControlSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -97,12 +97,9 @@ public static class AdministrativeControlSystem
         _cursor = 0;
     }
 
-#if EC_PENDING
     private static Realm ModRealm(Realm kingdom) => kingdom?.GetEmpire()?.CoreKingdom ?? kingdom;
-#endif
 
     // 治所挪了地方(迁城，见 CityRelocationSystem)：本国(在帝国里的算整个帝国)排进队里重算路程，不等满一年
-#if EC_PENDING
     public static void Refresh(Realm kingdom)
     {
         Realm realm = ModRealm(kingdom);
@@ -114,6 +111,7 @@ public static class AdministrativeControlSystem
     private static bool Valid(Realm kingdom) => kingdom?.Record != null && !kingdom.IsGone() && !kingdom.IsWild &&
                                                   !AncientWarfareCompatibility.Owns(kingdom);
 
+#if EC_PENDING
     private static bool Valid(City city) => city?.Record != null && !city.IsGone() && city.zones != null &&
                                             city.zones.Count > 0 && Valid(city.Realm) &&
                                             !AncientWarfareCompatibility.OwnsObject(city);
@@ -167,7 +165,6 @@ public static class AdministrativeControlSystem
     private const int EarlyEraTier = 3;
 
     // 城易主时记下(CityPatch 攻城结算、WarGoalSystem 割地调用)
-#if EC_PENDING
     public static void MarkConquered(City city, Realm receiver)
     {
         if (city?.Record == null || receiver?.Record == null) return;
@@ -179,7 +176,6 @@ public static class AdministrativeControlSystem
         Empire empire = ModRealm(receiver).GetEmpire();
         data.recaptured_from_rebels = empire != null && city.Realm?.Record != null && city.Realm.HasRebelledAgainst(empire);
     }
-#endif
 
     // 招安要根源已消(用户 2026-10-27 转群友"农民军刚刚起义就接受诏安变成都司了"，"如果根本问题没解决招安也不行")：
     // 官军收复叛军的城以前也记成新征服地，帝国一过度扩张，扩张上限就把它放给当地首领立国，律令制施行羁縻的编成羁縻州
@@ -203,22 +199,20 @@ public static class AdministrativeControlSystem
 #endif
 
     // 两国(连同所在帝国的中央)之间正打着统一战争
-#if EC_PENDING
     private static bool UnificationBetween(Realm receiver, Realm loser)
     {
         if (receiver?.Record == null || loser?.Record == null) return false;
         Realm realm = ModRealm(receiver), other = ModRealm(loser);
         foreach (Realm side in new[] { receiver, realm })
-            foreach (War war in side.getWars())
+            foreach (War war in side.GetWars())
             {
-                if (war?.data == null || war.hasEnded() || !UnificationSystem.IsUnificationWar(war)) continue;
-                bool attacker = war.isAttacker(side);
-                if (attacker ? war.isDefender(loser) || war.isDefender(other) : war.isAttacker(loser) || war.isAttacker(other))
+                if (war?.Record == null || war.HasEnded() || !UnificationSystem.IsUnificationWar(war)) continue;
+                bool attacker = war.IsAttacker(side);
+                if (attacker ? war.IsDefender(loser) || war.IsDefender(other) : war.IsAttacker(loser) || war.IsAttacker(other))
                     return true;
             }
         return false;
     }
-#endif
 
     #region 代际扩张上限
 
@@ -333,6 +327,7 @@ public static class AdministrativeControlSystem
         if (!WildernessPassage.CivilReachable(from, goal, realm)) return true;
         return Control(TerrainResistance.LineCost(from, goal, realm) * LineDetour, Reach(realm)) < HardLimit;
     }
+#endif
 
     public static string DescribeCapacity(Realm kingdom)
     {
@@ -345,7 +340,6 @@ public static class AdministrativeControlSystem
             ? text + "  " + string.Format(LM.Get("admin_overextended"), data.admin_overextension * 100f)
             : text;
     }
-#endif
 
     // 赋税、征兵能收上来几成(满控全收，最低一半)
     // 世家筑了坞堡的城再打折(见 GentrySystem.Fortress)
@@ -370,7 +364,7 @@ public static class AdministrativeControlSystem
     public static void Tick()
     {
         if (EmpireWorld.Current?.LiveRealms == null || ModClass.IS_CLEAR) return;
-        if (Config.game_loaded && !SmoothLoader.isLoading()) EmpireCraft.Core.CityExpansionPatch.CheckAbandonOnLoad();
+        if (GameClock.Running && !SmoothLoader.isLoading()) EmpireCraft.Core.CityExpansionPatch.CheckAbandonOnLoad();
         if (!SimulationFrameBudget.HasTime) return;
         if (Pending.Count == 0) Refill();
         if (Pending.Count == 0) return;
@@ -391,7 +385,7 @@ public static class AdministrativeControlSystem
                 using (FrameProfiler.Measure("行政控制力·其余"))
                 {
                     UpdateCapacity(realm, cities);
-                    if (!realm.hasEnemies()) Defect(realm, cities);
+                    if (!realm.HasEnemies()) Defect(realm, cities);
                     ReleaseOverreach(realm, cities);
                 }
             }
@@ -769,7 +763,7 @@ public static class AdministrativeControlSystem
         return data.conquered_at >= 0d && data.conquered_by == realm.Key && data.admin_control >= 0f &&
                data.admin_control < limit && GameClock.Now >= data.conquered_at &&
                GameClock.YearsSince(data.conquered_at) < RecentConquestYears &&
-               !(data.OccupiedStatus?.Count > 0) && !city.Realm.hasEnemies() && !IsIndirect(city.Realm) &&
+               !(data.OccupiedStatus?.Count > 0) && !city.Realm.HasEnemies() && !IsIndirect(city.Realm) &&
                // 收复的叛军之城：根源没消不放(见 RootCauseResolved)
                (!data.recaptured_from_rebels || RootCauseResolved(realm, city));
     }
@@ -960,7 +954,7 @@ public static class AdministrativeControlSystem
             // 只剩一座城的国没有飞地可言(刚自立的国，标记还没重算，以前隔年又"自立"一次，一城连换几个国号)
             if (!data.admin_exclave || data.admin_control >= DefectThreshold || city.Realm.Capital == city || city.Realm.Cities.Count <= 1 ||
                 ColonySystem.IsColony(city.Realm) ||
-                city.Realm.hasEnemies() || city.GetOrCreate().OccupiedStatus?.Count > 0 ||
+                city.Realm.HasEnemies() || city.GetOrCreate().OccupiedStatus?.Count > 0 ||
                 UnificationSystem.InGrace(city.Realm)) continue;
             float chance = (DefectThreshold - data.admin_control) * DefectChance;
             if (EcRandom.value >= chance * era) continue;

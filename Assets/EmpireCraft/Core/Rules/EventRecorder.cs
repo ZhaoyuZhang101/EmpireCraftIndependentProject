@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/EventRecorder.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/EventRecorder.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Time = EmpireCraft.Core.FrameClock;
 using System.Linq;
@@ -63,7 +63,6 @@ public static class EventRecorder
     private static int CityCount(Empire empire) =>
         empire.kingdoms_list?.Where(kingdom => kingdom?.Cities != null && !kingdom.IsGone()).Sum(kingdom => kingdom.Cities.Count) ?? 0;
 
-#if EC_PENDING
     private static int LargestCities()
     {
         float now = Time.unscaledTime;
@@ -74,7 +73,6 @@ public static class EventRecorder
             .Select(CityCount).DefaultIfEmpty(0).Max() ?? 0;
         return _largestCities;
     }
-#endif
 
     // 以某个政权的名义记录：它组建了政府(帝国层)就入该帝国史书，否则只显示日志
 #if EC_PENDING

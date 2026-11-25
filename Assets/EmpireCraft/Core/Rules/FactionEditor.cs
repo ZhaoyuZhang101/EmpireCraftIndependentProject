@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/FactionEditor.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/FactionEditor.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -38,13 +38,13 @@ public static class FactionEditor
     };
 
     // 派系挂在帝国核心上(中央占比、领袖、诉求都按帝国算)；不是帝国核心的国家返回空
-#if EC_PENDING
     public static Empire EmpireOf(Realm kingdom)
     {
         Empire empire = kingdom?.GetEmpire();
         return empire != null && !empire.IsGone() && !empire.IsArchived() && empire.CoreKingdom == kingdom ? empire : null;
     }
 
+#if EC_PENDING
     public static Court CourtOf(Realm kingdom)
     {
         Empire empire = EmpireOf(kingdom);

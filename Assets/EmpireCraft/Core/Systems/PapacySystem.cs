@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/PapacySystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/PapacySystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -389,10 +389,10 @@ public static partial class PapacySystem
         if (romzug != HolyRomanSystem.RomzugArrived)
         {
             if (EcRandom.value >= CoronationChance) return;
-            if (papacy.isInWarWith(core)) return;
+            if (papacy.IsAtWarWith(core)) return;
             if (HolyRomanSystem.StartRomzug(empire, papacy)) return;
         }
-        else if (papacy.isInWarWith(core)) return;
+        else if (papacy.IsAtWarWith(core)) return;
         int gift = (int)Math.Min(Math.Max(0L, core.GetMoney()), (long)(StateDebtSystem.AnnualStableIncome(core) * CoronationGift));
         if (gift > 0)
         {
@@ -441,7 +441,7 @@ public static partial class PapacySystem
         state.last_tithe_at = now;
         state.tithe_paid = 0;
         Realm core = empire.CoreKingdom, papacy = ObeyedSee(empire, religion);
-        if (papacy == null || papacy == core || papacy.GetEmpire() == empire || papacy.isInWarWith(core)) return;
+        if (papacy == null || papacy == core || papacy.GetEmpire() == empire || papacy.IsAtWarWith(core)) return;
         float share = Investiture(empire) switch
         {
             InvestitureChurch => 1f,

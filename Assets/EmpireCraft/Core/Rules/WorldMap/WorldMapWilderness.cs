@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/WorldMap/WorldMapWilderness.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/WorldMap/WorldMapWilderness.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -257,7 +257,7 @@ public static class WorldMapWilderness
             KingdomTitle current = city.GetTitle();
             if (current == null || !current.IsGone()) land.title = current?.Key ?? -1L;
         }
-        title = land.title >= 0 ? ModClass.KINGDOM_TITLE_MANAGER?.get(land.title) : null;
+        title = land.title >= 0 ? ModClass.KINGDOM_TITLE_MANAGER?.Get(land.title) : null;
         if (title != null && title.IsGone()) title = null;
         // 笔刷固定的是法理，不是后来改投其他法理的城市；行政图层也要使用固定法理下的城市。
         if (land.pinned && city?.GetTitle() != title)
@@ -384,6 +384,7 @@ public static class WorldMapWilderness
         Bind();
         if (_painted != null || _neutral != null || _state?.regional is { Count: > 0 } || NeedsBoundaryRepair) WildernessSystem.RequestReattach();
     }
+#endif
 
     public static WorldMapWildSave Save()
     {
@@ -405,7 +406,6 @@ public static class WorldMapWilderness
         _state.city_claims = _cityClaims;
         return _state;
     }
-#endif
 
     public static void ResetWorldState()
     {
@@ -851,7 +851,6 @@ public static class WorldMapWilderness
 #endif
 
     // 刷的键换成法理编号(头一回挂法理、存档时)：p: 取那国都城此刻的王国法理(同史实归属，见 ResolveOwners)，r: 取那块法理
-#if EC_PENDING
     private static void ResolvePaint()
     {
         if (_paintKeys == null) return;
@@ -876,7 +875,6 @@ public static class WorldMapWilderness
         if (_neutral.Count == 0) _neutral = null;
         if (_painted.Count == 0) _painted = null;
     }
-#endif
 
     // 这块无人区按剧本刷的挂哪个法理(没刷、法理没了为 null)
 #if EC_PENDING
@@ -885,19 +883,17 @@ public static class WorldMapWilderness
         ResolvePaint();
         if (zone == null) return null;
         if (_painted == null || !_painted.TryGetValue(zone.id, out long id)) return null;
-        KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER?.get(id);
+        KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER?.Get(id);
         return title == null || title.IsGone() ? null : title;
     }
 #endif
 
     // 只在无人区已经划好后应用中立笔刷；查询法理不能提前消费尚未落地的中立设置。
-#if EC_PENDING
     internal static void PreparePaint()
     {
         ResolvePaint();
         if (WildernessSystem.Regions.Count > 0) ApplyNeutral();
     }
-#endif
 
     // 刷了永久中立的：盖到的那几片设为永久中立区(头一回划区挂法理时，这时各片已划好)，设过就清掉
     private static void ApplyNeutral()
@@ -940,7 +936,6 @@ public static class WorldMapWilderness
 #endif
 
     // 开局头一回挂法理时：各单元的政权都城 → 都城所在的王国法理
-#if EC_PENDING
     private static void ResolveOwners()
     {
         if (_capitals == null || _state == null) return;
@@ -954,7 +949,6 @@ public static class WorldMapWilderness
         _capitals = null;
         if (_state.owners.Count > 0) LogService.LogInfo($"[EmpireCraft][世界地图] 无人区史实归属：{_state.owners.Count} 个地理单元按 {_state.era} 挂法理");
     }
-#endif
 
     // 这块无人区挂哪个法理(WildernessSystem.Attach 里问)：剧本刷的先(导入地图也认)，再是史实归属；都没有、法理没了的为 null，
     // 照旧挂最近的。永久中立由挂接阶段的 PreparePaint 应用，查询不改世界。
@@ -972,6 +966,7 @@ public static class WorldMapWilderness
 #if EC_PENDING
     internal static KingdomTitle FixedTitle(TileZone zone) => PaintedTitle(zone) ??
         (_state?.regional is { Count: > 0 } ? HistoricalTitle(zone, true) : null);
+#endif
 
     private static bool SamePolity(City city, City capital)
     {
@@ -980,6 +975,7 @@ public static class WorldMapWilderness
         return a == b || a.GetEmpire() is Empire empire && empire == b.GetEmpire();
     }
 
+#if EC_PENDING
     private static KingdomTitle HistoricalTitle(TileZone zone, bool fixedOnly)
     {
         if (zone == null) return null;
@@ -996,12 +992,12 @@ public static class WorldMapWilderness
         {
             if (!_unitById.TryGetValue(pair.Key, out WorldMapWildUnit unit) || !unit.kinds.Contains(kind) || !Covers(unit, lon, lat)) continue;
             if (best != null && unit.Area >= best.Area) continue;
-            KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER?.get(pair.Value);
+            KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER?.Get(pair.Value);
             if (title == null || title.IsGone())
             {
                 // 首都法理消失后，仍存续的明确地方辖境不跟着失效。
                 title = _state.regional != null && _state.regional.TryGetValue(pair.Key, out long local)
-                    ? ModClass.KINGDOM_TITLE_MANAGER?.get(local) : null;
+                    ? ModClass.KINGDOM_TITLE_MANAGER?.Get(local) : null;
                 if (title == null || title.IsGone()) continue;
             }
             best = unit;
@@ -1009,7 +1005,7 @@ public static class WorldMapWilderness
         }
         if (best != null && _state.regional != null && _state.regional.TryGetValue(best.id, out long id))
         {
-            KingdomTitle regional = ModClass.KINGDOM_TITLE_MANAGER?.get(id);
+            KingdomTitle regional = ModClass.KINGDOM_TITLE_MANAGER?.Get(id);
             if (regional != null && !regional.IsGone()) return regional;
         }
         return fixedOnly ? null : chosen;

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/WarMuster.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/WarMuster.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -75,7 +75,7 @@ public static class WarMuster
     public static bool Declare(Realm attacker, Realm target, EmpireWarType type, WarGoal goal = WarGoal.None,
         bool locked = false, bool announce = true)
     {
-        if (!Alive(attacker) || !Alive(target) || attacker == target || attacker.isInWarWith(target)) return false;
+        if (!Alive(attacker) || !Alive(target) || attacker == target || attacker.IsAtWarWith(target)) return false;
         if (!CorpsSystem.Enabled || CorpsSystem.Insurgent(attacker) || !Borders(attacker, target))
             return Start(attacker, target, type, goal, locked, announce) != null;
         var data = attacker.GetOrCreate();
@@ -99,8 +99,8 @@ public static class WarMuster
     private static War Start(Realm attacker, Realm target, EmpireWarType type, WarGoal goal, bool locked, bool announce)
     {
         War war = announce
-            ? EmpireWorld.Current.diplomacy.startWar(attacker, target, WarTypeLibrary.normal)
-            : DiplomacyHelpers.wars.newWar(attacker, target, WarTypeLibrary.normal);
+            ? EmpireWorld.Current.StartWar(attacker, target, WarKinds.Normal)
+            : DiplomacyHelpers.wars.newWar(attacker, target, WarKinds.Normal);
         if (war == null) return null;
         war.SetEmpireWarType(type);
         if (goal != WarGoal.None) WarGoalSystem.Preset(war, goal);
@@ -137,7 +137,7 @@ public static class WarMuster
         if (empire?.CoreKingdom != attacker || empire.kingdoms_list == null) return result;
         foreach (Realm member in empire.kingdoms_list)
         {
-            if (!Alive(member) || member == attacker || member == target || member.hasEnemies() || member.IsFactionRebelling() ||
+            if (!Alive(member) || member == attacker || member == target || member.HasEnemies() || member.IsFactionRebelling() ||
                 member.IsLocalRebelling() || !EmpirePeacePatch.Obeys(empire, member)) continue;
             if (WarScopeSystem.Near(member, target)) result.Add(member);
         }
@@ -232,10 +232,10 @@ public static class WarMuster
         var goal = (WarGoal)Math.Max(0, data.muster_goal);
         string name = kingdom.GetKingdomName(), targetName = target?.GetKingdomName() ?? "";
         // 目标没了、已经打起来了、和约或盟约不许打、自己已经顾不上：作罢
-        if (!Alive(target) || kingdom.isInWarWith(target) || !WarGate.CanDeclare(kingdom, target) ||
+        if (!Alive(target) || kingdom.IsAtWarWith(target) || !WarGate.CanDeclare(kingdom, target) ||
             WarSituation.Overstretched(kingdom) || CorpsSystem.Unpaid(kingdom))
         {
-            if (Alive(target) && !kingdom.isInWarWith(target))
+            if (Alive(target) && !kingdom.IsAtWarWith(target))
                 FrontSystem.Log(kingdom, string.Format(LM.Get("war_muster_called_off"), name, targetName));
             Clear(kingdom);
             return;
@@ -285,7 +285,7 @@ public static class WarMuster
     {
         if (DiplomacyLaws.VassalBlocked || host < Mathf.Max(1f, theirs) * DeterEdge || target.IsEmpire() || target.IsInEmpire() ||
             (target.Cities?.Count ?? 0) > DeterMaxCities || FeudalVassalService.GetOverlord(target) != null ||
-            RulerTraitSystem.FounderShield(target) || target.hasEnemies() || EcRandom.value >= DeterChance) return false;
+            RulerTraitSystem.FounderShield(target) || target.HasEnemies() || EcRandom.value >= DeterChance) return false;
         if (!SmallStateSubmissionSystem.Submit(kingdom, target)) return false;
         // 乞和纳质：把储君送到上国都城为质(见 HostageSystem)
         HostageSystem.Send(kingdom, target);

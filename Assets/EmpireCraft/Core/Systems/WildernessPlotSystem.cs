@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/WildernessPlotSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/WildernessPlotSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
@@ -194,7 +194,6 @@ public static class WildernessPlotSystem
 
     private static bool Civil(Realm kingdom) => kingdom?.Record != null && !kingdom.IsGone() && !kingdom.IsWild && kingdom.IsCivilized();
 
-#if EC_PENDING
     private static bool SameRealm(Realm a, Realm b)
     {
         if (a == b) return true;
@@ -202,7 +201,6 @@ public static class WildernessPlotSystem
         Empire empire = a.GetEmpire();
         return empire != null && empire == b.GetEmpire();
     }
-#endif
 
     // 开满了、或已不在无人区里的空地(开发中途零碎得不成片的)：县城领得进来
 #if EC_PENDING
@@ -231,7 +229,6 @@ public static class WildernessPlotSystem
 #endif
 
     // 一县的地块数：目标、不到就并进邻县的下限、超过就再分的上限(不过每城地块上限，县城领得下自己的县)
-#if EC_PENDING
     private static void Sizes(out int target, out int min, out int max)
     {
         int cap = ModClass.CITY_MAX_ZONES;
@@ -240,7 +237,6 @@ public static class WildernessPlotSystem
         target = Math.Max(1, Math.Min(target, max));
         min = Math.Max(2, target / 3);
     }
-#endif
 
     #endregion
 
@@ -1022,7 +1018,7 @@ public static class WildernessPlotSystem
         City source = SourceOf(plot, founder, seat);
         if (source?.Record == null || AncientWarfareCompatibility.OwnsObject(source)) return;
         // 战乱：本国在打仗，迁人的城在前线或城下正在交战的不设，明年再看
-        if (founder.hasEnemies() && (EnfeoffmentHelper.IsFrontCity(source, founder) || FrontSystem.Battles.ContainsKey(source.Key)))
+        if (founder.HasEnemies() && (EnfeoffmentHelper.IsFrontCity(source, founder) || FrontSystem.Battles.ContainsKey(source.Key)))
             return;
         WildRegion region = WildernessSystem.RegionOf(seat) ?? WildernessSystem.ById(plot.region);
         string place = region != null ? WildernessSystem.DisplayName(region) : WildernessNaming.KindName((WildKind)plot.kind) ?? "";

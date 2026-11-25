@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/EmpireBankruptcySystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/EmpireBankruptcySystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -28,11 +28,9 @@ public static class EmpireBankruptcySystem
     private const float NearbyRebelDistance = 60f;
 
     // 国库亏空；新财政下国库不记成负数，京畿四分之一以上的城欠着治理、驻军、军费也算朝廷发不出饷
-#if EC_PENDING
     public static bool IsBankrupt(Empire empire) =>
         empire?.CoreKingdom != null && !empire.CoreKingdom.IsGone() &&
         (empire.CurrentMoney < 0 || TreasurySystem.Enabled(empire.CoreKingdom) && InArrears(empire.CoreKingdom));
-#endif
 
     private static bool InArrears(Realm core)
     {
@@ -47,7 +45,6 @@ public static class EmpireBankruptcySystem
     }
 
     // 亏空期间只有京师养得起兵
-#if EC_PENDING
     public static bool IsUnpaidGarrison(City city)
     {
         try
@@ -66,6 +63,7 @@ public static class EmpireBankruptcySystem
         }
     }
 
+#if EC_PENDING
     public static void Update(Empire empire, ConstitutionalEconomyState state)
     {
         if (state == null || empire?.CoreKingdom == null || EmpireWorld.Current == null) return;
@@ -111,7 +109,7 @@ public static class EmpireBankruptcySystem
         // 新入帝国十年内、神力拉入未满期的不因亏空离去(见 MembershipCooldown)
         List<Realm> members = empire.kingdoms_list.Where(kingdom => kingdom != null && !kingdom.IsGone() &&
                 kingdom != core && !kingdom.IsFactionRebelling() && !kingdom.IsLocalRebelling() &&
-                !kingdom.getWars().Any() && MembershipCooldown.Settled(kingdom))
+                !kingdom.GetWars().Any() && MembershipCooldown.Settled(kingdom))
             .OrderBy(_ => EcRandom.value).ToList();
         int budget = Math.Max(1, Mathf.CeilToInt(members.Count * MaxLossShare));
         int lost = 0;
@@ -182,7 +180,7 @@ public static class EmpireBankruptcySystem
     {
         if (!member.HasRuler()) return false;
         empire.leave(member);
-        War war = DiplomacyHelpers.wars.newWar(member, core, WarTypeLibrary.normal);
+        War war = DiplomacyHelpers.wars.newWar(member, core, WarKinds.Normal);
         war?.SetEmpireWarType(EmpireWarType.地方独立);
         EventRecorder.Record(empire, actor: member.Ruler, logKingdom: member, text: string.Format(
             LM.Get("bankruptcy_independence_history"), empire.GetEmpireFullName(), member.GetKingdomFullName()));

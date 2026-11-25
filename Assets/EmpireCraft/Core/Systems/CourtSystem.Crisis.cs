@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/CourtSystem.Crisis.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/CourtSystem.Crisis.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System.Collections.Generic;
@@ -41,7 +41,7 @@ public static partial class CourtSystem
         if (state.last_escalation >= 0d && now >= state.last_escalation && GameClock.YearsSince(state.last_escalation) < 5)
             return false;
         // 已经起兵就让战事决定胜负，不能每年再开一轮同类战争。
-        if (core.getWars().Any(war => war != null && !war.hasEnded() &&
+        if (core.GetWars().Any(war => war != null && !war.HasEnded() &&
                 war.GetEmpireWarType() is EmpireWarType.派系叛乱 or EmpireWarType.清君侧)) return false;
         var coalition = factions.Where(faction => IsBoycotting(FactionState(empire, faction)) &&
                 FactionState(empire, faction).favor <= 35f && faction.CentralRatio > 0)
@@ -57,7 +57,7 @@ public static partial class CourtSystem
         List<Realm> provinces = empire.kingdoms_list.Where(kingdom => kingdom?.Record != null && !kingdom.IsGone() &&
                 kingdom != core && kingdom.Capital != null && kingdom.Ruler != null && supporters.Contains(kingdom.Ruler.GetFaction()) &&
                 !kingdom.IsFactionRebelling() && !kingdom.IsLocalRebelling() && RebellionSystem.CanAttempt(kingdom) &&
-                !kingdom.getWars().Any(war => war != null && !war.hasEnded()))
+                !kingdom.GetWars().Any(war => war != null && !war.HasEnded()))
             .OrderByDescending(kingdom => kingdom.countTotalWarriors()).ToList();
         if (provinces.Count > 0)
         {
@@ -65,20 +65,20 @@ public static partial class CourtSystem
             var cause = RebellionSystem.Capture(leader, leader.Capital, "rebellion_reason_court",
                 string.Join("、", coalition.Select(faction => faction.Name)));
             leader.StartFactionRebelling(leader.Ruler.GetFaction());
-            War war = EmpireWorld.Current.diplomacy.startWar(leader, core, WarTypeLibrary.normal);
+            War war = EmpireWorld.Current.StartWar(leader, core, WarKinds.Normal);
             if (war == null) { leader.EndFactionRebelling(); return false; }
             war.SetEmpireWarType(EmpireWarType.派系叛乱);
             var risen = new List<Realm> { leader };
             foreach (Realm province in provinces.Skip(1))
             {
                 province.StartFactionRebelling(province.Ruler.GetFaction());
-                war.joinAttackers(province);
-                if (war._list_attackers.Contains(province)) risen.Add(province);
+                war.JoinAttackers(province);
+                if (war.Attackers.Contains(province)) risen.Add(province);
                 else province.EndFactionRebelling();
             }
             // 战争按首领与家数起名(见 FactionRebelNaming)
             string warName = FactionRebelNaming.WarName(risen);
-            if (!string.IsNullOrWhiteSpace(warName)) war.data.name = warName;
+            if (!string.IsNullOrWhiteSpace(warName)) war.Name = warName;
             foreach (Realm province in risen) RebellionStartupService.RaiseUprisingMilitia(province, power / 100f);
             (state.crisis_rebels ??= new List<long>()).AddRange(risen.Select(province => province.Key));
             RebellionSystem.Record(leader, war, cause);
@@ -114,21 +114,19 @@ public static partial class CourtSystem
 
     // 联省兵谏的成员中途退出战争(城破求和、被打出战争)时不在停战名单里，叛乱状态与临时国名一直挂着、以后也选不进兵谏：
     // 每年把已不在任何派系叛乱战争里的撤掉
-#if EC_PENDING
     private static void ReleaseCoalitionRebels(CourtState state)
     {
         if (state.crisis_rebels == null || state.crisis_rebels.Count == 0) return;
         foreach (long id in state.crisis_rebels.ToList())
         {
             Realm kingdom = EmpireWorld.Current.RealmByKey(id);
-            bool fighting = kingdom != null && !kingdom.IsGone() && kingdom.getWars().Any(war =>
-                war != null && !war.hasEnded() && war.GetEmpireWarType() == EmpireWarType.派系叛乱);
+            bool fighting = kingdom != null && !kingdom.IsGone() && kingdom.GetWars().Any(war =>
+                war != null && !war.HasEnded() && war.GetEmpireWarType() == EmpireWarType.派系叛乱);
             if (fighting) continue;
             if (kingdom != null && !kingdom.IsGone() && kingdom.IsFactionRebelling()) kingdom.EndFactionRebelling();
             state.crisis_rebels.Remove(id);
         }
     }
-#endif
 
     private static void SettleCoalition(CourtState state, List<FixedFaction> coalition, string action, string detail, double now)
     {

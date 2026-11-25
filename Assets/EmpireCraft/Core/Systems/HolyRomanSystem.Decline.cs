@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/HolyRomanSystem.Decline.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/HolyRomanSystem.Decline.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -154,7 +154,7 @@ public static partial class HolyRomanSystem
         IEnumerable<Realm> protectors = EmpireWorld.Current.LiveRealms
             .Where(kingdom => kingdom?.Record != null && !kingdom.IsGone() && kingdom.GetEmpire() != empire &&
                               (kingdom.GetEmpire() == null || kingdom.IsEmpire()) && !IsPapacy(kingdom) &&
-                              !kingdom.isInWarWith(core) && discontent.Any(member => member.IsNeighbourWith(kingdom)) &&
+                              !kingdom.IsAtWarWith(core) && discontent.Any(member => member.IsNeighbourWith(kingdom)) &&
                               WarSituation.Power(kingdom) >= central * ProtectorPower)
             .OrderByDescending(kingdom => kingdom.hasReligion() && kingdom.religion == core.religion)
             .ThenByDescending(kingdom => WarSituation.Power(kingdom));
@@ -261,7 +261,7 @@ public static partial class HolyRomanSystem
     {
         try
         {
-            Realm defender = war?.main_defender, attacker = war?.main_attacker;
+            Realm defender = war?.MainDefender, attacker = war?.MainAttacker;
             if (defender?.Record == null || attacker?.Record == null) return;
             var data = defender.GetOrCreate();
             if (data.hre_protector_id < 0 || data.hre_protected_at < 0d || GameClock.YearsSince(data.hre_protected_at) >= ProtectionYears)
@@ -269,10 +269,10 @@ public static partial class HolyRomanSystem
             Empire former = attacker.GetEmpire();
             if (former?.data == null || former.data.id != data.hre_protected_from_id) return;
             Realm protector = LiveKingdom(data.hre_protector_id);
-            if (protector == null || war.hasKingdom(protector) || protector.isInWarWith(defender) || protector.GetEmpire() == former)
+            if (protector == null || war.HasRealm(protector) || protector.IsAtWarWith(defender) || protector.GetEmpire() == former)
                 return;
-            war.joinDefenders(protector);
-            if (war.hasKingdom(protector))
+            war.JoinDefenders(protector);
+            if (war.HasRealm(protector))
                 TranslateHelper.LogEventMessage(string.Format(LM.Get("hre_protector_aid_history"), protector.GetKingdomName(),
                     defender.GetKingdomName(), attacker.GetKingdomName()), protector);
         }

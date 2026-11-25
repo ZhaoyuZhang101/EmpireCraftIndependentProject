@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/TribalWarSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/TribalWarSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System.Collections.Generic;
 using System.Linq;
@@ -43,9 +43,7 @@ public static class TribalWarSystem
     // 正在由本系统了结的战争(战争目标不再结算一遍，见 WarGoalSystem.Settle)
     private static readonly HashSet<long> Settled = new();
 
-#if EC_PENDING
-    public static bool Settling(War war) => war?.data != null && Settled.Contains(war.data.id);
-#endif
+    public static bool Settling(War war) => war?.Record != null && Settled.Contains(war.Key);
 
     // 破城时调用：是部落之间的仗就按上面的规矩了结，返回 true(城不易主)
 #if EC_PENDING
@@ -54,9 +52,9 @@ public static class TribalWarSystem
         Realm loser = city?.Realm;
         if (loser == null || winner == null || loser == winner || !TribalFissionService.IsTribal(loser) ||
             !TribalFissionService.IsTribal(winner)) return false;
-        War war = loser.getWars().FirstOrDefault(candidate => candidate != null && !candidate.hasEnded() &&
-                                                             (candidate.isAttacker(winner) && candidate.isDefender(loser) ||
-                                                              candidate.isDefender(winner) && candidate.isAttacker(loser)));
+        War war = loser.GetWars().FirstOrDefault(candidate => candidate != null && !candidate.HasEnded() &&
+                                                             (candidate.IsAttacker(winner) && candidate.IsDefender(loser) ||
+                                                              candidate.IsDefender(winner) && candidate.IsAttacker(loser)));
         if (war == null) return false;
         try
         {
@@ -64,15 +62,15 @@ public static class TribalWarSystem
             ReturnLand(loser, winner);
             // 败者退出这场仗(是主角就整场了结，原版 endWar 当场结算)；这一下了结的不再按战争目标结算一遍
             // (赔款、纳为共事已在 Concede 里办了)。没了结的(还有别家在打)照旧，日后了结时正常结算
-            Settled.Add(war.data.id);
+            Settled.Add(war.Key);
             try
             {
                 war.lostWar(loser);
-                if (!war.hasEnded() && (war.isAttacker(loser) || war.isDefender(loser))) war.leaveWar(loser);
+                if (!war.HasEnded() && (war.IsAttacker(loser) || war.IsDefender(loser))) war.Leave(loser);
             }
             finally
             {
-                Settled.Remove(war.data.id);
+                Settled.Remove(war.Key);
             }
         }
         catch (global::System.Exception exception)

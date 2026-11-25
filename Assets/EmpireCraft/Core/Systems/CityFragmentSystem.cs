@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/CityFragmentSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/CityFragmentSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -170,20 +170,18 @@ public static class CityFragmentSystem
         city?.Record != null && !city.IsGone() && city.Realm?.Record != null && !city.Realm.IsGone() && !city.Realm.IsWild;
 
     // 交不交、收不收：古战争模组的城、正在撤的城、被占的城都不碰
-#if EC_PENDING
     private static bool Usable(City city) =>
         Alive(city) && !AncientWarfareCompatibility.OwnsObject(city) && !CityTerritoryProtection.Dissolving.Contains(city.Key) &&
         !Occupied(city);
-#endif
 
     private static bool Occupied(City city) => city.GetOrCreate().OccupiedStatus?.Any(pair => pair.Value?.Count > 0) == true;
 
     // 这块地正被战线逐格推进
 #if EC_PENDING
     private static bool Pushed(TileZone zone) => FrontSystem.SmoothPushOn(zone, out _, out _);
-
-    private static bool AtWar(Realm a, Realm b) => a != b && a.isInWarWith(b);
 #endif
+
+    private static bool AtWar(Realm a, Realm b) => a != b && a.IsAtWarWith(b);
 
     // 返回交出的城地块数；report 记每一处"城 → 城 几块"
 #if EC_PENDING

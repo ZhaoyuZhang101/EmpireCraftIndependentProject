@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/Layer/EmpireManager.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/Layer/EmpireManager.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 #if EC_PENDING
 using db;
@@ -257,7 +257,7 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
         {
             if (empire?.data == null || empire.IsArchived() || empire.IsGone() ||
                 !empire.data.legitimacy_rivalry_recognized) continue;
-            Empire rival = ModClass.EMPIRE_MANAGER.get(empire.data.legitimacy_rival_empire_id);
+            Empire rival = ModClass.EMPIRE_MANAGER.Get(empire.data.legitimacy_rival_empire_id);
             if (rival == null || rival.IsArchived() || rival.IsGone())
             {
                 ImperialLegitimacyChallengeService.ClearRivalry(empire);
@@ -338,7 +338,6 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
 
     // 帝国法理只是它自己的：绑着它、没记过别的帝国、没有别的现存帝国用着，也不是别的法理的割据母核心
     // (部落自立时随帝国新建的那种；绑了前朝旧法理的不算，那是历史法理，要留着)
-#if EC_PENDING
     private static bool OwnsCoreAlone(Empire empire, EmpireCore core)
     {
         if (empire == null || core == null || core.false_core_against_empire_id > 0 || core.empire_id != empire.Key) return false;
@@ -347,7 +346,6 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
         return !EmpireCoreManager.EmpireCores.Values.Any(other => other != null && other != core &&
                                                                   other.warlord_parent_core_id == core.id);
     }
-#endif
 
     private List<Empire> _to_dissolve = new List<Empire>();
 
@@ -634,10 +632,10 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
     {
         if (EmpireCraft.Core.AncientWarfareCompatibility.BlocksEmpireFormation(pKingdom1) ||
             EmpireCraft.Core.AncientWarfareCompatibility.BlocksEmpireFormation(pKingdom2)) return false;
-        Empire empire = ModClass.EMPIRE_MANAGER.get(pKingdom1.GetEmpireID());
+        Empire empire = ModClass.EMPIRE_MANAGER.Get(pKingdom1.GetEmpireID());
         if (empire == null)
         {
-            empire = ModClass.EMPIRE_MANAGER.get(pKingdom2.GetEmpireID());
+            empire = ModClass.EMPIRE_MANAGER.Get(pKingdom2.GetEmpireID());
         }
         bool result = false;
         if (empire == null)

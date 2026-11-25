@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/SteppeOrderSystem.Attach.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/SteppeOrderSystem.Attach.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -55,7 +55,7 @@ public static partial class SteppeOrderSystem
     private static void TryAttach(Realm kingdom, SteppeState state)
     {
         if (kingdom.GetEmpire() != null || kingdom.IsEmpire() || !NomadRaidSystem.IsNomad(kingdom) ||
-            TribalFissionService.IsTribal(kingdom) || !kingdom.HasRuler() || kingdom.hasEnemies() || kingdom.HasTakenAlliance() ||
+            TribalFissionService.IsTribal(kingdom) || !kingdom.HasRuler() || kingdom.HasEnemies() || kingdom.HasTakenAlliance() ||
             kingdom.IsFactionRebelling() || kingdom.IsLocalRebelling()) return;
         Empire best = null;
         double bestPower = 0d;
@@ -71,7 +71,7 @@ public static partial class SteppeOrderSystem
         if (best == null) return;
         double own = kingdom.GetNationalPower();
         Realm core = best.CoreKingdom;
-        if (own >= bestPower * AttachPowerShare || kingdom.isInWarWith(core) ||
+        if (own >= bestPower * AttachPowerShare || kingdom.IsAtWarWith(core) ||
             (EmpireWorld.Current.diplomacy?.getOpinion(kingdom, core)?.total ?? 0) < AttachOpinion ||
             MembershipCooldown.BlocksVoluntary(kingdom, best)) return;
         if (EcRandom.value >= SteppeRules.AttachChance(state.pressure)) return;
@@ -89,7 +89,6 @@ public static partial class SteppeOrderSystem
 #endif
 
     // 合法理、同天下：都城与汗庭同在一个天下；都城所在的帝国法理没归别的帝国
-#if EC_PENDING
     private static bool AttachFits(Realm kingdom, Empire khanate)
     {
         City seat = kingdom.Capital, court = khanate.CoreKingdom?.Capital;
@@ -99,20 +98,19 @@ public static partial class SteppeOrderSystem
         Empire holder = RealmNamingSystem.HolderOf(seat.GetEmpireCore());
         return holder == null || holder == khanate;
     }
-#endif
 
     // 若即若离：大汗换人、汗国衰落时散去
 #if EC_PENDING
     private static void Drift(Realm kingdom, SteppeState state)
     {
-        Empire empire = ModClass.EMPIRE_MANAGER?.get(state.attached_empire_id);
+        Empire empire = ModClass.EMPIRE_MANAGER?.Get(state.attached_empire_id);
         if (empire?.data == null || empire.IsGone() || empire.IsArchived() || kingdom.GetEmpire() != empire || empire.CoreKingdom == kingdom)
         {
             state.attached_empire_id = state.attached_khan_id = -1L;
             state.attached_at = -1d;
             return;
         }
-        if (kingdom.IsFactionRebelling() || kingdom.IsLocalRebelling() || kingdom.hasEnemies()) return;
+        if (kingdom.IsFactionRebelling() || kingdom.IsLocalRebelling() || kingdom.HasEnemies()) return;
         long khan = empire.Emperor?.Key ?? -1L;
         string key = null;
         float chance = 0f;

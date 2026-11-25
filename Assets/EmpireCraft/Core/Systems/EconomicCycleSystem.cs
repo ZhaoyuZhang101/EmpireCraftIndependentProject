@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/EconomicCycleSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/EconomicCycleSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -35,9 +35,7 @@ public static class EconomicCycleSystem
     public const string Laissez = "laissez", Stimulus = "stimulus", Austerity = "austerity", Tariff = "tariff";
 
     private static ConstitutionalEconomyState State(Empire empire) => empire?.data?.constitutional_economy;
-#if EC_PENDING
     private static ConstitutionalEconomyState State(Realm kingdom) => kingdom?.GetEmpire()?.data?.constitutional_economy;
-#endif
 
     public static int Phase(Empire empire) => State(empire)?.cycle_phase ?? None;
     public static bool InCrisis(Empire empire) => Phase(empire) is Panic or Depression;
@@ -359,7 +357,6 @@ public static class EconomicCycleSystem
     #region 效果
 
     // 税收(见 PopulationEconomySystem.PayTaxes)：繁荣多收一点，恐慌、萧条少收
-#if EC_PENDING
     public static float TaxFactor(City city) => State(city?.Realm)?.cycle_phase switch
     {
         Boom => 1.05f,
@@ -368,10 +365,8 @@ public static class EconomicCycleSystem
         Depression => 0.85f,
         _ => 1f
     };
-#endif
 
     // 工厂开工(见 FactorySystem.Produce)：萧条开工不足；高筑关税护着本国工厂，好过一点
-#if EC_PENDING
     public static float FactoryFactor(City city)
     {
         ConstitutionalEconomyState state = State(city?.Realm);
@@ -385,10 +380,8 @@ public static class EconomicCycleSystem
             _ => 1f
         };
     }
-#endif
 
     // 消费品、奢侈品的销路(见 CommodityMarketSystem.Book)：萧条时没人买，价格跟着跌
-#if EC_PENDING
     public static float DemandFactor(Realm kingdom) => State(kingdom)?.cycle_phase switch
     {
         Boom => 1.05f,
@@ -397,7 +390,6 @@ public static class EconomicCycleSystem
         Depression => 0.75f,
         _ => 1f
     };
-#endif
 
     // 阶层怨气的目标值加减(见 InstitutionSystem)：失业、破产
     public static float GrievanceShift(Empire empire, SocialClass socialClass)

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/PrinceStruggleSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/PrinceStruggleSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -177,7 +177,6 @@ public static class PrinceStruggleSystem
 #endif
 
     // 京城禁军：空饷的不算，不奉诏的不出力
-#if EC_PENDING
     private static float GuardForce(Realm core)
     {
         float sum = 0f;
@@ -185,7 +184,6 @@ public static class PrinceStruggleSystem
             if (!PalaceArmySystem.Refuses(corps)) sum += corps.strength * PalaceArmySystem.RealShare(corps);
         return sum;
     }
-#endif
 
     // 诸王之乱：宗室里就藩为王的各自起兵争位；返回起兵了几家
 #if EC_PENDING
@@ -209,11 +207,11 @@ public static class PrinceStruggleSystem
             Realm fief = prince.Realm;
             if (engaged.Contains(fief)) continue;
             if (!fief.StartLocalRebelling(EmpireCraft.Core.EmpireWarType.藩王索取皇位)) continue;
-            War war = EmpireWorld.Current.diplomacy.startWar(fief, core, WarTypeLibrary.normal);
-            if (war?.data == null) continue;
+            War war = EmpireWorld.Current.StartWar(fief, core, WarKinds.Normal);
+            if (war?.Record == null) continue;
             war.SetEmpireWarType(EmpireCraft.Core.EmpireWarType.藩王索取皇位);
             war.GetOrCreate().war_label = "princes";
-            foreach (Realm kingdom in war._list_attackers.Concat(war._list_defenders)) engaged.Add(kingdom);
+            foreach (Realm kingdom in war.Attackers.Concat(war.Defenders)) engaged.Add(kingdom);
             WarCatalog.ApplyName(war);
             WarChronicle.Record(war, WarChronicle.Declare, string.Format(LM.Get("war_log_prince_rose"), prince.FullName(),
                 fief.GetKingdomName(), emperor.FullName()));
@@ -234,7 +232,7 @@ public static class PrinceStruggleSystem
     {
         foreach (var pair in Contests.ToList())
         {
-            Empire empire = ModClass.EMPIRE_MANAGER?.get(pair.Key);
+            Empire empire = ModClass.EMPIRE_MANAGER?.Get(pair.Key);
             if (empire?.data == null || GameClock.MonthsSince(pair.Value.at) >= PendingMonths)
             {
                 Contests.Remove(pair.Key);

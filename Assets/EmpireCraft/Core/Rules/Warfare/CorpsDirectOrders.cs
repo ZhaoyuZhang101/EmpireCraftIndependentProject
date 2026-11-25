@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/CorpsDirectOrders.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/CorpsDirectOrders.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System.Collections.Generic;
 using System.Linq;
@@ -42,23 +42,19 @@ public static class CorpsDirectOrders
     }
 
     // 这支军奉令去的城；作废的手令顺手清掉
-#if EC_PENDING
     public static City Target(Realm kingdom, CorpsData corps)
     {
         if (corps == null || Orders.Count == 0 || !Orders.TryGetValue(corps.id, out long id)) return null;
         City city = EmpireWorld.Current.CityByKey(id);
         if (kingdom != null && city?.Record != null && !city.IsGone() && city.Realm != null &&
-            (Ours(kingdom, city.Realm) || kingdom.isInWarWith(city.Realm))) return city;
+            (Ours(kingdom, city.Realm) || kingdom.IsAtWarWith(city.Realm))) return city;
         Orders.Remove(corps.id);
         return null;
     }
-#endif
 
     // 自家的城：本国的，或同一帝国里的
-#if EC_PENDING
     public static bool Ours(Realm kingdom, Realm owner) =>
         owner == kingdom || owner != null && kingdom.GetEmpire() != null && owner.GetEmpire() == kingdom.GetEmpire();
-#endif
 
     // 一国里奉着手令的军
     public static int Count(Realm kingdom)

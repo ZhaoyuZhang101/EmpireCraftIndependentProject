@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/ZhouEraSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/ZhouEraSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -100,7 +100,7 @@ public static class ZhouEraSystem
         if (member != null) return Applies(member) ? member : null;
         long id = kingdom.GetOrCreate().zhou_sphere_id;
         if (id < 0 || ModClass.EMPIRE_MANAGER == null) return null;
-        Empire sphere = ModClass.EMPIRE_MANAGER.get(id);
+        Empire sphere = ModClass.EMPIRE_MANAGER.Get(id);
         return Applies(sphere) && State(sphere).era >= Warring ? sphere : null;
     }
 #endif
@@ -120,7 +120,7 @@ public static class ZhouEraSystem
         return ModClass.EMPIRE_MANAGER.Where(empire => Applies(empire) &&
                                                        CultureService.SameKin(CultureService.GetEmpireDefaultCulture(empire), culture))
             .OrderByDescending(empire => State(empire).royal_settled_at >= 0d)
-            .ThenBy(empire => empire.data.created_time).ThenBy(empire => empire.id);
+            .ThenBy(empire => empire.data.created_time).ThenBy(empire => empire.Key);
     }
 #endif
 
@@ -168,11 +168,9 @@ public static class ZhouEraSystem
 #endif
 
     // 别家神力立的帝国的核心(EmpireData.formed_by_god)：不在周室之内、自立帝号，天子照样当不服王化讨伐
-#if EC_PENDING
     public static bool GodMadeRival(Empire empire, Realm kingdom) =>
         kingdom?.GetEmpire() is Empire own && own != empire && own.data?.formed_by_god == true && own.CoreKingdom == kingdom &&
         !own.IsGone() && !own.IsArchived();
-#endif
 
     // 天子兴师讨伐的不服王化之国：与王畿接壤、兵力不及王师的，先挑最弱的
 #if EC_PENDING
@@ -185,7 +183,7 @@ public static class ZhouEraSystem
             .Concat(EmpireWorld.Current.LiveRealms.Where(kingdom => Unsubmitted(empire, kingdom) && StraitReach.Across(empire.CoreKingdom, kingdom)))
             .Distinct()
             .Where(kingdom => Unsubmitted(empire, kingdom) && !kingdom.IsLocalRebelling() && !kingdom.IsFactionRebelling() &&
-                              !kingdom.isInWarWith(empire.CoreKingdom) && kingdom.countTotalWarriors() < royal)
+                              !kingdom.IsAtWarWith(empire.CoreKingdom) && kingdom.countTotalWarriors() < royal)
             .OrderBy(kingdom => kingdom.countTotalWarriors()).FirstOrDefault();
     }
 #endif
@@ -195,10 +193,10 @@ public static class ZhouEraSystem
 #if EC_PENDING
     public static void MarkSubdueWar(War war, Empire empire, Realm target)
     {
-        if (war?.data == null || empire == null || target == null) return;
+        if (war?.Record == null || empire == null || target == null) return;
         war.SetEmpireWarType(EmpireWarType.征伐不服);
         string royal = EmpireCraft.Core.EmpireCraftNamePlateLibrary.GetDisplayName(empire.CoreKingdom);
-        war.data.name = string.Format(LM.Get("zhou_subdue_war_name"),
+        war.Name = string.Format(LM.Get("zhou_subdue_war_name"),
             string.IsNullOrWhiteSpace(royal) ? empire.GetEmpireName() : royal, target.GetKingdomName());
     }
 #endif
@@ -322,7 +320,7 @@ public static class ZhouEraSystem
 #if EC_PENDING
     public static bool IsInternalWar(War war)
     {
-        Realm attacker = war?.main_attacker, defender = war?.main_defender;
+        Realm attacker = war?.MainAttacker, defender = war?.MainDefender;
         Empire empire = SphereOf(attacker);
         return empire != null && State(empire).era >= Spring && SphereOf(defender) == empire;
     }
@@ -518,19 +516,19 @@ public static class ZhouEraSystem
             if (vassal.HasTakenAlliance()) vassal.RemoveTakenAlliance();
         Realm core = empire.CoreKingdom;
         // 尊王：诸侯犯天子，霸主与诸侯共讨(加入天子一方)
-        foreach (War war in core.getWars().ToList())
+        foreach (War war in core.GetWars().ToList())
         {
-            if (war == null || war.hasEnded()) continue;
-            bool coreAttacker = war.isAttacker(core);
-            Realm foe = coreAttacker ? war.main_defender : war.main_attacker;
+            if (war == null || war.HasEnded()) continue;
+            bool coreAttacker = war.IsAttacker(core);
+            Realm foe = coreAttacker ? war.MainDefender : war.MainAttacker;
             if (foe == null || SphereOf(foe) != empire) continue;
             if (state.era >= Warring) continue;
             var rallied = new List<string>();
             foreach (Realm loyal in Loyalists(empire, state, foe).Take(3))
             {
-                bool before = war.isAttacker(loyal) || war.isDefender(loyal);
+                bool before = war.IsAttacker(loyal) || war.IsDefender(loyal);
                 JoinSide(war, loyal, coreAttacker);
-                if (!before && (war.isAttacker(loyal) || war.isDefender(loyal))) rallied.Add(loyal.GetKingdomName());
+                if (!before && (war.IsAttacker(loyal) || war.IsDefender(loyal))) rallied.Add(loyal.GetKingdomName());
             }
             if (rallied.Count > 0)
                 Announce(empire, string.Format(LM.Get("zhou_log_rally"), foe.GetKingdomName(), string.Join("、", rallied)), core,
@@ -539,19 +537,19 @@ public static class ZhouEraSystem
         // 攘夷：夷狄攻打诸侯，天子与霸主出兵来援(只在春秋；战国不再尊王攘夷)
         if (state.era == Spring)
         foreach (Realm vassal in Vassals(empire).ToList())
-            foreach (War war in vassal.getWars().ToList())
+            foreach (War war in vassal.GetWars().ToList())
             {
-                if (war == null || war.hasEnded() || !war.isDefender(vassal)) continue;
-                Realm attacker = war.main_attacker;
+                if (war == null || war.HasEnded() || !war.IsDefender(vassal)) continue;
+                Realm attacker = war.MainAttacker;
                 if (!IsBarbarian(empire, attacker)) continue;
-                bool already = war.isDefender(core);
+                bool already = war.IsDefender(core);
                 JoinSide(war, core, attackerSide: false);
                 Realm hegemon = EmpireWorld.Current.RealmByKey(state.hegemon_id);
                 if (hegemon != null && hegemon != vassal && !hegemon.IsGone()) JoinSide(war, hegemon, attackerSide: false);
                 else hegemon = null;
-                if (already || !war.isDefender(core)) continue;
-                war.data.name = string.Format(LM.Get("zhou_repel_war_name"), vassal.GetKingdomName(), attacker.GetKingdomName());
-                bool withHegemon = hegemon != null && war.isDefender(hegemon);
+                if (already || !war.IsDefender(core)) continue;
+                war.Name = string.Format(LM.Get("zhou_repel_war_name"), vassal.GetKingdomName(), attacker.GetKingdomName());
+                bool withHegemon = hegemon != null && war.IsDefender(hegemon);
                 Announce(empire, withHegemon
                         ? string.Format(LM.Get("zhou_log_repel_hegemon"), core.GetKingdomName(), hegemon.GetKingdomName(),
                             vassal.GetKingdomName(), attacker.GetKingdomName())
@@ -560,12 +558,12 @@ public static class ZhouEraSystem
             }
         // 合纵：所抗之国攻打合纵之国，各国来援
         if (state.era >= Warring && EmpireWorld.Current.RealmByKey(state.coalition_target) is Realm target)
-            foreach (War war in target.getWars().ToList())
+            foreach (War war in target.GetWars().ToList())
             {
-                if (war == null || war.hasEnded() || !war.isAttacker(target)) continue;
-                if (!state.coalition.Contains(war.main_defender?.id ?? -1L)) continue;
+                if (war == null || war.HasEnded() || !war.IsAttacker(target)) continue;
+                if (!state.coalition.Contains(war.MainDefender?.Key ?? -1L)) continue;
                 foreach (long id in state.coalition)
-                    if (EmpireWorld.Current.RealmByKey(id) is Realm member && member != war.main_defender &&
+                    if (EmpireWorld.Current.RealmByKey(id) is Realm member && member != war.MainDefender &&
                         Answers(member, war))
                         JoinSide(war, member, attackerSide: false);
             }
@@ -573,31 +571,29 @@ public static class ZhouEraSystem
 #endif
 
     // 合纵之国各怀心思：每场仗只有四成会出兵来援(按国与这场仗定下，不每月重掷)
-#if EC_PENDING
     private static bool Answers(Realm member, War war) =>
-        (uint)(member.Key * 31 + war.data.id * 17) % 10 < CoalitionAnswer;
-#endif
+        (uint)(member.Key * 31 + war.Key * 17) % 10 < CoalitionAnswer;
 
     // 尊王的诸侯：不是犯上者、不在与天子交战，按国力排序，霸主优先，受胙之国其次
 #if EC_PENDING
     private static IEnumerable<Realm> Loyalists(Empire empire, ZhouEraState state, Realm rebel) =>
-        Vassals(empire).Where(kingdom => kingdom != rebel && !kingdom.isInWarWith(empire.CoreKingdom) &&
+        Vassals(empire).Where(kingdom => kingdom != rebel && !kingdom.IsAtWarWith(empire.CoreKingdom) &&
                                          !state.kings.Contains(kingdom.Key))
-            .OrderByDescending(kingdom => kingdom.id == state.hegemon_id).ThenByDescending(kingdom => HasZuo(state, kingdom))
+            .OrderByDescending(kingdom => kingdom.Key == state.hegemon_id).ThenByDescending(kingdom => HasZuo(state, kingdom))
             .ThenByDescending(Power);
 
     private static void JoinSide(War war, Realm kingdom, bool attackerSide)
     {
-        if (war == null || kingdom?.Record == null || kingdom.IsGone() || war.hasEnded()) return;
-        if (war.isAttacker(kingdom) || war.isDefender(kingdom)) return;
+        if (war == null || kingdom?.Record == null || kingdom.IsGone() || war.HasEnded()) return;
+        if (war.IsAttacker(kingdom) || war.IsDefender(kingdom)) return;
         // 已经和对方议和退出过这场仗的，不再被攘夷、尊王、合纵拉回去
         if (EmpirePeacePatch.HasLeft(kingdom, war, attackerSide)) return;
-        Realm enemy = attackerSide ? war.main_defender : war.main_attacker;
+        Realm enemy = attackerSide ? war.MainDefender : war.MainAttacker;
         if (enemy == null || enemy == kingdom) return;
         try
         {
-            if (attackerSide) war.joinAttackers(kingdom);
-            else war.joinDefenders(kingdom);
+            if (attackerSide) war.JoinAttackers(kingdom);
+            else war.JoinDefenders(kingdom);
         }
         catch (Exception exception)
         {
@@ -713,7 +709,7 @@ public static class ZhouEraSystem
     {
         Realm hegemon = EmpireWorld.Current.RealmByKey(state.hegemon_id);
         bool valid = hegemon != null && !hegemon.IsGone() && SphereOf(hegemon) == empire &&
-                     !hegemon.isInWarWith(empire.CoreKingdom) && !state.kings.Contains(hegemon.Key) &&
+                     !hegemon.IsAtWarWith(empire.CoreKingdom) && !state.kings.Contains(hegemon.Key) &&
                      Power(hegemon) >= 0.7f * Vassals(empire).Where(other => other != hegemon).Select(Power).DefaultIfEmpty(0).Max();
         if (!valid)
         {
@@ -746,7 +742,7 @@ public static class ZhouEraSystem
     {
         if (state.era != Spring) return null;
         Realm hegemon = chosen ?? Vassals(empire)
-            .Where(kingdom => !kingdom.isInWarWith(empire.CoreKingdom) && !state.kings.Contains(kingdom.Key) &&
+            .Where(kingdom => !kingdom.IsAtWarWith(empire.CoreKingdom) && !state.kings.Contains(kingdom.Key) &&
                               kingdom.GetKingdomType() != KingdomType.ZhouFeudalism_jun)
             .OrderByDescending(Power).FirstOrDefault();
         if (hegemon == null) return null;
@@ -766,7 +762,6 @@ public static class ZhouEraSystem
 #endif
 
     // 一年的赋税收入(按国库账目折算；没有账目时按国库的十分之一估)
-#if EC_PENDING
     private static int YearlyRevenue(Realm kingdom)
     {
         TreasuryReport report = TreasurySystem.Report(kingdom);
@@ -774,7 +769,6 @@ public static class ZhouEraSystem
             return (int)Math.Min(int.MaxValue, report.income * 12L / report.months);
         return Mathf.Max(0, kingdom.GetMoney()) / 10;
     }
-#endif
 
     // 纳贡：诸侯每年以赋税一成献给霸主；国库交不出、或与霸主交恶不肯交的，记为不朝
 #if EC_PENDING
@@ -784,7 +778,7 @@ public static class ZhouEraSystem
         state.defiant.Clear();
         foreach (Realm vassal in Vassals(empire).Where(vassal => vassal != hegemon))
         {
-            if (vassal.isInWarWith(hegemon) || state.kings.Contains(vassal.Key) ||
+            if (vassal.IsAtWarWith(hegemon) || state.kings.Contains(vassal.Key) ||
                 !HasZuo(state, vassal) && (EmpireWorld.Current.diplomacy?.getOpinion(vassal, hegemon)?.total ?? 0) < -20)
             {
                 state.defiant.Add(vassal.Key);
@@ -811,10 +805,10 @@ public static class ZhouEraSystem
         foreach (long id in state.defiant.ToList())
         {
             Realm defiant = EmpireWorld.Current.RealmByKey(id);
-            if (defiant == null || defiant.IsGone() || defiant == hegemon || hegemon.isInWarWith(defiant) ||
+            if (defiant == null || defiant.IsGone() || defiant == hegemon || hegemon.IsAtWarWith(defiant) ||
                 !hegemon.IsNeighbourWith(defiant) || Power(defiant) * 1.2f > Power(hegemon) || Random.value > 0.3f)
                 continue;
-            War war = EmpireWorld.Current.diplomacy.startWar(hegemon, defiant, WarTypeLibrary.normal);
+            War war = EmpireWorld.Current.StartWar(hegemon, defiant, WarKinds.Normal);
             if (war == null) continue;
             Announce(empire, string.Format(LM.Get("zhou_log_punish_defiant"), hegemon.GetKingdomName(), defiant.GetKingdomName()),
                 hegemon, history: true);
@@ -828,10 +822,10 @@ public static class ZhouEraSystem
     private static void Arbitrate(Empire empire, ZhouEraState state, Realm hegemon)
     {
         foreach (Realm vassal in Vassals(empire).ToList())
-            foreach (War war in vassal.getWars().ToList())
+            foreach (War war in vassal.GetWars().ToList())
             {
-                if (war == null || war.hasEnded() || !war.isAttacker(vassal)) continue;
-                Realm victim = war.main_defender;
+                if (war == null || war.HasEnded() || !war.IsAttacker(vassal)) continue;
+                Realm victim = war.MainDefender;
                 if (victim == null || SphereOf(victim) != empire || victim == empire.CoreKingdom) continue;
                 if (vassal == hegemon || victim == hegemon || state.kings.Contains(victim.Key)) continue;
                 float chance = Power(victim) * 2 < Power(vassal) ? 0.5f : 0.25f;
@@ -850,12 +844,12 @@ public static class ZhouEraSystem
         foreach (long id in state.kings.ToList())
         {
             Realm usurper = EmpireWorld.Current.RealmByKey(id);
-            if (usurper == null || usurper.IsGone() || usurper == hegemon || hegemon.isInWarWith(usurper) ||
+            if (usurper == null || usurper.IsGone() || usurper == hegemon || hegemon.IsAtWarWith(usurper) ||
                 !hegemon.IsNeighbourWith(usurper) || Random.value > 0.25f) continue;
-            War war = EmpireWorld.Current.diplomacy.startWar(hegemon, usurper, WarTypeLibrary.normal);
+            War war = EmpireWorld.Current.StartWar(hegemon, usurper, WarKinds.Normal);
             if (war == null) continue;
             war.SetEmpireWarType(EmpireCraft.Core.EmpireWarType.伐不臣);
-            war.data.name = string.Format(LM.Get("zhou_punish_war_name"), hegemon.GetKingdomName(), usurper.GetKingdomName());
+            war.Name = string.Format(LM.Get("zhou_punish_war_name"), hegemon.GetKingdomName(), usurper.GetKingdomName());
             Announce(empire, string.Format(LM.Get("zhou_log_punish"), hegemon.GetKingdomName(), usurper.GetKingdomName()),
                 hegemon, history: true);
             return;
@@ -1003,7 +997,7 @@ public static class ZhouEraSystem
 #if EC_PENDING
     private static bool TryConquest(Empire empire, ZhouEraState state, Realm vassal)
     {
-        if (vassal?.Record == null || vassal.IsGone() || vassal.hasEnemies() ||
+        if (vassal?.Record == null || vassal.IsGone() || vassal.HasEnemies() ||
             !state.kings.Contains(vassal.Key) && !state.reforms.Contains(vassal.Key) || Random.value > ConquestChance) return false;
         int power = Power(vassal);
         Realm target = Vassals(empire).Append(empire.CoreKingdom)
@@ -1011,7 +1005,7 @@ public static class ZhouEraSystem
                               Power(kingdom) * 3 < power * 2 && IsValidVassalWarTarget(vassal, kingdom, out _))
             .OrderBy(Power).FirstOrDefault();
         if (target == null) return false;
-        War war = EmpireWorld.Current.diplomacy.startWar(vassal, target, WarTypeLibrary.normal);
+        War war = EmpireWorld.Current.StartWar(vassal, target, WarKinds.Normal);
         if (war == null) return false;
         Log(empire, string.Format(LM.Get("zhou_log_conquest"), vassal.GetKingdomName(), target.GetKingdomName()));
         return true;
@@ -1023,12 +1017,12 @@ public static class ZhouEraSystem
     private static void TrySubmit(Empire empire, ZhouEraState state, Realm small)
     {
         if (small?.Record == null || small.IsGone() || small == empire.CoreKingdom || (small.Cities?.Count ?? 0) != 1 ||
-            small.hasEnemies() || Random.value > SubmitChance) return;
+            small.HasEnemies() || Random.value > SubmitChance) return;
         int power = Power(small);
         Realm lord = Vassals(empire)
-            .Where(kingdom => kingdom != small && !kingdom.hasEnemies() && kingdom.IsNeighbourWith(small) &&
+            .Where(kingdom => kingdom != small && !kingdom.HasEnemies() && kingdom.IsNeighbourWith(small) &&
                               Power(kingdom) >= power * 4)
-            .OrderByDescending(kingdom => state.kings.Contains(kingdom.id)).ThenByDescending(Power).FirstOrDefault();
+            .OrderByDescending(kingdom => state.kings.Contains(kingdom.Key)).ThenByDescending(Power).FirstOrDefault();
         if (lord == null) return;
         string name = small.GetKingdomName();
         _annexing = true;
@@ -1070,7 +1064,7 @@ public static class ZhouEraSystem
                                                          !state.horizontal.Contains(kingdom.Key) &&
                                                          Power(kingdom) < 0.15f * Power(strongest) &&
                                                          kingdom.IsNeighbourWith(strongest) &&
-                                                         !kingdom.isInWarWith(strongest)).ToList())
+                                                         !kingdom.IsAtWarWith(strongest)).ToList())
         {
             if (Random.value > 0.1f) continue;
             state.horizontal.Add(weak.Key);
@@ -1158,16 +1152,16 @@ public static class ZhouEraSystem
         EmpireWorld.Current != null && GameClock.YearsSince(at) < ZuoYears;
 
     // 一年赋税的二十分之一，至少 30
-#if EC_PENDING
     public static int ZuoCost(Empire empire) => Math.Max(30, YearlyRevenue(empire.CoreKingdom) / 20);
 
+#if EC_PENDING
     public static bool CanGrantZuo(Empire empire, Realm vassal)
     {
         if (!Applies(empire) || vassal?.Record == null || vassal.IsGone()) return false;
         ZhouEraState state = State(empire);
         Realm core = empire.CoreKingdom;
         return state.era <= Spring && vassal != core && SphereOf(vassal) == empire && !HasZuo(state, vassal) &&
-               !state.kings.Contains(vassal.Key) && !vassal.isInWarWith(core) && core.GetMoney() >= ZuoCost(empire);
+               !state.kings.Contains(vassal.Key) && !vassal.IsAtWarWith(core) && core.GetMoney() >= ZuoCost(empire);
     }
 
     public static bool GrantZuo(Empire empire, Realm vassal)
@@ -1243,8 +1237,8 @@ public static class ZhouEraSystem
         foreach (Realm member in Vassals(empire).Append(empire.CoreKingdom).ToList())
             foreach (War war in member?.getWars()?.ToList() ?? new List<War>())
             {
-                if (war == null || war.hasEnded() || !war.isDefender(member)) continue;
-                Realm attacker = war.main_attacker;
+                if (war == null || war.HasEnded() || !war.IsDefender(member)) continue;
+                Realm attacker = war.MainAttacker;
                 if (!IsBarbarian(empire, attacker) || !seen.Add(attacker.Key)) continue;
                 result.Add((attacker, member));
             }
@@ -1273,10 +1267,10 @@ public static class ZhouEraSystem
         Realm core = empire.CoreKingdom;
         var helpers = Loyalists(empire, state, barbarian).Where(kingdom => kingdom.IsNeighbourWith(barbarian)).Take(3).ToList();
         if (EmpireWorld.Current.RealmByKey(state.hegemon_id) is Realm hegemon && !hegemon.IsGone() && SphereOf(hegemon) == empire &&
-            !helpers.Contains(hegemon) && !hegemon.isInWarWith(core))
+            !helpers.Contains(hegemon) && !hegemon.IsAtWarWith(core))
             helpers.Insert(0, hegemon);
-        var wars = Vassals(empire).Append(core).SelectMany(member => member.getWars())
-            .Where(war => war != null && !war.hasEnded() && war.main_attacker == barbarian && SphereOf(war.main_defender) == empire)
+        var wars = Vassals(empire).Append(core).SelectMany(member => member.GetWars())
+            .Where(war => war != null && !war.HasEnded() && war.MainAttacker == barbarian && SphereOf(war.MainDefender) == empire)
             .Distinct().ToList();
         if (wars.Count > 0)
         {
@@ -1285,21 +1279,21 @@ public static class ZhouEraSystem
             {
                 JoinSide(war, core, attackerSide: false);
                 foreach (Realm helper in helpers)
-                    if (helper != war.main_defender) JoinSide(war, helper, attackerSide: false);
-                war.data.name = string.Format(LM.Get("zhou_repel_war_name"), war.main_defender.GetKingdomName(),
+                    if (helper != war.MainDefender) JoinSide(war, helper, attackerSide: false);
+                war.Name = string.Format(LM.Get("zhou_repel_war_name"), war.MainDefender.GetKingdomName(),
                     barbarian.GetKingdomName());
-                victims.Add(war.main_defender.GetKingdomName());
+                victims.Add(war.MainDefender.GetKingdomName());
             }
             empire.AddMandate(2);
             Announce(empire, string.Format(LM.Get("zhou_log_call_repel"), core.GetKingdomName(), Helpers(helpers),
                 string.Join("、", victims.Distinct()), barbarian.GetKingdomName()), core, history: true);
             return true;
         }
-        if (RepelCooldown(empire) > 0 || core.isInWarWith(barbarian) || !empire.IsNeighbourWith(barbarian)) return false;
-        War campaign = EmpireWorld.Current.diplomacy.startWar(core, barbarian, WarTypeLibrary.normal);
+        if (RepelCooldown(empire) > 0 || core.IsAtWarWith(barbarian) || !empire.IsNeighbourWith(barbarian)) return false;
+        War campaign = EmpireWorld.Current.StartWar(core, barbarian, WarKinds.Normal);
         if (campaign == null) return false;
         campaign.SetEmpireWarType(EmpireWarType.攘夷);
-        campaign.data.name = string.Format(LM.Get("zhou_campaign_war_name"), core.GetKingdomName(), barbarian.GetKingdomName());
+        campaign.Name = string.Format(LM.Get("zhou_campaign_war_name"), core.GetKingdomName(), barbarian.GetKingdomName());
         foreach (Realm helper in helpers) JoinSide(campaign, helper, attackerSide: true);
         state.repel_called_at = GameClock.Now;
         empire.AddMandate(1);

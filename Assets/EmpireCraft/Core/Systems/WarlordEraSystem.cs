@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/WarlordEraSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/WarlordEraSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
@@ -59,11 +59,9 @@ public static partial class WarlordEraSystem
     public static EmpireCore RealmOf(Realm kingdom) => kingdom?.Capital == null ? null : TianxiaSystem.LeadOf(kingdom.Capital);
 
     // 天下眼下记着的中央政府(没有返回 null)
-#if EC_PENDING
     public static Empire CentralOf(EmpireCore lead) => lead == null ? null : GetLiving(TianxiaSystem.Lead(lead)?.central_empire_id ?? -1L);
 
     private static (Dictionary<Realm, int> held, int total) RealmHolders(EmpireCore lead) => TianxiaSystem.Holdings(lead);
-#endif
 
     // 天下的名号(临时政府以法统自居、诊断与史册)：华夏现代用天下之名，其余用主核心名
 #if EC_PENDING
@@ -199,7 +197,6 @@ public static partial class WarlordEraSystem
 #endif
 
     // 都城所在的王国法理名；该法理已是别的政权的主法理时不用(免得两个政权同叫"蜀系军阀")
-#if EC_PENDING
     private static string CapitalTitleName(Realm kingdom)
     {
         KingdomTitle title = kingdom.GetCapitalDeJureTitle();
@@ -208,7 +205,6 @@ public static partial class WarlordEraSystem
         if (holder != null && !holder.IsGone() && holder != kingdom && holder.GetMainTitle() == title) return "";
         return title.data?.name?.Trim().Trim(ModClass.NARROW_SPACE.ToCharArray()).Trim() ?? "";
     }
-#endif
 
     // 已组建政府、但在军阀时期里只算军阀的政权(比如被超过的前中央)
     // 已组建政府、但在军阀时期里只算军阀的政权：保留自己的国号(华夏的这类政府会被撤销，见 DemoteWarlordGovernments)
@@ -313,10 +309,10 @@ public static partial class WarlordEraSystem
         }
         return count > 0 ? sum / count : Vector2.zero;
     }
+#endif
 
     private static string TitleName(Realm kingdom) =>
         kingdom?.GetMainTitle()?.data?.name?.Trim().Trim(ModClass.NARROW_SPACE.ToCharArray()).Trim() ?? "";
-#endif
 
     // 中央的国号：华夏用天下名(不再依赖帝国法理，见 RealmNamingSystem.ModernRealmName)，其余用帝国核心名；
     // 后缀照旧按执政理念(强统一文化另见 DecorateName)
@@ -389,11 +385,9 @@ public static partial class WarlordEraSystem
 #endif
 
     // 组建政府的先决条件(见 ModernStateFormationSystem.TryUpdate、FormGovernment)
-#if EC_PENDING
     private static bool CouldFormGovernment(Realm holder) =>
         holder.HasRuler() && holder.HasMainTitle() &&
         !AncientWarfareCompatibility.BlocksEmpireFormation(holder);
-#endif
 
     // 政府代表的理念：宪法规定的立国理念 → 共和国的建国理念 → 执政理念
 #if EC_PENDING
@@ -445,11 +439,11 @@ public static partial class WarlordEraSystem
             _lastScan = now;
             Roles.Clear();
             // 进行中的战争：战争名里残留的原始国名(旧存档、开战后才改称的政权)换成铭牌国名
-            foreach (War war in EmpireWorld.Current.wars.list.ToList())
+            foreach (War war in EmpireWorld.Current.LiveWars.ToList())
             {
-                if (war?.data == null || war.hasEnded()) continue;
-                war.data.name = EmpireCraft.Core.WorldLogNamePatch.UseDisplayNames(war.data.name,
-                    war.main_attacker, war.main_defender);
+                if (war?.Record == null || war.HasEnded()) continue;
+                war.Name = EmpireCraft.Core.WorldLogNamePatch.UseDisplayNames(war.Name,
+                    war.MainAttacker, war.MainDefender);
             }
             PendingCores.Clear();
             foreach (long id in EmpireCoreManager.EmpireCores.Keys.ToList()) PendingCores.Enqueue(id);
@@ -476,12 +470,14 @@ public static partial class WarlordEraSystem
             }
         }
     }
+#endif
 
 
 
     private static Empire Government(Realm holder) =>
         holder != null && holder.IsEmpire() ? holder.GetEmpire() : null;
 
+#if EC_PENDING
     private static void UpdateCore(EmpireCore core, double now)
     {
         if (core == null || !EmpireCoreManager.EmpireCores.TryGetValue(core.id, out EmpireCore registered) ||
@@ -661,7 +657,7 @@ public static partial class WarlordEraSystem
             }
             int years = GameClock.YearsSince(government.data.created_time);
             if (years < ProvisionalYears ||
-                years < ProvisionalMaxYears && government.CoreKingdom.getWars()?.Any(IsCivilWar) == true) continue;
+                years < ProvisionalMaxYears && government.CoreKingdom.GetWars()?.Any(IsCivilWar) == true) continue;
             string before = government.GetEmpireFullName();
             state.formal_government_at = now;
             if (listed) Roles[government.Key] = (core, government == central ? Role.Central : Role.Formal);
@@ -725,15 +721,15 @@ public static partial class WarlordEraSystem
     {
         if (central == null) return;
         Realm centralKingdom = central.CoreKingdom;
-        foreach (War war in EmpireWorld.Current.wars.list.ToList())
+        foreach (War war in EmpireWorld.Current.LiveWars.ToList())
         {
-            if (war == null || war.hasEnded() || war.getAge() < FeudYears) continue;
-            Realm attacker = war.getMainAttacker(), defender = war.getMainDefender();
+            if (war == null || war.HasEnded() || war.AgeYears() < FeudYears) continue;
+            Realm attacker = war.GetMainAttacker(), defender = war.GetMainDefender();
             if (attacker == null || defender == null || attacker == centralKingdom || defender == centralKingdom) continue;
             if (!IsLocalHolder(core, attacker) || !IsLocalHolder(core, defender)) continue;
             // 开国雄主的统一之战打到底，不算地方混战
             if (RulerTraitSystem.IsFounderUnificationWar(war)) continue;
-            EmpireWorld.Current.wars.endWar(war, WarWinner.Peace);
+            EmpireWorld.Current.EndWar(war, WarOutcome.Peace);
         }
     }
 #endif
@@ -744,11 +740,12 @@ public static partial class WarlordEraSystem
     {
         int centralHeld = central?.CoreKingdom != null && held.TryGetValue(central.CoreKingdom, out int count) ? count : 0;
         int locals = held.Keys.Count(holder => IsLocalHolder(core, holder) && Government(holder) == null);
-        int wars = EmpireWorld.Current.wars.list.Count(war => war != null && !war.hasEnded() && IsCivilWar(war));
+        int wars = EmpireWorld.Current.LiveWars.Count(war => war != null && !war.HasEnded() && IsCivilWar(war));
         LogService.LogInfo(
             $"[EmpireCraft][军阀] {TianxiaSystem.Name(core)}：中央{central?.GetBaseEmpireFullName() ?? "无"}占 " +
             $"{centralHeld}/{total} 城({(total > 0 ? centralHeld * 100 / total : 0)}%)，政府 {governments}，地方武装 {locals}，内战 {wars}");
     }
+#endif
 
     private static IOrderedEnumerable<KeyValuePair<Realm, int>> RankLocalHolders(
         EmpireCore core, Dictionary<Realm, int> held) => held
@@ -756,10 +753,8 @@ public static partial class WarlordEraSystem
         .OrderByDescending(pair => pair.Value)
         .ThenByDescending(pair => pair.Key.Cities?.Count ?? 0)
         .ThenBy(pair => pair.Key.Key);
-#endif
 
     // 天下里的势力：都城在这个天下(按法理所属的核心，零星城并入相邻天下)，或主法理在这个天下的某个核心里
-#if EC_PENDING
     private static bool IsLocalHolder(EmpireCore lead, Realm holder)
     {
         if (lead == null || holder == null || holder.IsGone() || Dependent(holder)) return false;
@@ -767,7 +762,6 @@ public static partial class WarlordEraSystem
         KingdomTitle title = holder.GetMainTitle();
         return title != null && MembersOf(lead).Any(member => EmpireCoreManager.ContainsTitle(member, title));
     }
-#endif
 
     // 别国的附从：傀儡、属地(连同宗主国不在图上的剧本属地)、流亡政府。不是这个天下自己的势力——不算地方武装、不争中央、
     // 不被易帜归附、不当统一战争的目标(1937 剧本开局冀东、葡属澳门被叫成"某某系军阀")
@@ -776,7 +770,6 @@ public static partial class WarlordEraSystem
                                   ExileGovernmentSystem.IsExiled(kingdom) || kingdom.GetOrCreate().scenario_dependent);
 
     // 帝国核心里的势力(古代开国雄主的归附、讨伐仍按帝国核心)
-#if EC_PENDING
     private static bool IsCoreHolder(EmpireCore core, Realm holder)
     {
         if (core == null || holder == null || holder.IsGone()) return false;
@@ -784,7 +777,6 @@ public static partial class WarlordEraSystem
         KingdomTitle title = holder.GetMainTitle();
         return title != null && EmpireCoreManager.ContainsTitle(core, title);
     }
-#endif
 
     // 天下的各核心(一帧内缓存：判本天下势力时每家都要问一遍)
     private static readonly Dictionary<long, List<EmpireCore>> MemberCache = new();
@@ -947,7 +939,7 @@ public static partial class WarlordEraSystem
             if (holder == centralKingdom || !IsLocalHolder(core, holder) || Government(holder) != null ||
                 holder.IsInEmpire() || FeudalVassalService.GetOverlord(holder) != null ||
                 holder.GetRegime()?.type != RegimeType.Modern || !holder.HasRuler() ||
-                holder.isEnemy(centralKingdom) || HolderIdeology(holder) != ideology) continue;
+                holder.IsEnemy(centralKingdom) || HolderIdeology(holder) != ideology) continue;
             float chance = AttractionChance * centralHeld / (centralHeld + held[holder]);
             if (EcRandom.value >= chance || !AbsorbDefector(central, holder)) continue;
             EmpireCoreControl.Invalidate(core);
@@ -973,7 +965,7 @@ public static partial class WarlordEraSystem
             if (holder == centralKingdom || !IsLocalHolder(core, holder) || Government(holder) != null ||
                 holder.IsInEmpire() || FeudalVassalService.GetOverlord(holder) != null ||
                 holder.GetRegime()?.type != RegimeType.Modern || !holder.HasRuler() ||
-                holder.isEnemy(centralKingdom) || HolderIdeology(holder) == ideology ||
+                holder.IsEnemy(centralKingdom) || HolderIdeology(holder) == ideology ||
                 PartySystem.IdeologyDistance(IdeologyFamilies.StateIdeology(holder), centralStance) >= OppositeIdeologyDistance)
                 continue;
             float chance = CrossIdeologyAttractionChance * centralHeld / (centralHeld + held[holder]);
@@ -1071,7 +1063,7 @@ public static partial class WarlordEraSystem
         Dictionary<long, string> memberNames = members.ToDictionary(member => member.Key, HolderName);
         // 够不着中央的先不组建：以前组建了、开战被远战闸拦下又解散，下回再来一遍，史书里白记"组建政府"
         if (FindActiveWar(leaderKingdom, centralKingdom) == null &&
-            !WarReach.MayDeclare(leaderKingdom, centralKingdom, WarTypeLibrary.normal)) return null;
+            !WarReach.MayDeclare(leaderKingdom, centralKingdom, WarKinds.Normal)) return null;
         Empire leader = ModernStateFormationSystem.FormGovernment(leaderKingdom);
         if (leader == null) return null;
         EmpireCore provisionalCore = EmpireCoreManager.Get(leader);
@@ -1099,7 +1091,7 @@ public static partial class WarlordEraSystem
         }
 
         War war = FindActiveWar(leaderKingdom, centralKingdom) ??
-                  EmpireWorld.Current.diplomacy.startWar(leaderKingdom, centralKingdom, WarTypeLibrary.normal);
+                  EmpireWorld.Current.StartWar(leaderKingdom, centralKingdom, WarKinds.Normal);
         if (war == null)
         {
             DissolveContestingGovernment(leader, core, keepBloc: false);
@@ -1107,7 +1099,7 @@ public static partial class WarlordEraSystem
         }
         core.rival_alliance_id = -1L;
         foreach (Realm member in members.Skip(1))
-            if (!war.hasKingdom(member)) war.joinAttackers(member);
+            if (!war.HasRealm(member)) war.JoinAttackers(member);
         EmpireCoreControl.Invalidate(core);
         string ideology = PartySystem.GetIdeologyName(IdeologyFamilies.StateIdeology(leaderKingdom));
         bool strongUnification = HasStrongUnification(core.default_culture);
@@ -1138,13 +1130,13 @@ public static partial class WarlordEraSystem
 #if EC_PENDING
     private static string HolderName(Realm holder) =>
         Government(holder)?.GetBaseEmpireFullName() ?? holder.GetKingdomFullName();
+#endif
 
     private static Empire GetLiving(long id)
     {
-        Empire empire = id > 0 ? ModClass.EMPIRE_MANAGER?.get(id) : null;
+        Empire empire = id > 0 ? ModClass.EMPIRE_MANAGER?.Get(id) : null;
         return empire != null && !empire.IsGone() && !empire.IsArchived() ? empire : null;
     }
-#endif
 
     private static void ResetEra(EmpireCore core)
     {

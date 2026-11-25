@@ -141,9 +141,57 @@ namespace EmpireCraft.Core
         {
             Live(w,r);
             Require(r.Cities.Count==0,"A realm ends only after losing its last city");
+            foreach(var war in r.Wars.ToArray())LeaveWar(w,war,r);
             if(r.Ruler!=null)r.Ruler.Throne=null;
             r.EndedMonth=w.Month;r.Ruler=null;r.Capital=null;w.LiveRealms.Remove(r);
             w.Annals.Add(w,AnnalKind.RealmEnded,r.Id);
+        }
+
+        // War. The sides live on the war and on each realm's own list; nothing else may change them.
+        static War LiveWar(EmpireWorld w,War war){Require(war!=null&&war.Alive&&war.Id<w.Wars.Count&&w.Wars[war.Id]==war,"No such running war");return war;}
+
+        // Declares war, or returns the war the two already fight against each other.
+        public static War StartWar(EmpireWorld w,Realm attacker,Realm defender,WarKind kind=null,string name=null)
+        {
+            Live(w,attacker);Live(w,defender);
+            Require(attacker!=defender,"A realm cannot fight itself");
+            foreach(var running in attacker.Wars){var enemies=running.EnemiesOf(attacker);if(enemies!=null&&enemies.Contains(defender))return running;}
+            var war=new War{Id=w.Wars.Count,Kind=kind??WarKinds.Normal,MainAttacker=attacker,MainDefender=defender,StartedMonth=w.Month,
+                Name=name??attacker.Name+"与"+defender.Name+"之战"};
+            war.Attackers.Add(attacker);war.Defenders.Add(defender);
+            w.Wars.Add(war);w.LiveWars.Add(war);attacker.Wars.Add(war);defender.Wars.Add(war);
+            w.Annals.Add(w,AnnalKind.WarStarted,war.Id,attacker.Id,defender.Id);
+            return war;
+        }
+
+        public static void JoinWar(EmpireWorld w,War war,Realm r,bool asAttacker)
+        {
+            LiveWar(w,war);Live(w,r);
+            Require(!war.HasRealm(r),"Realm already fights in this war");
+            (asAttacker?war.Attackers:war.Defenders).Add(r);r.Wars.Add(war);
+        }
+
+        // A realm that leaves hands its side's lead on; a side left empty has lost.
+        public static void LeaveWar(EmpireWorld w,War war,Realm r)
+        {
+            LiveWar(w,war);
+            bool attacker=war.IsAttacker(r);
+            Require(attacker||war.IsDefender(r),"Realm does not fight in this war");
+            var side=attacker?war.Attackers:war.Defenders;
+            side.Remove(r);(attacker?war.PastAttackers:war.PastDefenders).Add(r);r.Wars.Remove(war);
+            if(side.Count==0){EndWar(w,war,attacker?WarOutcome.Defenders:WarOutcome.Attackers);return;}
+            if(attacker&&war.MainAttacker==r)war.MainAttacker=side[0];
+            if(!attacker&&war.MainDefender==r)war.MainDefender=side[0];
+        }
+
+        public static void EndWar(EmpireWorld w,War war,WarOutcome outcome)
+        {
+            LiveWar(w,war);
+            war.EndedMonth=w.Month;war.Outcome=outcome;
+            foreach(var r in war.Attackers)r.Wars.Remove(war);
+            foreach(var r in war.Defenders)r.Wars.Remove(war);
+            w.LiveWars.Remove(war);
+            w.Annals.Add(w,AnnalKind.WarEnded,war.Id,(int)outcome);
         }
 
         static void Detach(City c)
@@ -174,6 +222,9 @@ namespace EmpireCraft.Core
         public static void SetRuler(this Realm realm,Person person,bool fromLoad=false)=>WorldOps.SetRuler(World,realm,person);
         public static void RemoveRuler(this Realm realm)=>WorldOps.Dethrone(World,realm);
         public static void SetCapital(this Realm realm,City city)=>WorldOps.MoveCapital(World,realm,city);
+        public static void JoinAttackers(this War war,Realm realm){if(war.Alive&&!realm.IsGone()&&!war.HasRealm(realm))WorldOps.JoinWar(World,war,realm,true);}
+        public static void JoinDefenders(this War war,Realm realm){if(war.Alive&&!realm.IsGone()&&!war.HasRealm(realm))WorldOps.JoinWar(World,war,realm,false);}
+        public static void Leave(this War war,Realm realm){if(war.Alive&&war.HasRealm(realm))WorldOps.LeaveWar(World,war,realm);}
         public static void JoinRealm(this City city,Realm realm,bool captured=false,bool rebellion=false){if(city.Realm!=realm)WorldOps.TransferCity(World,city,realm);}
     }
 }

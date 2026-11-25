@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/TradeWarSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/TradeWarSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -36,18 +36,13 @@ public static class TradeWarSystem
         return null;
     }
 
-#if EC_PENDING
     public static TradeWarData Between(Realm a, Realm b) =>
         Wars.Count == 0 ? null : Between(a?.GetEmpire(), b?.GetEmpire());
-#endif
 
     // 断绝通商(见 MarketSystem.Embargoed)
-#if EC_PENDING
     public static bool Cut(Realm a, Realm b) => Between(a, b)?.level >= Embargo;
-#endif
 
     // 关税的倍数(见 CommodityMarketSystem.TariffBetween)
-#if EC_PENDING
     public static float ApplyTariff(Realm buyer, Realm seller, float rate) =>
         Between(buyer, seller) == null ? rate : Mathf.Min(MaxTariff, rate * TariffMultiplier);
 
@@ -59,19 +54,17 @@ public static class TradeWarSystem
 
     private static Empire Living(long id)
     {
-        Empire empire = ModClass.EMPIRE_MANAGER?.get(id);
+        Empire empire = ModClass.EMPIRE_MANAGER?.Get(id);
         return empire?.data == null || empire.IsGone() || empire.IsArchived() || empire.CoreKingdom == null ? null : empire;
     }
 
     public static Empire Other(TradeWarData war, Empire self) => war == null ? null : Living(war.a == self?.Key ? war.b : war.a);
-#endif
 
     // 这两国能不能打关税战：返回不能的原因(语言键)，能则 null
-#if EC_PENDING
     public static string CanStart(Empire a, Empire b)
     {
         if (a?.CoreKingdom == null || b?.CoreKingdom == null || a == b) return "diplomacy_reason_invalid";
-        if (a.CoreKingdom.isEnemy(b.CoreKingdom)) return "diplomacy_reason_at_war";
+        if (a.CoreKingdom.IsEnemy(b.CoreKingdom)) return "diplomacy_reason_at_war";
         if (Between(a, b) != null) return "trade_war_reason_already";
         if (CommodityMarketSystem.RootOf(a.CoreKingdom) == CommodityMarketSystem.RootOf(b.CoreKingdom)) return "diplomacy_reason_same_market";
         if (WorldOrderSystem.SameBloc(a.CoreKingdom, b.CoreKingdom)) return "trade_war_reason_same_bloc";
@@ -79,7 +72,6 @@ public static class TradeWarSystem
         if (CompanySystem.Beholden(a.CoreKingdom, b.CoreKingdom)) return "trade_war_reason_beholden";
         return null;
     }
-#endif
 
     // 挑起关税战(a 向 b 加征)：办不成返回原因键
 #if EC_PENDING
@@ -126,7 +118,6 @@ public static class TradeWarSystem
 #endif
 
     // 货卖给这个国家最多的外国(照上一年的市场账)；账上还没有买卖的，退而看通商的市场里最大的那个；市场还没算出来返回 null
-#if EC_PENDING
     private static Empire BiggestSeller(Empire buyer)
     {
         CommodityMarketSystem.Market market = CommodityMarketSystem.MarketOf(buyer?.CoreKingdom);
@@ -151,7 +142,6 @@ public static class TradeWarSystem
         }
         return biggest;
     }
-#endif
 
     // 每年(WorldOrderSystem.Scan)
 #if EC_PENDING
@@ -162,7 +152,7 @@ public static class TradeWarSystem
         {
             Empire a = Living(war.a), b = Living(war.b);
             // 亡了国、打起来了、结成同一阵营、并进同一个市场：关税战不了了之
-            if (a == null || b == null || a.CoreKingdom.isEnemy(b.CoreKingdom) || WorldOrderSystem.SameBloc(a.CoreKingdom, b.CoreKingdom) ||
+            if (a == null || b == null || a.CoreKingdom.IsEnemy(b.CoreKingdom) || WorldOrderSystem.SameBloc(a.CoreKingdom, b.CoreKingdom) ||
                 CommodityMarketSystem.RootOf(a.CoreKingdom) == CommodityMarketSystem.RootOf(b.CoreKingdom))
             {
                 Wars.Remove(war);

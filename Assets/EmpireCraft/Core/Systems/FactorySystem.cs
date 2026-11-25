@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/FactorySystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/FactorySystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -339,7 +339,7 @@ public static class FactorySystem
         _lastMonth = now;
         foreach (City city in world.Cities.ToList())
         {
-            if (city?.Record == null || city.IsGone() || city.Realm == null || city.Realm.IsWild || city.Realm.hasEnemies() ||
+            if (city?.Record == null || city.IsGone() || city.Realm == null || city.Realm.IsWild || city.Realm.HasEnemies() ||
                 EmpireCraft.Core.AncientWarfareCompatibility.OwnsObject(city)) continue;
             if (EcRandom.value >= 1f / 12f) continue;
             try
@@ -364,7 +364,6 @@ public static class FactorySystem
     private const float GlutAppeal = 0.3f;
 
     // 按本市场的价格与缺口挑门类：分量大的容易中，并不是非它不可(用户 2026-11-02 问答选"AI 按缺口建厂"，见 CommodityMarketSystem.FactoryAppeal)
-#if EC_PENDING
     private static string PickByMarket(City city, List<string> pool)
     {
         float roll = EcRandom.value * pool.Sum(type => CommodityMarketSystem.FactoryAppeal(city, type));
@@ -376,6 +375,7 @@ public static class FactorySystem
         return pool[pool.Count - 1];
     }
 
+#if EC_PENDING
     private static void Grow(City city)
     {
         List<string> unlocked = Unlocked(city);

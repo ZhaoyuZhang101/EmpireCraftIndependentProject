@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/FactionPurgeSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/FactionPurgeSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -39,7 +39,7 @@ public static class FactionPurgeSystem
         if (grievance < PurgeGrievance) return;
         List<Realm> provinces = empire.kingdoms_list.Where(kingdom => kingdom?.Record != null && !kingdom.IsGone() &&
                 kingdom != core && kingdom.Capital != null && kingdom.Ruler?.GetFaction() == rebels &&
-                !kingdom.IsFactionRebelling() && !kingdom.IsLocalRebelling() && !kingdom.getWars().Any() &&
+                !kingdom.IsFactionRebelling() && !kingdom.IsLocalRebelling() && !kingdom.GetWars().Any() &&
                 RebellionSystem.CanAttempt(kingdom))
             .OrderByDescending(kingdom => kingdom.countTotalWarriors()).ToList();
         if (provinces.Count == 0) return;
@@ -55,7 +55,7 @@ public static class FactionPurgeSystem
         Realm leader = provinces[0];
         RebellionCauseData cause = RebellionSystem.Capture(leader, leader.Capital, "rebellion_reason_purge", top.Name);
         leader.StartFactionRebelling(rebels);
-        War war = EmpireWorld.Current.diplomacy.startWar(leader, core, WarTypeLibrary.normal);
+        War war = EmpireWorld.Current.StartWar(leader, core, WarKinds.Normal);
         if (war == null)
         {
             leader.EndFactionRebelling();
@@ -63,7 +63,7 @@ public static class FactionPurgeSystem
         }
         war.SetEmpireWarType(EmpireWarType.清君侧, belongingFaction: rebels);
         Person villain = top.GetLeader();
-        war.data.name = string.Format(LM.Get("purge_war_name"), rebels.Name, villain?.FullName() ?? top.Name);
+        war.Name = string.Format(LM.Get("purge_war_name"), rebels.Name, villain?.FullName() ?? top.Name);
         var data = war.GetOrCreate();
         data.purge_faction_id = rebels.GetID();
         data.purge_target_faction_id = top.GetID();
@@ -71,7 +71,7 @@ public static class FactionPurgeSystem
         foreach (Realm province in provinces.Skip(1))
         {
             province.StartFactionRebelling(rebels);
-            war.joinAttackers(province);
+            war.JoinAttackers(province);
         }
         // 郡县多不许养兵，起兵各省就地武装义军
         foreach (Realm province in provinces) RebellionStartupService.RaiseUprisingMilitia(province, grievance / 100f);
@@ -84,25 +84,23 @@ public static class FactionPurgeSystem
 #endif
 
     // 帝国眼下的清君侧之战(本系统发起的)
-#if EC_PENDING
     public static War Active(Empire empire) =>
-        empire?.CoreKingdom?.getWars().FirstOrDefault(war => war != null && !war.hasEnded() && IsPurge(war));
+        empire?.CoreKingdom?.GetWars().FirstOrDefault(war => war != null && !war.HasEnded() && IsPurge(war));
 
     public static bool IsPurge(War war) =>
-        war?.data != null && war.GetEmpireWarType() == EmpireWarType.清君侧 &&
+        war?.Record != null && war.GetEmpireWarType() == EmpireWarType.清君侧 &&
         !string.IsNullOrEmpty(war.GetOrCreate().purge_target_faction_id);
-#endif
 
     // 每月(FrontSystem.MonthTick)：判胜负
 #if EC_PENDING
     public static void MonthTick()
     {
-        foreach (War war in EmpireWorld.Current.wars.ToList())
+        foreach (War war in EmpireWorld.Current.LiveWars.ToList())
         {
-            if (!IsPurge(war) || !war.Alive || war.hasEnded()) continue;
+            if (!IsPurge(war) || !war.Alive || war.HasEnded()) continue;
             try
             {
-                WarWinner? winner = Decide(war);
+                WarOutcome? winner = Decide(war);
                 if (winner != null) DiplomacyHelpers.wars.endWar(war, winner.Value);
             }
             catch (Exception exception)
@@ -112,17 +110,17 @@ public static class FactionPurgeSystem
         }
     }
 
-    private static WarWinner? Decide(War war)
+    private static WarOutcome? Decide(War war)
     {
         var data = war.GetOrCreate();
         City capital = EmpireWorld.Current.CityByKey(data.purge_capital_city_id);
-        List<Realm> attackers = war._list_attackers.Where(kingdom => kingdom?.data != null && !kingdom.IsGone()).ToList();
-        if (capital?.Realm != null && attackers.Contains(capital.Realm)) return WarWinner.Attackers;
-        if (attackers.Count == 0 || attackers.All(kingdom => kingdom.Capital == null || !kingdom.hasCities())) return WarWinner.Defenders;
-        if (GameClock.YearsSince(war.data.created_time) < StalemateYears) return null;
+        List<Realm> attackers = war.Attackers.Where(kingdom => kingdom?.Record != null && !kingdom.IsGone()).ToList();
+        if (capital?.Realm != null && attackers.Contains(capital.Realm)) return WarOutcome.Attackers;
+        if (attackers.Count == 0 || attackers.All(kingdom => kingdom.Capital == null || !kingdom.hasCities())) return WarOutcome.Defenders;
+        if (GameClock.YearsSince(war.StartedStamp) < StalemateYears) return null;
         float attack = attackers.Sum(Strength);
-        float defend = war._list_defenders.Where(kingdom => kingdom?.data != null && !kingdom.IsGone()).Sum(Strength);
-        return attack > defend ? WarWinner.Attackers : WarWinner.Defenders;
+        float defend = war.Defenders.Where(kingdom => kingdom?.Record != null && !kingdom.IsGone()).Sum(Strength);
+        return attack > defend ? WarOutcome.Attackers : WarOutcome.Defenders;
     }
 
     private static float Strength(Realm kingdom) =>
@@ -131,20 +129,20 @@ public static class FactionPurgeSystem
 
     // 战争结束(WarPatch)：结算清君侧
 #if EC_PENDING
-    public static void Resolve(War war, WarWinner winner)
+    public static void Resolve(War war, WarOutcome winner)
     {
         if (!IsPurge(war)) return;
         var data = war.GetOrCreate();
-        Realm core = war.main_defender;
+        Realm core = war.MainDefender;
         Empire empire = core?.GetEmpire();
-        foreach (Realm kingdom in war._list_attackers.ToList())
+        foreach (Realm kingdom in war.Attackers.ToList())
             if (kingdom?.Record != null && !kingdom.IsGone()) kingdom.EndFactionRebelling();
         if (empire == null || empire.IsGone()) return;
         FixedFaction rebels = CourtSystem.FindFaction(empire, data.purge_faction_id);
         FixedFaction target = CourtSystem.FindFaction(empire, data.purge_target_faction_id);
         if (rebels == null || target == null) return;
         string text;
-        if (winner == WarWinner.Attackers)
+        if (winner == WarOutcome.Attackers)
         {
             Person villain = target.GetLeader();
             string villainName = villain?.FullName() ?? target.Name;

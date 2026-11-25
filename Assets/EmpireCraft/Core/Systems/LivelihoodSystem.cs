@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/LivelihoodSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/LivelihoodSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -40,9 +40,7 @@ public static class LivelihoodSystem
     // (约六份毡帐村)，所以城外的毡帐村镇(见 RuralSettlementSystem.YurtGround)折算超过三座时才多出牧群，不叠加
     private const float NomadPastures = 3f;
 
-#if EC_PENDING
     public static bool Active => PureMapMode.Enabled;
-#endif
 
     public static string Key(int trade) => Keys[Mathf.Clamp(trade, 0, Count - 1)];
     public static string Name(int trade) => LM.Get("livelihood_" + Key(trade));

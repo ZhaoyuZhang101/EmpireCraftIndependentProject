@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/BannerSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/BannerSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System.Collections.Generic;
@@ -56,21 +56,17 @@ public static partial class BannerSystem
     private const float EnclosePeasantGrievance = 12f, EncloseLandlordGrievance = 6f, EncloseBannerRelief = 8f, EncloseAnnexation = 8f;
     private const float GarrisonGrievance = 2f, GarrisonDisplaced = 0.05f, UnpaidGrievance = 6f, LawGrievance = 0.5f;
 
-#if EC_PENDING
     public static bool Practices(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone()) return false;
         Realm core = kingdom.GetEmpire()?.CoreKingdom ?? kingdom;
         return core?.Record != null && !core.IsGone() && core.GetOrCreate().banner_regime;
     }
-#endif
 
     public static bool Practices(Empire empire) =>
         empire?.CoreKingdom?.Record != null && !empire.CoreKingdom.IsGone() && empire.CoreKingdom.GetOrCreate().banner_regime;
 
-#if EC_PENDING
     private static Realm CoreOf(Realm kingdom) => kingdom?.GetEmpire()?.CoreKingdom ?? kingdom;
-#endif
 
     // 本国(帝国按核心)的统治族群：征服王朝按统治文化，别的按核心的文化
 #if EC_PENDING
@@ -95,10 +91,8 @@ public static partial class BannerSystem
 #endif
 
     // 政体叫法：国情、官制这些地方显示八旗多元制，别的照旧
-#if EC_PENDING
     public static string RegimeName(Realm kingdom, string fallback) =>
         Practices(kingdom) && (kingdom.GetEmpire()?.CoreKingdom ?? kingdom) == kingdom ? LM.Get("regime_type_Banner") : fallback;
-#endif
 
     #region 开局
 
@@ -210,7 +204,6 @@ public static partial class BannerSystem
 #endif
 
     // 税收折扣(乘在税率上)：旗人不纳粮，旗地不交田赋
-#if EC_PENDING
     public static float TaxFactor(City city)
     {
         if (city?.Record == null || !Practices(city.Realm)) return 1f;
@@ -219,7 +212,6 @@ public static partial class BannerSystem
         float share = total > 0f ? CityPopulationSystem.BackgroundOfClass(city, SocialClass.Banner) / total : 0f;
         return BannerRules.TaxFactor(share, city.GetOrCreate().banner_land);
     }
-#endif
 
     // 旗地占城中土地的百分比(见 LandEconomySystem)
     public static float LandShare(City city) => city?.Record == null ? 0f : city.GetOrCreate().banner_land * 100f;
@@ -237,13 +229,13 @@ public static partial class BannerSystem
 
 #if EC_PENDING
     public static string RulingCulture(Realm kingdom) => RulingCultureOf(kingdom);
+#endif
 
     public static float Vigor(Realm kingdom)
     {
         Realm core = CoreOf(kingdom);
         return core?.Record == null ? BannerRules.VigorMax : core.GetOrCreate().banner_vigor;
     }
-#endif
 
     // 八旗交战加成(见 FrontSystem)：编旗之国的禁旅八旗，随八旗锐气起落；绿营、外藩部落兵不加
 #if EC_PENDING
@@ -263,7 +255,6 @@ public static partial class BannerSystem
 #endif
 
     // 八旗战力一年一算(编旗的城结算人口时、帝国例行检查时，谁先到谁算)
-#if EC_PENDING
     private static void TickVigor(Realm core)
     {
         if (core?.Record == null || core.IsGone()) return;
@@ -272,9 +263,8 @@ public static partial class BannerSystem
         extra.banner_vigor_at = GameClock.Now;
         // 闲散多了战力败得更快(见 BannerSystem.Livelihood)
         float idle = Practices(core) ? BannerRules.IdleShare(Bannermen(core.GetEmpire()), extra.banner_quota) : 0f;
-        extra.banner_vigor = BannerRules.NextVigor(extra.banner_vigor, core.hasEnemies(), idle);
+        extra.banner_vigor = BannerRules.NextVigor(extra.banner_vigor, core.HasEnemies(), idle);
     }
-#endif
 
     private static IEnumerable<City> CitiesOf(Empire empire)
     {
@@ -320,7 +310,6 @@ public static partial class BannerSystem
 #endif
 
     // 旗饷按缺发(闲散不领，见 BannerSystem.Livelihood)
-#if EC_PENDING
     private static void PayStipend(Empire empire, Realm core, KingdomExtension.KingdomExtraData extra, float bannermen)
     {
         int due = BannerRules.StipendDue(bannermen, extra.banner_quota);
@@ -336,6 +325,7 @@ public static partial class BannerSystem
         ClaimPolicySystem.AddGrievance(empire, SocialClass.Banner, UnpaidGrievance);
     }
 
+#if EC_PENDING
     private static void TryBuildGarrison(Empire empire, Realm core, KingdomExtension.KingdomExtraData extra)
     {
         if (extra.banner_city_at >= 0d && GameClock.YearsSince(extra.banner_city_at) < BannerRules.CityIntervalYears) return;

@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/ExileGovernmentSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/ExileGovernmentSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -48,7 +48,6 @@ public static class ExileGovernmentSystem
     #region 关系判定
 
     // 一国所在的一方：帝国按中央；殖民地按宗主；傀儡按主国
-#if EC_PENDING
     private static Realm ModRealm(Realm kingdom)
     {
         if (kingdom?.Record == null) return null;
@@ -60,11 +59,12 @@ public static class ExileGovernmentSystem
     private static bool AtWar(Realm a, Realm b)
     {
         if (a?.Record == null || b?.Record == null || a == b) return false;
-        if (a.isInWarWith(b)) return true;
+        if (a.IsAtWarWith(b)) return true;
         Realm ra = ModRealm(a), rb = ModRealm(b);
-        return ra != null && rb != null && ra != rb && ra.isInWarWith(rb);
+        return ra != null && rb != null && ra != rb && ra.IsAtWarWith(rb);
     }
 
+#if EC_PENDING
     private static bool Allied(Realm a, Realm b) =>
         a?.Record != null && b?.Record != null && a.hasAlliance() && b.hasAlliance() && a.getAlliance() == b.getAlliance();
 #endif
@@ -83,6 +83,7 @@ public static class ExileGovernmentSystem
     private static int HostScore(Realm candidate, Realm exile, Realm enemy) =>
         ExileRules.HostScore(enemy != null && AtWar(candidate, enemy), Allied(candidate, exile), Opinion(candidate, exile),
             AtWar(candidate, exile), enemy != null && SidesWith(candidate, enemy));
+#endif
 
     private static bool CanHost(Realm candidate, Realm exile)
     {
@@ -93,6 +94,7 @@ public static class ExileGovernmentSystem
         return !IsExiled(candidate) && !PuppetStateSystem.IsPuppet(candidate) && !ColonySystem.IsColony(candidate);
     }
 
+#if EC_PENDING
     internal static Realm PickHost(Realm exile, Realm enemy, Realm except = null)
     {
         Realm best = null;

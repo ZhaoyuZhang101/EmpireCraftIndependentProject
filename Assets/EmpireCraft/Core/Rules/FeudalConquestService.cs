@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/FeudalConquestService.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/FeudalConquestService.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -94,9 +94,9 @@ public static class FeudalConquestService
         if (western && (!conquered.HasRuler() || !FeudalVassalService.CanBind(captor, conquered))) return false;
         bool rebel = empire != null &&
                      (conquered.HasRebelledAgainst(empire) ||
-                      conquered.getWars().Any(war => war != null && !war.hasEnded() && IsRebellionWar(war) &&
-                                                     (war._list_attackers.Contains(captor) ||
-                                                      war._list_defenders.Contains(captor))));
+                      conquered.GetWars().Any(war => war != null && !war.HasEnded() && IsRebellionWar(war) &&
+                                                     (war.Attackers.Contains(captor) ||
+                                                      war.Defenders.Contains(captor))));
         // 叛乱平定后可以重新归附：清掉"曾反叛本帝国"的记录，否则 join 会按律令制的规矩拒绝
         if (rebel) conquered.GetOrCreate().rebellion_origin_empire_ids?.Remove(empire.Key);
 
@@ -126,11 +126,11 @@ public static class FeudalConquestService
         // "占了一半以上地块"把都城也割给攻方，新附庸连都城都没了(CityPatch 返回后本来也会清，只是晚了一步)。
         // 封建攻方兵力一倍半到两倍之间改求割地(用户 2026-10-21 选"封建能吞小国"，见 WarGoalSystem.VassalStrength)，这种仗变多，先堵上
         city.ClearOccupiedStatus();
-        foreach (War war in conquered.getWars().ToList())
+        foreach (War war in conquered.GetWars().ToList())
         {
-            bool opposing = (war._list_attackers.Contains(captor) && war._list_defenders.Contains(conquered)) ||
-                            (war._list_defenders.Contains(captor) && war._list_attackers.Contains(conquered));
-            if (opposing && war.Alive && !war.hasEnded()) war.lostWar(conquered);
+            bool opposing = (war.Attackers.Contains(captor) && war.Defenders.Contains(conquered)) ||
+                            (war.Defenders.Contains(captor) && war.Attackers.Contains(conquered));
+            if (opposing && war.Alive && !war.HasEnded()) war.lostWar(conquered);
         }
 
         // 西方封建征服先建立直属臣属，不把保留原王室的国家当作共主同盟。
@@ -254,15 +254,15 @@ public static class FeudalConquestService
 #endif
 
     // 攻方一边正以吞并为目标攻打这个国家(它是主守方)
-#if EC_PENDING
     private static bool AnnexWar(Realm captor, Realm conquered) =>
-        conquered.getWars().Any(war => war?.data != null && !war.hasEnded() && war.main_defender == conquered &&
-                                       war.isAttacker(captor) && WarGoalSystem.Get(war) == WarGoal.吞并);
+        conquered.GetWars().Any(war => war?.Record != null && !war.HasEnded() && war.MainDefender == conquered &&
+                                       war.IsAttacker(captor) && WarGoalSystem.Get(war) == WarGoal.吞并);
 
     private static bool IsRebellionWar(War war) => war.GetEmpireWarType() is EmpireWarType.派系叛乱
         or EmpireWarType.地方叛乱 or EmpireWarType.地方独立 or EmpireWarType.民族叛乱 or EmpireWarType.宗教叛乱
         or EmpireWarType.不奉诏;
 
+#if EC_PENDING
     private static void Record(Empire empire, Realm kingdom, string key, params object[] args)
     {
         string content = string.Format(LM.Get(key), args);

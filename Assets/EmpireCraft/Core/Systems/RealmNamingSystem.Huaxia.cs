@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/RealmNamingSystem.Huaxia.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/RealmNamingSystem.Huaxia.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -58,7 +58,6 @@ public static partial class RealmNamingSystem
 #endif
 
     // 主法理(王国法理)所在的正式帝国法理
-#if EC_PENDING
     public static EmpireCore MainTitleCore(Realm kingdom)
     {
         KingdomTitle title = kingdom?.GetMainTitle();
@@ -66,7 +65,6 @@ public static partial class RealmNamingSystem
         EmpireCore core = EmpireCoreManager.LawfulCoreOf(title) ?? title.title_capital?.GetEmpireCore();
         return IsFormalCore(core) ? core : null;
     }
-#endif
 
     // 称帝路线「据有法理」
 #if EC_PENDING
@@ -171,7 +169,6 @@ public static partial class RealmNamingSystem
 #endif
 
     // 复国之家：国君的宗族，没有帝国记录就沿分家往上找；那一朝须已亡、本世系眼下没在别处称帝
-#if EC_PENDING
     public static SpecificClan RestorationHouse(Person king, Empire founding = null)
     {
         SpecificClan clan = king?.GetSpecificClan();
@@ -191,7 +188,6 @@ public static partial class RealmNamingSystem
                                                                SpecificClanManager.SameLineage(other.EmpireSpecificClan, clan)));
         return reigning ? null : house;
     }
-#endif
 
     // 失都改称不动复国方位(用户 2026-10-20 选定：复国方位是本朝定号，失都只显示行在)
     public static bool KeepsFoundingPrefix(Empire empire) =>

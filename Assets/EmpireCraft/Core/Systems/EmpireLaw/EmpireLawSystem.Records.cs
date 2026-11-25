@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/EmpireLaw/EmpireLawSystem.Records.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/EmpireLaw/EmpireLawSystem.Records.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -152,7 +152,6 @@ public static partial class EmpireLawSystem
     }
 
     // 当场拿获的同一罪名、本国尚未发觉的旧案一并了结
-#if EC_PENDING
     private static void ResolvePendingRecords(PersonalClanIdentity identity, LawType type, Realm kingdom)
     {
         if (identity?.crime_records == null) return;
@@ -160,7 +159,6 @@ public static partial class EmpireLawSystem
             if (record != null && !record.resolved && record.law_type == (int)type && InJurisdiction(record, kingdom))
                 record.resolved = true;
     }
-#endif
 
     #endregion
 
@@ -396,7 +394,6 @@ public static partial class EmpireLawSystem
 #endif
 
     // 未发之罪是不是已在大赦之列(十恶不赦)
-#if EC_PENDING
     private static bool PardonedByAmnesty(CrimeRecord record)
     {
         if (record == null || record.crime_timestamp <= 0d) return false;
@@ -409,7 +406,7 @@ public static partial class EmpireLawSystem
     {
         Realm realm = null;
         if (record.empire_id >= 0 && ModClass.EMPIRE_MANAGER != null)
-            realm = ModClass.EMPIRE_MANAGER.get(record.empire_id)?.CoreKingdom;
+            realm = ModClass.EMPIRE_MANAGER.Get(record.empire_id)?.CoreKingdom;
         if ((realm?.Record == null || realm.IsGone()) && record.kingdom_id >= 0 && EmpireWorld.Current?.LiveRealms != null)
             realm = RealmKingdom(EmpireWorld.Current.RealmByKey(record.kingdom_id));
         if (realm?.Record == null || realm.IsGone()) return -1d;
@@ -417,7 +414,6 @@ public static partial class EmpireLawSystem
     }
 
     public static double GetLastAmnesty(Realm kingdom) => GetRealmState(RealmKingdom(kingdom))?.last_amnesty ?? -1d;
-#endif
 
     #endregion
 
@@ -462,7 +458,6 @@ public static partial class EmpireLawSystem
 #endif
 
     // 阶层怨气(民怨的来源之一，见 PopularGrievance)：帝国按帝国，独立王国按本国(本国还没有阶层怨气的不加)
-#if EC_PENDING
     private static void AddRealmGrievance(Realm realm, SocialClass socialClass, float delta)
     {
         Empire empire = RealmEmpire(realm);
@@ -476,7 +471,6 @@ public static partial class EmpireLawSystem
         grievances.TryGetValue(socialClass, out float current);
         grievances[socialClass] = Mathf.Clamp(current + delta, 0f, 100f);
     }
-#endif
 
     #endregion
 
@@ -596,7 +590,6 @@ public static partial class EmpireLawSystem
     }
 
     // 帝国全境(核心国与各成员国)最近的卷宗，新的在前；不在帝国里的同 GetRecentCases
-#if EC_PENDING
     public static List<LawCaseRecord> GetRealmRecentCases(Realm kingdom, int limit = MaxCases)
     {
         Realm realm = RealmKingdom(kingdom);
@@ -607,7 +600,6 @@ public static partial class EmpireLawSystem
             if (member != realm && GetRealmState(member)?.cases is List<LawCaseRecord> cases) all.AddRange(cases);
         return all.OrderByDescending(record => record.timestamp).Take(limit).ToList();
     }
-#endif
 
     // 某人的前科(新的在前)
     public static List<LawConvictionRecord> GetConvictions(Person actor) => GetConvictions(actor?.GetPersonalIdentity());
@@ -621,7 +613,6 @@ public static partial class EmpireLawSystem
     }
 
     // 某人尚未发觉的罪行(只读；含已被大赦作废、还没清理的不算)
-#if EC_PENDING
     public static List<CrimeRecord> GetPendingCrimes(Person actor)
     {
         PersonalClanIdentity identity = actor?.GetPersonalIdentity();
@@ -630,7 +621,6 @@ public static partial class EmpireLawSystem
                                                       (record.crime_timestamp <= 0d || GameClock.YearsSince(record.crime_timestamp) < 20))
             .ToList();
     }
-#endif
 
     // 本国在押的人(族谱身份)
     public static List<PersonalClanIdentity> GetPrisoners(Realm kingdom)

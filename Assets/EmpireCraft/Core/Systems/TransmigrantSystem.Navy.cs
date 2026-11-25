@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/TransmigrantSystem.Navy.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/TransmigrantSystem.Navy.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using System;
@@ -18,7 +18,6 @@ public static partial class TransmigrantSystem
 {
     private const string NavalBases = "coaling_stations";
 
-#if EC_PENDING
     public static TransmigrantState NavalState(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone()) return null;
@@ -27,10 +26,8 @@ public static partial class TransmigrantSystem
         Realm metropole = ColonySystem.MetropoleOf(kingdom);
         return metropole == null ? null : Of(metropole) ?? Of(metropole.GetEmpire()?.CoreKingdom);
     }
-#endif
 
     // 同一支海军的各国(元老院、大区、殖民地)；不是澳宋返回空
-#if EC_PENDING
     public static List<Realm> NavalRealm(Realm kingdom)
     {
         var realm = new List<Realm>();
@@ -41,6 +38,7 @@ public static partial class TransmigrantSystem
         return realm;
     }
 
+#if EC_PENDING
     public static void EnsureBases(Realm kingdom)
     {
         if (NavalState(kingdom) == null || kingdom.Cities == null) return;

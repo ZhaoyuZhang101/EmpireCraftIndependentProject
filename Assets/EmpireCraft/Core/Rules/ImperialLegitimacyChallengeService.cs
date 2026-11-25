@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/ImperialLegitimacyChallengeService.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/ImperialLegitimacyChallengeService.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using System;
 using System.Collections.Generic;
@@ -16,7 +16,7 @@ public static class ImperialLegitimacyChallengeService
     {
         target = null;
         if (kingdom == null || kingdom.IsGone() || !kingdom.HasRuler() || kingdom.Ruler == null ||
-            kingdom.Ruler.IsGone() || kingdom.IsInEmpire() || kingdom.IsEmpire() || kingdom.hasEnemies() ||
+            kingdom.Ruler.IsGone() || kingdom.IsInEmpire() || kingdom.IsEmpire() || kingdom.HasEnemies() ||
             kingdom.GetMoney() < 0 || AncientWarfareCompatibility.BlocksEmpireFormation(kingdom) ||
             EmpireCraftWorldLawLibrary.empirecraft_law_ban_empire.isEnabled()) return false;
         // 现代政体没有僭越称帝：政权只能组建政府(见 ModernStateFormationSystem)
@@ -136,7 +136,7 @@ public static class ImperialLegitimacyChallengeService
         }
 
         War war = DiplomacyHelpers.wars.newWar(challenger.CoreKingdom, incumbent.CoreKingdom,
-            WarTypeLibrary.normal);
+            WarKinds.Normal);
         if (war == null)
         {
             ClearRivalry(challenger);
@@ -148,9 +148,9 @@ public static class ImperialLegitimacyChallengeService
         war.SetEmpireWarType(EmpireWarType.去帝号, nanoObject: incumbent);
         war.InitializeLegitimacyChallenge(challenger, incumbent);
         foreach (Realm member in challenger.kingdoms_list.ToList())
-            if (member != null && member != challenger.CoreKingdom && !member.IsGone()) war.joinAttackers(member);
+            if (member != null && member != challenger.CoreKingdom && !member.IsGone()) war.JoinAttackers(member);
         foreach (Realm member in incumbent.kingdoms_list.ToList())
-            if (member != null && member != incumbent.CoreKingdom && !member.IsGone()) war.joinDefenders(member);
+            if (member != null && member != incumbent.CoreKingdom && !member.IsGone()) war.JoinDefenders(member);
 
         RecordDeclaration(challenger, incumbent, actor, incumbent.Emperor);
         return true;
@@ -183,24 +183,24 @@ public static class ImperialLegitimacyChallengeService
     public static bool TryStartRivalryWar(Empire empire)
     {
         if (!IsActiveEmpire(empire) || !empire.data.legitimacy_rivalry_recognized) return false;
-        Empire rival = ModClass.EMPIRE_MANAGER?.get(empire.data.legitimacy_rival_empire_id);
+        Empire rival = ModClass.EMPIRE_MANAGER?.Get(empire.data.legitimacy_rival_empire_id);
         if (!AreRecognizedRivals(empire, rival)) return false;
         Realm core = empire.CoreKingdom;
         Realm rivalCore = rival.CoreKingdom;
         if (core == null || rivalCore == null || core.IsGone() || rivalCore.IsGone()) return false;
-        if (core.isInWarWith(rivalCore) || core.GetMoney() < 0) return false;
+        if (core.IsAtWarWith(rivalCore) || core.GetMoney() < 0) return false;
         if (empire.GetNationalPower() <= rival.GetNationalPower()) return false;
         if (!SharesLandBorder(empire, rival)) return false;
         if (EcRandom.value > RivalryWarChance) return false;
 
-        War war = DiplomacyHelpers.wars.newWar(core, rivalCore, WarTypeLibrary.normal);
+        War war = DiplomacyHelpers.wars.newWar(core, rivalCore, WarKinds.Normal);
         if (war == null) return false;
         war.SetEmpireWarType(EmpireWarType.去帝号, nanoObject: rival);
         war.InitializeLegitimacyChallenge(empire, rival);
         foreach (Realm member in empire.kingdoms_list.ToList())
-            if (member != null && member != core && !member.IsGone()) war.joinAttackers(member);
+            if (member != null && member != core && !member.IsGone()) war.JoinAttackers(member);
         foreach (Realm member in rival.kingdoms_list.ToList())
-            if (member != null && member != rivalCore && !member.IsGone()) war.joinDefenders(member);
+            if (member != null && member != rivalCore && !member.IsGone()) war.JoinDefenders(member);
         RecordDeclaration(empire, rival, empire.Emperor, rival.Emperor);
         return true;
     }
@@ -216,16 +216,17 @@ public static class ImperialLegitimacyChallengeService
         MarkRivalry(claimant, incumbent, challengerIsClaimant: true);
         Realm core = claimant.CoreKingdom;
         Realm rivalCore = incumbent.CoreKingdom;
-        if (!war || core.isInWarWith(rivalCore)) return;
-        War started = DiplomacyHelpers.wars.newWar(core, rivalCore, WarTypeLibrary.normal);
+        if (!war || core.IsAtWarWith(rivalCore)) return;
+        War started = DiplomacyHelpers.wars.newWar(core, rivalCore, WarKinds.Normal);
         if (started == null) return;
         started.SetEmpireWarType(EmpireWarType.去帝号, nanoObject: incumbent);
         started.InitializeLegitimacyChallenge(claimant, incumbent);
         foreach (Realm member in claimant.kingdoms_list.ToList())
-            if (member != null && member != core && !member.IsGone()) started.joinAttackers(member);
+            if (member != null && member != core && !member.IsGone()) started.JoinAttackers(member);
         foreach (Realm member in incumbent.kingdoms_list.ToList())
-            if (member != null && member != rivalCore && !member.IsGone()) started.joinDefenders(member);
+            if (member != null && member != rivalCore && !member.IsGone()) started.JoinDefenders(member);
     }
+#endif
 
     public static bool AreRecognizedRivals(Empire first, Empire second)
     {
@@ -234,7 +235,6 @@ public static class ImperialLegitimacyChallengeService
                first.data.legitimacy_rival_empire_id == second.Key &&
                second.data.legitimacy_rival_empire_id == first.Key;
     }
-#endif
 
     // 得天下者得正统：伪核心针对的正统帝国已经不在(被别的方式灭掉、解散)，正规核心也没有别的帝国据有，
     // 而僭越者占据了正规核心过半城池时，伪核心销毁、由它接管正规核心(同打赢正统之战)。
@@ -303,13 +303,13 @@ public static class ImperialLegitimacyChallengeService
     }
 
 #if EC_PENDING
-    public static void ResolveWar(War war, WarWinner winner)
+    public static void ResolveWar(War war, WarOutcome winner)
     {
         if (war == null) return;
         WarExtension.WarExtraData data = war.GetOrCreate();
-        Empire challenger = ModClass.EMPIRE_MANAGER?.get(data.legitimacy_challenger_empire_id);
-        Empire incumbent = ModClass.EMPIRE_MANAGER?.get(data.legitimacy_defender_empire_id);
-        if (winner == WarWinner.Attackers && challenger != null && !challenger.IsArchived() &&
+        Empire challenger = ModClass.EMPIRE_MANAGER?.Get(data.legitimacy_challenger_empire_id);
+        Empire incumbent = ModClass.EMPIRE_MANAGER?.Get(data.legitimacy_defender_empire_id);
+        if (winner == WarOutcome.Attackers && challenger != null && !challenger.IsArchived() &&
             (war.IsMainDefenderEliminated() || war.HasLegitimacyOccupationThreshold()))
         {
             ResolveVictory(war, challenger, incumbent);
@@ -516,6 +516,7 @@ public static class ImperialLegitimacyChallengeService
             kingdom_id = kingdomId
         });
     }
+#endif
 
     private static bool IsActiveEmpire(Empire empire)
     {
@@ -523,6 +524,5 @@ public static class ImperialLegitimacyChallengeService
                empire.CoreKingdom != null && !empire.CoreKingdom.IsGone() &&
                !AncientWarfareCompatibility.Owns(empire.CoreKingdom);
     }
-#endif
 }
 }
