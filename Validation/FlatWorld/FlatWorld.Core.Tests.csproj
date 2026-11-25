@@ -11,7 +11,7 @@
   <ItemGroup><Compile Include="OrographicRainfallRegression.cs"/></ItemGroup>
   <ItemGroup><Compile Include="WindBeltRegression.cs"/><Compile Include="OceanCirculationRegression.cs"/></ItemGroup>
   <ItemGroup><Compile Include="MoistureFluxRegression.cs"/></ItemGroup>
-  <ItemGroup><Compile Include="GlebaSupplementRegression.cs"/><Compile Include="ExoPlaSimSupplementRegression.cs"/><Compile Include="CloudForcingRegression.cs"/></ItemGroup>
+  <ItemGroup><Compile Include="GlebaSupplementRegression.cs"/><Compile Include="ExoPlaSimSupplementRegression.cs"/><Compile Include="CloudForcingRegression.cs"/><Compile Include="WaterHazardsRegression.cs"/></ItemGroup>
   <ItemGroup><Compile Include="../../Assets/ORBIS/Runtime/V4/OrbisRasterCodec.cs"/></ItemGroup>
   <ItemGroup><Compile Include="../../Assets/ORBIS/Runtime/Planet/Core/PlanetCoordinateSystem.cs"/><Compile Include="../../Assets/ORBIS/Runtime/Planet/Core/PlanetSurfaceData.cs"/></ItemGroup>
 </Project>

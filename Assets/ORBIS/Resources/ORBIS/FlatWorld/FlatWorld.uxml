@@ -52,7 +52,13 @@
      <ui:DropdownField name="height" label="笔刷高度"/><ui:DropdownField name="brush" label="笔刷大小"/>
      <ui:Button name="rebuild" text="重算河流与气候"/>
      <ui:VisualElement class="row"><ui:Button name="confluence" text="下一处汇流" class="grow"/><ui:Button name="mouth" text="下一处河口" class="grow"/></ui:VisualElement>
-     <ui:Foldout text="水面状态" value="false"><ui:Label name="waterStatus" text="" class="muted"/></ui:Foldout>
+     <ui:Foldout text="局部水灾与海啸 (64×64 SWE)" value="true">
+      <ui:VisualElement class="row"><ui:Button name="hazardRainFlood" text="降雨漫堤洪水" class="grow"/><ui:Button name="hazardTyphoon" text="台风风暴潮" class="grow"/></ui:VisualElement>
+      <ui:VisualElement class="row"><ui:Button name="hazardTsunami" text="海床位移海啸" class="grow accent"/><ui:Button name="hazardFocus" text="定位灾区" class="grow"/></ui:VisualElement>
+      <ui:Toggle name="hazardLiveWeather" text="接通实时台风与暴雨事件" value="true"/>
+      <ui:Button name="hazardClear" text="清理退水"/>
+      <ui:Label name="waterStatus" text="" class="muted"/>
+     </ui:Foldout>
     </ui:VisualElement>
     <ui:VisualElement name="panelCivs" class="tab-page is-hidden">
      <ui:Label text="文明" class="section"/><ui:Button name="seedCivs" text="播种文明" class="accent"/>

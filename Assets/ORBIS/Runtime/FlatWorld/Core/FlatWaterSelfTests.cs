@@ -128,6 +128,20 @@ namespace Orbis.Flat
                 if(x>15)Check(Math.Abs(lake.Depth[i]-depth[i])<1e-10,"No flux across dry wall");
             }
             lake.Advance(100,3);Check(lake.LastSubsteps<=3,"Bounded work budget");
+            var sweBed=new double[64*8];var sweInit=new double[64*8];
+            for(int y=0;y<8;y++)for(int x=0;x<64;x++)
+            {
+                int i=y*64+x;
+                sweBed[i]=x<24?0.0:x==24?3.8:-0.6;
+                sweInit[i]=x<24?1.2:0.0;
+            }
+            var sweLevee=new FlatShallowWater(64,8,10.0,sweBed,sweInit,0.02);
+            for(int n=0;n<40;n++)sweLevee.Advance(0.5);
+            for(int i=0;i<sweInit.Length;i++)Check(Math.Abs(sweLevee.Depth[i]-sweInit[i])<1e-12,"Well-balanced wet-dry rest across dry polder");
+            for(int y=0;y<8;y++)sweLevee.ChannelInflowRate[y*64+2]=0.18;
+            for(int n=0;n<60;n++)sweLevee.Advance(0.5);
+            for(int y=0;y<8;y++)for(int x=25;x<64;x++)Check(sweLevee.Depth[y*64+x]==0.0,"Sub-crest flood cannot tunnel through levee");
+            Check(sweLevee.RelativeMassError()<1e-11,"Wet-dry levee flood conserves mass");
             foreach(TerrainPreset preset in FlatGenerator.ProceduralPresets)
             {
                 var w=FlatGenerator.Generate(64,32,"WATER-CLIMATE-REGRESSION",preset,CancellationToken.None);
