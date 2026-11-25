@@ -1885,19 +1885,22 @@ public static class CloudForcingRegression
         int cSahara = FlatMoistureCloudBudget.CellIndexAtLonLat(19.0, 24.0);
         int cBengal = FlatMoistureCloudBudget.CellIndexAtLonLat(88.0, 21.0);
         int cGhats = FlatMoistureCloudBudget.CellIndexAtLonLat(75.0, 15.0);
+        int cMatoGrosso = FlatMoistureCloudBudget.CellIndexAtLonLat(-59.0625, -14.0625);
 
         int peruCoastDry6h = 0, patagoniaDry6h = 0, atacamaDry6h = 0, saharaWet6h = 0, peruScCloudy6h = 0;
         int bengalWetDaysSummer = 0, bengalWetDaysWinter = 0, ghatsWetDaysSummer = 0;
+        int matoWetDaysAustralSum = 0, matoDryDaysAustralWin = 0;
         double maxMassErr = 0.0;
 
-        // Sample two 30-day (120 x 6h, spanning a full MJO/synoptic cycle) windows in NH winter (Days 10..39.75) and NH summer monsoon (Days 170..199.75)
+        // Sample two 30-day (120 x 6h, spanning a full MJO/synoptic cycle) windows in NH winter / SH summer (Days 10..39.75)
+        // and NH summer / SH winter (Days 170..199.75)
         foreach (double startDay in new[] { 10.0, 170.0 })
         {
             w.Day = startDay;
             w.Cyclones = FlatCycloneWeather.SpinUpAt(w, startDay);
             var sim = new FlatSimulation(w);
             bool isSummer = startDay > 100.0;
-            float bengalDaily = 0f, ghatsDaily = 0f;
+            float bengalDaily = 0f, ghatsDaily = 0f, matoDaily = 0f;
             for (int step = 0; step < 120; step++)
             {
                 budget.Solve(w, w.Day, w.Cyclones);
@@ -1911,44 +1914,79 @@ public static class CloudForcingRegression
 
                 bengalDaily += budget.SurfacePrecipKgM2Per6h[cBengal];
                 ghatsDaily += budget.SurfacePrecipKgM2Per6h[cGhats];
+                matoDaily += budget.SurfacePrecipKgM2Per6h[cMatoGrosso];
                 if (step % 4 == 3)
                 {
                     if (bengalDaily >= 1.0f) { if (isSummer) bengalWetDaysSummer++; else bengalWetDaysWinter++; }
                     if (ghatsDaily >= 1.0f && isSummer) ghatsWetDaysSummer++;
+                    if (!isSummer && matoDaily >= 1.0f) matoWetDaysAustralSum++;
+                    if (isSummer && matoDaily < 1.0f) matoDryDaysAustralWin++;
                     bengalDaily = 0f;
                     ghatsDaily = 0f;
+                    matoDaily = 0f;
                 }
                 sim.Step(0.25f);
             }
         }
 
-        // Also check fictional Continents (-132.1875, -47.8125) coastal/orographic cell has genuine dry breaks across summer + winter
+        // Sample peak late-summer / early-autumn & December South American monsoon windows (Days 65..124.75 and 325..354.75) for Mato Grosso (-59.0625, -14.0625)
+        foreach (double startDay in new[] { 65.0, 95.0, 325.0 })
+        {
+            w.Day = startDay;
+            w.Cyclones = FlatCycloneWeather.SpinUpAt(w, startDay);
+            var simM = new FlatSimulation(w);
+            float matoDaily = 0f;
+            for (int step = 0; step < 120; step++)
+            {
+                budget.Solve(w, w.Day, w.Cyclones);
+                if (budget.WaterBudgetErrorKgM2 > maxMassErr) maxMassErr = budget.WaterBudgetErrorKgM2;
+                matoDaily += budget.SurfacePrecipKgM2Per6h[cMatoGrosso];
+                if (step % 4 == 3)
+                {
+                    if (matoDaily >= 1.0f) matoWetDaysAustralSum++;
+                    matoDaily = 0f;
+                }
+                simM.Step(0.25f);
+            }
+        }
+
+        // Also check fictional Continents (-132.1875, -47.8125) coastal/orographic dry breaks AND (-92.8125, -25.3125) spring/summer wet/dry alternation
         var wf = fictionalBase.Clone();
         int cContOrog = FlatMoistureCloudBudget.CellIndexAtLonLat(-132.1875, -47.8125);
-        int contDry6h = 0;
-        foreach (double startDay in new[] { 10.0, 170.0 })
+        int cContEastSubtrop = FlatMoistureCloudBudget.CellIndexAtLonLat(-92.8125, -25.3125);
+        int contDry6h = 0, contSubtropWetDays = 0, contSubtropDryDays = 0;
+        foreach (double startDay in new[] { 10.0, 170.0, 285.0 })
         {
             wf.Day = startDay;
             wf.Cyclones = FlatCycloneWeather.SpinUpAt(wf, startDay);
             var simF = new FlatSimulation(wf);
+            float contSubDaily = 0f;
             for (int step = 0; step < 120; step++)
             {
                 budget.Solve(wf, wf.Day, wf.Cyclones);
                 if (budget.WaterBudgetErrorKgM2 > maxMassErr) maxMassErr = budget.WaterBudgetErrorKgM2;
-                if (budget.SurfacePrecipKgM2Per6h[cContOrog] < 0.25f) contDry6h++;
+                if (startDay < 200.0 && budget.SurfacePrecipKgM2Per6h[cContOrog] < 0.25f) contDry6h++;
+                contSubDaily += budget.SurfacePrecipKgM2Per6h[cContEastSubtrop];
+                if (step % 4 == 3)
+                {
+                    if (contSubDaily >= 1.0f) contSubtropWetDays++; else contSubtropDryDays++;
+                    contSubDaily = 0f;
+                }
                 simF.Step(0.25f);
             }
         }
 
         Console.WriteLine($"[11. Coastal/Orographic & Monsoon Anomaly Guards] PeruCoastDry={peruCoastDry6h}/240, PatagoniaDryBreaks={patagoniaDry6h}/240, ContOrogDryBreaks={contDry6h}/240 | " +
-            $"AtacamaDry={atacamaDry6h}/240, SaharaWet={saharaWet6h}/240, PeruScCloudy={peruScCloudy6h}/240 | BengalWetDays(Sum={bengalWetDaysSummer}/30 vs Win={bengalWetDaysWinter}/30), GhatsSum={ghatsWetDaysSummer}/30 | MaxBudgetErr={maxMassErr:E2}");
+            $"AtacamaDry={atacamaDry6h}/240, SaharaWet={saharaWet6h}/240, PeruScCloudy={peruScCloudy6h}/240 | BengalWet(Sum={bengalWetDaysSummer}/30,Win={bengalWetDaysWinter}/30), GhatsSum={ghatsWetDaysSummer}/30, " +
+            $"MatoGrosso(SHWetSeason={matoWetDaysAustralSum}/120,SHWinDry={matoDryDaysAustralWin}/30), ContSubtrop(Wet={contSubtropWetDays}/90,Dry={contSubtropDryDays}/90) | MaxBudgetErr={maxMassErr:E2}");
 
         Check(peruCoastDry6h >= 150 && patagoniaDry6h >= 20 && contDry6h >= 10,
             $"Coastal/orographic non-stop wet lockup recurred: PeruCoastDry={peruCoastDry6h}/240, PatagoniaDry={patagoniaDry6h}/240, ContOrogDry={contDry6h}/240");
         Check(saharaWet6h == 0 && atacamaDry6h >= 180 && peruScCloudy6h >= 190,
             $"Hyper-arid desert or Peru Sc deck regressed: SaharaWet={saharaWet6h}, AtacamaDry={atacamaDry6h}/240, PeruScCloudy={peruScCloudy6h}/240");
-        Check(bengalWetDaysSummer >= 4 && bengalWetDaysSummer > bengalWetDaysWinter && ghatsWetDaysSummer >= 4,
-            $"Monsoon summer rainfall or winter dry contrast failed: BengalSum={bengalWetDaysSummer}, BengalWin={bengalWetDaysWinter}, GhatsSum={ghatsWetDaysSummer}");
+        Check(bengalWetDaysSummer >= 4 && bengalWetDaysSummer > bengalWetDaysWinter && ghatsWetDaysSummer >= 4 &&
+              matoWetDaysAustralSum >= 2 && matoDryDaysAustralWin >= 20 && contSubtropWetDays >= 2 && contSubtropDryDays >= 20,
+            $"Monsoon/subtropical wet-dry alternation failed: BengalSum={bengalWetDaysSummer}, GhatsSum={ghatsWetDaysSummer}, MatoWet={matoWetDaysAustralSum}, ContSubtropWet={contSubtropWetDays}/90");
         Check(maxMassErr < 1e-4, $"Water budget conservation error exceeded 1e-4 kg/m2: {maxMassErr:E3}");
     }
 
