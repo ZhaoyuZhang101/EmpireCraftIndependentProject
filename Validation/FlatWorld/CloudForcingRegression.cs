@@ -600,7 +600,8 @@ public static class CloudForcingRegression
             }
         }
 
-        // 8b. Normal playback (Day 0 -> 32 in 0.25-day steps, 2 segment crossings + daily updates)
+        // 8b. Normal playback (Day 0 -> 31, then drain at day 32 after a full refresh cadence).
+        const int normalPlayTicks = 31 * 4;
         double mainPollIdleMax = 0, mainPollIdleSum = 0; int mainPollIdleCnt = 0;
         double mainSubmitMax = 0, mainSubmitSum = 0; int mainSubmitCnt = 0;
         double bgDailySum = 0, bgDailyMax = 0; int bgDailyCnt = 0;
@@ -617,7 +618,7 @@ public static class CloudForcingRegression
             bgSegSum += initial.WorkerDurationMs; bgSegMax = Math.Max(bgSegMax, initial.WorkerDurationMs); bgSegCnt++;
 
             long steadyAllocStart = GC.GetAllocatedBytesForCurrentThread();
-            for (int tick = 1; tick <= 128; tick++)
+            for (int tick = 1; tick <= normalPlayTicks; tick++)
             {
                 double day = tick * 0.25;
                 long t0 = Stopwatch.GetTimestamp();
@@ -656,8 +657,10 @@ public static class CloudForcingRegression
                     while (sched.IsComputing && swWait.ElapsedMilliseconds < 25) Thread.Sleep(1);
                 }
             }
-            // Drain final day 32 commit
-            var finalNorm = WaitForCommit(sched, earth, 32.0, 30.0, out _);
+            // Leave enough time for a new payload even if the last worker
+            // published a late fractional day within the same segment.
+            double finalDay = normalPlayTicks * 0.25 + FlatSkyForcingCache.SynopticRefreshCadenceDays;
+            var finalNorm = WaitForCommit(sched, earth, finalDay, 30.0, out _);
             long steadyAllocBytes = GC.GetAllocatedBytesForCurrentThread() - steadyAllocStart;
             AssertPayloadExact(earth, finalNorm);
 
@@ -666,7 +669,7 @@ public static class CloudForcingRegression
             Check(mainPollIdleMax < 3.0 && mainSubmitMax < 5.0,
                 $"Main-thread Poll/Submit latency exceeded non-blocking budget: idleMax={mainPollIdleMax:F3} ms, submitMax={mainSubmitMax:F3} ms");
             Check(steadyAllocBytes < 65536,
-                $"Main-thread steady-state 128 ticks allocated large buffers: {steadyAllocBytes:N0} B");
+                $"Main-thread steady-state {normalPlayTicks} ticks allocated large buffers: {steadyAllocBytes:N0} B");
             Check(sched.JobsDiscardedStale == 0 && sched.LastError == null,
                 $"Normal playback had stale discards ({sched.JobsDiscardedStale}) or error ({sched.LastError})");
 
@@ -675,7 +678,7 @@ public static class CloudForcingRegression
                 $"BgSegment={bgSegSum / Math.Max(1, bgSegCnt):F2} ms (max {bgSegMax:F2} ms, n={bgSegCnt}) | " +
                 $"MainPollIdle={mainPollIdleSum / Math.Max(1, mainPollIdleCnt):F3} ms (max {mainPollIdleMax:F3} ms), " +
                 $"MainCommit+Upload={mainSubmitSum / Math.Max(1, mainSubmitCnt):F3} ms (max {mainSubmitMax:F3} ms) | " +
-                $"MainThreadSteadyAlloc(128 ticks)={steadyAllocBytes:N0} B");
+                $"MainThreadSteadyAlloc({normalPlayTicks} ticks)={steadyAllocBytes:N0} B");
 
             // 8c. Continuous accelerated time: deterministic intra-segment & cross-segment coalescing
             using var entered1 = new ManualResetEventSlim(false);

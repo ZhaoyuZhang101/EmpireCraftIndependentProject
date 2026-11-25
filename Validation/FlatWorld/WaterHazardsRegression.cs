@@ -45,6 +45,8 @@ public static class WaterHazardsRegression
         var worldEarth = FlatGenerator.Generate(256, 128, "ORBIS-EARTH-HAZARD", TerrainPreset.Earth, default, rawEarth, waterEarth, riversEarth);
         TestThreeScenariosOnWorld(worldEarth, "SurveyedEarth-256x128", report);
 
+        TestSurveyedStormSurgeShoreline(worldEarth, resFolder, report);
+
         // 5. Independent triggers (Typhoon vs Tsunami), live weather detection & save-format byte identity
         TestIndependentTriggersLiveWeatherAndSave(worldContinents, report);
 
@@ -59,6 +61,41 @@ public static class WaterHazardsRegression
             : jsonReportPath;
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath)));
         File.WriteAllText(outPath, report.ToString(), Encoding.UTF8);
+    }
+
+    static void TestSurveyedStormSurgeShoreline(WorldData world, string folder, StringBuilder log)
+    {
+        byte[] Asset(string name) => File.ReadAllBytes(folder + name + ".bytes");
+        var surface = FlatGeographicSurface.Read(Asset("EarthGlobalStraitShore"), Asset("EarthOceanShore"),
+            Asset("EarthMajorLakes"), Asset("EarthLakeDetail"), Asset("EarthPolarCoast"));
+        surface.Attach(world);
+
+        // Aegean and the Turkish Straits include both surveyed dry banks and
+        // navigable water over land cells at this simulation resolution.
+        var session = FlatWaterHazardSession.CreateAtPatch(world, FlatHazardKind.TyphoonSurge,
+            137, 84, applyInitialForcing: false);
+        int corrected = 0;
+        int resolution = session.Resolution;
+        for (int y = 0; y < resolution; y++)
+        for (int x = 0; x < resolution; x++)
+        {
+            float wx = session.PatchX + (x + .5f) * session.SpanTiles / resolution;
+            float wy = session.PatchY + (y + .5f) * session.SpanTiles / resolution;
+            var point = new FlatSeaPoint(wx * 360.0 / world.Width - 180, wy * 180.0 / world.Height - 90);
+            var kind = surface.At(world, point, out _, out bool covered);
+            if (!covered || kind == WaterKind.River) continue;
+
+            int ix = (int)Math.Floor(wx), iy = (int)Math.Floor(wy);
+            int tile = world.Index(ix, iy);
+            if (FlatWaterGeometry.RiverDistance(world, tile, wx - ix, wy - iy) <= 0f) continue;
+
+            bool wet = FlatTerrainAnalysis.AreaWater(kind);
+            if (wet != (FlatSurfaceSampling.SampleShore(world, wx, wy) > .02f)) corrected++;
+            Check(session.Solver.InitiallyWet[y * resolution + x] == wet,
+                $"Surveyed Aegean shoreline disagrees with the resting surge grid at {point.Longitude:F4}, {point.Latitude:F4}.");
+        }
+        Check(corrected > 0, "The Aegean regression did not sample any survey corrections to the coarse grid.");
+        log.AppendLine($"PASS surveyed Aegean surge shoreline: {corrected} subcells differ from and correct the coarse-grid mask.");
     }
 
     static void TestHydrostaticRestAndMultiBasin(StringBuilder log)

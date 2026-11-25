@@ -709,14 +709,53 @@ namespace Orbis.Editor.CloudVisualQA
             };
         }
 
+        static void InstallWorldForCapture(FlatWorldApp app, WorldData world)
+        {
+            var appType = typeof(FlatWorldApp);
+            appType.GetField("paused", Private).SetValue(app, true);
+            appType.GetField("screenshotMode", Private).SetValue(app, true);
+            appType.GetMethod("Install", Private).Invoke(app, new object[] { world });
+
+            // Earth installation prepares its shoreline and lake atlases asynchronously.
+            // Publish each completed setup stage through the same update path as gameplay.
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            var budget = TimeSpan.FromSeconds(30);
+            while (!ReferenceEquals(app.World, world))
+            {
+                var pending = appType.GetField("pending", Private).GetValue(app) as System.Threading.Tasks.Task<WorldData>;
+                if (pending == null)
+                    throw new InvalidOperationException("Cloud capture did not install the requested world.");
+                var remaining = budget - clock.Elapsed;
+                if (remaining <= TimeSpan.Zero || !pending.Wait(remaining))
+                    throw new TimeoutException("Cloud capture timed out preparing the requested world's terrain.");
+                appType.GetMethod("Update", Private).Invoke(app, null);
+            }
+        }
+
+        static void VerifyVegetationSeasonalWind(FlatSkyRenderer sky, WorldData world)
+        {
+            var wind = (Texture2D)typeof(FlatSkyRenderer).GetField("climateWind", Private).GetValue(sky);
+            var actual = wind.GetPixels();
+            var expected = new float[actual.Length * 4];
+            FlatSkyForcingCache.PackSeasonalWindRgba(world, new FlatMonthlyForcing(world.Day), wind.width, wind.height, expected);
+            for (int i = 0; i < actual.Length; i++)
+            {
+                Color pixel = actual[i];
+                int channel = i * 4;
+                if (Math.Abs(pixel.r - expected[channel]) > .001f ||
+                    Math.Abs(pixel.g - expected[channel + 1]) > .001f ||
+                    Math.Abs(pixel.b - expected[channel + 2]) > .001f ||
+                    Math.Abs(pixel.a - expected[channel + 3]) > .001f)
+                    throw new InvalidOperationException("Vegetation wind lagged behind the calendar while the cloud cache loaded.");
+            }
+        }
+
         static void InstallAndPublishSky(
             FlatWorldApp app, WorldData world, double fixedVisualClock, int skyWidth, double cycloneCalendarDay,
             out FlatMapRenderer map, out FlatGlobePresenter globe, out FlatScrollNavigator nav,
             out Camera camera, out OrbisCelestialLens lens, out OrbisAtmosphereRenderer atmosphere)
         {
-            typeof(FlatWorldApp).GetMethod("Install", Private).Invoke(app, new object[] { world });
-            typeof(FlatWorldApp).GetField("paused", Private)?.SetValue(app, true);
-            typeof(FlatWorldApp).GetField("screenshotMode", Private)?.SetValue(app, true);
+            InstallWorldForCapture(app, world);
 
             camera = typeof(FlatWorldApp).GetField("viewCamera", Private).GetValue(app) as Camera;
             map = typeof(FlatWorldApp).GetField("map", Private).GetValue(app) as FlatMapRenderer;
@@ -1522,8 +1561,7 @@ namespace Orbis.Editor.CloudVisualQA
             var jumpWorld = ClimateCloudQaScenarios.DeepCloneWorld(baseEarth);
             jumpWorld.Day = 15.0; // Jan 15
             jumpWorld.Cyclones = null;
-            typeof(FlatWorldApp).GetMethod("Install", Private).Invoke(app, new object[] { jumpWorld });
-            typeof(FlatWorldApp).GetField("paused", Private)?.SetValue(app, true);
+            InstallWorldForCapture(app, jumpWorld);
             map = typeof(FlatWorldApp).GetField("map", Private).GetValue(app) as FlatMapRenderer;
             sky = map.Sky;
             map.SetLayer(MapLayer.Natural);
@@ -1536,6 +1574,7 @@ namespace Orbis.Editor.CloudVisualQA
             // Paused forward multi-month jump: Jan 15 -> Apr 15 (2 ticks in-flight) -> Jul 15 (195.0)
             jumpWorld.Day = 105.0;
             sky.Tick(0f, true, false, false, 1024, jumpWorld.Day);
+            VerifyVegetationSeasonalWind(sky, jumpWorld);
             jumpWorld.Day = 195.0;
             WaitSkySteadyForDay(map, sky, jumpWorld, fixedClock, 1024, out double fwdDispMs, out double fwdPeakMs, out double fwdWaitMs, out int fwdTicks);
             var weatherJul = ReadRenderTextureGrid(sky.Texture);

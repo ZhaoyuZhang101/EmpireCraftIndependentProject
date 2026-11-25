@@ -484,6 +484,9 @@ namespace Orbis.Flat
             int seaCount = 0;
             double landSumX = 0, landSumY = 0;
             int landCount = 0;
+            var survey = world.GeographicSurface;
+            bool useSurvey = survey != null && survey.Prepared(world);
+            double cellsPerKm = world.Width / 40030.2;
 
             for (int sy = 0; sy < res; sy++)
             for (int sx = 0; sx < res; sx++)
@@ -491,25 +494,43 @@ namespace Orbis.Flat
                 int idx = sy * res + sx;
                 float wx = patchX + (sx + 0.5f) * span / res;
                 float wy = patchY + (sy + 0.5f) * span / res;
-                int tile = world.Index((int)Math.Floor(wx), FMath.Clamp((int)Math.Floor(wy), 0, world.Height - 1));
+                int ix = (int)Math.Floor(wx), iy = FMath.Clamp((int)Math.Floor(wy), 0, world.Height - 1);
+                int tile = world.Index(ix, iy);
                 float sd = FlatSurfaceSampling.SampleShore(world, wx, wy);
+                bool surveyed = false;
+                WaterKind basinKind = world.Water[tile];
+                if (useSurvey)
+                {
+                    var point = new FlatSeaPoint(wx * 360.0 / world.Width - 180.0, wy * 180.0 / world.Height - 90.0);
+                    var surveyedKind = survey.At(world, point, out double signedKm, out surveyed);
+                    if (surveyed)
+                    {
+                        basinKind = surveyedKind;
+                        sd = (float)(signedKm * cellsPerKm);
+                    }
+                }
                 float rawElev = FlatSurfaceSampling.Sample(elevations, world.Width, world.Height, wx, wy);
                 float rawHand = FlatSurfaceSampling.Sample(world.Facts.Hand, world.Width, world.Height, wx, wy);
                 float cov = FlatWaterGeometry.Coverage(world, wx, wy, out float geomDepth);
-                bool areaBasin = sd > 0.02f;
-                bool isChannel = !areaBasin && cov > 0.50f;
+                bool areaBasin = surveyed ? FlatTerrainAnalysis.AreaWater(basinKind) : sd > 0.02f;
+                // The coarse basin coverage can include surveyed land. Only a
+                // resolved river can supply an open channel on those subcells.
+                bool isChannel = !areaBasin && (surveyed
+                    ? FlatWaterGeometry.RiverDistance(world, tile, wx - ix, wy - iy) < 0f
+                    : cov > 0.50f);
+                bool surveyedOcean = surveyed && FlatTerrainAnalysis.Ocean(basinKind);
                 GroundMaterial mat = world.Facts.Materials[tile];
                 retention[idx] = mat == GroundMaterial.Sand ? 1.35 : mat == GroundMaterial.Gravel ? 1.15 : mat == GroundMaterial.Rock ? 0.15 : 0.65;
 
-                if (hasOcean && (kind != FlatHazardKind.RainFlood || FlatTerrainAnalysis.Ocean(world.Water[tile]) || sd > -1.5f))
+                if (surveyedOcean || (hasOcean && (kind != FlatHazardKind.RainFlood || FlatTerrainAnalysis.Ocean(basinKind) || sd > -1.5f)))
                 {
-                    WaterKind nearestBasinKind = FindNearestAreaWaterKind(world, (int)Math.Floor(wx), FMath.Clamp((int)Math.Floor(wy), 0, world.Height - 1), out short nearestBasinLevel);
+                    WaterKind nearestBasinKind = FindNearestAreaWaterKind(world, ix, iy, out short nearestBasinLevel);
                     bool nearPerchedLake = nearestBasinKind == WaterKind.Lake && nearestBasinLevel > 0;
                     double perchedStage = nearPerchedLake ? LocalLandHeight(nearestBasinLevel, 0.0, 0.0) : 0.0;
 
                     if (areaBasin)
                     {
-                        if (!nearPerchedLake)
+                        if (surveyed ? surveyedOcean : !nearPerchedLake)
                         {
                             marine[idx] = true;
                             seaSumX += sx; seaSumY += sy; seaCount++;
@@ -564,7 +585,7 @@ namespace Orbis.Flat
                     double valleySpan = Math.Max(12.0, maxRiverWaterLevel - minRiverWaterLevel);
                     double alongDrop = Math.Max(0.0, (rawElev - minRiverWaterLevel) / valleySpan);
                     double posHand = Math.Max(0.0, rawHand);
-                    if (areaBasin && world.Water[tile] == WaterKind.Lake)
+                    if (areaBasin && basinKind == WaterKind.Lake)
                     {
                         double d = FMath.Clamp(geomDepth, 1.2f, 16.0f);
                         bed[idx] = -d;

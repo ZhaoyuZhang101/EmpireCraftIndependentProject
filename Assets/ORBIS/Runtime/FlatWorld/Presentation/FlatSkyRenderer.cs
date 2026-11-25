@@ -373,13 +373,15 @@ namespace Orbis.Flat
                 flashes[i] = new Vector4(flash.X, flash.Y, flash.Z, flash.Strength);
             }
             if (animate) Clock += Math.Max(0, delta);
-            // Vegetation shares prevailing winds even while cloud rendering sleeps.
+            // Vegetation uses the current seasonal endpoints even while the
+            // previous complete cloud/drift snapshot is still on screen.
             var season = new FlatMonthlyForcing(world.Day);
+            if (forcingScheduler.Cache.Evaluate(world, world.Day, cloudsNeeded: false).UploadWind)
+                UploadWindSync(season);
             windBlend = season.SegmentBlend;
             if (!needed)
             {
-                forcingScheduler.Poll(world, world.Day, cloudsNeeded: false, allowCommit: false, out _, out bool hiddenWindNeedsSync);
-                if (hiddenWindNeedsSync) UploadWindSync(season);
+                forcingScheduler.Poll(world, world.Day, cloudsNeeded: false, allowCommit: false, out _, out _);
                 weatherWasHidden = true;
                 Status = "云缓存休眠；晨昏/大气开关独立。";
                 return;
