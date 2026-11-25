@@ -9,6 +9,9 @@ Shader "Hidden/ORBIS/HPCloudColumn"
   [HideInInspector] _ScrollUpperWindReady("Upper cloud wind ready",Float)=0
   [HideInInspector] _ScrollMonthBlend("Upper cloud wind month blend",Float)=0
   _ClimateTex("Monthly precipitation and temperature",2D)="black"{}
+  [HideInInspector] _RegionalPrecipDiagTex("Regional 6h precip diagnostic (kg/m2/6h)",2D)="black"{}
+  [HideInInspector] _RegionalPrecipPoles("Regional 6h precip pole means",Vector)=(0,0,0,0)
+  [HideInInspector] _RegionalPrecipReady("Use RegionalPrecipDiagTex surface fallout",Float)=0
   _MonthBlend("Seasonal blend",Float)=0
   _CloudNoise("Cloud shape",3D)="white"{}
   _CloudDetailNoise("Cloud erosion",3D)="white"{}
@@ -31,7 +34,11 @@ Shader "Hidden/ORBIS/HPCloudColumn"
  #include "UnityCG.cginc"
  #define ORBIS_SHARED_SCROLL_WEATHER
  #include "../OrbisCloudCommon.cginc"
- sampler2D _ClimateTex;
+ UNITY_DECLARE_TEX2D(_ClimateTex);
+ UNITY_DECLARE_TEX2D_NOSAMPLER(_RegionalPrecipDiagTex);
+ float4 _RegionalPrecipDiagTex_TexelSize;
+ float4 _RegionalPrecipPoles;
+ float _RegionalPrecipReady;
  float _MonthBlend;
  float4 _ColumnUVTransform;
  float4 frag(v2f_img i):SV_Target
@@ -53,11 +60,45 @@ Shader "Hidden/ORBIS/HPCloudColumn"
   float4 weather=tex2Dlod(_ScrollWeatherTex,float4(i.uv,0,0));
   // Precipitation is visible only under deep, optically thick cloud columns.
   // A nonzero coarse weather rate alone must not paint rain into clear gaps.
+  #ifdef UNITY_SEPARATE_TEXTURE_SAMPLER
+  float4 climate=UNITY_SAMPLE_TEX2D_LOD(_ClimateTex,i.uv,0);
+  #else
   float4 climate=tex2Dlod(_ClimateTex,float4(i.uv,0,0));
+  #endif
   float temperature=lerp(climate.b,climate.a,_MonthBlend)*65-25;
   float frozen=1-smoothstep(-1,2,temperature);
-  float rain=weather.a*(1-frozen)*smoothstep(.50,.78,weather.b)*smoothstep(1.3,3.2,tau.x);
-  float snow=weather.a*frozen*smoothstep(.7,2.0,tau.x+tau.y);
+  float rain,snow;
+  if(_RegionalPrecipReady>.5)
+  {
+   // Carbon 64x32 RGBAHalf diagnostic: R=in-cloud fallout, G=surface-reaching precip (kg/m2/6h = mm/6h),
+   // B=high-ice fallout share, A=cloud water; _RegionalPrecipPoles=(southR, southG, northR, northG).
+   // Share _ClimateTex's sampler to stay well within D3D11 single-pass sampler limits.
+   #ifdef UNITY_SEPARATE_TEXTURE_SAMPLER
+   float4 regPrecip=UNITY_SAMPLE_TEX2D_SAMPLER_LOD(_RegionalPrecipDiagTex,_ClimateTex,i.uv,0);
+   #else
+   float4 regPrecip=tex2Dlod(_RegionalPrecipDiagTex,float4(i.uv,0,0));
+   #endif
+   float poleRows=max(32.0,_RegionalPrecipDiagTex_TexelSize.w);
+   float poleW=smoothstep(0,.5,min(i.uv.y,1-i.uv.y)*poleRows);
+   float poleSfc=lerp(_RegionalPrecipPoles.y,_RegionalPrecipPoles.w,step(.5,i.uv.y));
+   float sfcPrecipMm6h=max(0.0,lerp(poleSfc,regPrecip.g,poleW));
+   // Strict zero surface rain/snow when G<=0 (including virga R>0, G==0).
+   // Monotonic Beer-Lambert saturation maps mm/6h into relative visual intensity [0,1]
+   // (e-folding 2.4 mm/6h liquid rain; 0.9 mm/6h SWE cold snow).
+   float rainSignal=sfcPrecipMm6h>0.0?(1.0-exp(-sfcPrecipMm6h/2.4)):0.0;
+   float snowSignal=sfcPrecipMm6h>0.0?(1.0-exp(-sfcPrecipMm6h/0.9)):0.0;
+   // Gate strictly by actual radial cloud optical thickness (zero clear-sky rain/snow),
+   // without letting legacy convective storm weather.a / weather.b suppress valid frontal rain.
+   float rainColGate=smoothstep(.55,1.95,tau.x);
+   float snowColGate=smoothstep(.50,1.75,tau.x+tau.y);
+   rain=rainSignal*(1-frozen)*rainColGate;
+   snow=snowSignal*frozen*snowColGate;
+  }
+  else
+  {
+   rain=weather.a*(1-frozen)*smoothstep(.50,.78,weather.b)*smoothstep(1.3,3.2,tau.x);
+   snow=weather.a*frozen*smoothstep(.7,2.0,tau.x+tau.y);
+  }
   return float4(opacity,snow,rain);
  }
  ENDCG
