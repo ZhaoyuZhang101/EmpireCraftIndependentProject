@@ -16,7 +16,7 @@ namespace Orbis.Flat
         public int CacheWidth { get; private set; }
         const int ClimateWidth = FlatSkyForcingCache.DefaultClimateWidth, ClimateHeight = FlatSkyForcingCache.DefaultClimateHeight;
         WorldData world;
-        Texture2D climate, hpHigh, wind, windBack, climateWind, glebaForcing, glebaAux, glebaUpperWind;
+        Texture2D climate, hpHigh, wind, windBack, climateWind, glebaForcing, glebaAux, glebaUpperWind, glebaUpperWindBack;
         Texture3D hpNoise, hpDetail;
         Material bake, hpColumn;
         readonly FlatSkyForcingScheduler forcingScheduler = new FlatSkyForcingScheduler(ClimateWidth, ClimateHeight);
@@ -26,8 +26,9 @@ namespace Orbis.Flat
         float[] upperWindFallback;
         double stagingWindDay;
         int stagingWindGeneration;
-        bool stagingWind, pendingForcingBake, upperWindReady;
-        float debt, windBlend;
+        bool stagingWind, pendingForcingBake;
+        bool publishedUpperWindReady, upperWindBackReady, upperWindStagingPending, stagingUpperWind;
+        float debt, windBlend, stagingMonthBlend, publishedMonthBlend;
         bool rendered, failed;
         double stagedClock, stagingCalendarDay = double.NaN, stagingWeatherTime;
         Vector4 pendingNorth, pendingSouth, pendingPhase, visibleNorth, visibleSouth, visiblePhase;
@@ -48,8 +49,8 @@ namespace Orbis.Flat
         FlatLightningVisuals lightning;
         public Texture2D DynamicWind { get { return wind; } }
         public Texture2D UpperWind { get { return glebaUpperWind; } }
-        public bool UpperWindReady { get { return upperWindReady && glebaUpperWind; } }
-        public float SeasonalBlend { get { return windBlend; } }
+        public bool UpperWindReady { get { return publishedUpperWindReady && glebaUpperWind; } }
+        public float SeasonalBlend { get { return publishedMonthBlend; } }
         public bool DynamicReady { get { return Ready; } }
         public double RenderClock { get { return stagedClock; } }
         public Vector4[] LightningFlashes { get { return flashes; } }
@@ -59,7 +60,10 @@ namespace Orbis.Flat
             world = data;
             forcingScheduler.Bind(world);
             pendingForcingBake = false;
-            upperWindReady = false;
+            publishedUpperWindReady = false;
+            upperWindBackReady = false;
+            upperWindStagingPending = false;
+            stagingUpperWind = false;
             regionalClimate?.Dispose();
             regionalClimate = null;
             rewindCycloneCache = null;
@@ -83,6 +87,8 @@ namespace Orbis.Flat
             }
             var season = new FlatMonthlyForcing(world.Day);
             windBlend = season.SegmentBlend;
+            stagingMonthBlend = windBlend;
+            publishedMonthBlend = windBlend;
             UploadWindSync(season);
             Shader shader = Resources.Load<Shader>("ORBIS/FlatWorld/FlatSkyBake");
             Shader columnShader = Resources.Load<Shader>("ORBIS/FlatWorld/HPCloudColumn");
@@ -114,6 +120,7 @@ namespace Orbis.Flat
             glebaAux = new Texture2D(ClimateWidth, ClimateHeight, TextureFormat.RGBA32, false, true)
                 { name = "Gleba stratocumulus and orographic cloud aux", filterMode = FilterMode.Bilinear, wrapModeU = TextureWrapMode.Repeat, wrapModeV = TextureWrapMode.Clamp };
             glebaUpperWind = WeatherTexture("Gleba upper-level Rossby and anvil wind");
+            glebaUpperWindBack = WeatherTexture("Gleba upper-level Rossby and anvil wind staging");
             bake.SetTexture("_ClimateTex", climate);
             bake.SetTexture("_ClimateWindTex", climateWind);
             bake.SetTexture("_CloudSynopticTex", glebaForcing);
@@ -121,6 +128,9 @@ namespace Orbis.Flat
             bake.SetTexture("_UpperWindTex", glebaUpperWind);
             bake.SetFloat("_GlebaCloudEnable", 1f);
             hpColumn.SetTexture("_ScrollCloudWindTex", wind);
+            hpColumn.SetTexture("_ScrollUpperWindTex", Texture2D.blackTexture);
+            hpColumn.SetFloat("_ScrollUpperWindReady", 0f);
+            hpColumn.SetFloat("_ScrollMonthBlend", publishedMonthBlend);
             hpColumn.SetTexture("_ClimateTex", climate);
             try
             {
@@ -158,6 +168,7 @@ namespace Orbis.Flat
             ReleaseCache(columnBack);
             ReleaseCache(columnStrip);
             pendingStrip = -1;
+            stagingUpperWind = false;
             CacheWidth = width;
             int height = width / 2;
             // The cheap weather pass resolves thin feeder bands at twice the
@@ -244,6 +255,19 @@ namespace Orbis.Flat
                 windBack = oldWind;
                 forcingScheduler.MarkCloudWindPublished(stagingWindDay, stagingRevision, stagingWindGeneration);
             }
+            if (stagingUpperWind)
+            {
+                var oldUpper = glebaUpperWind;
+                glebaUpperWind = glebaUpperWindBack;
+                glebaUpperWindBack = oldUpper;
+                bool oldUpperReady = publishedUpperWindReady;
+                publishedUpperWindReady = upperWindBackReady;
+                upperWindBackReady = oldUpperReady;
+                upperWindStagingPending = false;
+                stagingUpperWind = false;
+                bake.SetTexture("_UpperWindTex", glebaUpperWind);
+            }
+            publishedMonthBlend = stagingMonthBlend;
             stagedClock = stagingWeatherTime;
             PublishedCalendarDay = stagingCalendarDay;
             visibleNorth = pendingNorth;
@@ -293,18 +317,19 @@ namespace Orbis.Flat
                 climate.LoadRawTextureData(payload.MonthlyClimateRgba);
                 climate.Apply(false, false);
 
-                if (glebaUpperWind.format == TextureFormat.RGBAHalf)
-                    glebaUpperWind.SetPixelData(payload.UpperWindHalf, 0);
+                if (glebaUpperWindBack.format == TextureFormat.RGBAHalf)
+                    glebaUpperWindBack.SetPixelData(payload.UpperWindHalf, 0);
                 else
                 {
                     if (upperWindFallback == null || upperWindFallback.Length != payload.UpperWindHalf.Length)
                         upperWindFallback = new float[payload.UpperWindHalf.Length];
                     for (int k = 0; k < upperWindFallback.Length; k++)
                         upperWindFallback[k] = Mathf.HalfToFloat(payload.UpperWindHalf[k]);
-                    glebaUpperWind.SetPixelData(upperWindFallback, 0);
+                    glebaUpperWindBack.SetPixelData(upperWindFallback, 0);
                 }
-                glebaUpperWind.Apply(false, false);
-                upperWindReady = true;
+                glebaUpperWindBack.Apply(false, false);
+                upperWindBackReady = true;
+                upperWindStagingPending = true;
             }
 
             if (payload.HasSynopticForcing)
@@ -437,6 +462,8 @@ namespace Orbis.Flat
                 if (resumed)
                 {
                     pendingStrip = -1;
+                    stagingUpperWind = false;
+                    bake.SetTexture("_UpperWindTex", glebaUpperWind);
                     weatherWasHidden = false;
                     forcingScheduler.NotifyCloudsResumed();
                 }
@@ -446,7 +473,11 @@ namespace Orbis.Flat
                     (effectiveDay - stagingCalendarDay) > 0.5 ||
                     (!animate && Math.Abs(effectiveDay - stagingCalendarDay) > 1e-7) ||
                     forcingScheduler.ShouldAbortPendingStrip(world, effectiveDay)))
+                {
                     pendingStrip = -1;
+                    stagingUpperWind = false;
+                    bake.SetTexture("_UpperWindTex", glebaUpperWind);
+                }
                 if (pendingStrip >= 0)
                 {
                     // Keep advancing/coalescing background forcing without overwriting _ClimateTex mid-strip.
@@ -484,7 +515,7 @@ namespace Orbis.Flat
                     Math.Abs(effectiveDay - cache.VisibleWindDay) > 1e-7 ||
                     world.TerrainRevision != cache.VisibleWindRevision ||
                     cache.WindUploadGeneration != cache.VisibleWindGeneration;
-                bool forcingChanged = pendingForcingBake ||
+                bool forcingChanged = pendingForcingBake || upperWindStagingPending ||
                     world.TerrainRevision != cache.VisibleWindRevision ||
                     cache.WindUploadGeneration != cache.VisibleWindGeneration;
                 bool regionalChanged = changed || (fieldReady && RegionalClimateStep != regionalClimate.Step);
@@ -516,14 +547,19 @@ namespace Orbis.Flat
                 stagingRevision = world.TerrainRevision;
                 stagingCalendarDay = effectiveDay;
                 stagingWeatherTime = weatherTime;
+                stagingUpperWind = upperWindStagingPending;
+                stagingMonthBlend = season.SegmentBlend;
+                Texture2D activeUpperWind = stagingUpperWind ? glebaUpperWindBack : glebaUpperWind;
+                bool activeUpperWindReady = stagingUpperWind ? upperWindBackReady : publishedUpperWindReady;
                 StageCloudWind(effectiveDay, windNeedsStage);
                 StageCyclones(nextNorth, nextSouth, nextPhase);
+                bake.SetTexture("_UpperWindTex", activeUpperWind ? activeUpperWind : Texture2D.blackTexture);
                 bake.SetFloat("_VisualTime", (float)stagingWeatherTime);
-                bake.SetFloat("_MonthBlend", season.SegmentBlend);
-                hpColumn.SetFloat("_MonthBlend", season.SegmentBlend);
-                hpColumn.SetTexture("_ScrollUpperWindTex", glebaUpperWind ? glebaUpperWind : Texture2D.blackTexture);
-                hpColumn.SetFloat("_ScrollUpperWindReady", upperWindReady && glebaUpperWind ? 1f : 0f);
-                hpColumn.SetFloat("_ScrollMonthBlend", season.SegmentBlend);
+                bake.SetFloat("_MonthBlend", stagingMonthBlend);
+                hpColumn.SetFloat("_MonthBlend", stagingMonthBlend);
+                hpColumn.SetTexture("_ScrollUpperWindTex", activeUpperWind ? activeUpperWind : Texture2D.blackTexture);
+                hpColumn.SetFloat("_ScrollUpperWindReady", activeUpperWindReady && activeUpperWind ? 1f : 0f);
+                hpColumn.SetFloat("_ScrollMonthBlend", stagingMonthBlend);
                 RenderCache(weatherBack, bake);
                 hpColumn.SetTexture("_ScrollWeatherTex", weatherBack);
                 hpColumn.SetFloat("_ScrollWeatherTime", (float)stagingWeatherTime);
@@ -583,6 +619,7 @@ namespace Orbis.Flat
             if (glebaForcing) Destroy(glebaForcing);
             if (glebaAux) Destroy(glebaAux);
             if (glebaUpperWind) Destroy(glebaUpperWind);
+            if (glebaUpperWindBack) Destroy(glebaUpperWindBack);
             if (wind) Destroy(wind);
             if (windBack) Destroy(windBack);
             if (climateWind) Destroy(climateWind);
