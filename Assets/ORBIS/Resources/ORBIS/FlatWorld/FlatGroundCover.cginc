@@ -25,7 +25,7 @@ float3 PDGroundPlant(float3 col,PDPlantView view,float2 cell,float2 source,float
  if(view.weight>0&&(anchor.y<0||anchor.y>=1))return col;
  float2 root=source+anchor;
  float2 p=floor(PDPlantPixel(view,cell,root,scale)+plant.xy)-plant.xy+.5;
- if(p.x< -3||p.x>4.5||p.y< -1||p.y>8)return col;
+ if(p.x< -4.5||p.x>5.5||p.y< -1||p.y>8)return col;
  if(FlatPlantRiverEdge(root,_PixelsPerTile)<=0)return col;
  if(view.weight>0)
  {
@@ -38,7 +38,10 @@ float3 PDGroundPlant(float3 col,PDPlantView view,float2 cell,float2 source,float
  float windHeight=cover>9.5&&cover<10.5?plant.w:height+1;
  float bend=saturate(p.y/max(1,windHeight));
  float2 wind=PDVegetationWind(canonical,variation);
- p-=float2(wind.x*.8,wind.y*.35)*bend*bend;
+ float windSq=dot(wind,wind);
+ // Root (p.y<=0) stays strictly pinned (bend==0); strong storm gusts lean and flatten blade tips downwind.
+ p-=float2(wind.x*1.02,wind.y*.42)*bend*bend;
+ p.y+=min(1.45,windSq*.15)*bend*bend;
  float stems=PDBox(p,float2(0,0),float2(1,height));
  stems=max(stems,PDBox(p,float2(-1,height-2),float2(0,height)));
  stems=max(stems,PDBox(p,float2(1,1),float2(2,height-1)));

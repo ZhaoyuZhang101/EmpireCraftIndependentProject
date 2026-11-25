@@ -256,8 +256,23 @@
      col=lerp(col,FlatColor(float3(118,123,113)/255),surveyStrait*(1-naturalView)*(1-waterMask));
      col=FlatWaterBanks(cell,col,terrainRelief.rgb,channel,sediment,field.g,(1-waterMask)*_ShowBanks,aa,1/max(1,_PixelsPerTile),beachScale);
      col=lerp(col,coast.albedo*terrainRelief.rgb,coast.coverage*_ShowBanks*naturalView*(1-inundatedWeight));
+     // SWE wet-shore capillary darkening & sheen band on dry lowlands bordering floodwater (zero effect outside active SWE).
+     float sweWetShore=0;
+     #ifndef ORBIS_FLAT_NO_SWE
+     if(swe.weight>.001&&baseWaterMask<.99)
+     {
+      float dampRim=saturate(smoothstep(.003,.055,swe.deltaEta)+smoothstep(.02,.18,swe.foam)*.45)*(1-inundatedWeight*.72);
+      sweWetShore=dampRim*swe.weight*(1-baseWaterMask)*naturalView;
+      col=lerp(col,col*float3(.58,.60,.62),sweWetShore*.68);
+     }
+     #endif
      float3 prelitGround=col;
      col*=illumination;
+     if(sweWetShore>.001)
+     {
+      float wetSheen=pow(saturate(dot(normalize(localSun+surfaceView),float3(0,0,1))),16)*saturate(localSun.z);
+      col+=illumination*FlatColor(float3(.55,.65,.70))*wetSheen*sweWetShore*.22;
+     }
      float3 bottom=lerp(FlatMaterialColor(floor(geo.g+.5))*.72,prelitGround,inundatedWeight*naturalView);
      float3 waterColor=FlatColor(float3(.20,.43,.55))*illumination;
      // The uniform switch skips optics without exposing padded land under water.

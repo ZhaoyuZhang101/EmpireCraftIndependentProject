@@ -60,7 +60,14 @@ float4 FlatWaterPropReflection(float2 cell,float waterHeight,float3 ray,float3 l
         float2 pixel=float2(ground.x+ray.x*travel,height*heightProjection);
         if(settlement?(abs(pixel.x)>17||pixel.y<0||pixel.y>40):!PDTreeInDrawBounds(pixel))continue;
         float4 art;
-        if(settlement)art=PDSettlementArtwork(floor(pixel+float2(16,5)),light);
+        if(settlement)
+        {
+            float2 canonicalSrc=source;canonicalSrc.x-=floor(canonicalSrc.x/_MapSize.x)*_MapSize.x;
+            float sSeed=PDHash(canonicalSrc+float2(17.3,53.7));
+            float sStorm;
+            float2 sWind=PDSettlementWind(canonicalSrc,sSeed,sStorm);
+            art=PDSettlementArtwork(floor(pixel+float2(16,5)),light,sWind,sSeed);
+        }
         else
         {
             float tree;

@@ -32,6 +32,7 @@ namespace Orbis.Flat
         bool rendered, failed;
         double stagedClock, stagingCalendarDay = double.NaN, stagingWeatherTime;
         Vector4 pendingNorth, pendingSouth, pendingPhase, visibleNorth, visibleSouth, visiblePhase;
+        Vector4 hiddenSurfaceNorth, hiddenSurfaceSouth;
         FlatRegionalCloudField regionalClimate;
         FlatCycloneWeather rewindCycloneCache;
         int rewindCycloneRevision = -1;
@@ -68,6 +69,8 @@ namespace Orbis.Flat
         public bool DynamicReady { get { return Ready; } }
         public double RenderClock { get { return stagedClock; } }
         public Vector4[] LightningFlashes { get { return flashes; } }
+        public Vector4 PublishedCycloneNorth { get { return weatherWasHidden ? hiddenSurfaceNorth : visibleNorth; } }
+        public Vector4 PublishedCycloneSouth { get { return weatherWasHidden ? hiddenSurfaceSouth : visibleSouth; } }
 
         public void Initialize(WorldData data)
         {
@@ -486,6 +489,8 @@ namespace Orbis.Flat
             if (!needed)
             {
                 forcingScheduler.Poll(world, effectiveDay, cloudsNeeded: false, allowCommit: false, out _, out _);
+                if (!weatherWasHidden || animate)
+                    SampleCyclones(effectiveDay, out hiddenSurfaceNorth, out hiddenSurfaceSouth, out _);
                 weatherWasHidden = true;
                 Status = "云缓存休眠；晨昏/大气开关独立。";
                 return;
@@ -626,8 +631,8 @@ namespace Orbis.Flat
             target.SetTexture("_VegetationWindTex", climateWind ? climateWind : Texture2D.blackTexture);
             target.SetFloat("_VegetationWindReady", climateWind ? 1 : 0);
             target.SetFloat("_VegetationWindBlend", windBlend);
-            target.SetVector("_CycloneNorth", visibleNorth);
-            target.SetVector("_CycloneSouth", visibleSouth);
+            target.SetVector("_CycloneNorth", PublishedCycloneNorth);
+            target.SetVector("_CycloneSouth", PublishedCycloneSouth);
             Texture2D pubPrecipTex = null;
             Vector4 pubPrecipPoles = Vector4.zero;
             bool precipValid = Ready && regionalClimate != null &&
