@@ -3853,19 +3853,26 @@ namespace Orbis.Flat
                     float lowLevelStability = FMath.Clamp((0.08f + 0.92f * coldDeckGate) * (0.30f + 0.70f * inversionLid) * (1f - 0.78f * warmSst) * (1f - 0.48f * capeInstability), 0f, 1f);
                     float subtropSc = oceanFrac * scLat * FMath.Clamp(lowLevelStability * 1.18f, 0f, 1f);
                     float eqColdSc = ekmanColdSlot * (0.28f + 0.24f * Math.Max(coolUpwelling, eastCentralBasin)) * (1f - 0.62f * warmSst);
+                    // On poleward (>23 deg) and outer offshore Sc margins, passing baroclinic troughs & dry synoptic intrusions
+                    // periodically break the inversion into open-cell POC rifts (avoiding 360-day overcast lockups while keeping
+                    // core 10..22 deg Peru/Benguela coastal upwelling decks persistent).
+                    float polewardScEdge = Smooth(23f * hadleyScale, 31f * hadleyScale, absLat);
+                    float outerScMargin = FMath.Clamp(0.60f * polewardScEdge + 0.40f * (1f - eastCoastal), 0f, 1f);
+                    float scSynRift = outerScMargin * FMath.Clamp(0.75f * Smooth(0.28f, 0.68f, effEvap) + 0.50f * Smooth(0.22f, 0.60f, eddyLowP), 0f, 0.68f);
                     float marineSc = FMath.Clamp(
-                        Math.Max(subtropSc, eqColdSc) * (1f - 0.85f * itczConv) * (1f - 0.68f * leeDownslope) * moistAir,
+                        Math.Max(subtropSc, eqColdSc) * (1f - scSynRift) * (1f - 0.85f * itczConv) * (1f - 0.68f * leeDownslope) * moistAir,
                         0f, 1f);
 
-                    float orogCrest = FMath.Clamp(windwardLift * Smooth(0.18f, 0.54f, rh + 0.30f * FMath.Clamp(rainMm / 140f, 0f, 1f)), 0f, 1f);
+                    float orogCrest = FMath.Clamp(windwardLift * Smooth(0.18f, 0.54f, rh + 0.30f * FMath.Clamp(rainMm / 140f, 0f, 1f)) * (1f - 0.52f * Smooth(0.38f, 0.82f, effEvap)), 0f, 1f);
                     float dryAirClear = 0.96f * (1f - moistAir);
                     float ridgeClear = FMath.Clamp(0.26f * eddyHighP + 0.18f * Math.Max(0f, -windConv), 0f, 0.42f) * (1f - 0.55f * FMath.Clamp(rainMm / 150f, 0f, 1f));
                     // Active upslope flow overrides stale climatological rain-shadowiness from the opposite wind regime,
                     // while active downslope flow builds a dynamic foehn rain shadow on the leeward slope.
                     float effStaticShadow = rainShadow * (1f - 0.82f * windwardLift);
-                    // Post-precipitation rain-out & dry post-trough subsidence clear clouds outside protected marine Sc decks.
+                    // Post-precipitation rain-out & dry post-trough subsidence clear clouds outside protected marine Sc decks
+                    // (including windward mountain ridges when synoptic ridge subsidence caps upslope ascent).
                     float scShield = Smooth(0.36f, 0.70f, marineSc);
-                    float synSubsidenceShadow = (0.30f * effEvap + 0.48f * blanketDryShutoff + 0.14f * highLatStormClear * effEvap) * (1f - 0.82f * scShield) * (1f - 0.75f * windwardLift);
+                    float synSubsidenceShadow = (0.30f * effEvap + 0.48f * blanketDryShutoff + 0.14f * highLatStormClear * effEvap) * (1f - 0.82f * scShield) * (1f - 0.42f * windwardLift * (1f - effEvap));
                     float leeShadow = FMath.Clamp(effStaticShadow + 0.56f * leeDownslope + 0.82f * walkerClear + ridgeClear + synSubsidenceShadow + dryAirClear, 0f, 1f);
                     float localPol = latDeg >= 0f ? polNCol[x] : -polSCol[x];
                     float polNorm = FMath.Clamp((localPol - 30f) / 58f, 0f, 1f);

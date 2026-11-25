@@ -31,6 +31,7 @@ public static class CloudForcingRegression
     public static void Run()
     {
         var earth = BuildEarth256();
+        VerifyCoastalPrecipitationBreaks(earth);
         var fictional = FlatGenerator.Generate(GridW, GridH, "ORBIS-CLOUD-FORCING-2026", TerrainPreset.Continents, default);
 
         VerifyEarthBaselineAndPerf(earth);
@@ -53,8 +54,38 @@ public static class CloudForcingRegression
         VerifyAsyncSchedulerPerformanceAndRaces(earth, fictional);
         VerifySynopticWeatherEvolutionAndRegimePersistence(earth);
         VerifyRegionalSnapshotStripSyncAndInvariants(earth);
+        VerifySeasonalCoastalAndMonsoonAnomalies(earth, fictional);
 
-        Console.WriteLine("PASS cloud-forcing regression: Earth + fictional world synoptic dynamics, CAPE/humidity/soil convection, wind/front/orography, cold/warm SST Sc, 1x vs 0.45x rotation belts, cache cadence, seasonal/interannual continuity, regional/cyclone wiring, save compatibility, synoptic weather lifecycle, atomic 4-strip regional snapshot buffering, and async background forcing scheduler (zero-alloc, coalescing, race safety).");
+        Console.WriteLine("PASS cloud-forcing regression: Earth + fictional world synoptic dynamics, CAPE/humidity/soil convection, wind/front/orography, cold/warm SST Sc, 1x vs 0.45x rotation belts, cache cadence, seasonal/interannual continuity, regional/cyclone wiring, save compatibility, synoptic weather lifecycle, atomic 4-strip regional snapshot buffering, coastal/monsoon anomaly guards, and async background forcing scheduler (zero-alloc, coalescing, race safety).");
+    }
+
+    static void VerifyCoastalPrecipitationBreaks(WorldData earth)
+    {
+        const int samples = 12 * 30 * 4;
+        const float significantPrecipitation = .25f;
+        var world = earth.Clone();
+        var simulation = new FlatSimulation(world);
+        var budget = new FlatMoistureCloudBudget();
+        int coast = FlatMoistureCloudBudget.CellIndexAtLonLat(-75.9375, -14.0625);
+        int wet = 0, dryRun = 0, longestDryRun = 0;
+        for (int step = 0; step < samples; step++)
+        {
+            budget.Solve(world, world.Day, world.Cyclones);
+            if (budget.SurfacePrecipKgM2Per6h[coast] >= significantPrecipitation)
+            {
+                wet++;
+                dryRun = 0;
+            }
+            else
+            {
+                dryRun++;
+                longestDryRun = Math.Max(longestDryRun, dryRun);
+            }
+            simulation.Step(.25f);
+        }
+        Check(wet > 0 && longestDryRun >= 4,
+            $"Peru coastal weather cell needs rain and at least one dry day, got {wet}/{samples} wet 6h samples and {longestDryRun * 6} dry hours");
+        Console.WriteLine($"[0. Annual coastal precipitation] Peru: {wet}/{samples} wet 6h samples, longest dry interval {longestDryRun * 6} hours.");
     }
 
     static WorldData BuildEarth256()
@@ -1841,6 +1872,84 @@ public static class CloudForcingRegression
             num += absLat * w; den += w;
         }
         return num / den;
+    }
+
+    static void VerifySeasonalCoastalAndMonsoonAnomalies(WorldData earthBase, WorldData fictionalBase)
+    {
+        var w = earthBase.Clone();
+        var budget = new FlatMoistureCloudBudget();
+        int cPeruCoast = FlatMoistureCloudBudget.CellIndexAtLonLat(-75.9375, -14.0625);
+        int cPatagonia = FlatMoistureCloudBudget.CellIndexAtLonLat(-70.3125, -42.1875);
+        int cAtacama = FlatMoistureCloudBudget.CellIndexAtLonLat(-69.0, -24.0);
+        int cPeruSc = FlatMoistureCloudBudget.CellIndexAtLonLat(-80.5, -19.0);
+        int cSahara = FlatMoistureCloudBudget.CellIndexAtLonLat(19.0, 24.0);
+        int cBengal = FlatMoistureCloudBudget.CellIndexAtLonLat(88.0, 21.0);
+        int cGhats = FlatMoistureCloudBudget.CellIndexAtLonLat(75.0, 15.0);
+
+        int peruCoastDry6h = 0, patagoniaDry6h = 0, atacamaDry6h = 0, saharaWet6h = 0, peruScCloudy6h = 0;
+        int bengalWetDaysSummer = 0, bengalWetDaysWinter = 0, ghatsWetDaysSummer = 0;
+        double maxMassErr = 0.0;
+
+        // Sample two 30-day (120 x 6h, spanning a full MJO/synoptic cycle) windows in NH winter (Days 10..39.75) and NH summer monsoon (Days 170..199.75)
+        foreach (double startDay in new[] { 10.0, 170.0 })
+        {
+            w.Day = startDay;
+            w.Cyclones = FlatCycloneWeather.SpinUpAt(w, startDay);
+            var sim = new FlatSimulation(w);
+            bool isSummer = startDay > 100.0;
+            float bengalDaily = 0f, ghatsDaily = 0f;
+            for (int step = 0; step < 120; step++)
+            {
+                budget.Solve(w, w.Day, w.Cyclones);
+                if (budget.WaterBudgetErrorKgM2 > maxMassErr) maxMassErr = budget.WaterBudgetErrorKgM2;
+                if (budget.SurfacePrecipKgM2Per6h[cPeruCoast] < 0.25f) peruCoastDry6h++;
+                if (budget.SurfacePrecipKgM2Per6h[cPatagonia] < 0.25f) patagoniaDry6h++;
+                if (budget.SurfacePrecipKgM2Per6h[cAtacama] < 0.25f) atacamaDry6h++;
+                if (budget.SurfacePrecipKgM2Per6h[cSahara] >= 0.10f) saharaWet6h++;
+                var dSc = budget.GetCellDiagnostics(cPeruSc);
+                if (dSc.LowCloudKgM2 + dSc.HighCloudKgM2 >= 0.10f) peruScCloudy6h++;
+
+                bengalDaily += budget.SurfacePrecipKgM2Per6h[cBengal];
+                ghatsDaily += budget.SurfacePrecipKgM2Per6h[cGhats];
+                if (step % 4 == 3)
+                {
+                    if (bengalDaily >= 1.0f) { if (isSummer) bengalWetDaysSummer++; else bengalWetDaysWinter++; }
+                    if (ghatsDaily >= 1.0f && isSummer) ghatsWetDaysSummer++;
+                    bengalDaily = 0f;
+                    ghatsDaily = 0f;
+                }
+                sim.Step(0.25f);
+            }
+        }
+
+        // Also check fictional Continents (-132.1875, -47.8125) coastal/orographic cell has genuine dry breaks across summer + winter
+        var wf = fictionalBase.Clone();
+        int cContOrog = FlatMoistureCloudBudget.CellIndexAtLonLat(-132.1875, -47.8125);
+        int contDry6h = 0;
+        foreach (double startDay in new[] { 10.0, 170.0 })
+        {
+            wf.Day = startDay;
+            wf.Cyclones = FlatCycloneWeather.SpinUpAt(wf, startDay);
+            var simF = new FlatSimulation(wf);
+            for (int step = 0; step < 120; step++)
+            {
+                budget.Solve(wf, wf.Day, wf.Cyclones);
+                if (budget.WaterBudgetErrorKgM2 > maxMassErr) maxMassErr = budget.WaterBudgetErrorKgM2;
+                if (budget.SurfacePrecipKgM2Per6h[cContOrog] < 0.25f) contDry6h++;
+                simF.Step(0.25f);
+            }
+        }
+
+        Console.WriteLine($"[11. Coastal/Orographic & Monsoon Anomaly Guards] PeruCoastDry={peruCoastDry6h}/240, PatagoniaDryBreaks={patagoniaDry6h}/240, ContOrogDryBreaks={contDry6h}/240 | " +
+            $"AtacamaDry={atacamaDry6h}/240, SaharaWet={saharaWet6h}/240, PeruScCloudy={peruScCloudy6h}/240 | BengalWetDays(Sum={bengalWetDaysSummer}/30 vs Win={bengalWetDaysWinter}/30), GhatsSum={ghatsWetDaysSummer}/30 | MaxBudgetErr={maxMassErr:E2}");
+
+        Check(peruCoastDry6h >= 150 && patagoniaDry6h >= 20 && contDry6h >= 10,
+            $"Coastal/orographic non-stop wet lockup recurred: PeruCoastDry={peruCoastDry6h}/240, PatagoniaDry={patagoniaDry6h}/240, ContOrogDry={contDry6h}/240");
+        Check(saharaWet6h == 0 && atacamaDry6h >= 180 && peruScCloudy6h >= 190,
+            $"Hyper-arid desert or Peru Sc deck regressed: SaharaWet={saharaWet6h}, AtacamaDry={atacamaDry6h}/240, PeruScCloudy={peruScCloudy6h}/240");
+        Check(bengalWetDaysSummer >= 4 && bengalWetDaysSummer > bengalWetDaysWinter && ghatsWetDaysSummer >= 4,
+            $"Monsoon summer rainfall or winter dry contrast failed: BengalSum={bengalWetDaysSummer}, BengalWin={bengalWetDaysWinter}, GhatsSum={ghatsWetDaysSummer}");
+        Check(maxMassErr < 1e-4, $"Water budget conservation error exceeded 1e-4 kg/m2: {maxMassErr:E3}");
     }
 
     static double MeanZonalSurfaceWind(float[] windRgba, float absLat0, float absLat1)

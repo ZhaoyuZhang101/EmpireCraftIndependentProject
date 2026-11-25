@@ -440,10 +440,10 @@ namespace Orbis.Flat
 
         void SampleCyclones(double calendarDay, out Vector4 northVec, out Vector4 southVec, out Vector4 phaseVec)
         {
-            var state = world.Cyclones;
+            long targetStep = FlatCycloneWeather.StepAt(calendarDay);
+            var state = FlatCycloneWeather.ForwardStateAtTick(world, targetStep);
             if (state != null)
             {
-                long targetStep = FlatCycloneWeather.StepAt(calendarDay);
                 if (targetStep < state.StepIndex)
                 {
                     if (rewindCycloneCache == null || rewindCycloneRevision != world.TerrainRevision ||
@@ -542,7 +542,7 @@ namespace Orbis.Flat
                 }
 
                 if (regionalClimate == null) regionalClimate = new FlatRegionalCloudField(world);
-                double regionalDay = Math.Min(world.Day, effectiveDay);
+                double regionalDay = effectiveDay;
                 bool fieldReady = regionalClimate.Prepare(regionalDay, out bool changed);
 
                 // Never publish an incomplete or segment-mismatched cloud bake while the matching

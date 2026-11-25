@@ -744,6 +744,29 @@ public static class WaterHazardsRegression
               !pool.TrySamplePrecipitationForTick(simProbe.World, tickLf - 1, uFocus, vFocus, out _),
             "Snapshot pool must reject stale or future 6h tick queries");
 
+        // Rendering can reach a new six-hour slot while the world clock
+        // still has uncommitted time. Use the predicted endpoints to validate it.
+        var forecastWorld = simProbe.World.Clone();
+        double forecastDay = testDay + .25;
+        long forecastTick = FlatCycloneWeather.StepAt(forecastDay);
+        var forecast = forecastWorld.Cyclones.Clone();
+        forecast.AdvanceTo(forecastWorld, forecastDay);
+        int forecastSlot = pool.AcquireUploadSlot();
+        budget.Solve(forecastWorld, forecastDay, forecast);
+        budget.PackPrecipitationHalf(pool.GetSlot(forecastSlot).PrecipHalf, out sR, out sS, out nR, out nS);
+        pool.CommitUpload(forecastWorld, forecastSlot, forecastTick, forecastWorld.TerrainRevision, forecastWorld.Moisture,
+            true, false, in forecast.North, in forecast.South, in forecast.PreviousNorth, in forecast.PreviousSouth,
+            0f, 0f, 0f, 0f, sR, sS, nR, nS);
+        Check(pool.HasExactLatestFor(forecastWorld, forecastTick) &&
+              pool.TrySamplePrecipitationForTick(forecastWorld, forecastTick, uFocus, vFocus, out _),
+            "Same-world forecast precipitation must be available at the pending calendar tick");
+        Check(forecastWorld.Day == testDay && forecastWorld.Cyclones.StepIndex == tickLf,
+            "Sampling a forecast must leave the committed world clock untouched");
+        forecastWorld.Cyclones.North.WindSpeed += 5;
+        Check(!pool.HasExactLatestFor(forecastWorld, forecastTick) &&
+              !pool.TrySamplePrecipitationForTick(forecastWorld, forecastTick, uFocus, vFocus, out _),
+            "Replacing the live wind invalidates a previously projected six-hour snapshot");
+
         // Verify actual 6h snapshot surface precipitation increases SWE rain/channel ledger vs dry-virga (0 kg/m^2/6h) snapshot
         var sweWithSnap = FlatWaterHazardSession.Create(simProbe.World, FlatHazardKind.RainFlood, -1, liveWeatherDriven: true, applyInitialForcing: true,
             initialCalendarDay: testDay, initialSurfaceRainKgM2Per6h: 5.2);
