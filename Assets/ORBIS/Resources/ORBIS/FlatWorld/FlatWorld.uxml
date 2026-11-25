@@ -57,6 +57,7 @@
       <ui:VisualElement class="row"><ui:Button name="hazardTsunami" text="海床位移海啸" class="grow accent"/><ui:Button name="hazardFocus" text="定位灾区" class="grow"/></ui:VisualElement>
       <ui:Toggle name="hazardLiveWeather" text="接通实时台风与暴雨事件" value="true"/>
       <ui:Button name="hazardClear" text="清理退水"/>
+      <ui:Button name="hazardReturnOriginal" text="返回原局" class="accent is-hidden"/>
       <ui:Label name="waterStatus" text="" class="muted"/>
      </ui:Foldout>
     </ui:VisualElement>
