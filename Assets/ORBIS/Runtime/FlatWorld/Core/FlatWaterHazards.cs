@@ -1414,8 +1414,9 @@ namespace Orbis.Flat
                     var sample = FlatCycloneWeather.SampleSurfaceWindFromTrack(in liveCyclone, hemisphereSpin, uCell, vCell);
                     double cycRainMmH = pureVirgaDrySurface && sample.RadiusKm > 180f ? 0.0 : sample.RainRateMmPerHour;
                     double localRainMmH = cycRainMmH;
-                    if (synMesoscaleRainMmH > 0.0 && (sample.Active || synExcess6h >= 2.2))
-                        localRainMmH = Math.Max(localRainMmH, synMesoscaleRainMmH);
+                    double vortexRainGate = sample.Active ? FMath.Clamp((float)((sample.TangentialSpeedMs - 9.0) / 14.0), 0f, 1f) : 0.0;
+                    if (synMesoscaleRainMmH > 0.0 && (vortexRainGate > 0.0 || synExcess6h >= 9.5))
+                        localRainMmH = Math.Max(localRainMmH, synMesoscaleRainMmH * Math.Max(vortexRainGate, synExcess6h >= 9.5 ? 1.0 : 0.0));
 
                     if (sample.Active)
                     {
