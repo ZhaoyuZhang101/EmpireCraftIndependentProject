@@ -20,7 +20,7 @@ public static class Program
                 int width=args.Length>1?int.Parse(args[1]):1024,years=args.Length>2?int.Parse(args[2]):200;
                 Smoke(width,years,args.Length>3?args[3]:null);
             }
-            else{Operations();Skeleton();RulesChecks.Rules();RulesChecks.Scheduling();RulesChecks.Data();RulesChecks.Accounts();RulesChecks.Runner();}
+            else{Operations();Skeleton();RulesChecks.Rules();RulesChecks.MoreRules();RulesChecks.Scheduling();RulesChecks.Data();RulesChecks.Accounts();RulesChecks.Runner();}
             return 0;
         }
         catch(Exception e){Console.Error.WriteLine(e);return 1;}

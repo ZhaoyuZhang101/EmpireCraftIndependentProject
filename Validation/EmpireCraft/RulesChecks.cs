@@ -109,6 +109,41 @@ public static class RulesChecks
         Console.WriteLine("PASS ported rules (" + checks + " checks)");
     }
 
+    // A sample of the second batch (everything the closure run found portable).
+    public static void MoreRules()
+    {
+        checks = 0;
+        var heap = new MinHeap<int>(); var order = new List<float>();
+        for (int i = 0; i < 200; i++) heap.Push((i * 7919) % 211, i);
+        while (heap.Count > 0) order.Add(heap.Pop().key);
+        Check(order.Count == 200 && order.SequenceEqual(order.OrderBy(k => k)), "the heap pops in key order");
+        var buckets = new HashSet<int>();
+        for (int a = 0; a < 64; a++) for (int b = 0; b < 64; b++) buckets.Add(PackedKeyComparer.Instance.GetHashCode(((long)a << 32) | (uint)b) & 0xFFFF);
+        Check(buckets.Count > 3900, "packed pair keys spread over the hash space, " + buckets.Count + " of 4096 distinct");
+
+        Check(StateDebtRules.AnnualRate(true, 100, false) < StateDebtRules.AnnualRate(false, 20, true) && StateDebtRules.AnnualRate(false, 0, true) <= 0.12f, "weak, unbanked states borrow dearer, capped at 12%");
+        double carry = 0d; long interest = 0;
+        for (int month = 0; month < 12; month++) interest += StateDebtRules.MonthlyInterest(1000, 0.07f, ref carry);
+        Check(interest == 70 && carry < 1e-6, "a year of monthly interest adds up to the annual rate, got " + interest);
+        Check(StateDebtRules.Annualize(new long[] { 1200, 0 }, 2) == 0 && StateDebtRules.Annualize(Enumerable.Repeat(10L, 12).ToList(), 12) == 120, "one windfall month is not a yearly income");
+
+        double taxCarry = 0d; long taxed = 0;
+        for (int month = 0; month < 40; month++) taxed += SectorTaxRules.Assess(33.3d, 0.1d, TreasuryCategory.LandTax, ref taxCarry);
+        Check(Math.Abs(taxed + taxCarry - 133.2d) < 1e-6, "sector tax keeps its fractions, " + taxed + " + " + taxCarry);
+        Check(SectorTaxRules.Rate(0.1d, TreasuryCategory.CommercialTax) > SectorTaxRules.Rate(0.1d, TreasuryCategory.LandTax) && SectorTaxRules.Rate(0d, TreasuryCategory.CommercialTax) == 0d, "trade is taxed above land; a zero rate stays zero");
+
+        // Five electors, three candidates: a clear majority wins outright, a split goes to a run-off.
+        var clear = ImperialElectionRules.Tally(new float[,] { { 9, 1, 1 }, { 8, 2, 1 }, { 7, 1, 3 }, { 1, 9, 1 }, { 1, 1, 9 } });
+        Check(clear.winner == 0 && !clear.runoff && clear.winnerVotes == 3, "three of five votes elect outright");
+        var split = ImperialElectionRules.Tally(new float[,] { { 9, 1, 2 }, { 8, 2, 1 }, { 1, 9, 2 }, { 1, 8, 2 }, { 1, 5, 9 } });
+        Check(split.runoff && split.winner == 1 && split.winnerVotes == 3, "a split college goes to a run-off, winner " + split.winner);
+
+        var touched = new int[1000];
+        ParallelWork.For(touched.Length, i => System.Threading.Interlocked.Increment(ref touched[i]));
+        Check(touched.All(n => n == 1), "parallel work covers every index exactly once");
+        Console.WriteLine("PASS second batch sample (" + checks + " checks)");
+    }
+
     // The shared frame budget: jobs run once a frame while there is budget, are put
     // off when there is none, and are never starved.
     public static void Scheduling()
