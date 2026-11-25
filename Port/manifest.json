@@ -11773,6 +11773,402 @@
       ]
     },
     {
+      "mod": "Scripts/Regimes/Configs/Arabic/OfficialType.csv",
+      "commit": "573aceb94a7c8bd7429daad4f88c87bd74c455f4",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Scripts/Regimes/Configs/Arabic/OfficialType.csv",
+      "lines": 27,
+      "sha256": "4d7e00eee55f9293008e3f2c7c5dbf12983d3d6f57b2f35a7bf32d38ed155bb1",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Scripts/Regimes/Configs/Arabic/SystemConfig.json",
+      "commit": "573aceb94a7c8bd7429daad4f88c87bd74c455f4",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Scripts/Regimes/Configs/Arabic/SystemConfig.json",
+      "lines": 193,
+      "sha256": "a1185e5312dabd28515f146ef4007228153012896658ac2b90fec2ab98d0a517",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Scripts/Regimes/Configs/Bakufu/OfficialType.csv",
+      "commit": "573aceb94a7c8bd7429daad4f88c87bd74c455f4",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Scripts/Regimes/Configs/Bakufu/OfficialType.csv",
+      "lines": 18,
+      "sha256": "48e3634f581f50a0a6fe625ee84764e34a8017a9b1b7cfca5a4cdfd348296aa6",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Scripts/Regimes/Configs/Bakufu/SystemConfig.json",
+      "commit": "573aceb94a7c8bd7429daad4f88c87bd74c455f4",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Scripts/Regimes/Configs/Bakufu/SystemConfig.json",
+      "lines": 260,
+      "sha256": "9aa176d7e9f69abb1b2136e06417a3c79c3ad10e8b82fb11cc5ae43f2e7a1cce",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Scripts/Regimes/Configs/Banner/OfficialType.csv",
+      "commit": "573aceb94a7c8bd7429daad4f88c87bd74c455f4",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Scripts/Regimes/Configs/Banner/OfficialType.csv",
+      "lines": 12,
+      "sha256": "4f1023bb18d4ffed08194b09a29ccb83644f0b94fc772e3ef4c291f6739055b1",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Scripts/Regimes/Configs/ClassicalRepublic/OfficialType.csv",
+      "commit": "573aceb94a7c8bd7429daad4f88c87bd74c455f4",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Scripts/Regimes/Configs/ClassicalRepublic/OfficialType.csv",
+      "lines": 16,
+      "sha256": "e2525d843deeb0be43a7ca791ae9a2524d9344bb4d4b69058ac1b0b0b6c5b2f3",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Scripts/Regimes/Configs/ClassicalRepublic/SystemConfig.json",
+      "commit": "573aceb94a7c8bd7429daad4f88c87bd74c455f4",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Scripts/Regimes/Configs/ClassicalRepublic/SystemConfig.json",
+      "lines": 124,
+      "sha256": "96b2f56272e6bb018f3063572678f0674ce3f5427bc5f3275de4adcc8ec0320b",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Scripts/Regimes/Configs/Colonial/OfficialType.csv",
+      "commit": "573aceb94a7c8bd7429daad4f88c87bd74c455f4",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Scripts/Regimes/Configs/Colonial/OfficialType.csv",
+      "lines": 13,
+      "sha256": "9d26e46237dc9177c952ff0a737af3ea0d30bc0cfe1cf91cf0277c6b901f2a11",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Scripts/Regimes/Configs/Colonial/SystemConfig.json",
+      "commit": "573aceb94a7c8bd7429daad4f88c87bd74c455f4",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Scripts/Regimes/Configs/Colonial/SystemConfig.json",
+      "lines": 193,
+      "sha256": "a668cb3ef62d7680990c1c5315e41eb66443d98d2ed461749256f31a82df7a82",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Scripts/Regimes/Configs/Feudalism/OfficialType.csv",
+      "commit": "573aceb94a7c8bd7429daad4f88c87bd74c455f4",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Scripts/Regimes/Configs/Feudalism/OfficialType.csv",
+      "lines": 31,
+      "sha256": "0c37401dd5083c2f9d2810c67a98ae77f5151f94883cda49b2d7088d25a1fa4e",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Scripts/Regimes/Configs/Feudalism/SystemConfig.json",
+      "commit": "573aceb94a7c8bd7429daad4f88c87bd74c455f4",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Scripts/Regimes/Configs/Feudalism/SystemConfig.json",
+      "lines": 297,
+      "sha256": "f254f3a254a0a0ae9aa88e61e01321ed8254721d132926610f6b512921c345d2",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Scripts/Regimes/Configs/Formations.json",
+      "commit": "573aceb94a7c8bd7429daad4f88c87bd74c455f4",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Scripts/Regimes/Configs/Formations.json",
+      "lines": 107,
+      "sha256": "1679cfc3d896d52c686c1dbbf977bd1d429fbfc59bcddb3515e5ba8cc41d79b2",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Scripts/Regimes/Configs/HuaxiaOrigin/OfficialType.csv",
+      "commit": "573aceb94a7c8bd7429daad4f88c87bd74c455f4",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Scripts/Regimes/Configs/HuaxiaOrigin/OfficialType.csv",
+      "lines": 6,
+      "sha256": "3977f4027c0d1db59855d726b5292fbb38281e2da36ccf926c7b81a81d860190",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Scripts/Regimes/Configs/HuaxiaOrigin/SystemConfig.json",
+      "commit": "573aceb94a7c8bd7429daad4f88c87bd74c455f4",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Scripts/Regimes/Configs/HuaxiaOrigin/SystemConfig.json",
+      "lines": 192,
+      "sha256": "ff11a83ea68cb0f9f1ef9fcf3bb13763796a364b038733d719f25fffe7211b37",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Scripts/Regimes/Configs/LvLing/OfficialType.csv",
+      "commit": "573aceb94a7c8bd7429daad4f88c87bd74c455f4",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Scripts/Regimes/Configs/LvLing/OfficialType.csv",
+      "lines": 68,
+      "sha256": "cf93b3480d6f3745fdfa84df7580384b7bb153ac686a2ca21814c38e79520061",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Scripts/Regimes/Configs/LvLing/SystemConfig.json",
+      "commit": "573aceb94a7c8bd7429daad4f88c87bd74c455f4",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Scripts/Regimes/Configs/LvLing/SystemConfig.json",
+      "lines": 556,
+      "sha256": "5943f2f1a56deaa58399186f4f92bf56630e4642ca2031759081db0a6f6cf9cd",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Scripts/Regimes/Configs/NomadFeudalism/OfficialType.csv",
+      "commit": "573aceb94a7c8bd7429daad4f88c87bd74c455f4",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Scripts/Regimes/Configs/NomadFeudalism/OfficialType.csv",
+      "lines": 10,
+      "sha256": "b25cb970079772218b37f6b1329a7e57ec837984b7f190b4516f99ca973c9221",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Scripts/Regimes/Configs/NomadFeudalism/SystemConfig.json",
+      "commit": "573aceb94a7c8bd7429daad4f88c87bd74c455f4",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Scripts/Regimes/Configs/NomadFeudalism/SystemConfig.json",
+      "lines": 214,
+      "sha256": "79fa9ea7d94d7ad1337cf7dfe5bdf8a665cd337a8fba3dcdf950b39867fe8de7",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Scripts/Regimes/Configs/OfficialRanks.json",
+      "commit": "573aceb94a7c8bd7429daad4f88c87bd74c455f4",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Scripts/Regimes/Configs/OfficialRanks.json",
+      "lines": 189,
+      "sha256": "d84c3b098d0c5887594e370d5abde31d82e38082b3418ce176757295a3b974ba",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Scripts/Regimes/Configs/Origin/OfficialType.csv",
+      "commit": "573aceb94a7c8bd7429daad4f88c87bd74c455f4",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Scripts/Regimes/Configs/Origin/OfficialType.csv",
+      "lines": 51,
+      "sha256": "8d9353727196389517e1b3654ce76f781778d060edad87d186a57b8da3776709",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Scripts/Regimes/Configs/Origin/SystemConfig.json",
+      "commit": "573aceb94a7c8bd7429daad4f88c87bd74c455f4",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Scripts/Regimes/Configs/Origin/SystemConfig.json",
+      "lines": 192,
+      "sha256": "6e7c347ba1ba1a6ffa45b4327f617715f4b2f9566f95d9828d7b8134b8b2b85c",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Scripts/Regimes/Configs/OriginFeudalism/OfficialType.csv",
+      "commit": "573aceb94a7c8bd7429daad4f88c87bd74c455f4",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Scripts/Regimes/Configs/OriginFeudalism/OfficialType.csv",
+      "lines": 21,
+      "sha256": "2492118daaa13b6733ecd610f99373e717d25d948e5a3a12b07b852171e5213e",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Scripts/Regimes/Configs/OriginFeudalism/SystemConfig.json",
+      "commit": "573aceb94a7c8bd7429daad4f88c87bd74c455f4",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Scripts/Regimes/Configs/OriginFeudalism/SystemConfig.json",
+      "lines": 111,
+      "sha256": "f7682ffb49ed440195330417b9f88d7ea8e6cdb90d84961f625f97076282537e",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Scripts/Regimes/Configs/Republic/OfficialType.csv",
+      "commit": "573aceb94a7c8bd7429daad4f88c87bd74c455f4",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Scripts/Regimes/Configs/Republic/OfficialType.csv",
+      "lines": 26,
+      "sha256": "c6a023e3fa74b39107a63b4b3345aaba07650a9bc56fa3967f7ece2ebcb3f1a1",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Scripts/Regimes/Configs/Republic/SystemConfig.json",
+      "commit": "573aceb94a7c8bd7429daad4f88c87bd74c455f4",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Scripts/Regimes/Configs/Republic/SystemConfig.json",
+      "lines": 278,
+      "sha256": "830ac80aaaab0d073837a764c2b3a134286fc98b76217f9fea4935a4cd6f6268",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Scripts/Regimes/Configs/Transmigrant/Naturalization.json",
+      "commit": "573aceb94a7c8bd7429daad4f88c87bd74c455f4",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Scripts/Regimes/Configs/Transmigrant/Naturalization.json",
+      "lines": 36,
+      "sha256": "ce388209ba5587d28c0b2496ee779eede5a0013dbc4eba5a168b3e33a2166293",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Scripts/Regimes/Configs/Transmigrant/OfficialType.csv",
+      "commit": "573aceb94a7c8bd7429daad4f88c87bd74c455f4",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Scripts/Regimes/Configs/Transmigrant/OfficialType.csv",
+      "lines": 13,
+      "sha256": "dbc96b9101c4411190e7c21863ef9c70afaeef4eec12627afcd873b3ecbbd8cb",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Scripts/Regimes/Configs/Transmigrant/Senators.csv",
+      "commit": "573aceb94a7c8bd7429daad4f88c87bd74c455f4",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Scripts/Regimes/Configs/Transmigrant/Senators.csv",
+      "lines": 237,
+      "sha256": "792bfa6fc25ac6dbdf6d53d645a5da458d9af2556ea74bb16a71a66845407e2b",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Scripts/Regimes/Configs/Transmigrant/SystemConfig.json",
+      "commit": "573aceb94a7c8bd7429daad4f88c87bd74c455f4",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Scripts/Regimes/Configs/Transmigrant/SystemConfig.json",
+      "lines": 140,
+      "sha256": "358b95574542c7863479bb35ba055db38abc7e88ed7c424bc8723a2a962af05d",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Scripts/Regimes/Configs/YouMu/OfficialType.csv",
+      "commit": "573aceb94a7c8bd7429daad4f88c87bd74c455f4",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Scripts/Regimes/Configs/YouMu/OfficialType.csv",
+      "lines": 40,
+      "sha256": "20757854876391d84b839cbf21f3c096430fa3f6ec8ebf18074214b09858d182",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Scripts/Regimes/Configs/YouMu/SystemConfig.json",
+      "commit": "573aceb94a7c8bd7429daad4f88c87bd74c455f4",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Scripts/Regimes/Configs/YouMu/SystemConfig.json",
+      "lines": 183,
+      "sha256": "418bedd4e005bd038cc39db30c629ba9610d8c245287dcb0c46ffe09bc3f6193",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Scripts/Regimes/Configs/ZhouFeudalism/OfficialType.csv",
+      "commit": "573aceb94a7c8bd7429daad4f88c87bd74c455f4",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Scripts/Regimes/Configs/ZhouFeudalism/OfficialType.csv",
+      "lines": 32,
+      "sha256": "750e77bda9756a5523f6ed1e345a8719ac9fa9904c01dc4497424eab9e15c829",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Scripts/Regimes/Configs/ZhouFeudalism/SystemConfig.json",
+      "commit": "573aceb94a7c8bd7429daad4f88c87bd74c455f4",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Scripts/Regimes/Configs/ZhouFeudalism/SystemConfig.json",
+      "lines": 346,
+      "sha256": "cb0abd411165b8b7b7826bf02ce2fef5c513912606794a66980b5c91ee6d0d6c",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
       "mod": "Scripts/Regimes/FixedFaction.cs",
       "commit": "573aceb94a7c8bd7429daad4f88c87bd74c455f4",
       "ported": "2026-11-25",
@@ -11814,8 +12210,8 @@
       "kind": "source",
       "identity": true,
       "generated": true,
-      "suspended_lines": 31,
-      "suspended_members": 2,
+      "suspended_lines": 2,
+      "suspended_members": 1,
       "changes": [
         "generated by Tools/PortTool/members.py: identity rewrite, by-type renames, members that cannot compile yet inside #if EC_PENDING"
       ]

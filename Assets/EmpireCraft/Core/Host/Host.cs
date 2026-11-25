@@ -266,6 +266,47 @@ namespace EmpireCraft.Core
             return added;
         }
         public static int LoadFile(string path) => LoadJson(File.ReadAllText(path));
+
+        // A CSV of texts as the mod keeps them: a header "key,<language>,<language>...", then one key per line.
+        // The column of the loaded language is taken; a missing file or column adds nothing. Fields may be quoted.
+        public static int LoadLocales(string path)
+        {
+            if (string.IsNullOrEmpty(path) || !File.Exists(path)) return 0;
+            var lines = File.ReadAllLines(path);
+            if (lines.Length == 0) return 0;
+            var header = SplitCsv(lines[0].TrimStart('\uFEFF'));
+            int column = header.FindIndex(h => string.Equals(h.Trim(), Language, StringComparison.OrdinalIgnoreCase));
+            if (column <= 0) return 0;
+            int added = 0;
+            for (int i = 1; i < lines.Length; i++)
+            {
+                if (lines[i].Length == 0) continue;
+                var fields = SplitCsv(lines[i]);
+                if (fields.Count <= column || string.IsNullOrWhiteSpace(fields[0])) continue;
+                Table[fields[0].Trim()] = fields[column]; added++;
+            }
+            return added;
+        }
+
+        static List<string> SplitCsv(string line)
+        {
+            var fields = new List<string>(); var current = new System.Text.StringBuilder(); bool quoted = false;
+            for (int i = 0; i < line.Length; i++)
+            {
+                char c = line[i];
+                if (quoted)
+                {
+                    if (c == '"' && i + 1 < line.Length && line[i + 1] == '"') { current.Append('"'); i++; }
+                    else if (c == '"') quoted = false;
+                    else current.Append(c);
+                }
+                else if (c == '"') quoted = true;
+                else if (c == ',') { fields.Add(current.ToString()); current.Clear(); }
+                else current.Append(c);
+            }
+            fields.Add(current.ToString());
+            return fields;
+        }
     }
 
     // Where the rule data (Assets/EmpireCraft/Data, or its shipped copy) is read from.

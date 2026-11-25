@@ -86,6 +86,45 @@ namespace EmpireCraft.Core
             Run("ambition", AmbitionSystem.Yearly);
             Run("hostages", HostageSystem.Yearly);
             Run("road treaties", RoadTreatySystem.Yearly);
+            foreach (var empire in w.Empires.list.ToArray())
+                if (empire.Alive && empire.CoreKingdom != null && empire.CoreKingdom.Alive) EmpireYear(empire);
+        }
+
+        // An empire's year. In the mod one chain ran it (the empire's update, then its constitutional and economic
+        // year); that chain still waits on parts not brought over, so its links that compile are called here in
+        // the mod's order. Links still missing are simply not there yet; nothing stands in for them.
+        static void EmpireYear(Empire empire)
+        {
+            var state = empire.data.constitutional_economy ??= new ConstitutionalEconomyState();
+            state.recent_trade ??= new List<CompletedTradeVoyage>();
+            state.stable_culture ??= "";
+            Run("empire: tech drive", () => TechDriveSystem.Update(empire));
+            Run("empire: constitution", () => ConstitutionSystem.Update(empire, state));
+            Run("empire: parliament", () => ParliamentSystem.Update(empire));
+            Run("empire: provincial politics", () => ProvincialPoliticsSystem.Update(empire));
+            Run("empire: name contest", () => RealmNamingSystem.Monthly(empire));
+            Run("empire: economic cycle", () => EconomicCycleSystem.Update(empire, state));
+            Run("empire: labour", () => LabourSystem.Update(empire, state));
+            Run("empire: corruption", () => CorruptionSystem.Update(empire));
+            Run("empire: ideology dynamics", () => IdeologyDynamicsSystem.Update(empire, state));
+            Run("empire: ideology education", () => IdeologyEducationSystem.Update(empire));
+            Run("empire: military coup", () => MilitaryCoupSystem.Yearly(empire));
+            Run("empire: keju", () => KejuSystem.Yearly(empire));
+            Run("empire: court maladies", () => MaladySystem.Yearly(empire));
+            Run("empire: ruler quality", () => RulerQualitySystem.Yearly(empire));
+            Run("empire: consort kin", () => ConsortKinSystem.Yearly(empire));
+            Run("empire: palace army", () => PalaceArmySystem.Yearly(empire));
+            Run("empire: title centralisation", () => ModernTitleCentralization.Update(empire));
+            Run("empire: conglomerates", () => ConglomerateSystem.Update(empire, state));
+            Run("empire: ancient schools", () => AncientSchoolsSystem.Yearly(empire));
+            Run("empire: ethnic rank", () => EthnicRankSystem.Yearly(empire));
+            Run("empire: guoye", () => GuoyeSystem.Yearly(empire));
+            Run("empire: late imperial", () => LateImperialSystem.Yearly(empire));
+            Run("empire: party finance", () => PartyFinanceSystem.Yearly(empire));
+            Run("empire: party inner", () => PartyInnerSystem.Yearly(empire));
+            Run("empire: party relations", () => PartyRelations.Yearly(empire));
+            Run("empire: rites", () => RitesSystem.Yearly(empire));
+            Run("empire: reign record", () => ReignRecordSystem.OnYear(empire));
         }
     }
 }

@@ -90,7 +90,7 @@ internal static class WorldMapHistory
         {
             try
             {
-                long id = OverallHelperFunc.IdGenerator.NextId();
+                long id = RecordIds.Next();
                 List<EmpireCraftHistory> histories = dynasty.rulers.Select((reign, i) => Record(dynasty, reign, era.year, i == 0)).ToList();
                 int start = dynasty.rulers.Min(r => r.a), end = dynasty.rulers.Max(r => r.b);
                 ModClass.ALL_HISTORY_DATA[id] = histories;
@@ -172,7 +172,7 @@ internal static class WorldMapHistory
         var history = new EmpireCraftHistory
         {
             // 编号与人物编号不相撞(人物编号从小数起)，史书各处按编号去重
-            id = OverallHelperFunc.IdGenerator.NextId(),
+            id = RecordIds.Next(),
             empire_name = dynasty.Name,
             empire_full_name = dynasty.FullName,
             dynasty_name = dynastyName,
@@ -331,7 +331,7 @@ internal static class WorldMapHistory
             if (string.IsNullOrEmpty(surname) || !full.StartsWith(surname) || full.Length <= surname.Length) surname = "";
             var person = new PersonalClanIdentity
             {
-                id = OverallHelperFunc.IdGenerator.NextId(),
+                id = RecordIds.Next(),
                 specific_clan_id = clan.id,
                 is_alive = false,
                 is_virtual = false,

@@ -106,6 +106,9 @@ public static class RulesChecks
         Check(EcMath.Clamp01(1.5f) == 1f && EcMath.RoundToInt(2.6f) == 3 && EcMath.Lerp(0f, 10f, 0.25f) == 2.5f, "math helpers");
         LM.Clear(); LM.LoadJson("{\"class_peasant\":\"农民\",\"n\":3}");
         Check(SocialClass.Peasant.ToTranslate() == "农民" && LM.Get("missing_key") == "missing_key" && LM.Count == 1, "text table");
+        { string csv = Path.Combine(Path.GetTempPath(), "ec_locales_check.csv"); File.WriteAllText(csv, "\uFEFFkey,cz,en,ch\nk1,国,Realm,國\nk2,\"甲,乙\",\"A, B\",甲乙\n\n");
+          string was = LM.Language; LM.Language = "ch"; int read = LM.LoadLocales(csv); bool ch = LM.Get("k1") == "國"; LM.Language = "en"; LM.LoadLocales(csv); bool en = LM.Get("k2") == "A, B"; LM.Language = was;
+          Check(read == 2 && ch && en && LM.LoadLocales(csv + ".missing") == 0, "CSV texts: the column of the loaded language, quoted fields"); File.Delete(csv); }
         Console.WriteLine("PASS ported rules (" + checks + " checks)");
     }
 
@@ -554,6 +557,75 @@ public static class RulesChecks
         Check(EmpireSave.Encode(bare, 2).SequenceEqual(EmpireSave.Encode(w, 2)) && bare.Living.All(p => p.Renown == 0), "switched off, the world is the skeleton's alone; switched on, the skeleton's part is unchanged");
         EmpireWorld.Current = null;
         Console.WriteLine("PASS ported systems running 40 years (" + checks + " checks): " + PortedSystems.Slots.Count + " systems, standing " + total + " in all, the greatest ruler " + great.Renown + " (earns " + income + " a year)");
+    }
+
+    // An empire founded by the ported code on a realm of the running world.
+    // The same steps for every world it is used on: nothing may ask a realm anything before founding,
+    // since the answers are cached on the realm (its regime, its culture) and would change the path.
+    static (EmpireWorld world, Realm realm, Empire empire, string foundedAs, string fault) FoundOne(WorldData map, int realmIndex = -1)
+    {
+        var w = Start(map); Run(w, 5);
+        var realm = realmIndex >= 0 ? w.Realms[realmIndex] : w.LiveRealms.OrderByDescending(r => r.Cities.Count).ThenBy(r => r.Id).First();
+        var folk = w.Cultures.NewCulture(realm.Ruler); Cultures.SetFamily(folk, "Huaxia"); Cultures.SyncName(folk);
+        realm.SetCulture(folk); foreach (var c in realm.Cities) c.SetCulture(folk); realm.Ruler.SetCulture(folk);
+        Empire empire = null; string fault = null;
+        try { empire = w.Empires.NewEmpire(realm); } catch (Exception e) { fault = e.GetType().Name + ": " + e.Message + " @ " + (e.StackTrace ?? "").Split('\n').FirstOrDefault(); }
+        return (w, realm, empire, empire?.Name, fault);
+    }
+
+    public static void Empires()
+    {
+        checks = 0;
+        // Rule data first, as at startup: the world must not run its first years without it.
+        LM.Clear(); LM.LoadFile(Path.Combine(DataFolder(), "Locales", "ch.json")); LM.Language = "ch";
+        GameData.Folder = DataFolder(); OnomasticsRule.ReadSetting(); RegimeManager.init();
+        Check(RegimeManager.regimes != null && RegimeManager.regimes.Count >= 12 && RegimeManager.regimes.ContainsKey(RegimeType.Feudalism), "regime templates load: " + (RegimeManager.regimes?.Count ?? 0));
+        var map = FlatGenerator.Generate(256, 128, "EMPIRE-EMPIRES", TerrainPreset.Continents, default);
+        PortedSystems.Reset(); PortedSystems.Enabled = true;
+        Start(map).Activate(); var beforeFirst = WorldSwitch.Census();
+        var (w, realm, empire, foundedAs, fault) = FoundOne(map);
+        Console.WriteLine("   NewEmpire: " + (fault ?? (empire == null ? "returned nothing" : "empire " + empire.Key + " '" + foundedAs + "', core " + empire.CoreKingdom?.Name + ", emperor " + empire.Emperor?.FullName() +
+                          "; the realm's culture '" + CultureService.GetRealmCulture(realm) + "', regime " + realm.GetRegime()?.type)));
+        Check(fault == null && empire != null, "the ported code founds an empire on a realm" + (fault == null ? "" : ": " + fault));
+        Check(empire.Alive && empire.CoreKingdom == realm && empire.Emperor == realm.Ruler && w.Empires.Get(empire.Key) == empire && realm.GetEmpire() == empire && realm.IsEmpire(), "the realm is the core of its empire and its ruler the emperor");
+        var broken = EmpireInvariants.Check(w);
+        Check(broken.Count == 0, "founding an empire keeps the world consistent" + (broken.Count > 0 ? ": " + broken[0] : ""));
+        // yearly summaries, to place a difference between this world and its twin below
+        string Sum(EmpireWorld x) => "people " + x.People.Count + "/" + x.Living.Count + ", renown " + x.Living.Sum(p => (long)p.Renown) + ", money " + x.Living.Sum(p => (long)p.Money) +
+            ", clans " + x.Clans.Count + ", realms " + x.LiveRealms.Count + ", cities " + x.Cities.Count(c => c.Alive) + ", treasury " + x.LiveRealms.Sum(r => (long)r.GetMoney()) +
+            ", annals " + x.Annals.Entries.Count + ", alliances " + x.Alliances.Count + ", wars " + x.Wars.Count + ", traits " + x.Living.Sum(p => p.TraitCount);
+        var years = new List<string>();
+        Run(w, 20, world => { years.Add(Sum(world)); var bad = EmpireInvariants.Check(world, 1); Check(bad.Count == 0, "the world stays consistent with an empire's year running" + (bad.Count > 0 ? ": " + bad[0] : "")); });
+        var empireSlots = PortedSystems.Slots.Where(s => s.Name.StartsWith("empire: ")).ToList();
+        string faults = string.Join("; ", empireSlots.Where(s => s.Faults > 0).Select(s => s.Name + " x" + s.Faults + " " + s.LastFault));
+        Console.WriteLine("   an empire's year, 20 years: " + empireSlots.Count + " links, " + empireSlots.Count(s => s.Faults == 0 && s.Runs == 20) + " ran every year without fault" + (faults.Length > 0 ? "; faults: " + faults : ""));
+        Check(empireSlots.Count >= 25 && empireSlots.All(s => s.Faults == 0 && s.Runs == 20), "every link of an empire's year runs each year without fault" + (faults.Length > 0 ? ": " + faults : ""));
+        Check(empire.Alive && empire.CoreKingdom == realm, "the empire stands after twenty years");
+        var bytes = EmpireSave.Encode(w);
+        // The same steps on a fresh world: same key, same name, same world after twenty years.
+        PortedSystems.Reset();
+        Start(map).Activate(); var beforeSecond = WorldSwitch.Census();
+        // Known: state carried between worlds. Caches inside the ported systems that no reset covers outlive a world,
+        // so the first run after other worlds differs from later ones; two runs after the same history agree.
+        int leftover = beforeFirst.Except(beforeSecond).Count() + beforeSecond.Except(beforeFirst).Count();
+        var (twin, twinRealm, twinEmpire, twinName, twinFault) = FoundOne(map, realm.Id);
+        var twinYears = new List<string>();
+        Run(twin, 20, world => twinYears.Add(Sum(world)));
+        int parted = Enumerable.Range(0, 20).FirstOrDefault(i => years[i] != twinYears[i]) + 1;
+        var twinBytes = EmpireSave.Encode(twin);
+        PortedSystems.Reset();
+        var (third, thirdRealm, thirdEmpire, thirdName, thirdFault) = FoundOne(map, realm.Id);
+        var thirdYears = new List<string>();
+        Run(third, 20, world => thirdYears.Add(Sum(world)));
+        twin.Activate();
+        Check(WorldSwitch.Resets >= 80 && WorldSwitch.Switches > 0, "switching worlds resets the ported systems' state (" + WorldSwitch.Resets + " resets)");
+        Check(twinFault == null && twinEmpire != null && twinEmpire.Key == empire.Key && twinName == foundedAs && empire.Key < 1000000,
+              "the same world founds the same empire under the same key (" + empire.Key + " '" + foundedAs + "' vs " + (twinEmpire == null ? "none " + twinFault : twinEmpire.Key + " '" + twinName + "'") + ")");
+        Check(thirdYears.SequenceEqual(twinYears) && EmpireSave.Encode(third).SequenceEqual(twinBytes), "two runs after the same history are the same twenty years on");
+        Console.WriteLine("   known: state carried between worlds - " + leftover + " static values differ between the starts of the first and the second run" +
+                          (years.SequenceEqual(twinYears) ? "; the runs agree all the same" : "; the first run parts from the later ones in year " + parted));
+        EmpireWorld.Current = null;
+        Console.WriteLine("PASS empires (" + checks + " checks)");
     }
 
     // The grid as the ported systems see it: cells, terrain, a city's territory and neighbours.

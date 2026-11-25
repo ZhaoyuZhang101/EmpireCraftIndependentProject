@@ -460,7 +460,7 @@ public partial class EmpireManager : RecordStore<Empire, EmpireData>
             LogService.LogWarning($"[EmpireManager] Failed to create empire for kingdom {pKingdom?.Name}: no valid king candidate.");
             return null;
         }
-        long id = OverallHelperFunc.IdGenerator.NextId();
+        long id = RecordIds.Next();
         var empire = NewObjectFromKey(id);
         empire.CreateNewEmpire(pKingdom, isSplit, replacingEmpire);
         if (empire.CoreKingdom == null)

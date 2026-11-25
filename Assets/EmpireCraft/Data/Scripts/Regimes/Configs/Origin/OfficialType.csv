@@ -1,0 +1,51 @@
+key,cz,en,ch
+Origin_empire,部落联合王国,Tribal Confederation,部落聯合王國
+Origin_centre,部落,Tribe,部落
+Origin_kingdom,部落,Tribe,部落
+
+Origin_officiallevel_0,国王,King,國王
+Origin_officiallevel_1,大酋长,High Chieftain,大酋長
+Origin_officiallevel_2,大祭司,High Priest,大祭司
+Origin_officiallevel_3,酋长,Chieftain,酋長
+
+Origin_city,部落,Tribe,部落
+
+Origin_empire_huaxia,部落联盟,Tribal Alliance,部落聯盟
+Origin_empire_huaxia_tribe,部落,Tribe,部落
+Origin_empire_huaxia_dynasty,朝,Dynasty,朝
+Origin_centre_huaxia,部落,Tribe,部落
+Origin_kingdom_huaxia,部落,Tribe,部落
+Origin_officiallevel_0_huaxia,共主,Common Lord,共主
+Origin_officiallevel_1_huaxia,方伯,Regional Lord,方伯
+Origin_officiallevel_2_huaxia,巫祝,Shaman-Priest,巫祝
+Origin_officiallevel_3_huaxia,族长,Clan Elder,族長
+
+Origin_empire_japan,部族连合,Tribal Federation,部族連合
+Origin_empire_japan_yamato,王权,Yamato Kingship,王權
+Origin_centre_japan,国,Kuni,國
+Origin_kingdom_japan,国,Kuni,國
+Origin_officiallevel_0_japan,大王,Ōkimi,大王
+Origin_officiallevel_1_japan,大臣,Ōomi,大臣
+Origin_officiallevel_2_japan,巫女,Miko,巫女
+Origin_officiallevel_3_japan,首长,Chieftain,首長
+
+Origin_centre_youmu,部落,Tribe,部落
+Origin_kingdom_youmu,部落,Tribe,部落
+Origin_officiallevel_0_youmu,首领,Chief,首領
+Origin_officiallevel_1_youmu,贵人,Noble,貴人
+Origin_officiallevel_2_youmu,萨满,Shaman,薩滿
+Origin_officiallevel_3_youmu,族长,Clan Elder,族長
+
+Origin_centre_arabic,部族,Tribe,部族
+Origin_kingdom_arabic,部族,Tribe,部族
+Origin_officiallevel_0_arabic,谢赫,Sheikh,謝赫
+Origin_officiallevel_1_arabic,长老,Elder,長老
+Origin_officiallevel_2_arabic,卜者,Soothsayer,卜者
+Origin_officiallevel_3_arabic,族长,Clan Elder,族長
+
+Origin_centre_india,部落,Tribe,部落
+Origin_kingdom_india,部落,Tribe,部落
+Origin_officiallevel_0_india,罗阇,Rajan,羅闍
+Origin_officiallevel_1_india,军帅,Senani,軍帥
+Origin_officiallevel_2_india,祭司,Purohita,祭司
+Origin_officiallevel_3_india,村长,Gramani,村長

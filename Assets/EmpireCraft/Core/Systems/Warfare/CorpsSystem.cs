@@ -1268,7 +1268,7 @@ public static class CorpsSystem
     {
         var corps = new CorpsData
         {
-            id = OverallHelperFunc.IdGenerator.NextId(), serial = militia ? 0 : NextSerial(kingdom),
+            id = RecordIds.Next(), serial = militia ? 0 : NextSerial(kingdom),
             kingdom_id = kingdom.Key, home_city_id = home.Key, legions = Mathf.Max(1, legions), full = people,
             post = (int)CityPopulationSystem.PostOf(home, CityPopulationSystem.DoctrineOf(kingdom)),
             zone_id = home.SeatCell()?.Zone?.Index ?? -1, raised_at = now, militia = militia, manual = manual, order_id = orderId
@@ -1443,7 +1443,7 @@ public static class CorpsSystem
         float share = amount / parent.strength;
         var part = new CorpsData
         {
-            id = OverallHelperFunc.IdGenerator.NextId(), serial = parent.serial, kingdom_id = kingdom.Key,
+            id = RecordIds.Next(), serial = parent.serial, kingdom_id = kingdom.Key,
             formation = parent.formation,
             home_city_id = parent.home_city_id, post = parent.post, legions = Mathf.Max(1, Mathf.RoundToInt(parent.legions * share)),
             full = amount, strength = amount, org = parent.org, task = parent.task, sector_city_id = parent.sector_city_id,

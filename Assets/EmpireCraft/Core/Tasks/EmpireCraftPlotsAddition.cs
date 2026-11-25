@@ -1410,7 +1410,7 @@ namespace EmpireCraft.Core
                             // 帝国内改朝换代：用新皇族之主的封国名，没有封国用美号(见 RealmNamingSystem.Founding)；天下之名关着时照旧随机起名
                             if (!RealmNamingSystem.NameUsurper(empire, pActor))
                             {
-                                string new_name = pActor.GenerateName(EntityKind.Realm, IdGenerator.NextId());
+                                string new_name = pActor.GenerateName(EntityKind.Realm, RecordIds.Next());
                                 LogService.LogInfo($"New Empire Name：{new_name}，Original Empire Name：{empire.GetEmpireName()}");
                                 string[] nameParts = new_name.SplitNameParts();
                                 empire.SetEmpireName(nameParts.Length > 0 ? nameParts[0] : new_name);

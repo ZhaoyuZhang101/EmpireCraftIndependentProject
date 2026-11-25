@@ -373,7 +373,7 @@ public static class IslamicSchismSystem
         double now = Now;
         var rival = new RivalCaliphateData
         {
-            id = OverallHelperFunc.IdGenerator.NextId(),
+            id = RecordIds.Next(),
             seat_kingdom_id = seat.Key,
             seat_empire_id = empire?.Key ?? -1L,
             seat_city_id = capital.Key,
@@ -934,7 +934,7 @@ public static class IslamicSchismSystem
         double now = Now;
         state.movements.Add(new ReformMovementData
         {
-            id = OverallHelperFunc.IdGenerator.NextId(),
+            id = RecordIds.Next(),
             name = name,
             kingdom_id = rebel.Key,
             origin_kingdom_id = realm.Key,

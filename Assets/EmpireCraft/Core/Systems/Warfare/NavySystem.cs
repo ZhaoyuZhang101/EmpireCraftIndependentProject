@@ -405,7 +405,7 @@ public static class NavySystem
             if (water == null) continue;
             list.Add(new FleetData
             {
-                id = OverallHelperFunc.IdGenerator.NextId(), serial = ++kingdom.GetOrCreate().fleet_serial,
+                id = RecordIds.Next(), serial = ++kingdom.GetOrCreate().fleet_serial,
                 kingdom_id = kingdom.Key, home_city_id = port.Key, region_id = water.Id, target_region_id = water.Id,
                 zone_id = water.Center?.Index ?? -1
             });

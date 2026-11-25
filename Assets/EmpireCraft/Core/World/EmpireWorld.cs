@@ -56,7 +56,7 @@ namespace EmpireCraft.Core
         public readonly BookStore Books;                        // written works and plots on record (see Works.cs); empty until a system fills them
         public readonly PlotStore Plots;
         // Makes this the world the static ported systems act on.
-        public void Activate(){Current=this;ModClass.EMPIRE_MANAGER=Empires;ModClass.KINGDOM_TITLE_MANAGER=Titles;ModClass.IS_CLEAR=false;}
+        public void Activate(){if(!ReferenceEquals(Current,this))WorldSwitch.Leaving(this);Current=this;ModClass.EMPIRE_MANAGER=Empires;ModClass.KINGDOM_TITLE_MANAGER=Titles;ModClass.IS_CLEAR=false;}
 
         // Lookups by the key a ported system stored; null for none and for an entity that has ended.
         public Realm RealmByKey(long key){var x=key>=0&&key<Realms.Count?Realms[(int)key]:null;return x!=null&&x.Alive?x:null;}
@@ -68,6 +68,10 @@ namespace EmpireCraft.Core
         // The grid as the ported systems see it (see Land.cs). Cells are made on first use.
         public int Width=>Map.Width;
         public int Height=>Map.Height;
+        // Keys for the records the ported systems make (empires, titles, offices ...). The mod took them from the
+        // wall clock; here they count up per world, so the same world makes the same records under the same keys.
+        public long NextRecordId=1;
+        public long TakeRecordId()=>NextRecordId++;
         public int TerritoryRevision;   // counts every change of who holds which tile or city; caches key on it
         Cell[] _cells;ZoneGrid _grid;int[] _landmass;
         public Cell CellAt(int index){if(index<0||index>=TileCity.Length)return null;var cells=_cells??(_cells=new Cell[TileCity.Length]);return cells[index]??(cells[index]=new Cell(this,index));}

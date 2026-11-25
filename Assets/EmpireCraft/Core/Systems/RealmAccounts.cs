@@ -235,6 +235,9 @@ namespace EmpireCraft.Core
             int cities = Math.Max(30, (int)(300L * map.Width * map.Width / (1024L * 1024L)));
             int realms = Math.Max(6, 40 * map.Width / 1024);
             EmpireBootstrap.Seed(world, cities, realms);
+            // Current from the start: switching worlds resets the ported systems (WorldSwitch), which is loading work,
+            // not something for the first frame of play.
+            world.Activate();
             return world;
         }
     }

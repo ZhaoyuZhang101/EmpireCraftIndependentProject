@@ -290,7 +290,7 @@ public static class ClanBranchSystem
         var branch = new SpecificClan
         {
             _cache = new Dictionary<long, PersonalClanIdentity>(),
-            id = IdGenerator.NextId(),
+            id = RecordIds.Next(),
             name = parent.name,
             established_timestamp = GameClock.Now,
             clan_sex_priority = parent.clan_sex_priority,

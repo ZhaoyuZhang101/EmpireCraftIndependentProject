@@ -97,6 +97,8 @@ IDENTITY = [
     (r"(?<![.\w])WorldLawLibrary\.world_law_(\w+)", lambda found: "WorldLaws." + pascal(found.group(1))),
     (r"(?<![.\w])WorldLawAsset\b", "WorldLaw"),
     (r"(?<![.\w])SmoothLoader\.isLoading\(\)", "GameClock.Loading"),
+    # Record keys come from the world's counter, not the clock (Core/Host/Stock.cs RecordIds).
+    (r"(?<![.\w])(?:OverallHelperFunc\.)?IdGenerator\.NextId\(\)", "RecordIds.Next()"),
     # Entity kinds, the kind of a person, name-making data, and the culture helpers the mod kept in a patch class.
     (r"(?<![.\w])MetaType\b", "EntityKind"),
     # Buildings, jobs and game options (Core/Host/Stock.cs).

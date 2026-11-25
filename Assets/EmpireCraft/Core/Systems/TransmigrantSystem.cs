@@ -371,7 +371,7 @@ public static partial class TransmigrantSystem
         data.fleets ??= new List<FleetData>();
         data.fleets.Add(new FleetData
         {
-            id = OverallHelperFunc.IdGenerator.NextId(), serial = ++data.fleet_serial, kingdom_id = kingdom.Key,
+            id = RecordIds.Next(), serial = ++data.fleet_serial, kingdom_id = kingdom.Key,
             home_city_id = city.Key, region_id = water.Id, target_region_id = water.Id, zone_id = water.Center?.Index ?? -1,
             warships = AosongNavyRules.FloorWarships(1), transports = AosongNavyRules.FloorTransports(1)
         });

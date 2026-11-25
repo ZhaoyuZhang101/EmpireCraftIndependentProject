@@ -140,6 +140,13 @@ namespace EmpireCraft.Core
         public static void Tick(params object[] what) { }
     }
 
+    // A fresh key for a record, from the current world's counter (see EmpireWorld.NextRecordId).
+    public static class RecordIds
+    {
+        static long _loose = 1;   // only when no world is current, as in a tool run outside one
+        public static long Next() { var world = EmpireWorld.Current; return world != null ? world.TakeRecordId() : _loose++; }
+    }
+
     // A random pick from a list, on the world's random stream.
     public static class ListPicks
     {

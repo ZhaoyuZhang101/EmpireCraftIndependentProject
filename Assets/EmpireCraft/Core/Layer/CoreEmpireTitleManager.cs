@@ -188,7 +188,7 @@ public static class EmpireCoreManager
             CultureService.PinTitleCultureIfFixed(title);
         var empireCore = new EmpireCore()
         {
-            id = OverallHelperFunc.IdGenerator.NextId(),
+            id = RecordIds.Next(),
             empire_id = empire.Key,
             culture = empire.CoreKingdom.Culture.Key,
             default_culture = CultureService.GetRealmCulture(empire.CoreKingdom),
@@ -738,7 +738,7 @@ public static class EmpireCoreManager
         Realm kingdom = capital.Realm;
         EmpireCore core = new EmpireCore
         {
-            id = OverallHelperFunc.IdGenerator.NextId(),
+            id = RecordIds.Next(),
             empire_id = -1L,
             culture = kingdom?.Culture?.Key ?? -1L,
             default_culture = CultureService.GetRealmCulture(kingdom),

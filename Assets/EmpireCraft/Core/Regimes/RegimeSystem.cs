@@ -429,7 +429,6 @@ public static class RegimeManager
         GetTemplate(type)?.cabinet_is_electoral_college == true;
     private static string _folderPath = Path.Combine(GameData.Folder, "Scripts", "Regimes", "Configs");
 
-#if EC_PENDING
     public static void init()
     {
         if (regimes != null) return;
@@ -459,7 +458,6 @@ public static class RegimeManager
         // 政体目录缺失也照样把制度线读进来，反之亦然。
         InstitutionDefinitionRegistry.Load();
     }
-#endif
 
     // 一个文件里的政体逐个读，哪个读不了只跳过哪个：以前整个文件一次反序列化，政体编辑器新建的政体名
     // 还没进 RegimeType 枚举就抛异常，排在它后面的政体和全部制度线都没读，别的文化跟着坏

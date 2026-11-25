@@ -1,0 +1,107 @@
+{
+  "version": 1,
+  "formations": {
+    "standing": { "modern_template": "formation_template_modern_corps" },
+    "regional": { "modern_template": "formation_template_modern_division", "task": "mixed" },
+    "levy": { "modern_template": "formation_template_modern_division", "source": "local", "raise": 1.5, "training": 1.4, "veteran_cap": 50, "upkeep": 0.6, "denied_arms": ["Mechanized", "Tank", "Helicopter", "Fighter", "Bomber", "HeavyArtillery"], "task": "garrison", "reach": 12, "command": "local" },
+
+    "banner_guard": { "template": "formation_template_banner", "numeral": "banner", "source": "banner", "raise": 0.7, "training": 0.7, "upkeep": 1.4 },
+    "green_standard": { "template": "formation_template_stem", "numeral": "stem", "modern_template": "formation_template_modern_division", "training": 1.2, "veteran_cap": 70, "upkeep": 0.8, "task": "mixed" },
+    "yongying": { "template": "formation_template_stem", "numeral": "stem", "modern_template": "formation_template_modern_division", "source": "local", "raise": 1.2, "training": 1.0, "veteran_cap": 85, "upkeep": 0.9, "task": "mixed" },
+    "xiangyong": { "template": "formation_template_stem", "numeral": "stem", "modern_template": "formation_template_modern_division", "source": "local", "raise": 1.5, "training": 1.4, "veteran_cap": 50, "upkeep": 0.6, "denied_arms": ["Mechanized", "Tank", "Helicopter", "Fighter", "Bomber", "HeavyArtillery"], "task": "garrison", "reach": 12, "command": "local" },
+    "imperial_guard": { "template": "formation_template_stem", "numeral": "stem", "modern_template": "formation_template_modern_corps" },
+    "frontier_army": { "template": "formation_template_stem", "numeral": "stem", "modern_template": "formation_template_modern_division", "task": "mixed" },
+    "fubing": { "template": "formation_template_stem", "numeral": "stem", "modern_template": "formation_template_modern_division", "source": "local", "raise": 1.5, "training": 1.4, "veteran_cap": 50, "upkeep": 0.6, "denied_arms": ["Mechanized", "Tank", "Helicopter", "Fighter", "Bomber", "HeavyArtillery"], "task": "garrison", "reach": 12, "command": "local" },
+
+    "royal_host": { "template": "formation_template_royal", "modern_template": "formation_template_modern_corps" },
+    "vassal_host": { "template": "formation_template_vassal", "modern_template": "formation_template_modern_division", "raise": 0.8, "upkeep": 0.9, "task": "mixed", "command": "lord" },
+    "feudal_levy": { "template": "formation_template_levy", "modern_template": "formation_template_modern_division", "source": "local", "raise": 1.5, "training": 1.5, "veteran_cap": 40, "upkeep": 0.5, "denied_arms": ["Mechanized", "Tank", "Helicopter", "Fighter", "Bomber", "HeavyArtillery"], "task": "garrison", "reach": 12, "command": "local" },
+
+    "royal_army_zhou": { "template": "formation_template_modern_division" },
+    "vassal_army_zhou": { "template": "formation_template_modern_division", "raise": 0.8, "upkeep": 0.9, "task": "mixed", "command": "lord" },
+    "citizen_levy_zhou": { "template": "formation_template_brigade", "source": "local", "raise": 1.3, "training": 1.3, "veteran_cap": 50, "upkeep": 0.6, "task": "garrison", "reach": 12, "command": "local" },
+
+    "khan_guard": { "template": "formation_template_khan", "modern_template": "formation_template_modern_corps", "training": 0.9 },
+    "tribal_host": { "template": "formation_template_wing", "numeral": "wing", "modern_template": "formation_template_modern_division", "raise": 1.2, "training": 1.1, "veteran_cap": 80, "upkeep": 0.8, "command": "tribe" },
+    "tribal_levy": { "template": "formation_template_tribal_levy", "modern_template": "formation_template_modern_division", "source": "local", "raise": 1.5, "training": 1.3, "veteran_cap": 60, "upkeep": 0.6, "denied_arms": ["Mechanized", "Tank", "Helicopter", "Fighter", "Bomber", "HeavyArtillery"], "task": "mixed", "reach": 18, "command": "local" },
+    "lord_retinue": { "template": "formation_template_retinue", "modern_template": "formation_template_modern_corps", "training": 0.9, "command": "lord" },
+
+    "royal_guard": { "template": "formation_template_royal_guard", "modern_template": "formation_template_modern_corps", "training": 0.9 },
+    "provincial_army": { "template": "formation_template_provincial", "modern_template": "formation_template_modern_division", "task": "mixed" },
+
+    "shogunate_army": { "template": "formation_template_hatamoto", "modern_template": "formation_template_modern_corps" },
+    "daimyo_army": { "template": "formation_template_daimyo", "modern_template": "formation_template_modern_division", "raise": 0.9, "task": "mixed", "command": "lord" },
+    "ashigaru_levy": { "template": "formation_template_ashigaru", "modern_template": "formation_template_modern_division", "source": "local", "raise": 1.5, "training": 1.4, "veteran_cap": 50, "upkeep": 0.6, "denied_arms": ["Mechanized", "Tank", "Helicopter", "Fighter", "Bomber", "HeavyArtillery"], "task": "garrison", "reach": 12, "command": "local" },
+
+    "citizen_legion": { "template": "formation_template_legion", "modern_template": "formation_template_modern_corps", "raise": 1.2, "training": 1.1, "upkeep": 0.9 },
+    "allied_force": { "template": "formation_template_allied", "modern_template": "formation_template_modern_division", "raise": 0.8, "task": "mixed" },
+    "citizen_levy": { "template": "formation_template_legion_levy", "modern_template": "formation_template_modern_division", "source": "local", "raise": 1.5, "training": 1.3, "veteran_cap": 50, "upkeep": 0.6, "task": "garrison", "reach": 12, "command": "local" },
+
+    "republican_army": { "template": "formation_template_bare_corps" },
+    "national_defense": { "template": "formation_template_bare_corps" },
+    "military_district": { "template": "formation_template_bare_division", "task": "mixed" },
+    "reserve_force": { "template": "formation_template_reserve", "source": "local", "raise": 1.5, "training": 1.2, "veteran_cap": 60, "upkeep": 0.6, "denied_arms": ["Tank", "Helicopter", "Fighter", "Bomber"], "task": "garrison", "reach": 16, "command": "local" },
+
+    "colonial_force": { "template": "formation_template_camp", "raise": 0.8, "task": "mixed" },
+    "company_troops": { "template": "formation_template_camp", "raise": 0.9, "training": 0.9, "upkeep": 1.2, "task": "mixed" },
+    "warband": { "template": "formation_template_band", "training": 1.1, "veteran_cap": 60, "upkeep": 0.8, "task": "mixed" },
+
+    "fubo": {
+      "template": "formation_template_echelon",
+      "echelons": [
+        { "below": 1500, "key": "formation_echelon_battalion" },
+        { "below": 6000, "key": "formation_echelon_regiment" },
+        { "key": "formation_echelon_division" }
+      ],
+      "source": "trained", "raise": 0.7, "training": 1.3, "upkeep": 1.3
+    },
+    "national_army": {
+      "template": "formation_template_local",
+      "scope": "region",
+      "echelons": [
+        { "below": 800, "key": "formation_echelon_squadron" },
+        { "below": 3000, "key": "formation_echelon_battalion_local" },
+        { "key": "formation_echelon_detachment" }
+      ],
+      "source": "local", "raise": 1.2, "training": 1.3, "veteran_cap": 70, "upkeep": 0.75,
+      "denied_arms": ["Mechanized", "Tank", "Helicopter", "Fighter", "Bomber", "HeavyArtillery"],
+      "task": "garrison", "reach": 16, "command": "local"
+    },
+    "security_army": {
+      "template": "formation_template_local",
+      "scope": "region",
+      "echelons": [
+        { "below": 800, "key": "formation_echelon_squadron" },
+        { "key": "formation_echelon_battalion_local" }
+      ],
+      "source": "local", "raise": 1.5, "training": 1.5, "veteran_cap": 40, "upkeep": 0.5,
+      "denied_arms": ["Artillery", "Mechanized", "Tank", "Helicopter", "Fighter", "Bomber", "HeavyArtillery"],
+      "task": "garrison", "reach": 8, "command": "local"
+    }
+  },
+  "regimes": {
+    "Banner": { "central": "banner_guard", "district": "green_standard", "prefecture": "xiangyong", "manual": "banner_guard" },
+    "BannerKhanate": { "central": "banner_guard", "district": "tribal_host", "prefecture": "tribal_levy", "manual": "banner_guard" },
+    "LvLing": { "central": "imperial_guard", "district": "frontier_army", "prefecture": "fubing", "manual": "imperial_guard" },
+    "Feudalism": { "central": "royal_host", "district": "vassal_host", "prefecture": "feudal_levy", "manual": "royal_host" },
+    "ZhouFeudalism": { "central": "royal_army_zhou", "district": "vassal_army_zhou", "prefecture": "citizen_levy_zhou", "manual": "royal_army_zhou" },
+    "Modern": { "central": "national_defense", "district": "military_district", "prefecture": "reserve_force", "manual": "national_defense" },
+    "Republic": { "central": "republican_army", "district": "military_district", "prefecture": "reserve_force", "manual": "republican_army" },
+    "Arabic": { "central": "royal_guard", "district": "provincial_army", "prefecture": "tribal_levy", "manual": "royal_guard" },
+    "YouMu": { "central": "khan_guard", "district": "tribal_host", "prefecture": "tribal_levy", "manual": "khan_guard" },
+    "NomadFeudalism": { "central": "lord_retinue", "district": "tribal_host", "prefecture": "tribal_levy", "manual": "lord_retinue" },
+    "Origin": { "central": "warband", "district": "warband", "prefecture": "warband", "manual": "warband" },
+    "OriginFeudalism": { "central": "royal_guard", "district": "tribal_host", "prefecture": "tribal_levy", "manual": "royal_guard" },
+    "HuaxiaOrigin": { "central": "warband", "district": "warband", "prefecture": "warband", "manual": "warband" },
+    "OriginFeudalism": { "central": "royal_host", "district": "vassal_host", "prefecture": "warband", "manual": "royal_host" },
+    "ClassicalRepublic": { "central": "citizen_legion", "district": "allied_force", "prefecture": "citizen_levy", "manual": "citizen_legion" },
+    "Bakufu": { "central": "shogunate_army", "district": "daimyo_army", "prefecture": "ashigaru_levy", "manual": "shogunate_army" },
+    "Transmigrant": {
+      "central": "national_army", "district": "national_army", "prefecture": "national_army", "manual": "national_army",
+      "early": "security_army", "early_below_stage": 3, "merge_at_stage": 4
+    },
+    "Colonial": { "central": "colonial_force", "district": "colonial_force", "prefecture": "colonial_force", "manual": "colonial_force" },
+    "Company": { "central": "company_troops", "district": "company_troops", "prefecture": "company_troops", "manual": "company_troops" }
+  },
+  "fallback": { "central": "standing", "district": "regional", "prefecture": "levy", "manual": "standing" }
+}

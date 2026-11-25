@@ -1303,7 +1303,7 @@ public static partial class VirtualGenealogySystem
         double now = GameClock.Now;
         var child = new PersonalClanIdentity
         {
-            id = OverallHelperFunc.IdGenerator.NextId(),
+            id = RecordIds.Next(),
             specific_clan_id = clan.id,
             actor_id = -1L,
             is_alive = true,
@@ -1351,7 +1351,7 @@ public static partial class VirtualGenealogySystem
             int years = EcRandom.Range(6, 19);
             heir = new PersonalClanIdentity
             {
-                id = OverallHelperFunc.IdGenerator.NextId(),
+                id = RecordIds.Next(),
                 specific_clan_id = clan.id,
                 actor_id = -1L,
                 is_alive = true,
@@ -1388,7 +1388,7 @@ public static partial class VirtualGenealogySystem
         int years = EcRandom.Range(22, 41);
         var kinsman = new PersonalClanIdentity
         {
-            id = OverallHelperFunc.IdGenerator.NextId(),
+            id = RecordIds.Next(),
             specific_clan_id = clan.id,
             actor_id = -1L,
             is_alive = true,
@@ -1422,7 +1422,7 @@ public static partial class VirtualGenealogySystem
         City city = royal.City ?? royal.Realm?.Capital;
         var child = new PersonalClanIdentity
         {
-            id = OverallHelperFunc.IdGenerator.NextId(),
+            id = RecordIds.Next(),
             specific_clan_id = clan.id,
             actor_id = -1L,
             is_alive = true,
@@ -1526,7 +1526,7 @@ public static partial class VirtualGenealogySystem
     {
         var child = new PersonalClanIdentity
         {
-            id = OverallHelperFunc.IdGenerator.NextId(),
+            id = RecordIds.Next(),
             specific_clan_id = clan.id,
             actor_id = -1L,
             is_alive = true,

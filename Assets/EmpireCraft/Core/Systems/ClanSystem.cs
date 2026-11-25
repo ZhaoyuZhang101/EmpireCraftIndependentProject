@@ -358,7 +358,7 @@ public class SpecificClan
     {
         _cache = new Dictionary<long, PersonalClanIdentity>();
         Clan clan = actor.Clan;
-        id = IdGenerator.NextId();
+        id = RecordIds.Next();
         name = clan.GetMemberSurname();
         established_timestamp = GameClock.Now;
         clan_sex_priority = judgeMalePriority(actor) ? SpecificClanType.MalePriority : SpecificClanType.FemalePriority;
@@ -1607,7 +1607,7 @@ public class PersonalClanIdentity
 
     public void newPersonalClanIdentity(SpecificClan specificClan, Person a)
     {
-        id = IdGenerator.NextId();
+        id = RecordIds.Next();
         is_alive = true;
         actor_id = a.Key;
         specific_clan_id = specificClan.id;

@@ -279,7 +279,7 @@ public class OfficeObject
         history_officers = new List<string> {};
         if (isNew)
         {
-            OfficeID = OverallHelperFunc.IdGenerator.NextId();
+            OfficeID = RecordIds.Next();
             OfficeManager.Offices.Add(OfficeID, this);
         }
     }
@@ -548,7 +548,7 @@ public class CenterOffice
                 o = new OfficeObject();
                 // 下面自己取 id 登记；这里再登记一次的话，第一个 id 没人记得，永远留在官职表里
                 o.InitialOffice(config, isNew: false);
-                o.OfficeID = OverallHelperFunc.IdGenerator.NextId();
+                o.OfficeID = RecordIds.Next();
                 o.actor_id = -1L;
                 o.history_officers.Clear();
                 OfficeManager.Offices.Add(o.OfficeID, o);

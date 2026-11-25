@@ -55,7 +55,7 @@ public class KingdomTitleManager : RecordStore<KingdomTitle, KingdomTitleData>
     {
         if (pCity == null || pCity.IsGone() || pCity.Realm == null || pCity.Realm.IsGone() ||
             EmpireCraft.Core.AncientWarfareCompatibility.OwnsObject(pCity)) return null;
-        long id = OverallHelperFunc.IdGenerator.NextId();
+        long id = RecordIds.Next();
         KingdomTitle title = base.NewObjectFromKey(id);
         title.newKingdomTitle(pCity);
         // 新立的法理名不合法理文化的当场按法理文化重起(只这一次，见 NameCultureRepair)

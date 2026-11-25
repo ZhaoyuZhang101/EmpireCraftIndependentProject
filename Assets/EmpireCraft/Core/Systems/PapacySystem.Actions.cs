@@ -247,7 +247,7 @@ public static partial class PapacySystem
             : host.Capital?.GetCityName() ?? host.GetKingdomName();
         var order = new KnightOrderData
         {
-            id = OverallHelperFunc.IdGenerator.NextId(),
+            id = RecordIds.Next(),
             name = string.Format(LM.Get("knight_order_name_" + index), place),
             host_kingdom_id = host.Key,
             founded_at = GameClock.Now

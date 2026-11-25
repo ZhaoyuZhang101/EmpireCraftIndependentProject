@@ -9,6 +9,13 @@ namespace EmpireCraft.Core
         public abstract long Key { get; }
         public abstract bool Alive { get; }
         public virtual EntityKind KindOfEntity => EntityKind.None;
+
+        // The ported systems keep realms, people and cities in hash sets and dictionaries and walk them. With the
+        // runtime's own object hash codes (arbitrary per object) the walk order, and so the outcome, would differ
+        // between two runs of the same world. A hash from the kind and the key makes it the same. Equality stays
+        // identity: two entities are the same only if they are the same object. Keys do not change once given.
+        public override int GetHashCode() { unchecked { long key = Key; return ((int)key ^ (int)(key >> 32)) * 397 ^ (int)KindOfEntity; } }
+        public override bool Equals(object other) => ReferenceEquals(this, other);
     }
 
     // Bases of the mod's decision routines (its AI folder). Their per-tick entry points were
