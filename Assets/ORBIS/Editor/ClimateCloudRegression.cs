@@ -250,7 +250,8 @@ namespace Orbis.Editor
    var bakeField=typeof(Flat.FlatSkyRenderer).GetField("bake",priv);
    var hpMat=(Material)hpColumnField.GetValue(sky);
    var bakeMat=(Material)bakeField.GetValue(sky);
-   var surfaceProbe=new Material(Shader.Find("Hidden/Internal-Colored"));
+   // Use the column shader's declared diagnostic properties to probe the published binding.
+   var publishedProbe=new Material(hpMat.shader);
    var gpuRt=RenderTexture.GetTemporary(64,32,0,RenderTextureFormat.ARGBFloat,RenderTextureReadWrite.Linear);
    var gpuRead=new Texture2D(64,32,TextureFormat.RGBAFloat,false,true);
    var prevRt=RenderTexture.active;bool prevSrgb=GL.sRGBWrite;
@@ -258,6 +259,7 @@ namespace Orbis.Editor
    {
     Color SampleGpuTexel(Texture tex,int x,int y)
     {
+     if(!tex)throw new InvalidOperationException("Missing bound regional precipitation texture");
      GL.sRGBWrite=false;Graphics.Blit(tex,gpuRt);RenderTexture.active=gpuRt;
      gpuRead.ReadPixels(new Rect(0,0,64,32),0,0);gpuRead.Apply(false,false);
      return gpuRead.GetPixel(x,y);
@@ -306,11 +308,12 @@ namespace Orbis.Editor
 
     PublishAt(wetDay);
     var texWet=sky.Texture;var colWet=sky.ColumnTexture;var precipTexWet=sky.RegionalPrecipitationTexture;
+    var cloudResponseWet=bakeMat.GetTexture("_RegionalCloudResponse");
     var rawWetBytes=(byte[])precipTexWet.GetRawTextureData().Clone();
-    sky.Bind(surfaceProbe,Vector3.forward,true,true,true,true,true,false,false,1f);
-    CheckRenderState(report,hpMat.GetFloat("_RegionalPrecipReady")==1f && surfaceProbe.GetFloat("_RegionalPrecipReady")==1f,
-     "published regional precipitation binds _RegionalPrecipReady=1 on both HP column and surface materials");
-    var gpuWet=SampleGpuTexel(surfaceProbe.GetTexture("_RegionalPrecipDiagTex"),bx,by);
+    sky.Bind(publishedProbe,Vector3.forward,true,true,true,true,true,false,false,1f);
+    CheckRenderState(report,hpMat.GetFloat("_RegionalPrecipReady")==1f && publishedProbe.GetFloat("_RegionalPrecipReady")==1f,
+     "published regional precipitation binds _RegionalPrecipReady=1 on both the HP column and the published diagnostic probe");
+    var gpuWet=SampleGpuTexel(publishedProbe.GetTexture("_RegionalPrecipDiagTex"),bx,by);
     bool hasWetCpu=sky.TrySampleRegionalPrecipitation(u,v,out var cpuWet);
     CheckRenderState(report,hasWetCpu && gpuWet.g>0.3f && Mathf.Abs(gpuWet.g-cpuWet.SurfacePrecipKgM2Per6h)<0.02f,
      $"wet snapshot GPU/CPU precipitation match at ({bx},{by}): gpuG={gpuWet.g:F3}, cpuG={cpuWet.SurfacePrecipKgM2Per6h:F3}");
@@ -323,8 +326,8 @@ namespace Orbis.Editor
      sky.Tick(0,true,false,false,512,dryDay);
      if((int)pendingStripField.GetValue(sky)<0)
      {
-      sky.Bind(surfaceProbe,Vector3.forward,true,true,true,true,true,false,false,1f);
-      var holdGpu=SampleGpuTexel(surfaceProbe.GetTexture("_RegionalPrecipDiagTex"),bx,by);
+      sky.Bind(publishedProbe,Vector3.forward,true,true,true,true,true,false,false,1f);
+      var holdGpu=SampleGpuTexel(publishedProbe.GetTexture("_RegionalPrecipDiagTex"),bx,by);
       sky.TrySampleRegionalPrecipitation(u,v,out var holdCpu);
       if(Mathf.Abs(holdGpu.g-gpuWet.g)>1e-4f || Mathf.Abs(holdCpu.SurfacePrecipKgM2Per6h-cpuWet.SurfacePrecipKgM2Per6h)>1e-4f)
        throw new Exception("Published precipitation mutated while background worker was computing");
@@ -339,13 +342,13 @@ namespace Orbis.Editor
      if(stripAfter>1)sky.Tick(0,true,false,false,512,dryDay);
      if((int)pendingStripField.GetValue(sky)!=stripAfter)throw new Exception("Unexpected pendingStrip "+pendingStripField.GetValue(sky));
      var stagedHpGpu=SampleGpuTexel(hpMat.GetTexture("_RegionalPrecipDiagTex"),bx,by);
-     sky.Bind(surfaceProbe,Vector3.forward,true,true,true,true,true,false,false,1f);
-     var pubSurfGpu=SampleGpuTexel(surfaceProbe.GetTexture("_RegionalPrecipDiagTex"),bx,by);
+     sky.Bind(publishedProbe,Vector3.forward,true,true,true,true,true,false,false,1f);
+     var publishedGpu=SampleGpuTexel(publishedProbe.GetTexture("_RegionalPrecipDiagTex"),bx,by);
      bool okMid=sky.TrySampleRegionalPrecipitation(u,v,out var midCpu);
      if(hpMat.GetFloat("_RegionalPrecipReady")!=1f || stagedHpGpu.g>1e-4f)
       throw new Exception($"HP column staging did not bind dry regional precipitation on strip {stripAfter-1}");
      if(!okMid || sky.RegionalClimateStep!=stepWet || sky.Texture!=texWet || sky.ColumnTexture!=colWet ||
-        sky.RegionalPrecipitationTexture!=precipTexWet || Mathf.Abs(pubSurfGpu.g-gpuWet.g)>1e-4f ||
+        sky.RegionalPrecipitationTexture!=precipTexWet || Mathf.Abs(publishedGpu.g-gpuWet.g)>1e-4f ||
         Mathf.Abs(midCpu.SurfacePrecipKgM2Per6h-cpuWet.SurfacePrecipKgM2Per6h)>1e-4f)
       throw new Exception($"Published GPU/CPU regional snapshot leaked dry staging data before final strip (strip {stripAfter-1})");
     }
@@ -354,20 +357,21 @@ namespace Orbis.Editor
     // Cancel / abort before strip 3 by rewinding calendar back to wetDay: verify zero leak
     world.Day=wetDay;
     sky.Tick(0,true,false,false,512,wetDay);
-    sky.Bind(surfaceProbe,Vector3.forward,true,true,true,true,true,false,false,1f);
-    var abortGpu=SampleGpuTexel(surfaceProbe.GetTexture("_RegionalPrecipDiagTex"),bx,by);
+    sky.Bind(publishedProbe,Vector3.forward,true,true,true,true,true,false,false,1f);
+    var abortGpu=SampleGpuTexel(publishedProbe.GetTexture("_RegionalPrecipDiagTex"),bx,by);
     sky.TrySampleRegionalPrecipitation(u,v,out var abortCpu);
     CheckRenderState(report,(int)pendingStripField.GetValue(sky)==-1 && sky.RegionalClimateStep==stepWet &&
      Mathf.Abs(abortGpu.g-gpuWet.g)<1e-4f && abortCpu.SurfacePrecipKgM2Per6h==cpuWet.SurfacePrecipKgM2Per6h &&
-     bakeMat.GetTexture("_RegionalPrecipDiagTex")==precipTexWet,
+     hpMat.GetTexture("_RegionalPrecipDiagTex")==precipTexWet &&
+     bakeMat.GetTexture("_RegionalCloudResponse")==cloudResponseWet,
      "aborting an incomplete 4-strip bake restores staging materials and leaks nothing into published GPU/CPU state");
 
     // Complete all 4 strips to dryDay and verify atomic switch on strip 3
     PublishAt(dryDay);
-    sky.Bind(surfaceProbe,Vector3.forward,true,true,true,true,true,false,false,1f);
-    var gpuDry=SampleGpuTexel(surfaceProbe.GetTexture("_RegionalPrecipDiagTex"),bx,by);
+    sky.Bind(publishedProbe,Vector3.forward,true,true,true,true,true,false,false,1f);
+    var gpuDry=SampleGpuTexel(publishedProbe.GetTexture("_RegionalPrecipDiagTex"),bx,by);
     bool hasDryCpu=sky.TrySampleRegionalPrecipitation(u,v,out var cpuDry);
-    CheckRenderState(report,hasDryCpu && sky.RegionalClimateStep==stepDry && surfaceProbe.GetFloat("_RegionalPrecipReady")==1f &&
+    CheckRenderState(report,hasDryCpu && sky.RegionalClimateStep==stepDry && publishedProbe.GetFloat("_RegionalPrecipReady")==1f &&
      gpuDry.g==0f && cpuDry.SurfacePrecipKgM2Per6h==0f && sky.Texture!=texWet && sky.ColumnTexture!=colWet,
      "completing strip 3 atomically publishes dry G=0 regional precipitation alongside ColumnTexture and Weather");
 
@@ -384,7 +388,7 @@ namespace Orbis.Editor
    finally
    {
     RenderTexture.active=prevRt;GL.sRGBWrite=prevSrgb;
-    RenderTexture.ReleaseTemporary(gpuRt);UnityEngine.Object.DestroyImmediate(gpuRead);UnityEngine.Object.DestroyImmediate(surfaceProbe);
+    RenderTexture.ReleaseTemporary(gpuRt);UnityEngine.Object.DestroyImmediate(gpuRead);UnityEngine.Object.DestroyImmediate(publishedProbe);
    }
   }
 
