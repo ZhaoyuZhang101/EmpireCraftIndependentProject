@@ -13,6 +13,7 @@ Shader "ORBIS/FlatWorld/SkyBake"
   [HideInInspector] _GlebaForcingPoleSouth("South pole forcing",Vector)=(0.35,0,0.25,0.35)
   [HideInInspector] _GlebaForcingPoleNorth("North pole forcing",Vector)=(0.35,0,0.25,0.35)
   [HideInInspector] _RegionalCloudPoles("South and north cloud responses",Vector)=(0,0,0,0)
+  [HideInInspector] _RegionalEvapReady("Use RegionalCloudResponse.a [0,1] evaporation signal",Float)=0
   [HideInInspector] _CycloneNorth("Northern pressure centre and wind strength",Vector)=(0,0,0,0)
   [HideInInspector] _CycloneSouth("Southern pressure centre and wind strength",Vector)=(0,0,0,0)
   [HideInInspector] _CyclonePhase("Simulated circulation phase in radians",Vector)=(0,0,0,0)
@@ -36,7 +37,7 @@ Shader "ORBIS/FlatWorld/SkyBake"
    UNITY_DECLARE_TEX2D_NOSAMPLER(_CloudSynopticAuxTex);
    UNITY_DECLARE_TEX2D_NOSAMPLER(_UpperWindTex);
    float4 _RegionalCloudResponse_TexelSize,_RegionalCloudPoles;
-   float _VisualTime,_MonthBlend,_ClimateRows,_GlebaCloudEnable;
+   float _VisualTime,_MonthBlend,_ClimateRows,_GlebaCloudEnable,_RegionalEvapReady;
    float4 _CyclonePhase,_GlebaCirculationParams;
    float4 _ClimatePoleSouth,_ClimatePoleNorth,_GlebaForcingPoleSouth,_GlebaForcingPoleNorth;
    float Hash3(float3 p){p=frac(p*.1031);p+=dot(p,p.yzx+33.33);return frac((p.x+p.y)*p.z);}
@@ -648,19 +649,22 @@ Shader "ORBIS/FlatWorld/SkyBake"
     float frontalDry=fr.frontalDry;
     float wcbCirrus=fr.wcbCirrus;
 
-    float3 regional=tex2D(_RegionalCloudResponse,i.uv).rgb;
+    float4 regional=tex2D(_RegionalCloudResponse,i.uv);
     float2 pole=lerp(_RegionalCloudPoles.xy,_RegionalCloudPoles.zw,step(.5,i.uv.y));
-    float2 response=lerp(pole,float2(regional.r-regional.g,regional.b),
-       smoothstep(0,.5,min(i.uv.y,1-i.uv.y)*_RegionalCloudResponse_TexelSize.w));
+    float regPoleW=smoothstep(0,.5,min(i.uv.y,1-i.uv.y)*_RegionalCloudResponse_TexelSize.w);
+    float2 response=lerp(pole,float2(regional.r-regional.g,regional.b),regPoleW);
+    // Carbon contract: RGB = existing regional response, A = [0,1] evaporation/subsidence dissipation (0 = no signal).
+    // Guarded by _RegionalEvapReady until Core stops writing legacy alpha=255 / Texture2D.blackTexture (a=1).
+    float regEvap=saturate(regional.a)*step(.5,_RegionalEvapReady)*regPoleW;
 
     float low,high,convection,storm;
     if(_GlebaCloudEnable>.5)
     {
      float synLift=forcing.r,itczConv=forcing.g,stormTrack=forcing.b,moistEnv=forcing.a;
      float marineSc=aux.r,orogCrest=aux.g,leeShadow=aux.b;
-     // Lagrangian parcel history along real surface wind (-6h & -18h upstream) and upper jet (-8.4h upstream):
-     // drives physically grounded condensation growth in moist ascent, downwind carryover & evaporation in
-     // subsidence/lee-shadow, post-precipitation boundary-layer depletion, and jet-steered anvil cirrus export!
+     // Lagrangian parcel history along real surface wind (-6h & -18h upstream) and unified upper jet (-8.4h upstream):
+     // drives bounded moist-ascent condensation, dry-air advection/subsidence evaporation, post-rain boundary-layer
+     // depletion, and wind-advected synoptic mesoscale dry breaks in persistent monsoon/ITCZ belts.
      float3 pUp6=AdvectSurfaceRK2(radial,windVec,.25,poleDamp);
      float2 uvUp6=FastSphereUV(pUp6);
      float4 fUp6=UNITY_SAMPLE_TEX2D_SAMPLER(_CloudSynopticTex,_ClimateTex,uvUp6);
@@ -674,13 +678,21 @@ Shader "ORBIS/FlatWorld/SkyBake"
 
      float parcelLiftGain=(synLift-fUp6.r)+.45*(orogCrest-aUp6.g)+.35*(synLift-fUp18.r);
      float parcelMoist=saturate(moistEnv*.74+wet*.26);
-     float parcelCondense=smoothstep(0.0,.20,parcelLiftGain)*smoothstep(.18,.70,parcelMoist)*.17;
-     float parcelCarry=smoothstep(.30,.76,fUp6.r)*(1.0-leeShadow)*.085*smoothstep(.05,.35,windSpd);
-     float parcelSubside=smoothstep(0.0,.22,-parcelLiftGain+.50*max(0.0,leeShadow-aUp6.b))*.14;
-     // Post-precipitation depletion: parcels exiting heavy upstream convective/frontal rain lose low-level cloud water
-     float upHeavyRain=smoothstep(.28,.72,fUp6.r*fUp6.a)*smoothstep(.22,.68,max(fUp6.g,fUp6.b))*
-                       (1.0-smoothstep(.50,.82,synLift*max(itczConv,stormTrack)));
-     float postRainDecay=saturate(upHeavyRain*.14+smoothstep(.35,.78,fUp18.r*fUp18.a*max(fUp18.g,fUp18.b))*(1.0-synLift)*.07);
+     // Headroom factor prevents condensation/carryover from pinning already-high forcing (e.g. East China Sea 0.88) at 1.00.
+     float liftRoom=saturate(1.0-synLift*.82);
+     float parcelCondense=smoothstep(0.0,.20,parcelLiftGain)*smoothstep(.18,.70,parcelMoist)*.17*(.35+.65*liftRoom);
+     float parcelCarry=smoothstep(.30,.76,fUp6.r)*(1.0-leeShadow)*.065*smoothstep(.05,.35,windSpd)*liftRoom;
+     float dryAdvect=smoothstep(.03,.26,moistEnv-fUp6.a)*smoothstep(.05,.35,windSpd)*.14;
+     float parcelSubside=smoothstep(0.0,.20,-parcelLiftGain+.55*max(0.0,leeShadow-aUp6.b))*.18+dryAdvect;
+     // Wind-advected synoptic mesoscale dry/subsidence wave (moves strictly with real _ClimateWindTex):
+     // breaks permanent solid blankets in high-synLift monsoon/ITCZ zones with realistic thinning/clearing windows.
+     float synWaveDry=1.0-smoothstep(.24,.66,synCluster*.58+planetary*.42);
+     float upHeavyRain=smoothstep(.28,.72,fUp6.r*fUp6.a)*smoothstep(.22,.68,max(fUp6.g,fUp6.b));
+     float convWakeBreak=smoothstep(.35,.75,itczConv)*synWaveDry;
+     float postRainDecay=saturate(
+      upHeavyRain*lerp(.18,.08,smoothstep(.55,.86,synLift*max(itczConv,stormTrack)))+
+      upHeavyRain*convWakeBreak*.26+
+      smoothstep(.35,.78,fUp18.r*fUp18.a*max(fUp18.g,fUp18.b))*(1.0-synLift*.70)*.10);
      float upperAnvilAdv=smoothstep(.24,.70,max(fUpHi.g,fUpHi.b*.85))*smoothstep(.22,.72,fUpHi.a);
 
      float hadleySin0=sin(clamp(hadleyRad*.38,.12,.72));
@@ -696,12 +708,24 @@ Shader "ORBIS/FlatWorld/SkyBake"
      float scStrength=scRamp*(.34+.66*smoothstep(.64,.98,marineSc));
      float lowLee=leeShadow*(1.0-.82*scProtect);
 
+     // Unified physical dissipation / evaporation survival gates (applied BEFORE thresholding AND to ALL max() branches
+     // so dry air, subsidence, post-rain depletion, or Regional.a evaporation can NEVER be refilled into solid overcast!).
+     float regSuppress=max(0.0,-response.x);
+     float regBoost=max(0.0,response.x);
+     float moistSlack=saturate(1.0-smoothstep(.32,.82,moistEnv)*.55);
+     float monsoonBreak=smoothstep(.56,.84,synLift)*synWaveDry*moistSlack*(1.0-.85*scProtect);
+     float dryDispersal=saturate(regEvap*.58+regSuppress*.65+parcelSubside*.85+postRainDecay*.95*(1.0-.75*scProtect)+monsoonBreak*.52);
+     float highDispersal=saturate(regEvap*.54+regSuppress*.55+parcelSubside*.55+postRainDecay*.55+monsoonBreak*.54);
+     float lowSurvive=saturate(1.0-dryDispersal);
+     float highSurvive=saturate(1.0-highDispersal);
+
      // ISCCP joint optical-depth partition matching 79e6fa2 natural clear/veil/core balance + Lagrangian parcel lifecycle:
      float highShare=saturate(.58*itczConv+.52*stormTrack+.26*moistEnv)*(1.0-.78*marineSc)*(1.0-.66*leeShadow);
-     float parcelNet=(parcelCondense+parcelCarry-parcelSubside-postRainDecay*(1.0-.80*scProtect));
-     float climTarget=saturate(synLift+.14*response.x*(1.0-.50*lowLee)+parcelNet);
+     float climBaseLift=synLift+.18*regBoost*(1.0-.50*lowLee)+parcelCondense+parcelCarry;
+     float climTarget=saturate(climBaseLift*(1.0-.62*dryDispersal)-.10*regEvap-.14*regSuppress);
      float lowTarget=saturate(climTarget*(1.0-.35*highShare));
-     float highTarget=saturate((climTarget-lowTarget)/max(.14,1.0-lowTarget)+.22*highShare*climTarget+.12*upperAnvilAdv*(1.0-.65*leeShadow));
+     float highRawTarget=(climTarget-lowTarget)/max(.14,1.0-lowTarget)+.22*highShare*climTarget+.12*upperAnvilAdv*(1.0-.65*leeShadow);
+     float highTarget=saturate(highRawTarget*(1.0-.60*highDispersal)-.09*regEvap);
 
      // Five authentic NASA DSCOVR EPIC & VIIRS continuous morphological regimes:
      // Very gentle synCluster preserves 79e6fa2 unbroken sweeping band continuity without carving bald gaps!
@@ -732,7 +756,7 @@ Shader "ORBIS/FlatWorld/SkyBake"
      zLow=lerp(zLow,zHoney,saturate(scProtect*.98));
      zLow=lerp(zLow,zFront,stormWeight);
      float orogMoist=smoothstep(.16,.48,moistEnv);
-     zLow+=.82*orogCrest*(.30+.70*smoothstep(.22,.78,baseTex))*orogMoist;
+     zLow+=.82*orogCrest*(.30+.70*smoothstep(.22,.78,baseTex))*orogMoist*lowSurvive;
      float uLow=rcp(1.0+exp(-1.19*clamp(zLow,-5.5,5.5)));
 
      // EPIC Continuous Three-Tier Atmospheric Vapor Distribution restoring 79e6fa2 full-disk balance:
@@ -740,14 +764,14 @@ Shader "ORBIS/FlatWorld/SkyBake"
      //   2. coherentBody: unbroken curved fronts, ITCZ/SPCZ ribbons & eastern-boundary marine Sc decks
      //   3. brightCore: snow-white convective knots, comma heads & windward orographic cap clouds
      float sharpOrg=saturate(max(stormWeight*frontalLow*1.06,itczConv*mcsCluster));
-     float dryGuard=smoothstep(.10,.35,climTarget+.16*scStrength)*(1.0-.84*lowLee);
+     float dryGuard=smoothstep(.10,.35,climTarget+.16*scStrength)*(1.0-.84*lowLee)*lowSurvive;
      float polarDryCarve=saturate(stormWeight*frontalDry*smoothstep(midSin0,midSin1,abs(radial.y))+polarCarve*.38);
-     float blanketRelief=smoothstep(.68,.92,lowTarget)*(1.0-smoothstep(.26,.66,synCluster*.35+planetary*.65))*(1.0-.90*sharpOrg);
+     float blanketRelief=smoothstep(.60,.88,lowTarget)*synWaveDry*(1.0-.45*sharpOrg);
      float scCapWeight=scProtect*(1.0-stormWeight)*(1.0-saturate(itczConv*1.5))*(1.0-saturate(orogCrest*1.5));
      float baseLowTarget=lerp(lowTarget,lerp(.12,.40,scStrength),scCapWeight);
-     float scTargetTerm=.12*scStrength*smoothstep(.24,.70,honeycomb);
-     float effLowTarget=saturate(min(.86,baseLowTarget*(1.0-.58*polarDryCarve-.08*blanketRelief)+scTargetTerm+
-                           .18*orogCrest*orogMoist*(1.0-.70*leeShadow))+.045*smoothstep(.24,.60,climTarget)*(1.0-lowLee));
+     float scTargetTerm=.12*scStrength*smoothstep(.24,.70,honeycomb)*saturate(1.0-regEvap*.75-regSuppress*.65);
+     float effLowTarget=saturate(min(.86,baseLowTarget*(1.0-.58*polarDryCarve-.24*blanketRelief)+scTargetTerm+
+                           .18*orogCrest*orogMoist*(1.0-.70*leeShadow)*lowSurvive)+.045*smoothstep(.24,.60,climTarget)*(1.0-lowLee)*lowSurvive);
      float veilTarget=saturate(min(.86,effLowTarget*1.28+.102*dryGuard)*(1.0-.62*polarDryCarve));
      float wVeil=max(1e-4,min(.44,min(veilTarget,1.0-veilTarget)+.09));
      float rawVeil=smoothstep(1.0-veilTarget-wVeil,1.0-veilTarget+wVeil,uLow);
@@ -756,24 +780,28 @@ Shader "ORBIS/FlatWorld/SkyBake"
 
      // Wind-combed silky texture + organic eastern-boundary marine Sc decks + sweeping curved fronts
      // + post-frontal open-cell wakes + sinuous Pacific ITCZ / SPCZ + moisture-gated orographic windward cap clouds!
+     // Every direct max() branch is gated by lowSurvive so dissipation/evaporation genuinely clears clouds and shadows!
      float silkTex=flowBands*.54+fineGrain*.30+mesoCells*.16;
      float veilLayer=rawVeil*lerp(.31,.56,smoothstep(.16,.84,silkTex))*dryGuard;
-     float bodyLayer=rawCore*(.64+.36*smoothstep(.18,.82,silkTex));
-     float denseCore=smoothstep(.44,.82,rawCore)*(sharpOrg*.88+.12)*(.92+.08*smoothstep(.22,.78,mesoCells));
-     float parcelLifecycle=saturate(1.0+parcelCondense*1.25-parcelSubside*1.20-postRainDecay*1.15);
+     float bodyLayer=rawCore*(.64+.36*smoothstep(.18,.82,silkTex))*lerp(.35,1.0,lowSurvive);
+     float denseCore=smoothstep(.44,.82,rawCore)*(sharpOrg*.88+.12)*(.92+.08*smoothstep(.22,.78,mesoCells))*lowSurvive;
+     float parcelLifecycle=saturate((1.0+parcelCondense*1.25)*lowSurvive);
      float frontDirect=stormWeight*smoothstep(.24,.72,frontalLow)*(1.0-.85*frontalDry)*smoothstep(.10,.38,climTarget+.12*midLatBoost)*.84*parcelLifecycle;
-     float postWakeLace=stormWeight*postFrontCells*smoothstep(.08,.40,climTarget+.12*midLatBoost)*.82;
+     float postWakeLace=stormWeight*postFrontCells*smoothstep(.08,.40,climTarget+.12*midLatBoost)*.82*lowSurvive;
      // Localized eastern-boundary marine stratocumulus sheet (closed-cell cobbles nearshore -> open-cell POCs seaward!)
+     float scEvapKeep=saturate(1.0-regEvap*.75-regSuppress*.65-parcelSubside*.55);
      float scDeckDirect=scProtect*lerp(.16,.68,scStrength)*smoothstep(.24,.70,honeycomb)*
-                        smoothstep(.18,.52,moistEnv+.28*scStrength)*(1.0-.72*leeShadow*(1.0-.55*scStrength));
-     float oceanTradeGate=smoothstep(.16,.42,climTarget)*smoothstep(.28,.58,moistEnv)*(1.0-.88*lowLee);
+                        smoothstep(.18,.52,moistEnv+.28*scStrength)*(1.0-.72*leeShadow*(1.0-.55*scStrength))*scEvapKeep;
+     float oceanTradeGate=smoothstep(.16,.42,climTarget)*smoothstep(.28,.58,moistEnv)*(1.0-.88*lowLee)*lowSurvive;
      float tradePatchEnv=smoothstep(.34,.67,planetary*.48+curvedBand*.52);
      float tradeFineField=smoothstep(.40,.68,tradeStreets*.64+honeycomb*.36);
      float marineTapestry=oceanTradeGate*tradePatchEnv*tradeFineField*lerp(.40,.64,saturate(marineSc+.38*tropBelt))*(1.0-.85*scCapWeight);
-     float itczDirectLift=smoothstep(.12,.50,itczConv)*smoothstep(.36,.80,mcsCluster)*(1.0-.82*leeShadow)*.82*parcelLifecycle;
-     float orogDirectCap=orogCrest*smoothstep(.16,.52,moistEnv)*(1.0-.78*leeShadow)*(.44+.56*smoothstep(.20,.78,flowBands*.55+mesoCells*.45))*.76;
-     low=saturate(max(max(veilLayer,bodyLayer),max(max(max(denseCore,frontDirect),max(postWakeLace,orogDirectCap)),max(max(marineTapestry,scDeckDirect),itczDirectLift)))+
-                  .04*response.x*smoothstep(.02,.18,rawVeil+.15*climTarget));
+     float itczMoistScale=lerp(.52,1.0,smoothstep(.20,.68,moistEnv));
+     float itczDirectLift=smoothstep(.12,.50,itczConv)*smoothstep(.36,.80,mcsCluster)*itczMoistScale*(1.0-.82*leeShadow)*.82*parcelLifecycle;
+     float orogDirectCap=orogCrest*smoothstep(.16,.52,moistEnv)*(1.0-.78*leeShadow)*(.44+.56*smoothstep(.20,.78,flowBands*.55+mesoCells*.45))*.76*lowSurvive;
+     float lowRaw=saturate(max(max(veilLayer,bodyLayer),max(max(max(denseCore,frontDirect),max(postWakeLace,orogDirectCap)),max(max(marineTapestry,scDeckDirect),itczDirectLift)))+
+                  .04*regBoost*smoothstep(.02,.18,rawVeil+.15*climTarget));
+     low=lowRaw*(1.0-smoothstep(.04,1.0,regEvap+regSuppress*.48+postRainDecay*.42*(1.0-.75*scProtect)+monsoonBreak*.32));
 
      // Explicit 5-tier cloud altitude classification in convection (weather.b):
      // Route BOTH eastern-boundary marineSc AND post-frontal cold-air open cells cleanly into low cellular regime!
@@ -783,8 +811,8 @@ Shader "ORBIS/FlatWorld/SkyBake"
                                  (.35*itczConv+.45*orogCrest)*(1.0-smoothstep(.55,.88,mcsCluster)))*(1.0-scShare)*(1.0-postOpenShare));
      float corePeak=smoothstep(.46,.86,planetary*.45+mesoCells*.55);
      float deepShare=saturate(max(itczConv*smoothstep(.45,.88,uLow)*(.45+.55*mcsCluster),
-                                  stormWeight*smoothstep(.50,.90,frontalLow)*.88));
-     float deepTrigger=smoothstep(.20,.68,deepShare*(.52+.48*corePeak)+.32*synLift*orogCrest+.20*itczConv*smoothstep(.55,.90,effWet));
+                                  stormWeight*smoothstep(.50,.90,frontalLow)*.88))*lowSurvive;
+     float deepTrigger=smoothstep(.20,.68,deepShare*(.52+.48*corePeak)+.32*synLift*orogCrest+.20*itczConv*smoothstep(.55,.90,effWet))*lowSurvive;
      storm=saturate(smoothstep(.22,.76,effWet)*smoothstep(.60,.95,low)*deepTrigger*(1+.35*response.y)*(1.0-.92*scShare));
 
      float tradeType=.20+.11*smoothstep(.20,.75,flowBands);
@@ -798,7 +826,7 @@ Shader "ORBIS/FlatWorld/SkyBake"
      // Eastern-boundary marine Sc sits at type ~0.06..0.11 (420-1,450 m inversion deck: closed cobbles + open POCs)
      convection=lerp(convection,.06+.05*honeycomb,scShare);
 
-     // Upper-tropospheric Rossby jet streaks & downwind anvil/WCB plumes steered strictly by upper wind!
+     // Upper-tropospheric Rossby jet streaks & downwind anvil/WCB plumes steered strictly by unified upper wind!
      float wisps=jetWisps;
      float curvedCirrus=saturate(max(jetBanner*1.04,curvedWisp*.42));
 
@@ -812,13 +840,14 @@ Shader "ORBIS/FlatWorld/SkyBake"
      float wHigh=max(1e-4,min(.42,min(highEnvTarget,1.0-highEnvTarget)+.06));
      float rawHigh=smoothstep(1.0-highEnvTarget-wHigh,1.0-highEnvTarget+wHigh,uHigh);
      float highSilk=.34+.66*smoothstep(.18,.84,wisps*.64+fineGrain*.36);
-     float anvilOutflow=saturate(max(smoothstep(.16,.56,itczConv)*anvilShield*.70,upperAnvilAdv*anvilShield*.74));
-     high=smoothstep(.05,.92,saturate(max(rawHigh*highSilk*1.13,anvilOutflow)))*(1.0-.78*tropBelt*leeShadow);
+     float anvilOutflow=saturate(max(smoothstep(.16,.56,itczConv)*anvilShield*.70*itczMoistScale,upperAnvilAdv*anvilShield*.74))*highSurvive;
+     high=smoothstep(.05,.92,saturate(max(rawHigh*highSilk*1.13*lerp(.35,1.0,highSurvive),anvilOutflow)))*
+          (1.0-.78*tropBelt*leeShadow)*(1.0-smoothstep(.04,1.0,regEvap+regSuppress*.44+monsoonBreak*.36));
     }
     else
     {
-     float threshold=lerp(.57,.35,wet)-.095*response.x;
-     low=smoothstep(threshold-.06,threshold+.24,baseTex);
+     float threshold=lerp(.57,.35,wet)-.095*response.x+.30*regEvap;
+     low=smoothstep(threshold-.06,threshold+.24,baseTex)*(1.0-.92*regEvap);
      storm=saturate(smoothstep(.27,.78,wet)*smoothstep(.62,.96,low)*(1+.35*response.y));
      convection=saturate(.16+wet*.32+storm*.52);
      float3 upper=RotateY(radial,-_VisualTime*.0018);
@@ -830,7 +859,7 @@ Shader "ORBIS/FlatWorld/SkyBake"
      float ribbonB=Noise3((ribbonPos-crossAxis*dot(ribbonPos,crossAxis)*.92)*42+float3(3,2,7));
      float align=.5+.5*(abs(dot(windVec,streakAxis))-abs(dot(windVec,crossAxis)))*smoothstep(0,.16,length(radial.xz));
      float wisps=lerp(ribbonB,ribbonA,smoothstep(.30,.70,align));
-     high=envelope*(.14+.70*smoothstep(.31,.78,wisps))*lerp(.65,1,wet);
+     high=envelope*(.14+.70*smoothstep(.31,.78,wisps))*lerp(.65,1,wet)*(1.0-.90*regEvap);
     }
 
     float4 weather=float4(low,high,convection,storm);
