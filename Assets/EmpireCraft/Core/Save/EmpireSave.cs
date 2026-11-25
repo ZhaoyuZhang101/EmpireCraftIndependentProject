@@ -112,6 +112,7 @@ namespace EmpireCraft.Core
                 r.FoundedMonth=b.ReadInt32();r.EndedMonth=b.ReadInt32();
                 int list=Count(b);for(int k=0;k<list;k++)r.Cities.Add(w.Cities[Id(b,cities)]);
                 w.Realms.Add(r);
+                if(r.Alive){w.LiveRealms.Add(r);if(r.Ruler!=null)r.Ruler.Throne=r;}
             }
             for(int i=0;i<clans;i++){Check(founders[i]>=-1&&founders[i]<people,"Invalid clan founder");w.Clans[i].Founder=founders[i]<0?null:w.People[founders[i]];}
             for(int i=0;i<people;i++)

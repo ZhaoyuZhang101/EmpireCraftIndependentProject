@@ -4,7 +4,7 @@
   "files": [
     {
       "mod": "ClaimRules.json",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/ClaimRules.json",
       "lines": 1297,
@@ -16,7 +16,7 @@
     },
     {
       "mod": "ConstitutionTemplates.json",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/ConstitutionTemplates.json",
       "lines": 126,
@@ -28,7 +28,7 @@
     },
     {
       "mod": "IdeologyBureaus.json",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/IdeologyBureaus.json",
       "lines": 1518,
@@ -40,7 +40,7 @@
     },
     {
       "mod": "InstitutionTrees/Aosong.json",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/InstitutionTrees/Aosong.json",
       "lines": 367,
@@ -52,7 +52,7 @@
     },
     {
       "mod": "InstitutionTrees/Arabic.json",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/InstitutionTrees/Arabic.json",
       "lines": 1023,
@@ -64,7 +64,7 @@
     },
     {
       "mod": "InstitutionTrees/Common/Templates.json",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/InstitutionTrees/Common/Templates.json",
       "lines": 574,
@@ -76,7 +76,7 @@
     },
     {
       "mod": "InstitutionTrees/Huaxia.json",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/InstitutionTrees/Huaxia.json",
       "lines": 1844,
@@ -88,7 +88,7 @@
     },
     {
       "mod": "InstitutionTrees/Japan.json",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/InstitutionTrees/Japan.json",
       "lines": 146,
@@ -100,7 +100,7 @@
     },
     {
       "mod": "InstitutionTrees/Origins.json",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/InstitutionTrees/Origins.json",
       "lines": 627,
@@ -112,7 +112,7 @@
     },
     {
       "mod": "InstitutionTrees/README.md",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/InstitutionTrees/README.md",
       "lines": 89,
@@ -124,7 +124,7 @@
     },
     {
       "mod": "InstitutionTrees/Roma.json",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/InstitutionTrees/Roma.json",
       "lines": 1647,
@@ -136,7 +136,7 @@
     },
     {
       "mod": "InstitutionTrees/Settings.json",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/InstitutionTrees/Settings.json",
       "lines": 104,
@@ -148,7 +148,7 @@
     },
     {
       "mod": "InstitutionTrees/Youmu.json",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/InstitutionTrees/Youmu.json",
       "lines": 1176,
@@ -160,7 +160,7 @@
     },
     {
       "mod": "Locales/Cultures/Culture_Aosong/CultureRule.jsonc",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Aosong/CultureRule.jsonc",
       "lines": 100,
@@ -172,7 +172,7 @@
     },
     {
       "mod": "Locales/Cultures/Culture_Arab/CultureRule.jsonc",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Arab/CultureRule.jsonc",
       "lines": 91,
@@ -184,7 +184,7 @@
     },
     {
       "mod": "Locales/Cultures/Culture_Aztec/CultureRule.jsonc",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Aztec/CultureRule.jsonc",
       "lines": 88,
@@ -196,7 +196,7 @@
     },
     {
       "mod": "Locales/Cultures/Culture_Bantu/CultureRule.jsonc",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Bantu/CultureRule.jsonc",
       "lines": 119,
@@ -208,7 +208,7 @@
     },
     {
       "mod": "Locales/Cultures/Culture_China/CultureRule.jsonc",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_China/CultureRule.jsonc",
       "lines": 125,
@@ -220,7 +220,7 @@
     },
     {
       "mod": "Locales/Cultures/Culture_Corporate/CultureRule.jsonc",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Corporate/CultureRule.jsonc",
       "lines": 87,
@@ -232,7 +232,7 @@
     },
     {
       "mod": "Locales/Cultures/Culture_Egypt/CultureRule.jsonc",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Egypt/CultureRule.jsonc",
       "lines": 89,
@@ -244,7 +244,7 @@
     },
     {
       "mod": "Locales/Cultures/Culture_ElfFancy/CultureRule.jsonc",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_ElfFancy/CultureRule.jsonc",
       "lines": 78,
@@ -256,7 +256,7 @@
     },
     {
       "mod": "Locales/Cultures/Culture_Emperor/CultureRule.jsonc",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Emperor/CultureRule.jsonc",
       "lines": 79,
@@ -268,7 +268,7 @@
     },
     {
       "mod": "Locales/Cultures/Culture_Frankish/CultureRule.jsonc",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Frankish/CultureRule.jsonc",
       "lines": 117,
@@ -280,7 +280,7 @@
     },
     {
       "mod": "Locales/Cultures/Culture_Germanic/CultureRule.jsonc",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Germanic/CultureRule.jsonc",
       "lines": 112,
@@ -292,7 +292,7 @@
     },
     {
       "mod": "Locales/Cultures/Culture_Huaxia/CultureRule.jsonc",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Huaxia/CultureRule.jsonc",
       "lines": 185,
@@ -304,7 +304,7 @@
     },
     {
       "mod": "Locales/Cultures/Culture_India/CultureRule.jsonc",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_India/CultureRule.jsonc",
       "lines": 90,
@@ -316,7 +316,7 @@
     },
     {
       "mod": "Locales/Cultures/Culture_Japan/CultureRule.jsonc",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Japan/CultureRule.jsonc",
       "lines": 126,
@@ -328,7 +328,7 @@
     },
     {
       "mod": "Locales/Cultures/Culture_Kosher/CultureRule.jsonc",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Kosher/CultureRule.jsonc",
       "lines": 89,
@@ -340,7 +340,7 @@
     },
     {
       "mod": "Locales/Cultures/Culture_Manzhou/CultureRule.jsonc",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Manzhou/CultureRule.jsonc",
       "lines": 156,
@@ -352,7 +352,7 @@
     },
     {
       "mod": "Locales/Cultures/Culture_Ojibwe/CultureRule.jsonc",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Ojibwe/CultureRule.jsonc",
       "lines": 81,
@@ -364,7 +364,7 @@
     },
     {
       "mod": "Locales/Cultures/Culture_Persepolis/CultureRule.jsonc",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Persepolis/CultureRule.jsonc",
       "lines": 87,
@@ -376,7 +376,7 @@
     },
     {
       "mod": "Locales/Cultures/Culture_Roma/CultureRule.jsonc",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Roma/CultureRule.jsonc",
       "lines": 88,
@@ -388,7 +388,7 @@
     },
     {
       "mod": "Locales/Cultures/Culture_Shanhai/CultureRule.jsonc",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Shanhai/CultureRule.jsonc",
       "lines": 121,
@@ -400,7 +400,7 @@
     },
     {
       "mod": "Locales/Cultures/Culture_Slavonic/CultureRule.jsonc",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Slavonic/CultureRule.jsonc",
       "lines": 105,
@@ -412,7 +412,7 @@
     },
     {
       "mod": "Locales/Cultures/Culture_Swahili/CultureRule.jsonc",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Swahili/CultureRule.jsonc",
       "lines": 119,
@@ -424,7 +424,7 @@
     },
     {
       "mod": "Locales/Cultures/Culture_Viking/CultureRule.jsonc",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Viking/CultureRule.jsonc",
       "lines": 106,
@@ -436,7 +436,7 @@
     },
     {
       "mod": "Locales/Cultures/Culture_Western/CultureRule.jsonc",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Western/CultureRule.jsonc",
       "lines": 116,
@@ -448,7 +448,7 @@
     },
     {
       "mod": "Locales/Cultures/Culture_Xizang/CultureRule.jsonc",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Xizang/CultureRule.jsonc",
       "lines": 140,
@@ -460,7 +460,7 @@
     },
     {
       "mod": "Locales/Cultures/Culture_Youmu/CultureRule.jsonc",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Youmu/CultureRule.jsonc",
       "lines": 101,
@@ -472,7 +472,7 @@
     },
     {
       "mod": "Locales/Cultures/Culture_Zulu/CultureRule.jsonc",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Zulu/CultureRule.jsonc",
       "lines": 118,
@@ -484,7 +484,7 @@
     },
     {
       "mod": "Locales/ch.json",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/Locales/ch.json",
       "lines": 13618,
@@ -496,7 +496,7 @@
     },
     {
       "mod": "Locales/cz.json",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/Locales/cz.json",
       "lines": 13626,
@@ -508,7 +508,7 @@
     },
     {
       "mod": "Locales/en.json",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/Locales/en.json",
       "lines": 13612,
@@ -520,7 +520,7 @@
     },
     {
       "mod": "ReligionTenets.json",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/ReligionTenets.json",
       "lines": 67,
@@ -532,7 +532,7 @@
     },
     {
       "mod": "Scripts/Data/CityPopulationData.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/State/CityPopulationData.cs",
       "lines": 148,
@@ -545,7 +545,7 @@
     },
     {
       "mod": "Scripts/Data/CityStabilityData.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/State/CityStabilityData.cs",
       "lines": 24,
@@ -558,7 +558,7 @@
     },
     {
       "mod": "Scripts/Data/CityWorks.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/State/CityWorks.cs",
       "lines": 36,
@@ -571,7 +571,7 @@
     },
     {
       "mod": "Scripts/Data/ColonyState.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/State/ColonyState.cs",
       "lines": 32,
@@ -584,7 +584,7 @@
     },
     {
       "mod": "Scripts/Data/CompanyData.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/State/CompanyData.cs",
       "lines": 66,
@@ -597,7 +597,7 @@
     },
     {
       "mod": "Scripts/Data/ConstitutionData.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/State/ConstitutionData.cs",
       "lines": 154,
@@ -610,7 +610,7 @@
     },
     {
       "mod": "Scripts/Data/ConstitutionalEconomyState.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/State/ConstitutionalEconomyState.cs",
       "lines": 405,
@@ -623,7 +623,7 @@
     },
     {
       "mod": "Scripts/Data/CorpsData.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/State/CorpsData.cs",
       "lines": 83,
@@ -636,7 +636,7 @@
     },
     {
       "mod": "Scripts/Data/CourtState.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/State/CourtState.cs",
       "lines": 185,
@@ -649,7 +649,7 @@
     },
     {
       "mod": "Scripts/Data/CultureRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/State/CultureRules.cs",
       "lines": 368,
@@ -672,7 +672,7 @@
     },
     {
       "mod": "Scripts/Data/CultureTechState.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/State/CultureTechState.cs",
       "lines": 93,
@@ -685,7 +685,7 @@
     },
     {
       "mod": "Scripts/Data/ExclaveMaintenanceData.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/State/ExclaveMaintenanceData.cs",
       "lines": 14,
@@ -698,7 +698,7 @@
     },
     {
       "mod": "Scripts/Data/FactorySite.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/State/FactorySite.cs",
       "lines": 31,
@@ -711,7 +711,7 @@
     },
     {
       "mod": "Scripts/Data/FleetData.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/State/FleetData.cs",
       "lines": 30,
@@ -724,7 +724,7 @@
     },
     {
       "mod": "Scripts/Data/HolyRomanData.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/State/HolyRomanData.cs",
       "lines": 191,
@@ -737,7 +737,7 @@
     },
     {
       "mod": "Scripts/Data/InstitutionConfig.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/State/InstitutionConfig.cs",
       "lines": 475,
@@ -750,7 +750,7 @@
     },
     {
       "mod": "Scripts/Data/InstitutionState.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/State/InstitutionState.cs",
       "lines": 187,
@@ -763,7 +763,7 @@
     },
     {
       "mod": "Scripts/Data/LegionPopulationData.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/State/LegionPopulationData.cs",
       "lines": 65,
@@ -776,7 +776,7 @@
     },
     {
       "mod": "Scripts/Data/MilitaryAccessData.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/State/MilitaryAccessData.cs",
       "lines": 16,
@@ -789,7 +789,7 @@
     },
     {
       "mod": "Scripts/Data/PapacyData.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/State/PapacyData.cs",
       "lines": 115,
@@ -802,7 +802,7 @@
     },
     {
       "mod": "Scripts/Data/PopulationSettlementRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/PopulationSettlementRules.cs",
       "lines": 23,
@@ -815,7 +815,7 @@
     },
     {
       "mod": "Scripts/Data/RealmNameData.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/State/RealmNameData.cs",
       "lines": 10,
@@ -828,7 +828,7 @@
     },
     {
       "mod": "Scripts/Data/RebellionCauseData.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/State/RebellionCauseData.cs",
       "lines": 15,
@@ -841,7 +841,7 @@
     },
     {
       "mod": "Scripts/Data/ReligionTenetConfig.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/State/ReligionTenetConfig.cs",
       "lines": 101,
@@ -854,7 +854,7 @@
     },
     {
       "mod": "Scripts/Data/RoadTreatyData.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/State/RoadTreatyData.cs",
       "lines": 11,
@@ -867,7 +867,7 @@
     },
     {
       "mod": "Scripts/Data/RuralSettlement.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/State/RuralSettlement.cs",
       "lines": 39,
@@ -880,7 +880,7 @@
     },
     {
       "mod": "Scripts/Data/StateBond.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/State/StateBond.cs",
       "lines": 12,
@@ -893,7 +893,7 @@
     },
     {
       "mod": "Scripts/Data/StateSettlementData.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/State/StateSettlementData.cs",
       "lines": 87,
@@ -906,7 +906,7 @@
     },
     {
       "mod": "Scripts/Data/SteppeData.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/State/SteppeData.cs",
       "lines": 82,
@@ -919,7 +919,7 @@
     },
     {
       "mod": "Scripts/Data/TalentData.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/State/TalentData.cs",
       "lines": 73,
@@ -932,7 +932,7 @@
     },
     {
       "mod": "Scripts/Data/TechDriveState.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/State/TechDriveState.cs",
       "lines": 27,
@@ -945,7 +945,7 @@
     },
     {
       "mod": "Scripts/Data/TransmigrantState.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/State/TransmigrantState.cs",
       "lines": 65,
@@ -958,7 +958,7 @@
     },
     {
       "mod": "Scripts/Data/TreasuryData.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/State/TreasuryData.cs",
       "lines": 21,
@@ -971,7 +971,7 @@
     },
     {
       "mod": "Scripts/Data/WalletReserve.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/State/WalletReserve.cs",
       "lines": 9,
@@ -984,7 +984,7 @@
     },
     {
       "mod": "Scripts/Data/WarObjectiveData.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/State/WarObjectiveData.cs",
       "lines": 19,
@@ -997,7 +997,7 @@
     },
     {
       "mod": "Scripts/Data/WarReparation.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/State/WarReparation.cs",
       "lines": 9,
@@ -1010,7 +1010,7 @@
     },
     {
       "mod": "Scripts/Data/WorldOrderData.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/State/WorldOrderData.cs",
       "lines": 90,
@@ -1023,7 +1023,7 @@
     },
     {
       "mod": "Scripts/Data/ZhouEraState.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/State/ZhouEraState.cs",
       "lines": 41,
@@ -1036,7 +1036,7 @@
     },
     {
       "mod": "Scripts/Enums/CustomDataType.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Enums/CustomDataType.cs",
       "lines": 13,
@@ -1048,7 +1048,7 @@
     },
     {
       "mod": "Scripts/Enums/EmpireCraftMapMode.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Enums/EmpireCraftMapMode.cs",
       "lines": 15,
@@ -1060,7 +1060,7 @@
     },
     {
       "mod": "Scripts/Enums/EmpireExamLevel.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Enums/EmpireExamLevel.cs",
       "lines": 16,
@@ -1072,7 +1072,7 @@
     },
     {
       "mod": "Scripts/Enums/EmpireHeirLawType.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Enums/EmpireHeirLawType.cs",
       "lines": 19,
@@ -1084,7 +1084,7 @@
     },
     {
       "mod": "Scripts/Enums/EmpireHistoryType.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Enums/EmpireHistoryType.cs",
       "lines": 28,
@@ -1097,7 +1097,7 @@
     },
     {
       "mod": "Scripts/Enums/EmpirePeriod.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Enums/EmpirePeriod.cs",
       "lines": 15,
@@ -1110,7 +1110,7 @@
     },
     {
       "mod": "Scripts/Enums/OnomasticsType.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Enums/OnomasticsType.cs",
       "lines": 91,
@@ -1123,7 +1123,7 @@
     },
     {
       "mod": "Scripts/Enums/PeeragesLevel.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Enums/PeeragesLevel.cs",
       "lines": 29,
@@ -1136,7 +1136,7 @@
     },
     {
       "mod": "Scripts/Enums/SuccessionLawType.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Enums/SuccessionLawType.cs",
       "lines": 17,
@@ -1148,7 +1148,7 @@
     },
     {
       "mod": "Scripts/Enums/WarType.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Enums/WarType.cs",
       "lines": 66,
@@ -1160,7 +1160,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/AosongFiscalRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/AosongFiscalRules.cs",
       "lines": 32,
@@ -1173,7 +1173,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/BannerRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/BannerRules.cs",
       "lines": 123,
@@ -1186,7 +1186,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/CityStabilityMath.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/CityStabilityMath.cs",
       "lines": 63,
@@ -1199,7 +1199,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/CityStabilityRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/CityStabilityRules.cs",
       "lines": 44,
@@ -1212,7 +1212,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/ClassSystem.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/ClassSystem.cs",
       "lines": 31,
@@ -1226,7 +1226,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/CompanyNaming.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/CompanyNaming.cs",
       "lines": 100,
@@ -1240,7 +1240,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/ConnectivityJob.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/ConnectivityJob.cs",
       "lines": 1198,
@@ -1253,7 +1253,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/ConnectivityRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/ConnectivityRules.cs",
       "lines": 437,
@@ -1266,7 +1266,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/CorruptionRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/CorruptionRules.cs",
       "lines": 22,
@@ -1279,7 +1279,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/CourtCrisisRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/CourtCrisisRules.cs",
       "lines": 16,
@@ -1292,7 +1292,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/CultureShareRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/CultureShareRules.cs",
       "lines": 94,
@@ -1305,7 +1305,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/DynasticCycleRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/DynasticCycleRules.cs",
       "lines": 161,
@@ -1318,7 +1318,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/DynasticCycleSystem.cs#DynasticCycleSystem.Transition",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Enums/DynasticCycleSystem.Transition.cs",
       "lines": 18,
@@ -1334,7 +1334,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/EmpireLaw/SentencingScale.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/EmpireLaw/SentencingScale.cs",
       "lines": 101,
@@ -1347,7 +1347,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/EthnicRankRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/EthnicRankRules.cs",
       "lines": 84,
@@ -1360,7 +1360,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/ExclaveMaintenanceRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/ExclaveMaintenanceRules.cs",
       "lines": 17,
@@ -1373,7 +1373,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/ExileRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/ExileRules.cs",
       "lines": 45,
@@ -1386,7 +1386,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/FiscalBudgetRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/FiscalBudgetRules.cs",
       "lines": 27,
@@ -1399,7 +1399,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/IdeologyFamilies.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/IdeologyFamilies.cs",
       "lines": 102,
@@ -1416,7 +1416,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/IdeologyInstitutionPaths.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/IdeologyInstitutionPaths.cs",
       "lines": 187,
@@ -1429,7 +1429,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/IdeologySpreadSystem.cs#IdeologySpreadSystem.FeatureKey",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/IdeologySpreadSystem.FeatureKey.cs",
       "lines": 9,
@@ -1442,7 +1442,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/ImperialAuthorityRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/ImperialAuthorityRules.cs",
       "lines": 80,
@@ -1455,7 +1455,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/ImperialElectionRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/ImperialElectionRules.cs",
       "lines": 79,
@@ -1468,7 +1468,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/InstitutionDefinitionRegistry.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/InstitutionDefinitionRegistry.cs",
       "lines": 485,
@@ -1483,7 +1483,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/InstitutionRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/InstitutionRules.cs",
       "lines": 82,
@@ -1496,7 +1496,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/InstitutionSystem.cs#InstitutionNodeStatus,InstitutionNodeView",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/State/InstitutionNodeStatus.cs",
       "lines": 33,
@@ -1509,7 +1509,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/MaladySystem.cs#MaladySystem.EarlyYears,MaladySystem.EarlyPace,MaladySystem.PaceAt",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/MaladySystem.EarlyYears.cs",
       "lines": 22,
@@ -1525,7 +1525,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/MonarchyLegitimacyRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/MonarchyLegitimacyRules.cs",
       "lines": 17,
@@ -1538,7 +1538,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/OfficialRankRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/OfficialRankRules.cs",
       "lines": 205,
@@ -1551,7 +1551,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/PartyOpeningRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/PartyOpeningRules.cs",
       "lines": 40,
@@ -1564,7 +1564,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/PartySystem.cs#PartyIdeology",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Enums/PartyIdeology.cs",
       "lines": 44,
@@ -1577,7 +1577,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/PartySystem.cs#PartySystem.FeaturePartyPolitics",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/PartySystem.FeaturePartyPolitics.cs",
       "lines": 9,
@@ -1590,7 +1590,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/PopulationEconomyAccounts.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/State/PopulationEconomyAccounts.cs",
       "lines": 41,
@@ -1603,7 +1603,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/ProductionInstitutionPaths.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/ProductionInstitutionPaths.cs",
       "lines": 62,
@@ -1616,7 +1616,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/RealmAuthorityRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/RealmAuthorityRules.cs",
       "lines": 36,
@@ -1629,7 +1629,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/RebellionRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/RebellionRules.cs",
       "lines": 19,
@@ -1642,7 +1642,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/ReligionDiagnostics.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/ReligionDiagnostics.cs",
       "lines": 34,
@@ -1656,7 +1656,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/ReligionReachRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/ReligionReachRules.cs",
       "lines": 32,
@@ -1669,7 +1669,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/SectorTaxRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/SectorTaxRules.cs",
       "lines": 24,
@@ -1682,7 +1682,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/SouthernRetreatRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/SouthernRetreatRules.cs",
       "lines": 37,
@@ -1695,7 +1695,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/StateDebtRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/StateDebtRules.cs",
       "lines": 88,
@@ -1708,7 +1708,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/StateSettlementRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/StateSettlementRules.cs",
       "lines": 21,
@@ -1721,7 +1721,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/SteppeRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/SteppeRules.cs",
       "lines": 105,
@@ -1734,7 +1734,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/TechCalendarRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/TechCalendarRules.cs",
       "lines": 40,
@@ -1747,7 +1747,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/TechnologyContentRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/TechnologyContentRules.cs",
       "lines": 76,
@@ -1760,7 +1760,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/TechnologyStateRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/TechnologyStateRules.cs",
       "lines": 62,
@@ -1773,7 +1773,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/TerritoryGrain.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/TerritoryGrain.cs",
       "lines": 32,
@@ -1786,7 +1786,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/TreasuryRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/TreasuryRules.cs",
       "lines": 324,
@@ -1799,7 +1799,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/VassalReductionRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/VassalReductionRules.cs",
       "lines": 66,
@@ -1812,7 +1812,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/Warfare/AosongNavyRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/Warfare/AosongNavyRules.cs",
       "lines": 42,
@@ -1825,7 +1825,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/Warfare/GarrisonCutRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/Warfare/GarrisonCutRules.cs",
       "lines": 30,
@@ -1838,7 +1838,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/Warfare/SecondBeats.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/Warfare/SecondBeats.cs",
       "lines": 32,
@@ -1851,7 +1851,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/WildernessNaming.cs#WildernessSetting",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/State/WildernessSetting.cs",
       "lines": 19,
@@ -1864,7 +1864,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/WorldMap/AdministrativeBoundaryRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/WorldMap/AdministrativeBoundaryRules.cs",
       "lines": 56,
@@ -1877,7 +1877,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/WorldMap/ScenarioFillerRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/WorldMap/ScenarioFillerRules.cs",
       "lines": 73,
@@ -1890,7 +1890,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/WorldMap/ScenarioNaming.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/WorldMap/ScenarioNaming.cs",
       "lines": 113,
@@ -1905,7 +1905,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/WorldMap/ScenarioPlotRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/WorldMap/ScenarioPlotRules.cs",
       "lines": 121,
@@ -1918,7 +1918,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/WorldMap/ScenarioPreviewRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/WorldMap/ScenarioPreviewRules.cs",
       "lines": 169,
@@ -1931,7 +1931,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/WorldMap/ScenarioWallTrace.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/WorldMap/ScenarioWallTrace.cs",
       "lines": 64,
@@ -1944,7 +1944,7 @@
     },
     {
       "mod": "Scripts/GeneralSystems/WorldMap/WorldMapScale.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/WorldMap/WorldMapScale.cs",
       "lines": 20,
@@ -1959,7 +1959,7 @@
     },
     {
       "mod": "Scripts/HelperFunc/CacheAudit.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Util/CacheAudit.cs",
       "lines": 38,
@@ -1973,7 +1973,7 @@
     },
     {
       "mod": "Scripts/HelperFunc/EmpireCraftFrameSchedulingRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Util/EmpireCraftFrameSchedulingRules.cs",
       "lines": 99,
@@ -1986,7 +1986,7 @@
     },
     {
       "mod": "Scripts/HelperFunc/FrameJobs.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Scheduling/FrameJobs.cs",
       "lines": 104,
@@ -2001,7 +2001,7 @@
     },
     {
       "mod": "Scripts/HelperFunc/FrameStamp.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Util/FrameStamp.cs",
       "lines": 12,
@@ -2015,7 +2015,7 @@
     },
     {
       "mod": "Scripts/HelperFunc/IncomeStatisticsMath.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Util/IncomeStatisticsMath.cs",
       "lines": 17,
@@ -2028,7 +2028,7 @@
     },
     {
       "mod": "Scripts/HelperFunc/MinHeap.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Util/MinHeap.cs",
       "lines": 48,
@@ -2041,7 +2041,7 @@
     },
     {
       "mod": "Scripts/HelperFunc/OccupiedStatusConverter.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Util/OccupiedStatusConverter.cs",
       "lines": 130,
@@ -2053,7 +2053,7 @@
     },
     {
       "mod": "Scripts/HelperFunc/PackedKeyComparer.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Util/PackedKeyComparer.cs",
       "lines": 15,
@@ -2066,7 +2066,7 @@
     },
     {
       "mod": "Scripts/HelperFunc/ParallelWork.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Util/ParallelWork.cs",
       "lines": 24,
@@ -2079,7 +2079,7 @@
     },
     {
       "mod": "Scripts/HelperFunc/PopulationClassificationCache.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Util/PopulationClassificationCache.cs",
       "lines": 41,
@@ -2092,7 +2092,7 @@
     },
     {
       "mod": "Scripts/HelperFunc/PopulationContactMath.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Util/PopulationContactMath.cs",
       "lines": 181,
@@ -2105,7 +2105,7 @@
     },
     {
       "mod": "Scripts/HelperFunc/PopulationMathWorkers.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Util/PopulationMathWorkers.cs",
       "lines": 280,
@@ -2119,7 +2119,7 @@
     },
     {
       "mod": "Scripts/HelperFunc/PopulationProductionMath.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Util/PopulationProductionMath.cs",
       "lines": 53,
@@ -2132,7 +2132,7 @@
     },
     {
       "mod": "Scripts/HelperFunc/SafeTypeDiscovery.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Util/SafeTypeDiscovery.cs",
       "lines": 59,
@@ -2144,7 +2144,7 @@
     },
     {
       "mod": "Scripts/HelperFunc/SimulationFrameBudget.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Scheduling/SimulationFrameBudget.cs",
       "lines": 142,
@@ -2165,7 +2165,7 @@
     },
     {
       "mod": "Scripts/HelperFunc/SimulationStretch.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Util/SimulationStretch.cs",
       "lines": 12,
@@ -2178,7 +2178,7 @@
     },
     {
       "mod": "Scripts/Layer/AdministrativeDivisionNameRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/AdministrativeDivisionNameRules.cs",
       "lines": 16,
@@ -2191,7 +2191,7 @@
     },
     {
       "mod": "Scripts/Layer/CityValueRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/CityValueRules.cs",
       "lines": 72,
@@ -2204,7 +2204,7 @@
     },
     {
       "mod": "Scripts/Layer/CompositeEmpireRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/CompositeEmpireRules.cs",
       "lines": 63,
@@ -2217,7 +2217,7 @@
     },
     {
       "mod": "Scripts/Layer/DeJureTitleBindingRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/DeJureTitleBindingRules.cs",
       "lines": 18,
@@ -2229,7 +2229,7 @@
     },
     {
       "mod": "Scripts/Layer/DeJureTitleClaimRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/DeJureTitleClaimRules.cs",
       "lines": 37,
@@ -2242,7 +2242,7 @@
     },
     {
       "mod": "Scripts/Layer/DefeatedEmpireHouse.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/DefeatedEmpireHouse.cs",
       "lines": 34,
@@ -2254,7 +2254,7 @@
     },
     {
       "mod": "Scripts/Layer/EmpireFoundingNameRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/EmpireFoundingNameRules.cs",
       "lines": 70,
@@ -2267,7 +2267,7 @@
     },
     {
       "mod": "Scripts/Layer/EmpireSubmissionRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/EmpireSubmissionRules.cs",
       "lines": 30,
@@ -2280,7 +2280,7 @@
     },
     {
       "mod": "Scripts/Layer/ImperialLegitimacyRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/ImperialLegitimacyRules.cs",
       "lines": 23,
@@ -2293,7 +2293,7 @@
     },
     {
       "mod": "Scripts/Layer/NationalPowerRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/NationalPowerRules.cs",
       "lines": 29,
@@ -2306,7 +2306,7 @@
     },
     {
       "mod": "Scripts/Layer/PeerageSuccessionRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/PeerageSuccessionRules.cs",
       "lines": 32,
@@ -2318,7 +2318,7 @@
     },
     {
       "mod": "Scripts/Layer/PowerfulMinisterRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/PowerfulMinisterRules.cs",
       "lines": 130,
@@ -2330,7 +2330,7 @@
     },
     {
       "mod": "Scripts/Layer/RealmNameRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/RealmNameRules.cs",
       "lines": 99,
@@ -2343,7 +2343,7 @@
     },
     {
       "mod": "Scripts/Layer/TributaryTitlePetitionRules.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Rules/TributaryTitlePetitionRules.cs",
       "lines": 29,
@@ -2356,7 +2356,7 @@
     },
     {
       "mod": "Scripts/Regimes/FixedFaction.cs#FactionType",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Enums/FactionType.cs",
       "lines": 27,
@@ -2369,7 +2369,7 @@
     },
     {
       "mod": "Scripts/Regimes/RegimeSystem.cs#RegimeType",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Enums/RegimeType.cs",
       "lines": 25,
@@ -2382,7 +2382,7 @@
     },
     {
       "mod": "Scripts/Regimes/TemporaryFactions/TemporaryFactionType.cs",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Core/Enums/TemporaryFactionType.cs",
       "lines": 187,
@@ -2395,7 +2395,7 @@
     },
     {
       "mod": "Technology/Commodities.json",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/Technology/Commodities.json",
       "lines": 89,
@@ -2407,7 +2407,7 @@
     },
     {
       "mod": "Technology/LandmarkBooks.json",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/Technology/LandmarkBooks.json",
       "lines": 33,
@@ -2419,7 +2419,7 @@
     },
     {
       "mod": "Technology/TechTree.json",
-      "commit": "e770dbbe9e3167f3c543b0a758cc81d750ef69f9",
+      "commit": "8f36692e150309b7882311a0bf536dfea50c742c",
       "ported": "2026-11-25",
       "dest": "Assets/EmpireCraft/Data/Technology/TechTree.json",
       "lines": 264,

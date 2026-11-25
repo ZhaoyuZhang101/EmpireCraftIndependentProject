@@ -41,6 +41,10 @@ namespace EmpireCraft.Core
                 else if(!rulers.Add(r.Ruler))Fail("person "+r.Ruler.Id+" rules two realms");
                 else if(r.Ruler.Clan!=r.RulingClan)Fail("realm "+r.Id+" ruling clan mismatch");
             }
+            int alive=0;foreach(var r in w.Realms)if(r.Alive){if(alive>=w.LiveRealms.Count||w.LiveRealms[alive]!=r)Fail("living realm index misses realm "+r.Id);alive++;}
+            if(alive!=w.LiveRealms.Count)Fail("living realm index "+w.LiveRealms.Count+" != "+alive);
+            foreach(var r in w.Realms)if(r.Alive&&r.Ruler!=null&&r.Ruler.Throne!=r)Fail("ruler of realm "+r.Id+" does not hold its throne");
+            foreach(var p in w.People)if(p.Throne!=null&&(!p.Alive||!p.Throne.Alive||p.Throne.Ruler!=p))Fail("person "+p.Id+" holds a throne that is not theirs");
             int living=0;
             foreach(var p in w.People)
             {

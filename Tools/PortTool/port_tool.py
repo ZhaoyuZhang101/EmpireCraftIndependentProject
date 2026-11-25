@@ -68,6 +68,8 @@ REWRITES = [
 # A mod class of its own may use one of the plain member names too (`title.capital`,
 # `mapData.cities`); list such receivers under `--keep` to leave them alone in that file.
 IDENTITY = [
+    # A few mod files declare a helper type of their own called Realm; it gives way to the entity.
+    (r"(?<![.\w])Realm\b", "ModRealm"),
     (r"\bWorld\.world\.getCurWorldTime\(\)", "GameClock.Now"),
     (r"\bWorld\.world\b", "EmpireWorld.Current"),
     (r"(?<![.\w])Kingdom\b", "Realm"),
@@ -77,9 +79,9 @@ IDENTITY = [
     (r"\.isAlive\(\)", ".Alive"),
     (r"\.hasKing\(\)", ".HasRuler()"),
     (r"\.hasCapital\(\)", ".HasCapital()"),
-    (r"\.getID\(\)", ".Id"),
+    (r"\.getID\(\)", ".Key"),
     (r"\.data\.name\b", ".Name"),
-    (r"\.data\.id\b", ".Id"),
+    (r"\.data\.id\b", ".Key"),
     (r"\.king\b", ".Ruler"),
     (r"\.capital\b", ".Capital"),
     (r"\.cities\b", ".Cities"),
@@ -330,6 +332,24 @@ def transform(text, key, commit, namespaces, identity=False, keep=()):
     header = ["// Ported from the EmpireCraft mod: %s @ %s. Body kept line-for-line for three-way sync;" % (key, commit[:8]),
               "// see Port/manifest.json and Tools/PortTool."]
     return "\n".join(header + aliases + out) + "\n", changes
+
+
+MEMBERS = os.path.join(ROOT, "Port", "identity-members.json")
+
+
+def semantic_fix(sources, core):
+    """Rename members by the type of their receiver (Port/identity-members.json), in place, in every file below `sources`.
+
+    The second half of the identity rewrite: a plain member name such as `id` or `data` cannot be
+    renamed by text, since mod classes use the same names. Validation/PortSurvey binds each access
+    against `core` and renames only those asked of an entity that do not resolve.
+    """
+    orbis = os.path.join(ROOT, "Assets", "ORBIS", "Runtime", "FlatWorld", "Core")
+    result = subprocess.run(["dotnet", "run", "--project", os.path.join(ROOT, "Validation", "PortSurvey"), "-c", "Release", "--",
+                             "fix", sources, MEMBERS, core, orbis], capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if result.returncode != 0:
+        raise SystemExit(result.stdout[-2000:] + result.stderr[-4000:])
+    return result.stdout.strip().splitlines()[-1]
 
 
 # ---- manifest --------------------------------------------------------------

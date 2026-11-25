@@ -65,9 +65,10 @@ def main():
         if entry.get("kind") == "extract" and entry["mod"].partition("#")[0] in candidates:
             os.remove(os.path.join(core, *entry["dest"].split("/")[3:]))
     orbis = os.path.join(tool.ROOT, "Assets", "ORBIS", "Runtime", "FlatWorld", "Core")
+    print("by-type member renames: " + tool.semantic_fix(os.path.join(work, "src"), core))
     raw = os.path.join(work, "raw.json")
     result = subprocess.run(["dotnet", "run", "--project", os.path.join(tool.ROOT, "Validation", "PortSurvey"), "-c", "Release", "--",
-                             os.path.join(work, "src"), raw, core, orbis], capture_output=True, text=True, encoding="utf-8", errors="replace")
+                             "survey", os.path.join(work, "src"), raw, core, orbis], capture_output=True, text=True, encoding="utf-8", errors="replace")
     if result.returncode != 0:
         raise SystemExit(result.stdout[-2000:] + result.stderr[-4000:])
     print("mod %s: %s" % (commit[:8], result.stdout.strip().splitlines()[-1]))

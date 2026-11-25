@@ -14,6 +14,7 @@ namespace EmpireCraft.Core
         public readonly List<City> Cities=new List<City>();
         public readonly List<Person> People=new List<Person>();
         public readonly List<Clan> Clans=new List<Clan>();
+        public readonly List<Realm> LiveRealms=new List<Realm>(); // living realms in founding order, kept by WorldOps
         public readonly List<Person> Living=new List<Person>(); // living people, insertion order
         public readonly int[] TileCity;                        // city id per tile, -1 unclaimed
         public readonly Annals Annals=new Annals();
@@ -39,6 +40,13 @@ namespace EmpireCraft.Core
         // The world the ported systems act on. They are static, as in the mod, and
         // reach the world through this; EmpireSimulation sets it before every step.
         public static EmpireWorld Current;
+
+        // Lookups by the key a ported system stored; null for none and for an entity that has ended.
+        public Realm RealmByKey(long key){var x=key>=0&&key<Realms.Count?Realms[(int)key]:null;return x!=null&&x.Alive?x:null;}
+        public City CityByKey(long key){var x=key>=0&&key<Cities.Count?Cities[(int)key]:null;return x!=null&&x.Alive?x:null;}
+        public Person PersonByKey(long key){var x=key>=0&&key<People.Count?People[(int)key]:null;return x!=null&&x.Alive?x:null;}
+        public Clan ClanByKey(long key)=>key>=0&&key<Clans.Count?Clans[(int)key]:null;
+        public double Now()=>Month;   // GameClock timestamp of this world
 
         // Stateless deterministic randomness: the same world seed, stream, month and
         // subject always give the same draw, independent of iteration order or saves.

@@ -86,6 +86,8 @@ def find_set(args):
         f.write(PROJECT.format(orbis=os.path.join(tool.ROOT, "Assets", "ORBIS", "Runtime", "FlatWorld", "Core"),
                                core=os.path.join(tool.ROOT, "Assets", "EmpireCraft", "Core"), excluded=""))
     print("%d candidates (%d lines) from %s @ %s" % (len(candidates), sum(lines.values()), ", ".join(args.dirs), commit[:8]))
+    if args.identity:
+        print("by-type member renames: " + tool.semantic_fix(os.path.join(work, "src"), os.path.join(tool.ROOT, "Assets", "EmpireCraft", "Core")))
 
     alive = set(candidates)
     rejected = {}

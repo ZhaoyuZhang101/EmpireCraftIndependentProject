@@ -92,3 +92,74 @@
 - `--keep` 名单、`closure.py --identity` 只写了，没有在真实搬迁里用过。
 - 调查按"成员访问解析不了"计数：重载对不上(参数类型不符)的不计，所以实际要改的地方比 22,419 多。
 - `UnificationSystem` 里有个自己的嵌套类型叫 `Realm`，和实体重名，轮到它时要处理。
+
+## 七、第二步：第一批实体成员与按类型改名(2026-11-25)
+
+模组来源提交：`8f36692e`(已搬的 141 个文件到这个提交没有变化)。**仍然没有新系统搬进来**，原因见下面"成批试编译"。
+
+**按类型改成员名**
+
+`id`、`data`、`name` 这类名字，原版对象上有，模组自己的类上也到处有，不能按文字硬换。`Validation/PortSurvey` 加了 `fix` 模式：用语义分析看每个成员访问的接收者是什么类型，只在"接收者是实体、且这个成员解析不了"时按 `Port/identity-members.json` 改名；一次改名可能让后面的接收者有了类型，所以反复做到不再变化。`survey.py` 和 `closure.py --identity` 都在文字改写之后跑这一步。
+
+映射表现有 43 条，例如 `Realm.id`→`Key`、`Realm.data`→`Record`、`Person.getName`→`FullName`、`Person.isKing`→`IsRuler`、`City.joinAnotherKingdom`→`JoinRealm`、`EmpireWorld.kingdoms.get`→`RealmByKey`。
+
+**实体上补的成员**
+
+- 国、城、人、宗族：`Key`(给搬来的系统当表键和存档键用的 long)、`Record`(模组里大量 `x?.data == null` 这种"有没有这个对象"的判断，落到它上)、建立或出生的时间戳。
+- 国：`IsWild`、`IsNeutral()`、`IsCivilized()`(这里的国都是定居政权，无主之地不算国)。
+- 城：`Leader`(城主，还没人任命，也还没进存档)、`HasLeader()`、`IsCapital()`、`PopulationCount()`。
+- 人：`Throne`(所坐的王位，由世界操作维护、读档时重建，不进存档)、`Realm`(在位者属王位所在的国，其余人属所在城的国)、`IsRuler()`、`IsCityLeader()`、`FullName()`、`Name`、`Age()`、`IsAdult()`、`HasClan()`。
+- 世界：`LiveRealms`(在世的国，按立国先后)、按键取国、城、人、宗族(已亡的返回空)、`Now()`。
+- 世界操作：新增废君 `Dethrone`；另有一组挂在实体上的写法(`realm.SetRuler(person)`、`city.JoinRealm(realm)` 等)，作用在当前世界上，供搬来的系统调用。
+- 不变量多查三条：在世国名单、君主与王位互相对得上。
+
+行为没变：两组存档指纹仍与最初相同。
+
+**顺带修的改写规则**
+
+- 模组有四个文件声明了自己的辅助类型也叫 `Realm`(其中 `WorldMapHistory` 的是顶层类型)，改写时让它们改叫 `ModRealm`。
+- `x?.list` 这种带问号的访问，去掉 `.list` 时连问号一起去掉。
+
+**调查数字的变化**(同一批 556 个文件、21.2 万行)
+
+| | 这一步之前 | 这一步之后 |
+|---|---:|---:|
+| 按类型改名 | — | 7,047 处 |
+| 解析不了的成员访问 | 22,419 | 15,167 |
+| 其中落在实体上 | 11,828 | 4,620 |
+| 解析不了的名字 | 9,769 | 9,775 |
+| 完全解析的文件 | 25 个 2,842 行 | 31 个 3,320 行 |
+
+实体上剩下的 4,620 处，已经不是换个名字的事了，都是这个仓库还没有的东西：
+
+| 实体 | 剩 | 最多的 |
+|---|---:|---|
+| 城 | 1,532 | zones 260、getTile 219、units 140、city_center 136、neighbours_cities 102、religion 86、buildings 61 |
+| 人 | 1,250 | renown 134、hasTrait 120、asset 76、money 66、joinCity 64、plot 47 |
+| 国 | 1,203 | religion 171、isInWarWith 162、getColor 117、getWars 113、hasEnemies 97、getAlliance 66、units 61 |
+| 世界 | 626 | zone_calculator 91、wars 73、diplomacy 71、GetTile 58、religions 50 |
+
+**成批试编译(`closure.py --identity`)的第一圈**
+
+548 个候选里只有 5 个文件(330 行)通过，其中 3 个是阶段 1 就有意不搬的，有用的只有 `ExtraDataBase`、`FrameBudgetQueue` 两个，这一步没有搬它们。
+
+原因：`KingdomExtension`、`CityExtension`、`ActorExtension` 三个扩展大文件(合计约 8,900 行)定义了别的系统到处调用的扩展方法，它们自己引用了几乎一切(战争、宗教、分区、帝国、建筑)，过不了；它们一倒，依赖它们的系统全部跟着倒(第 2、3、5 轮分别连带剔掉 295、150、83 个文件)。
+
+## 八、接下来的顺序(修订)
+
+1. **给 `Empire`、`KingdomTitle` 换基类**：这两个是模组自己的类，却继承原版的元对象基类，合计 2,763 处解析不了，种类只有十来种。写一个自己的基类，是眼下最划算的一项。
+2. **扩展数据和三个扩展大文件**：`GetOrCreate()` 那套状态表落到实体上；三个大文件按成员拆开，能过的先过，过不了的挂起。这一项做完，闭包才会成圈。
+3. **战争与外交**：`isInWarWith`、`getWars`、`hasEnemies`、联盟、`diplomacy.startWar`、`wars.endWar`，加上 `War` 类型本身，约 3,000 处。对应计划的阶段 5，要先定自己的战争记录长什么样。
+4. **宗教与文化**当实体：约 1,400 处。
+5. **人物属性**：名望、钱、特质、才干等，约 700 处；城里、国里"有哪些人"。
+6. **地图分区**：`zones`、`getTile`、`city_center`、相邻的城，加上 `TileZone`、`WorldTile` 两个类型，约 6,700 处，是最大的一块，对应计划里"定自己的地图模型"。
+
+每做完一项重跑 `survey.py` 对账、跑 `closure.py --identity` 看能搬进多少。
+
+## 九、第二步的验证
+
+- 存档指纹(256 世界 75 年、512 世界 120 年)仍与实体层改造之前相同。
+- dotnet 八组测试全过；不变量每年多查在世国名单和王位两项。
+- Unity 6000.0.55f1 批处理：工程编译 0 错误；512×256 世界 60 年 PASS，最慢一帧 6.61 ms，结束时的国数、城数、人口、稳定度、国库、存档大小与此前各次逐项相同。
+- 按类型改名改了 7,047 处，只验证到"改完之后这些访问能解析"；改名后的代码除那 31 个文件外都还编译不过，没有运行过。
+- `closure.py --identity` 找到的 5 个文件没有搬，所以"带身份改写的搬入、登记、同步"这条路还没有实际走过。

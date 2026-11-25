@@ -46,6 +46,7 @@ namespace EmpireCraft.Core
             p.DeathMonth=w.Month;w.Living.Remove(p);
             if(p.Spouse!=null){p.Spouse.Spouse=null;p.Spouse=null;}
             foreach(var r in w.Realms)if(r.Alive&&r.Ruler==p){r.Ruler=null;r.PreviousRuler=p;w.Annals.Add(w,AnnalKind.RulerDied,r.Id,p.Id,w.AgeOf(p));}
+            p.Throne=null;
         }
 
         public static void SetRuler(EmpireWorld w,Realm r,Person p)
@@ -53,7 +54,8 @@ namespace EmpireCraft.Core
             Live(w,r);Live(w,p);
             foreach(var other in w.Realms)Require(!(other.Alive&&other!=r&&other.Ruler==p),"Person already rules another realm");
             bool newHouse=r.RulingClan!=null&&r.RulingClan!=p.Clan;
-            r.Ruler=p;r.RulingClan=p.Clan;
+            if(r.Ruler!=null)r.Ruler.Throne=null;
+            r.Ruler=p;p.Throne=r;r.RulingClan=p.Clan;
             if(newHouse)w.Annals.Add(w,AnnalKind.NewDynasty,r.Id,p.Id,p.Clan.IdOf());
             else w.Annals.Add(w,AnnalKind.Accession,r.Id,p.Id);
         }
@@ -75,11 +77,11 @@ namespace EmpireCraft.Core
             Live(w,city);Live(w,ruler);
             foreach(var other in w.Realms)Require(!(other.Alive&&other.Ruler==ruler),"Ruler already rules a realm");
             var r=new Realm{Id=w.Realms.Count,Name=name,Color=color,FoundedMonth=w.Month};
-            w.Realms.Add(r);
+            w.Realms.Add(r);w.LiveRealms.Add(r);
             Realm previous=city.Realm;
             if(previous!=null)Detach(city);
             city.Realm=r;r.Cities.Add(city);r.Capital=city;
-            r.Ruler=ruler;r.RulingClan=ruler.Clan;
+            r.Ruler=ruler;ruler.Throne=r;r.RulingClan=ruler.Clan;
             w.Annals.Add(w,previous!=null?AnnalKind.Secession:AnnalKind.RealmFounded,r.Id,previous!=null?city.Id:ruler.Id,previous!=null?previous.Id:city.Id);
             if(previous!=null)AfterLoss(w,previous);
             return r;
@@ -91,7 +93,7 @@ namespace EmpireCraft.Core
             Require(tile>=0&&tile<w.TileCity.Length&&w.Settleable(tile)&&w.TileCity[tile]<0,"Realm seat must be free settleable land");
             Live(w,ruler);
             var r=new Realm{Id=w.Realms.Count,Name=name,Color=color,FoundedMonth=w.Month,Ruler=ruler,RulingClan=ruler.Clan};
-            w.Realms.Add(r);
+            w.Realms.Add(r);w.LiveRealms.Add(r);ruler.Throne=r;
             var c=new City{Id=w.Cities.Count,Name=cityName,Tile=tile,Realm=r,FoundedMonth=w.Month,Population=200};
             w.Cities.Add(c);c.Tiles.Add(tile);w.TileCity[tile]=c.Id;r.Cities.Add(c);r.Capital=c;
             if(ruler.City==null)ruler.City=c;
@@ -127,11 +129,20 @@ namespace EmpireCraft.Core
             w.TileCity[tile]=c.Id;c.Tiles.Add(tile);
         }
 
+        // The ruler steps down or is removed; the throne stays empty until SetRuler.
+        public static void Dethrone(EmpireWorld w,Realm r)
+        {
+            Live(w,r);
+            if(r.Ruler==null)return;
+            r.PreviousRuler=r.Ruler;r.Ruler.Throne=null;r.Ruler=null;
+        }
+
         public static void EndRealm(EmpireWorld w,Realm r)
         {
             Live(w,r);
             Require(r.Cities.Count==0,"A realm ends only after losing its last city");
-            r.EndedMonth=w.Month;r.Ruler=null;r.Capital=null;
+            if(r.Ruler!=null)r.Ruler.Throne=null;
+            r.EndedMonth=w.Month;r.Ruler=null;r.Capital=null;w.LiveRealms.Remove(r);
             w.Annals.Add(w,AnnalKind.RealmEnded,r.Id);
         }
 
@@ -153,5 +164,16 @@ namespace EmpireCraft.Core
             foreach(var c in r.Cities)if(c.Population>best.Population||(c.Population==best.Population&&c.Id<best.Id))best=c;
             r.Capital=best;w.Annals.Add(w,AnnalKind.CapitalMoved,r.Id,best.Id);
         }
+    }
+
+    // The same operations as members of the entities, acting on the current world:
+    // the form the ported systems call them in.
+    public static class WorldActions
+    {
+        static EmpireWorld World=>EmpireWorld.Current??throw new InvalidOperationException("No current world");
+        public static void SetRuler(this Realm realm,Person person,bool fromLoad=false)=>WorldOps.SetRuler(World,realm,person);
+        public static void RemoveRuler(this Realm realm)=>WorldOps.Dethrone(World,realm);
+        public static void SetCapital(this Realm realm,City city)=>WorldOps.MoveCapital(World,realm,city);
+        public static void JoinRealm(this City city,Realm realm,bool captured=false,bool rebellion=false){if(city.Realm!=realm)WorldOps.TransferCity(World,city,realm);}
     }
 }
