@@ -249,12 +249,10 @@ public static class LawEvents
     }
 
     // 可以追究的败将：本国大军(不是义军、骑士团)的统领，不是君主、储君，本国不是正在起事的叛军，近两年没论处过败将
-#if EC_PENDING
     private static bool Accountable(Realm kingdom, Person general, CorpsData corps) =>
         kingdom?.Record != null && !kingdom.IsGone() && Living(general) && general.Realm == kingdom && corps != null &&
         !corps.militia && corps.order_id < 0 && corps.full >= BigCorps && !general.IsRuler() &&
         !(kingdom.HasHeir() && kingdom.GetHeir() == general) && !CorpsSystem.Insurgent(kingdom) && MilitaryCaseDue(kingdom);
-#endif
 
     // 战场结算(BattleDrama.Settle)：大败又溃散，统领没阵亡、没被俘、没有突围之功
 #if EC_PENDING

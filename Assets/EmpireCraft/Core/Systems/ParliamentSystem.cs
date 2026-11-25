@@ -561,7 +561,7 @@ public static partial class ParliamentSystem
             .Where(actor => IsValidMember(empire, actor) && !exclude.Contains(actor.Key))
             .OrderByDescending(actor => actor.HasOfficeIdentity())
             .ThenByDescending(actor => actor.GetIdentity()?.TotalPerformance ?? 0d)
-            .ThenByDescending(actor => actor.renown);
+            .ThenByDescending(actor => actor.Renown);
 #endif
 
     // 有选区时优先选本区住民，没有合适的再从全党挑

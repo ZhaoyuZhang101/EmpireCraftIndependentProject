@@ -45,9 +45,9 @@ public static class CliqueSystem
         MaxSwitchesPerYear = 4, MaxEnrollPerYear = 12, MinYearsBeforeMerge = 3, FoundRatio = 10, SplitMinGroup = 3, SplitMinMembers = 6,
         EunuchFoundRatio = 8;
 
-#if EC_PENDING
-    public static bool IsEunuch(Person actor) => actor?.Record != null && !actor.IsGone() && actor.hasTrait(EunuchTrait);
+    public static bool IsEunuch(Person actor) => actor?.Record != null && !actor.IsGone() && actor.HasTrait(EunuchTrait);
 
+#if EC_PENDING
     public static bool Applies(Empire empire)
     {
         Realm core = empire?.CoreKingdom;
@@ -220,7 +220,7 @@ public static class CliqueSystem
         {
             if (ClassClique(regime, stance) != null) continue;
             Person leader = stance is PartyIdeology.ConsortKin or PartyIdeology.Eunuchs ? null
-                : officials.Where(actor => IdentityStance(empire, actor) == stance).OrderByDescending(actor => actor.renown).FirstOrDefault();
+                : officials.Where(actor => IdentityStance(empire, actor) == stance).OrderByDescending(actor => actor.Renown).FirstOrDefault();
             Create(empire, regime, stance, leader, 0);
         }
     }
@@ -262,11 +262,11 @@ public static class CliqueSystem
                      .OrderByDescending(group => group.Count()))
         {
             if (group.Count() < Mathf.Max(FoundMinMembers, Mathf.CeilToInt(officials.Count * (contention ? ContentionFoundShare : FoundShare)))) break;
-            Person founder = group.Where(actor => !leaders.Contains(actor.Key)).OrderByDescending(actor => actor.renown).FirstOrDefault();
+            Person founder = group.Where(actor => !leaders.Contains(actor.Key)).OrderByDescending(actor => actor.Renown).FirstOrDefault();
             if (founder == null) continue;
             FixedFaction clique = Create(empire, regime, group.Key, founder, FoundRatio);
             foreach (Person member in group.Where(actor => actor != founder && !leaders.Contains(actor.Key))
-                         .OrderByDescending(actor => actor.renown).Take(FoundRecruits).ToList())
+                         .OrderByDescending(actor => actor.Renown).Take(FoundRecruits).ToList())
                 member.SetFaction(clique);
             Record(empire, string.Format(LM.Get("clique_founded_history"), founder.FullName(), clique.Name,
                 PartySystem.GetIdeologyName(group.Key)), founder);
@@ -475,7 +475,7 @@ public static class CliqueSystem
             .GroupBy(Hometown).Where(group => group.Key != bossHome && group.Count() >= SplitMinGroup)
             .OrderByDescending(group => group.Count()).FirstOrDefault();
         if (faction == null) return;
-        Person rebel = faction.OrderByDescending(actor => actor.renown).First();
+        Person rebel = faction.OrderByDescending(actor => actor.Renown).First();
         string name = string.Format(LM.Get("clique_name_party"), faction.Key);
         if (regime.GetPlayerFactions().Any(other => other?.Name == name)) name = null;
         int share = Mathf.Max(3, Mathf.RoundToInt(Ratio(empire, big) * faction.Count() / (float)Mathf.Max(1, big.Count) * 0.8f));
@@ -806,8 +806,8 @@ public static class CliqueSystem
         City capital = empire.CoreKingdom.Capital;
         Person eunuch = capital == null ? null : CityPopulationSystem.SpawnOfficial(capital, empire.CoreKingdom);
         if (eunuch?.Record == null) return;
-        eunuch.Record.sex = ActorSex.Male;
-        eunuch.addTrait(EunuchTrait);
+        eunuch.Sex = Sex.Male;
+        eunuch.AddTrait(EunuchTrait);
         eunuch.editRenown(60);
         IdeologyPopulationSystem.Set(eunuch, PartyIdeology.Eunuchs);
         // 从天子派里分出阉党：得宠的宦官领头，天子派里的宦官都跟过来，带走天子派三分之一的势力

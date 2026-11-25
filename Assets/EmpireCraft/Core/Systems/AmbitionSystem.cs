@@ -63,9 +63,9 @@ public static class AmbitionSystem
 
     private static void Assign(Person actor, PersonalClanIdentity identity)
     {
-        (string key, float weight)[] options = actor.hasTrait("ambitious")
+        (string key, float weight)[] options = actor.HasTrait("ambitious")
             ? new[] { (Throne, 0.3f), (Chancellor, 0.4f), (Peerage, 0.3f) }
-            : actor.hasTrait("greedy")
+            : actor.HasTrait("greedy")
                 ? new[] { (Wealth, 0.7f), (Peerage, 0.2f), (Chancellor, 0.1f) }
                 : new[] { (Peerage, 0.35f), (Chancellor, 0.25f), (Fame, 0.3f), (Wealth, 0.1f) };
         float roll = EcRandom.value * options.Sum(option => option.weight);
@@ -87,7 +87,7 @@ public static class AmbitionSystem
     {
         Peerage => (actor.GetOwnedTitle()?.Count ?? 0) > 0 || !string.IsNullOrWhiteSpace(actor.GetPersonalIdentity()?.PeeragesLevel),
         Chancellor => actor.Realm?.GetEmpire()?.GetCabinetLeader() == actor,
-        Wealth => actor.money >= WealthGoal,
+        Wealth => actor.Money >= WealthGoal,
         Fame => FamousTalentSystem.IsFamous(actor),
         Throne => actor.IsRuler(),
         _ => true
@@ -105,7 +105,7 @@ public static class AmbitionSystem
                 break;
             case Wealth:
                 if (!actor.IsOnOffice() || actor.City?.Record == null) break;
-                actor.Record.money += Skim;
+                actor.Money += Skim;
                 actor.City.AddCorruptionRate(SkimCorruption);
                 break;
         }

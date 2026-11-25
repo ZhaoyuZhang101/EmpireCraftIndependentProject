@@ -119,7 +119,7 @@ public static partial class NomadRaidSystem
             EmpireFormationService.CompleteFormation(empire, leader, EmpireFormationRoute.Hegemony);
         }
         else if (empire.CoreKingdom != leader) return;
-        if (khan != null && khan.Alive && !khan.hasTrait(RulerTraitSystem.Founder)) khan.addTrait(RulerTraitSystem.Founder);
+        if (khan != null && khan.Alive && !khan.HasTrait(RulerTraitSystem.Founder)) khan.AddTrait(RulerTraitSystem.Founder);
         // 记为雄主：他一不在位，第一回换汗先分兀鲁思、再必乱(用户 2026-10-21 选"游牧雄主死后真分裂")
         NomadCycleSystem.RememberHero(empire, "袭掠成雄主");
         var joined = new List<string>();

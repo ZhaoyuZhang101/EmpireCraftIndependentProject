@@ -576,7 +576,7 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
         kingdom.SetRuler(fallbackKing);
         if (kingdom.Capital != null)
         {
-            fallbackKing.joinCity(kingdom.Capital);
+            fallbackKing.JoinCity(kingdom.Capital);
         }
         fallbackKing.joinKingdom(kingdom);
         return kingdom.HasRuler() && kingdom.Ruler != null && !kingdom.Ruler.IsGone();
@@ -618,6 +618,7 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
 
         return null;
     }
+#endif
 
     private static bool IsValidFallbackKingCandidate(Person actor)
     {
@@ -625,9 +626,10 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
                && !actor.IsGone()
                && actor.Alive
                && actor.IsAdult()
-               && actor.isUnitFitToRule();
+               && actor.IsFitToRule();
     }
 
+#if EC_PENDING
     public bool forceEmpire(Realm pKingdom1, Realm pKingdom2)
     {
         if (EmpireCraft.Core.AncientWarfareCompatibility.BlocksEmpireFormation(pKingdom1) ||

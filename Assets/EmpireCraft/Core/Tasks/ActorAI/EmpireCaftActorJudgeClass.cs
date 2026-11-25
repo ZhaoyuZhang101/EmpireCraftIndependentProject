@@ -98,7 +98,7 @@ public class EmpireCaftActorJudgeClass: GameAIActorBase
         {
             return SocialClass.Officer;
         }
-        if (pActor.isWarrior())
+        if (pActor.IsWarrior())
         {
             return SocialClass.Army;
         }

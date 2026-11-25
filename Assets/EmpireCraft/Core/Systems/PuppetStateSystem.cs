@@ -117,7 +117,7 @@ public static class PuppetStateSystem
     {
         if (master?.Record == null || master.IsGone() || seat?.Record == null || seat.IsGone() || leader?.Record == null || leader.IsGone()) return null;
         Detach(leader);
-        if (leader.City != seat) leader.joinCity(seat);
+        if (leader.City != seat) leader.JoinCity(seat);
         // 立傀儡(占领、剧本)：受命立国，不许自立的闸放行(见 SecessionGate)
         Realm puppet = SecessionGate.Sanctioned(() => seat.makeOwnKingdom(leader, pRebellion: false));
         if (puppet?.Record == null) return null;
@@ -141,7 +141,7 @@ public static class PuppetStateSystem
         {
             Detach(follower);
             if (follower.Realm != puppet) follower.joinKingdom(puppet);
-            if (follower.City?.Realm != puppet) follower.joinCity(seat);
+            if (follower.City?.Realm != puppet) follower.JoinCity(seat);
         }
         string failed = Establish(master, puppet, record: false);
         if (failed != null) LogService.LogWarning($"[EmpireCraft][傀儡] {name} 立为 {master.GetKingdomName()} 的傀儡失败({failed})");

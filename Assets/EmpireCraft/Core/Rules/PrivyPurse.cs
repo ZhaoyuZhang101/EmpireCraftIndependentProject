@@ -81,14 +81,12 @@ public static class PrivyPurse
         book.thisYear[source] = (book.thisYear.TryGetValue(source, out long sum) ? sum : 0L) + amount;
     }
 
-#if EC_PENDING
     private static void Credit(Realm realm, string source, int amount)
     {
         if (amount <= 0 || realm?.Ruler == null) return;
-        realm.Ruler.addMoney(amount);
+        realm.Ruler.AddMoney(amount);
         Note(realm, source, amount);
     }
-#endif
 
     private static int MonthlyIncome(Realm realm)
     {
@@ -190,7 +188,7 @@ public static class PrivyPurse
         Person king = realm?.Ruler;
         if (!CanBuyLand(realm, city)) return "purse_land_closed";
         int price = LandPrice(city);
-        if (king.money < price) return "purse_poor";
+        if (king.Money < price) return "purse_poor";
         float got = LandEconomySystem.AnnexForClan(city, king.GetSpecificClan(), BuyPoints);
         if (got <= 0f) return "purse_land_none";
         int paid = Mathf.CeilToInt(LandEconomySystem.LandPrice(got));
@@ -232,12 +230,12 @@ public static class PrivyPurse
         if (holder != null && holder.Alive) return "purse_office_taken";
         OfficeObject office = all[slot];
         if (VacantOffices(empire).All(found => found.slot != slot)) return "purse_fail";
-        Person pick = CourtSystem.CabinetCandidates(empire).Where(office.Accepts).OrderByDescending(actor => actor.money).FirstOrDefault();
+        Person pick = CourtSystem.CabinetCandidates(empire).Where(office.Accepts).OrderByDescending(actor => actor.Money).FirstOrDefault();
         if (pick == null) return "purse_no_buyer";
         int price = OfficePrice(realm);
         office.SetActor(pick);
         if (office.GetActor() != pick) return "purse_no_buyer";
-        pick.spendMoney(Math.Min(pick.money, price));
+        pick.spendMoney(Math.Min(pick.Money, price));
         Credit(realm, Offices, price);
         realm.AddCorruptionRate(0.02d);
         foreach (FixedFaction faction in CourtSystem.Factions(empire)) CourtSystem.AdjustFaction(empire, faction, "grievance", 3f);

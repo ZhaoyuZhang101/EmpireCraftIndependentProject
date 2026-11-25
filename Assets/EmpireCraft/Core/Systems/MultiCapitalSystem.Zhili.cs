@@ -122,7 +122,7 @@ public static partial class MultiCapitalSystem
         }
         if (zhili.Ruler != heir && zhili.Capital != null)
         {
-            heir.joinCity(zhili.Capital);
+            heir.JoinCity(zhili.Capital);
             zhili.SetRuler(heir);
         }
         if (zhili.Ruler != heir) return;
@@ -159,7 +159,7 @@ public static partial class MultiCapitalSystem
         if (prince != null && prince == empire.CoreKingdom?.GetHeir())
         {
             zhili.RemoveRuler();
-            if (empire.CoreKingdom.Capital != null) prince.joinCity(empire.CoreKingdom.Capital);
+            if (empire.CoreKingdom.Capital != null) prince.JoinCity(empire.CoreKingdom.Capital);
         }
         EmpireCraftKingdomBehCheckKingdomType.SyncKingdomStatus(zhili);
         EventRecorder.Record(empire, string.Format(LM.Get("zhili_released_history"), empire.GetEmpireFullName(),

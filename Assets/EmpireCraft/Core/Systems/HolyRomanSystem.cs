@@ -235,7 +235,7 @@ public static partial class HolyRomanSystem
 #if EC_PENDING
     public static Person KingOfRomansCandidate(Empire empire)
     {
-        bool Fit(Person actor) => actor.IsAdult() && actor.isUnitFitToRule() && actor.Realm?.GetEmpire() == empire;
+        bool Fit(Person actor) => actor.IsAdult() && actor.IsFitToRule() && actor.Realm?.GetEmpire() == empire;
         Person pick = EmpireCraftKingdomBehCheckHeir.HeirCandidates(empire.CoreKingdom).Where(Fit)
             .OrderByDescending(actor => actor.Age()).FirstOrDefault();
         if (pick != null || !CityPopulationSystem.AbstractPopulationEnabled) return pick;

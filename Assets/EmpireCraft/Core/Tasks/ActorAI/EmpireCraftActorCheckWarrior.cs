@@ -134,13 +134,13 @@ public class EmpireCraftActorCheckWarrior : GameAIActorBase
             pActor.asset.can_attack_buildings = false;
         }
 
-        if (!pActor.isUnitFitToRule()) return BehResult.Continue;
-        if (!pActor.hasKingdom()) return BehResult.Continue;
+        if (!pActor.IsFitToRule()) return BehResult.Continue;
+        if (!pActor.HasRealm()) return BehResult.Continue;
         if (pActor.IsRuler()) return BehResult.Continue;
         if (pActor.IsCityLeader()) return BehResult.Continue;
         if (!pActor.IsAdult()) return BehResult.Continue;
-        if (!pActor.hasCity()) return BehResult.Continue;
-        if (pActor.isWarrior()) return BehResult.Continue;
+        if (!pActor.HasCity()) return BehResult.Continue;
+        if (pActor.IsWarrior()) return BehResult.Continue;
 
         Realm pKingdom = pActor.Realm;
 
@@ -473,14 +473,14 @@ public class EmpireCraftActorCheckWarrior : GameAIActorBase
             if (actor.hasStatus("pregnant"))
                 continue;
 
-            if (!actor.isSexFemale())
+            if (!actor.IsFemale())
             {
                 males.Add(actor);
                 continue;
             }
 
-            if (actor.lover == null ||
-                !actor.lover.Alive)
+            if (actor.Spouse == null ||
+                !actor.Spouse.Alive)
             {
                 femalesWithoutLover.Add(actor);
             }
@@ -507,7 +507,7 @@ public class EmpireCraftActorCheckWarrior : GameAIActorBase
     {
         if (city == null ||
             actor == null ||
-            actor.isWarrior())
+            actor.IsWarrior())
         {
             return false;
         }
@@ -516,7 +516,7 @@ public class EmpireCraftActorCheckWarrior : GameAIActorBase
         {
             city.makeWarrior(actor);
 
-            if (!actor.isWarrior())
+            if (!actor.IsWarrior())
                 return false;
 
             // 记录为“本次战争额外紧急征召”。
@@ -558,6 +558,7 @@ public class EmpireCraftActorCheckWarrior : GameAIActorBase
             .world_law_civ_army
             .isEnabled();
     }
+#endif
 
     private static bool CanEmergencyRecruitActor(
         Person actor,
@@ -577,18 +578,17 @@ public class EmpireCraftActorCheckWarrior : GameAIActorBase
             return false;
         }
 
-        if (actor.isWarrior() ||
+        if (actor.IsWarrior() ||
             actor.IsRuler() ||
             actor.IsCityLeader() ||
             !actor.IsAdult() ||
-            !actor.isUnitFitToRule())
+            !actor.IsFitToRule())
         {
             return false;
         }
 
         return true;
     }
-#endif
 
     // ============================================================
     // V3：ArmyManager.update 每帧调用一次
@@ -687,7 +687,7 @@ public class EmpireCraftActorCheckWarrior : GameAIActorBase
                 actor = null;
             }
 
-            if (actor == null || !actor.Alive || actor.IsGone() || !actor.isWarrior())
+            if (actor == null || !actor.Alive || actor.IsGone() || !actor.IsWarrior())
             {
                 _staleFertilityActorIds.Add(pair.Key);
             }
@@ -748,7 +748,7 @@ public class EmpireCraftActorCheckWarrior : GameAIActorBase
         if (actor == null ||
             !actor.Alive ||
             actor.IsGone() ||
-            !actor.isWarrior())
+            !actor.IsWarrior())
         {
             return;
         }
@@ -777,10 +777,10 @@ public class EmpireCraftActorCheckWarrior : GameAIActorBase
                 FertilityMinIntervalFrames,
                 FertilityMaxIntervalFrames + 1);
 
-        if (!actor.isSexFemale())
+        if (!actor.IsFemale())
             return;
 
-        Person lover = actor.lover;
+        Person lover = actor.Spouse;
 
         if (lover == null ||
             lover == actor ||
@@ -890,7 +890,7 @@ public class EmpireCraftActorCheckWarrior : GameAIActorBase
 
             try
             {
-                if (actor.isWarrior() &&
+                if (actor.IsWarrior() &&
                     !actor.IsRuler() &&
                     !actor.IsCityLeader())
                 {

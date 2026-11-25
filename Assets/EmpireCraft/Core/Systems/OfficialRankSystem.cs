@@ -150,7 +150,7 @@ public static class OfficialRankSystem
 #if EC_PENDING
     public static OfficialRank Of(Person actor)
     {
-        if (actor?.Record == null || !actor.hasKingdom()) return default;
+        if (actor?.Record == null || !actor.HasRealm()) return default;
         Realm kingdom = actor.Realm;
         OfficeIdentity identity = actor.GetIdentity();
         bool general = CorpsSystem.IsGeneral(actor);
@@ -231,7 +231,7 @@ public static class OfficialRankSystem
     public static void OnAppointed(Person actor, OfficeObject office)
     {
         OfficeIdentity identity = actor?.GetIdentity();
-        if (identity == null || office == null || !actor.hasKingdom()) return;
+        if (identity == null || office == null || !actor.HasRealm()) return;
         string form = FormOf(actor.Realm);
         RegimeType? regime = RegimeOf(actor.Realm);
         if (form == null || regime == null || OfficialRankRules.FormDef(Config, form)?.performance_ladder == true) return;
@@ -257,7 +257,7 @@ public static class OfficialRankSystem
     public static void OnCommandEnded(Person general, CorpsData corps)
     {
         OfficeIdentity identity = general?.GetIdentity();
-        if (identity == null || corps == null || !general.hasKingdom() || UsesPerformanceLadder(general.Realm)) return;
+        if (identity == null || corps == null || !general.HasRealm() || UsesPerformanceLadder(general.Realm)) return;
         SetFor(general.Realm, FormOf(general.Realm), true, out _, out string rankForm, out _);
         identity.honoraryOfficial = OfficialRankRules.Ratchet(identity.honoraryOfficial, OfficialRankRules.GeneralFloor(Config, rankForm, corps.full));
     }
@@ -267,7 +267,7 @@ public static class OfficialRankSystem
 #if EC_PENDING
     public static void CarryOver(OfficeIdentity previous, OfficeIdentity next, Person actor)
     {
-        if (previous == null || next == null || ReferenceEquals(previous, next) || actor == null || !actor.hasKingdom()) return;
+        if (previous == null || next == null || ReferenceEquals(previous, next) || actor == null || !actor.HasRealm()) return;
         string form = FormOf(actor.Realm);
         if (form == null || OfficialRankRules.FormDef(Config, form)?.performance_ladder == true) return;
         next.honoraryOfficial = OfficialRankRules.Clamp(previous.honoraryOfficial);

@@ -12,15 +12,15 @@ public class EmpireCraftActorAddLover:GameAIActorBase
 #if EC_PENDING
     public override BehResult execute(Person pActor)
     {
-        if (!pActor.isUnitFitToRule()) return BehResult.Continue;
+        if (!pActor.IsFitToRule()) return BehResult.Continue;
         // 原版几岁就算成年：到了生养的年纪才纳妾、娶妻(见 RealisticAgeSystem.MinParentAge)
         if (!pActor.IsAdult() || !RealisticAgeSystem.OldEnoughToParent(pActor)) return BehResult.Continue;
-        if (!pActor.hasKingdom()) return BehResult.Continue;
+        if (!pActor.HasRealm()) return BehResult.Continue;
         if (pActor.IsEmperor()) return BehResult.Continue;
         var culture = pActor.culture;
         if (culture==null) return BehResult.Continue;
         if (!culture.hasTrait("patriarchy")&&!culture.hasTrait("matriarchy")) return BehResult.Continue;
-        var loverSex = culture.hasTrait("patriarchy") ? ActorSex.Female : ActorSex.Male;
+        var loverSex = culture.hasTrait("patriarchy") ? Sex.Female : Sex.Male;
         var identity = pActor.GetPersonalIdentity();
         if ( identity == null) return BehResult.Continue;
         if (pActor.age>70) return BehResult.Continue;
@@ -44,13 +44,13 @@ public class EmpireCraftActorAddLover:GameAIActorBase
                 }
             });
         }
-        if (pActor.money > 25&&pActor.IsNeedToAddLover())
+        if (pActor.Money > 25&&pActor.IsNeedToAddLover())
         {
             Random random = new Random();
             var possibility = random.NextDouble();
             if (possibility < 0.3f)
             {
-                pActor.addMoney(-25);
+                pActor.AddMoney(-25);
                 // 原版的恋人与模组家族里的配偶/妾都要空着(只看原版会把别人的妻妾挑走)
                 var actor = pActor.Realm.units.Find(a => a.data.sex == loverSex
                                                               && a.age <= 35 && a.isAdult()

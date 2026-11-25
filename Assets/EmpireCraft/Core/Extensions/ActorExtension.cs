@@ -33,9 +33,7 @@ public class Name
     public bool is_invert;
     public string sex_post_Male;
     public string sex_post_Female;
-#if EC_PENDING
-    public ActorSex sex;
-#endif
+    public Sex sex;
 
     public bool has_whole_name(Person actor)
     {
@@ -84,14 +82,14 @@ public class Name
         // Serialized Name flags may belong to an earlier culture or template version.
         // Refresh formatting at naming events, rather than scanning all actors every frame.
         actor.initializeActorName();
-        sex = actor.isSexMale() ? ActorSex.Male : ActorSex.Female;
+        sex = actor.IsMale() ? Sex.Male : Sex.Female;
         if (hasFamilyName(actor))
         {
             string real_family_name;
             string cityName = "";
             if (use_local_as_family_name)
             {
-                if  (actor.hasCity())
+                if  (actor.HasCity())
                 {
                     cityName = actor.City.Name;
                 } else
@@ -101,11 +99,11 @@ public class Name
                         cityName = actor.current_tile.zone_city.name;
                     } else
                     {
-                        if (actor.getParents().Count()>0) 
+                        if (actor.GetParents().Count()>0) 
                         {
-                            if (actor.getParents().Any(a=>a.hasCity()))
+                            if (actor.GetParents().Any(a=>a.HasCity()))
                             {
-                                cityName = actor.getParents().ToList().Find(p => p.hasCity()).city.name;
+                                cityName = actor.GetParents().ToList().Find(p => p.HasCity()).City.Name;
                             }
                         }
                     }
@@ -129,7 +127,7 @@ public class Name
             real_family_name ??= "";
             if (has_sex_post)
             {
-                string post = (sex == ActorSex.Female ? sex_post_Female : sex_post_Male)??"";
+                string post = (sex == Sex.Female ? sex_post_Female : sex_post_Male)??"";
                 if (!real_family_name.Contains(post))
                 {
                     real_family_name += post;
@@ -187,7 +185,7 @@ public class Name
         if (!string.IsNullOrWhiteSpace(actor.GetOrCreate()?.regnal_suffix)) return;
         actor.initializeActorName();
         string surname = familyName;
-        string post = actor.isSexMale() ? sex_post_Male : sex_post_Female;
+        string post = actor.IsMale() ? sex_post_Male : sex_post_Female;
         if (has_sex_post && !string.IsNullOrEmpty(post) && !surname.Contains(post)) surname += post;
         string expected = is_invert ? OverallHelperFunc.JoinNameParts(firstName, surname)
             : OverallHelperFunc.JoinNameParts(surname, firstName);
@@ -804,7 +802,6 @@ public static class ActorExtension
         EmpireCraft.Core.OfficeBans.Add(a.GetPersonalIdentity(), empireId, kingdom: false);
     }
 
-#if EC_PENDING
     public static bool IsBannedFromOffice(this Person a, long empireId)
     {
         if (a == null || empireId < 0) return false;
@@ -825,7 +822,7 @@ public static class ActorExtension
         // 族谱上记的禁锢、族谱里的祖上(父母转成虚拟族人或已故，getParents 找不到)
         if (EmpireCraft.Core.OfficeBans.Banned(a.GetPersonalIdentity(), empireId, kingdom: false)) return true;
 
-        var parents = a.getParents();
+        var parents = a.GetParents();
         if (parents == null || !parents.Any())
         {
             return false;
@@ -841,7 +838,6 @@ public static class ActorExtension
 
         return false;
     }
-#endif
 
     // WarBox 等模组的载具(坦克、飞机、炮艇)也是 Person，不能当官、入党、进宗族、当议员
 #if EC_PENDING
@@ -850,22 +846,22 @@ public static class ActorExtension
         if (a == null) return false;
         // 原版的船只也是 Person：不能当君主、官员、作者，也不算人口
         if (a.asset?.is_boat == true) return true;
-        if (a.hasTrait("warbox_unit")) return true;
+        if (a.HasTrait("warbox_unit")) return true;
         string id = a.asset?.id;
         return id != null && id.StartsWith("warbox_", StringComparison.Ordinal);
     }
 #endif
 
     // 妃嫔(记为妾室的)或在位君主的配偶：不出任后宫以外的官职
-#if EC_PENDING
     public static bool IsHaremOrConsort(this Person a)
     {
         if (a?.Record == null || a.IsGone() || a.IsRuler()) return false;
         if (a.GetPersonalIdentity()?.is_concubine == true) return true;
-        Person spouse = a.lover;
+        Person spouse = a.Spouse;
         return spouse != null && !spouse.IsGone() && spouse.Alive && spouse.IsRuler();
     }
 
+#if EC_PENDING
     public static bool CanServeOffice(this Person a, Realm kingdom)
     {
         if (a == null || a.IsGone() || !a.Alive || a.IsWarMachine()) return false;
@@ -977,12 +973,12 @@ public static class ActorExtension
         k.GetOrCreate().last_tax_timestamp = GameClock.Now;
     }
 
-#if EC_PENDING
     public static bool IsNeedToSubmitTax(this Person k)
     {
-        if (!k.hasKingdom()) return false;
+        if (!k.HasRealm()) return false;
         return GameClock.YearsSince(k.GetLastTaxTime()) >= 1;
     }
+#if EC_PENDING
     public static void WarriorMoveTo(this Person a, WorldTile pTileTarget)
     {
         if (a == null || pTileTarget == null)
@@ -1150,9 +1146,9 @@ public static class ActorExtension
         SpecificClanManager._globalPersonLookup[pci.id] = pci;
         SpecificClanManager._actorToPersonLookup[pci.actor_id] = pci;
         a.SetPersonalIdentity (pci);
-        if (a.hasLover())
+        if (a.HasSpouse())
         {
-            pci.setLover(a.lover, recordHistory: false);
+            pci.setLover(a.Spouse, recordHistory: false);
         }
         return pci;
     }
@@ -1165,9 +1161,9 @@ public static class ActorExtension
             return a.culture;
         } else
         {
-            if (a.getParents().Any())
+            if (a.GetParents().Any())
             {
-                foreach(Person parent in a.getParents())
+                foreach(Person parent in a.GetParents())
                 {
                     if (parent.hasCulture())
                     {
@@ -1263,12 +1259,12 @@ public static class ActorExtension
         TranslateHelper.LogHonoraryPeerageGranted(a, empire, peerageKey);
         return true;
     }
+#endif
     public static void editRenown(this Person a, int value)
     {
         if (a?.Record == null) return;
-        a.Record.renown = Math.Max(0, a.Record.renown + value);
+        a.Renown = Math.Max(0, a.Renown + value);
     }
-#endif
 
     public static int CalculateAnnualInfluenceGain(double annualPerformance)
     {
@@ -1485,6 +1481,7 @@ public static class ActorExtension
         return a != null && a.IsRuler() && a.Realm != null &&
                a.Realm.CanPursueDeJureTitle() && a.getAcquireTitle().Any();
     }
+#endif
 
     public static void UpgradeOfficial(this Person a, bool merit = false, int direct = -1)
     {
@@ -1534,7 +1531,7 @@ public static class ActorExtension
                         identity.honoraryOfficial -= 1;
                     }
                 }
-                a.Record.renown += 5;
+                a.Renown += 5;
             }
             GetOrCreate(a).officeIdentity = identity;
         }
@@ -1565,17 +1562,18 @@ public static class ActorExtension
                 identity.honoraryOfficial += 1;
             }
             // LogService.LogInfo("贬官");
-            if(a.Record.renown>=5)
+            if(a.Renown>=5)
             {
-                a.Record.renown -= 5;
+                a.Renown -= 5;
             } else
             {
-                a.Record.renown = 0;
+                a.Renown = 0;
             }
             GetOrCreate(a).officeIdentity = identity;
         }
     }
 
+#if EC_PENDING
     public static string GetActorName(this Person a)
     {
         if (a == null) return null;
@@ -1707,10 +1705,9 @@ public static class ActorExtension
         return false;
     }
 
-#if EC_PENDING
     public static bool IsCapitalTitleBelongsToEmperor(this Person a)
     {
-        if (!a.hasKingdom()) return false;
+        if (!a.HasRealm()) return false;
         if (a.Realm.GetEmpire() == null) return false;
         if (a.Realm.GetEmpire().Emperor.GetOwnedTitle()==null) return false;
         if (a.Realm.Capital.GetTitle()==null) return false;
@@ -1723,7 +1720,6 @@ public static class ActorExtension
         }
         return false;
     }
-#endif
 
 
     // 只问有没有：找到第一个就停(决议条件里每个君主都要问，不必把全部法理算完)

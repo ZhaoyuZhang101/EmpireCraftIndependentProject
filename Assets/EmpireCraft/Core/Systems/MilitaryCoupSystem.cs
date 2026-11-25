@@ -54,11 +54,11 @@ public static class MilitaryCoupSystem
             bool minor = RealisticAgeSystem.IsMinor(emperor);
             // 由头：主少国疑、欠饷军心浮动、将领功高震主，至少占两条
             int pretexts = (minor ? 1 : 0) + (!CorpsSystem.WellPaid(empire.CoreKingdom) ? 1 : 0) +
-                           (emperor == null || general.renown > emperor.renown ? 1 : 0);
+                           (emperor == null || general.Renown > emperor.Renown ? 1 : 0);
             if (pretexts < 2) return;
             float chance = (LegitimacyLine - legitimacy) / (float)LegitimacyLine * (share - PowerLine) / (1f - PowerLine) * BaseChance;
             if (minor) chance *= 2f;
-            if (general.hasTrait("ambitious") || general.hasTrait("evil")) chance *= 1.5f;
+            if (general.HasTrait("ambitious") || general.HasTrait("evil")) chance *= 1.5f;
             if (EcRandom.value >= chance) return;
             Execute(empire, state, general, seat);
         }
@@ -145,7 +145,7 @@ public static class MilitaryCoupSystem
         state.last_coup_at = GameClock.Now;
         PrinceStruggleSystem.Note(core, general, PrinceStruggleSystem.NoteMilitaryCoup);
         if (former != null && former.Key != general.Key) core.RemoveRuler();
-        general.joinCity(capital);
+        general.JoinCity(capital);
         general.setKingdom(core);
         // 军阀兵变禅让上位(赵匡胤式)：改朝换代按"减半"一档，王朝积弊、六弊减半，另加篡位的一笔
         // (用户 2026-10-26，见 DynasticCycleSystem.OnDynastyChanged)

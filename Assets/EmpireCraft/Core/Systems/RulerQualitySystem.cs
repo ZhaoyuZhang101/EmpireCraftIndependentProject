@@ -39,17 +39,17 @@ public static class RulerQualitySystem
     public static Grade Of(Person ruler)
     {
         if (ruler?.Record == null) return Grade.Average;
-        if (ruler.hasTrait(Tyrant)) return Grade.Tyrant;
-        if (ruler.hasTrait(Dissolute)) return Grade.Dissolute;
-        if (ruler.hasTrait(Fatuous)) return Grade.Fatuous;
-        if (ruler.hasTrait(Weak)) return Grade.Weak;
+        if (ruler.HasTrait(Tyrant)) return Grade.Tyrant;
+        if (ruler.HasTrait(Dissolute)) return Grade.Dissolute;
+        if (ruler.HasTrait(Fatuous)) return Grade.Fatuous;
+        if (ruler.HasTrait(Weak)) return Grade.Weak;
         if (RealisticAgeSystem.IsMinor(ruler)) return Grade.Minor;
-        if (ruler.hasTrait(Wise)) return Grade.Wise;
+        if (ruler.HasTrait(Wise)) return Grade.Wise;
         return Grade.Average;
     }
-
-    public static bool IsBad(Person ruler) => ruler?.Record != null && Bad.Any(ruler.hasTrait);
 #endif
+
+    public static bool IsBad(Person ruler) => ruler?.Record != null && Bad.Any(ruler.HasTrait);
 
     // 怠政：昏聩(不理朝政)
 #if EC_PENDING
@@ -82,14 +82,14 @@ public static class RulerQualitySystem
         // 手动改成负面资质后，旧明君特质不再并存；不改写玩家指定的负面资质。
         if (IsBad(ruler))
         {
-            ruler.removeTrait(Wise);
+            ruler.RemoveTrait(Wise);
             data.ruler_assessed = true;
             return;
         }
         if (RealisticAgeSystem.IsMinor(ruler))
         {
             // 迁移旧版幼年即位时自动定下的明君；成年后重新按本人资质评估。
-            if (data.ruler_assessed) ruler.removeTrait(Wise);
+            if (data.ruler_assessed) ruler.RemoveTrait(Wise);
             data.ruler_assessed = false;
             return;
         }
@@ -97,14 +97,14 @@ public static class RulerQualitySystem
         data.ruler_assessed = true;
         if (Of(ruler) != Grade.Average) return;
         string trait = TraitOf(Roll(empire, ruler));
-        if (trait != null) ruler.addTrait(trait);
+        if (trait != null) ruler.AddTrait(trait);
     }
 
     private static Grade Roll(Empire empire, Person ruler)
     {
-        float talent = Mathf.Clamp((ruler.stats["stewardship"] + ruler.stats["intelligence"] - 20f) / 10f, -1.5f, 1.5f);
+        float talent = Mathf.Clamp((ruler.Stats["stewardship"] + ruler.Stats["intelligence"] - 20f) / 10f, -1.5f, 1.5f);
         int balance = 0;
-        foreach (ActorTrait trait in ruler.traits)
+        foreach (ActorTrait trait in ruler.Traits)
         {
             // 官位与开国、中兴功绩不是品性，不能反过来抬高资质抽取权重。
             if (trait.id == RulerTraitSystem.Founder || trait.id == RulerTraitSystem.Restorer ||
@@ -116,11 +116,11 @@ public static class RulerQualitySystem
         float up = Mathf.Exp(score), down = Mathf.Exp(-score);
         float wise = 22f * up, average = 45f;
         float weak = 14f * down;
-        float fatuous = 8f * down * (ruler.hasTrait("lazy") ? 2f : 1f) * (ruler.hasTrait("stupid") ? 1.5f : 1f);
-        float dissolute = 7f * down * (ruler.hasTrait("greedy") ? 2f : 1f);
+        float fatuous = 8f * down * (ruler.HasTrait("lazy") ? 2f : 1f) * (ruler.HasTrait("stupid") ? 1.5f : 1f);
+        float dissolute = 7f * down * (ruler.HasTrait("greedy") ? 2f : 1f);
         float tyrant = 4f * Mathf.Exp(-0.5f * score) *
-                       (ruler.hasTrait("evil") || ruler.hasTrait("bloodlust") || ruler.hasTrait("madness") ? 3f : 1f) *
-                       (ruler.hasTrait("paranoid") ? 1.5f : 1f);
+                       (ruler.HasTrait("evil") || ruler.HasTrait("bloodlust") || ruler.HasTrait("madness") ? 3f : 1f) *
+                       (ruler.HasTrait("paranoid") ? 1.5f : 1f);
         float roll = EcRandom.value * (wise + average + weak + fatuous + dissolute + tyrant);
         if ((roll -= wise) < 0f) return Grade.Wise;
         if ((roll -= average) < 0f) return Grade.Average;
@@ -211,7 +211,7 @@ public static class RulerQualitySystem
 #if EC_PENDING
     private static float WarWill(Person ruler)
     {
-        if (ruler.hasTrait(RulerTraitSystem.Founder) || ruler.hasTrait(RulerTraitSystem.GreatRestorer)) return 1f;
+        if (ruler.HasTrait(RulerTraitSystem.Founder) || ruler.HasTrait(RulerTraitSystem.GreatRestorer)) return 1f;
         return Of(ruler) switch
         {
             Grade.Wise or Grade.Tyrant => 1f,

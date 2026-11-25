@@ -85,6 +85,7 @@ IDENTITY = [
     (r"(?<![.\w])MetaSystemManager<", "RecordStore<"),
     (r"(?<![.\w])NanoObject\b", "Entity"),
     (r"\bEmpireCraft\.Core\.StackGuard\b", "StackGuard"),
+    (r"(?<![.\w])ActorSex\b", "Sex"),
     (r"(?<![.\w])WarWinner\b", "WarOutcome"),
     (r"(?<![.\w])WarTypeLibrary\b", "WarKinds"),
     (r"(?<![.\w])WarTypeAsset\b", "WarKind"),

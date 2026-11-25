@@ -77,7 +77,7 @@ public static partial class PapacySystem
         {
             if (actor?.Record == null || actor.IsGone() || !actor.Alive || !actor.IsAdult() || actor.IsRuler() ||
                 actor.asset == null || !actor.asset.civ || CityPopulationSystem.IsVehicle(actor)) continue;
-            if (best == null || actor.warfare > best.warfare) best = actor;
+            if (best == null || actor.Warfare > best.Warfare) best = actor;
         }
         order.grand_master_id = best?.Key ?? -1L;
         best?.RecordPersonalHistory(string.Format(LM.Get("knight_order_master_history"), order.name));
@@ -219,7 +219,7 @@ public static partial class PapacySystem
         Person master = order == null ? null : GrandMaster(order);
         if (order == null || master == null || holy?.Record == null) return false;
         Realm former = Host(order);
-        master.joinCity(holy);
+        master.JoinCity(holy);
         // 圣战收复圣地(战果)：不许自立的闸放行(见 SecessionGate)
         Realm state = SecessionGate.Sanctioned(() => holy.makeOwnKingdom(master, false, false));
         if (state?.Record == null) return false;

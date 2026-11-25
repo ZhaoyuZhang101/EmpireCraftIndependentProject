@@ -211,8 +211,8 @@ public static class FeudalConquestService
                             !actor.isKing() && actor != formerKing && actor.isUnitFitToRule())
             .ToList();
         Person noble = locals.Where(actor => actor.GetOrCreate().socialClass == SocialClass.Noble)
-                          .OrderByDescending(actor => actor.Record?.renown ?? 0).FirstOrDefault()
-                      ?? locals.OrderByDescending(actor => actor.Record?.renown ?? 0).FirstOrDefault();
+                          .OrderByDescending(actor => actor.Record?.Renown ?? 0).FirstOrDefault()
+                      ?? locals.OrderByDescending(actor => actor.Record?.Renown ?? 0).FirstOrDefault();
         if (noble == null) return;
         GraceEdictService.Crown(conquered, noble);
         if (conquered.Ruler != noble) return;
@@ -244,7 +244,7 @@ public static class FeudalConquestService
         {
             formerKing.removeFromArmy();
             if (formerKing.IsCityLeader()) formerKing.City.removeLeader();
-            formerKing.joinCity(royalDomain);
+            formerKing.JoinCity(royalDomain);
             if (royalDomain._city_tile != null) formerKing.goTo(royalDomain._city_tile);
         }
         Record(empire, conquered, "feudal_conquest_prince_history", empire.GetEmpireName(), prince.FullName(),

@@ -197,8 +197,8 @@ public static class TemplateNameRepair
             if (first)
             {
                 OnomasticsData names = CulturePatch.GetOnomasticDataSafe(culture, MetaType.Unit);
-                string given = PrehistoricClanSystem.AncientGivenName(TechnologySystem.GetCultureOf(actor), actor.isSexMale()) ??
-                               Generate(() => names?.generateName(actor.isSexMale() ? ActorSex.Male : ActorSex.Female));
+                string given = PrehistoricClanSystem.AncientGivenName(TechnologySystem.GetCultureOf(actor), actor.IsMale()) ??
+                               Generate(() => names?.generateName(actor.IsMale() ? Sex.Male : Sex.Female));
                 if (given != null) name.firstName = given;
             }
             if (family) name.familyName = Surname(actor, culture) ?? "";

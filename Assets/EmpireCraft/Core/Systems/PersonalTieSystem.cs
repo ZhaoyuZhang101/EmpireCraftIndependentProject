@@ -193,7 +193,7 @@ public static class PersonalTieSystem
                 EcRandom.value < DefectChance * (AmbitionSystem.Wants(actor, AmbitionSystem.Throne) ? 2f : 1f) &&
                 Defect(actor, rival)) return true;
             if (actor.IsOnOffice() && rival.IsOnOffice() && actor.Realm?.GetEmpire() is Empire empire &&
-                rival.Realm?.GetEmpire() == empire && actor.renown >= rival.renown && EcRandom.value < FrameChance)
+                rival.Realm?.GetEmpire() == empire && actor.Renown >= rival.Renown && EcRandom.value < FrameChance)
                 return Frame(actor, rival);
         }
         return false;
@@ -254,7 +254,7 @@ public static class PersonalTieSystem
         string text = string.Format(LM.Get("tie_defect_history"), actor.FullName(), ruler.FullName(), enemy.GetKingdomName());
         BiographySystem.Note(actor, string.Format(LM.Get("bio_tie_defected"), ruler.FullName(), enemy.GetKingdomName()), ruler);
         Record(home, text, actor);
-        actor.joinCity(enemy.Capital);
+        actor.JoinCity(enemy.Capital);
         actor.setKingdom(enemy);
         return true;
     }

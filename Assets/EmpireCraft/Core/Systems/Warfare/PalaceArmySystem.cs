@@ -170,7 +170,7 @@ public static class PalaceArmySystem
                                  !actor.IsRuler() && actor.Realm?.GetEmpire() == empire;
         // 纯净地图下宗亲多是虚拟族人：地图上没有就从皇族世系里按长幼落成一位成年的
         // (以前只看地图上的，宗室在世也判"无人可立"，禁军统领就自立易姓)
-        return empire.EmpireSpecificClan?.AllAliveMembers?.Where(Fit).OrderByDescending(actor => actor.renown).FirstOrDefault() ??
+        return empire.EmpireSpecificClan?.AllAliveMembers?.Where(Fit).OrderByDescending(actor => actor.Renown).FirstOrDefault() ??
                KinRoster.RealizeAdultKin(empire.EmpireSpecificClan, kingdom => kingdom?.GetEmpire() == empire, Fit);
     }
 #endif

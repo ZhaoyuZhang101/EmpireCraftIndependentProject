@@ -285,7 +285,7 @@ public static class ProvincialPoliticsSystem
                             actor.Key != primeMinister && !actor.IsRuler() && actor.CanServeOffice(province))
             .OrderBy(actor => actor.IsOnOffice() ? 1 : 0)
             .ThenByDescending(actor => actor.GetIdentity()?.TotalPerformance ?? 0d)
-            .ThenByDescending(actor => actor.renown).FirstOrDefault();
+            .ThenByDescending(actor => actor.Renown).FirstOrDefault();
         // 无小人模式：本省没有本党实体党员时，从本省都城人口里推举一位读书人入党出任
         if (candidate == null && CityPopulationSystem.AbstractPopulationEnabled && province.Capital != null)
         {

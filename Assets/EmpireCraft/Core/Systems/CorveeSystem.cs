@@ -83,17 +83,13 @@ public static class CorveeSystem
         Mathf.Clamp((Intensity(core, cities).grand - GrandThreshold) * GrandPerIntensity, 0f, GrandCap);
 
     // 苛政：好大喜功之君在位
-#if EC_PENDING
     public static float AmbitionBurden(Person ruler) => Ambitious(ruler) ? AmbitionHarsh : 0f;
 
     public static bool Ambitious(Person ruler) =>
-        ruler?.Record != null && !ruler.IsGone() && ruler.Alive && ruler.hasTrait(AmbitiousTrait);
-#endif
+        ruler?.Record != null && !ruler.IsGone() && ruler.Alive && ruler.HasTrait(AmbitiousTrait);
 
     // 好大喜功之君多开一项修路工程(见 RoadBuildingSystem)
-#if EC_PENDING
     public static int ExtraRoadProjects(Realm kingdom) => Ambitious(kingdom?.Ruler) ? 1 : 0;
-#endif
 
     // 农民(国人、野人)怨气目标值的徭役压力(InstitutionSystem.UpdateSocialUnrest 用)
     public static float PeasantPressure(Empire empire)

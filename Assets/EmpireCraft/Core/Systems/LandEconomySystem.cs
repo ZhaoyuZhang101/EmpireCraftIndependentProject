@@ -446,13 +446,13 @@ public static class LandEconomySystem
             .Distinct().Count();
         return HouseholdBaseShare * Math.Max(1, households);
     }
+#endif
 
     private static Person SelectRepresentative(IEnumerable<Person> members)
     {
-        return members?.Where(IsLivingResident).OrderByDescending(actor => actor.money)
-            .ThenByDescending(actor => actor.data?.renown ?? 0).FirstOrDefault();
+        return members?.Where(IsLivingResident).OrderByDescending(actor => actor.Money)
+            .ThenByDescending(actor => actor.Record?.Renown ?? 0).FirstOrDefault();
     }
-#endif
 
     // 宗族人多，原来"有一个人是官员/贵族就整户不授田"会让一个大宗族因为出了一个官就全族无地，
     // 改成过半成员是特权阶层才整族不授田(这部分由贵族份额覆盖)。
@@ -465,7 +465,6 @@ public static class LandEconomySystem
         return privileged * 2 > list.Count;
     }
 
-#if EC_PENDING
     private static void UpdateMerchantHouseholds(Dictionary<string, List<Person>> households)
     {
         // Read each actor's income once; reuse totals for the median and qualification.
@@ -513,7 +512,6 @@ public static class LandEconomySystem
             if (representative != null && merchant) representative.GetOrCreate().is_economic_merchant = true;
         }
     }
-#endif
 
     // 绝户田：宗族在世族人都没了，它在本城的私田归同一世系在本城有田的一支(田多的先承)，没有就归上头还有人的本宗，
     // 都没有就退给背景农民(私田里实体家户没占的归背景人口，见 BackgroundLandPool)。以前绝户的份额一直挂着
@@ -592,23 +590,23 @@ public static class LandEconomySystem
                                                         !IsPrivilegedHousehold(pair.Value) &&
                                                         !pair.Value.Any(actor => actor.GetOrCreate().is_economic_merchant) &&
                                                         EcRandom.value < saleChance)
-            .OrderBy(pair => SelectRepresentative(pair.Value)?.money ?? int.MaxValue)
+            .OrderBy(pair => SelectRepresentative(pair.Value)?.Money ?? int.MaxValue)
             .Select(pair => pair.Key).ToList();
         List<int> purses = households.Values.Select(SelectRepresentative).Where(actor => actor != null)
-            .Select(actor => actor.money).OrderBy(money => money).ToList();
+            .Select(actor => actor.Money).OrderBy(money => money).ToList();
         int medianPurse = purses.Count > 0 ? purses[(purses.Count - 1) / 2] : 0;
         foreach (KeyValuePair<string, List<Person>> buyerHousehold in households
                      .Where(pair => pair.Value.Any(actor => actor.GetOrCreate().is_economic_merchant) ||
-                                    (SelectRepresentative(pair.Value)?.money ?? 0) >= LandPurchasePrice * 2 &&
-                                    (long)(SelectRepresentative(pair.Value)?.money ?? 0) >=
+                                    (SelectRepresentative(pair.Value)?.Money ?? 0) >= LandPurchasePrice * 2 &&
+                                    (long)(SelectRepresentative(pair.Value)?.Money ?? 0) >=
                                     (long)medianPurse + LandPurchasePrice)
-                     .OrderByDescending(pair => SelectRepresentative(pair.Value)?.money ?? 0))
+                     .OrderByDescending(pair => SelectRepresentative(pair.Value)?.Money ?? 0))
         {
             Person buyer = SelectRepresentative(buyerHousehold.Value);
-            if (buyer == null || buyer.money <= 0) continue;
+            if (buyer == null || buyer.Money <= 0) continue;
             int sellerIndex = sellers.FindIndex(key => key != buyerHousehold.Key &&
                 ResolveRepresentative(data, key) is Person seller && IsLivingResident(seller) &&
-                buyer.money > seller.money);
+                buyer.Money > seller.Money);
             if (sellerIndex < 0)
             {
                 // 无小人模式：实体卖家卖完了，向背景人口里的有地农民买(同一片地，两本账合一)
@@ -645,8 +643,8 @@ public static class LandEconomySystem
         float amount = HouseholdBaseShare;
         if (owned < amount || pool - amount < 0.01f) return false;
         int price = Mathf.CeilToInt(amount * BackgroundLandPrice);
-        if (buyer.money < price) return false;
-        buyer.addMoney(-price);
+        if (buyer.Money < price) return false;
+        buyer.AddMoney(-price);
         population.background_landless = Mathf.Clamp01(1f - (owned - amount) / (pool - amount));
         data.household_land_shares[key] = GetHouseholdShare(city, key) + amount;
         data.household_land_representatives[key] = buyer.Key;
@@ -722,7 +720,7 @@ public static class LandEconomySystem
                 GetPrivateLandCapacity(candidate))
             .OrderBy(candidate => Vector2.SqrMagnitude(candidate.city_center - city.city_center)).FirstOrDefault();
         if (destination == null) return;
-        foreach (Person actor in landless.Value.ToList()) actor.joinCity(destination);
+        foreach (Person actor in landless.Value.ToList()) actor.JoinCity(destination);
     }
 
     private static void RefreshClasses(City city)
@@ -886,7 +884,7 @@ public static class LandEconomySystem
 
     private static bool IsAgrarianCommoner(Person actor)
     {
-        if (actor == null || actor.IsOnOffice() || actor.isWarrior() ||
+        if (actor == null || actor.IsOnOffice() || actor.IsWarrior() ||
             actor.GetOrCreate().is_economic_merchant || IsLandlord(actor) ||
             UrbanEmploymentSystem.IsEmployed(actor)) return false;
         if (actor.GetOrCreate().socialClass == SocialClass.Noble) return false;

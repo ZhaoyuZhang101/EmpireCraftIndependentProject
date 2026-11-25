@@ -387,7 +387,7 @@ public class OfficeObject
                     identity.RemoveOffice();
                 }
                 identity.SetOfficeId(OfficeID, actor);
-                actor.addTrait("officer");
+                actor.AddTrait("officer");
                 actor.ChangeOfficialLevel(officeType);
                 OfficialRankSystem.OnAppointed(actor, this);
             }
@@ -416,7 +416,7 @@ public class OfficeObject
             case MetaType.City:
                 City city =  (City)meta_object;
                 city.setLeader(actor, true);
-                actor.joinCity(city);
+                actor.JoinCity(city);
                 if (city?._city_tile != null)
                 {
                     actor.goTo(city._city_tile);
@@ -431,7 +431,7 @@ public class OfficeObject
                 }
                 personalId?.SetOfficeName(GetName(kingdom));
                 kingdom.SetRuler(actor); 
-                actor.joinCity(kingdom.Capital);
+                actor.JoinCity(kingdom.Capital);
                 if (kingdom?.capital?._city_tile != null)
                 {
                     actor.goTo(kingdom.Capital._city_tile);
@@ -449,7 +449,7 @@ public class OfficeObject
         }
         if (res != null)
         {
-            if (res.isUnitFitToRule() && res.IsAdult())
+            if (res.IsFitToRule() && res.IsAdult())
             {
                 return res;
             }
@@ -464,18 +464,20 @@ public class OfficeObject
         if (meta_object is Army army) return army._city?.kingdom;
         return fallback?.Realm;
     }
+#endif
 
     private void ClearInvalidHolder(Person actor)
     {
         if (actor != null)
         {
             actor.EndOffice();
-            if (actor.hasTrait("officer")) actor.removeTrait("officer");
-            if (actor.hasTrait("officerLeave")) actor.removeTrait("officerLeave");
+            if (actor.HasTrait("officer")) actor.RemoveTrait("officer");
+            if (actor.HasTrait("officerLeave")) actor.RemoveTrait("officerLeave");
             actor.RemoveIdentity();
         }
         actor_id = -1L;
     }
+#if EC_PENDING
     public int GetOnTime()
     {
         if (this.actor_id == -1L)
@@ -494,9 +496,9 @@ public class OfficeObject
         Person actor = EmpireWorld.Current.PersonByKey(actor_id);
         if (actor!=null)
         {
-            if (actor.hasTrait("officer"))
+            if (actor.HasTrait("officer"))
             {
-                actor.addTrait("officerLeave");
+                actor.AddTrait("officerLeave");
             }
             history_officers.Add(actor.Name);
             PersonalClanIdentity personalIdentity = actor.GetPersonalIdentity();
@@ -507,7 +509,7 @@ public class OfficeObject
             actor.EndOffice();
             if (officeType is > 13 and <= 22)
             {
-                actor.lover = null;
+                actor.Spouse = null;
             }
         }
 

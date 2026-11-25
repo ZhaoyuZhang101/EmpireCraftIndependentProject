@@ -159,7 +159,7 @@ public class EmpireCraftEmpireBehCheckInnerOffice: GameAIEmpireBase
                 {
                     if (value.officeType == 13)
                     {
-                        if (value.GetActor() != emperor.lover || !(emperor.hasLover()))
+                        if (value.GetActor() != emperor.Spouse || !(emperor.HasSpouse()))
                         {
                             value.Select(coreKingdom);
                         }

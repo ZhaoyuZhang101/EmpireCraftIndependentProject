@@ -29,7 +29,7 @@ namespace EmpireCraft.Core
         private static Realm FindLocalFactionInfluenceTarget(Person actor)
         {
             if (actor == null || actor.IsGone() || !actor.IsRuler() || !actor.HasFaction() ||
-                actor.Record.renown < InviteToFactionCost) return null;
+                actor.Renown < InviteToFactionCost) return null;
             Realm source = actor.Realm;
             Empire empire = source?.GetEmpire();
             if (empire == null || empire.IsArchived() || source == empire.CoreKingdom ||
@@ -49,7 +49,7 @@ namespace EmpireCraft.Core
         {
             FixedFaction faction = GetLeadingFaction(actor);
             Empire empire = faction?.Empire;
-            return actor?.Record != null && actor.Record.renown >= FactionLeaderLocalInfluenceCost &&
+            return actor?.Record != null && actor.Renown >= FactionLeaderLocalInfluenceCost &&
                    empire != null && !empire.IsGone() && !empire.IsArchived() &&
                    target != null && !target.IsGone() && target != empire.CoreKingdom &&
                    target.GetEmpire() == empire && target.GetFactionRatioValue(faction) < 100;
@@ -60,7 +60,7 @@ namespace EmpireCraft.Core
             FixedFaction faction = GetLeadingFaction(actor);
             Empire empire = faction?.Empire;
             if (empire?.kingdoms_list == null || actor?.Record == null ||
-                actor.Record.renown < FactionLeaderLocalInfluenceCost) return null;
+                actor.Renown < FactionLeaderLocalInfluenceCost) return null;
             return empire.kingdoms_list
                 .Where(target => CanFactionLeaderInfluenceLocalKingdom(actor, target))
                 .OrderBy(target => target.GetFactionRatioValue(faction))
@@ -269,7 +269,7 @@ namespace EmpireCraft.Core
 
         private static bool CanContinueKingdomGetTitlePlot(Person actor)
         {
-            if (actor == null || actor.IsGone() || !actor.Alive || !actor.IsRuler() || !actor.hasKingdom()) return false;
+            if (actor == null || actor.IsGone() || !actor.Alive || !actor.IsRuler() || !actor.HasRealm()) return false;
             Realm kingdom = actor.Realm;
             if (kingdom == null || kingdom.IsGone() || kingdom.Ruler != actor || !kingdom.CanPursueDeJureTitle()) return false;
             return actor.canTakeTitle();
@@ -288,13 +288,13 @@ namespace EmpireCraft.Core
             return empire.kingdoms_list?.Find(target => target != null && !target.IsGone() &&
                 target != source && target.GetEmpire() == empire && target.Ruler != null && target.Ruler.Alive &&
                 EmpireLawSystem.CanEnforceLawInEmpireScope(target.Ruler, source) &&
-                target.Ruler.GetFaction() != actor.GetFaction() && target.Ruler.renown / 2 < actor.renown &&
+                target.Ruler.GetFaction() != actor.GetFaction() && target.Ruler.Renown / 2 < actor.Renown &&
                 target.Ruler.GetViolateValue() >= 0);
         }
 
         private static bool CanRunTributaryTitlePetition(Person actor)
         {
-            if (actor == null || !actor.IsRuler() || !actor.hasKingdom()) return false;
+            if (actor == null || !actor.IsRuler() || !actor.HasRealm()) return false;
             Realm kingdom = actor.Realm;
             Empire empire = kingdom?.GetTakenAllianceEmpire();
             return empire?.GetTributaryPetitionTitle(kingdom) != null;
@@ -860,7 +860,7 @@ namespace EmpireCraft.Core
                     Realm kingdom = pActor.Realm;
                     Realm target = FindLocalFactionInfluenceTarget(pActor);
                     if (target == null || !target.TryIncreaseFactionRatio(pActor.GetFaction(), 1)) return false;
-                    pActor.Record.renown -= InviteToFactionCost;
+                    pActor.Renown -= InviteToFactionCost;
                     TranslateHelper.LogInviteIntoFaction(kingdom, target, pActor.GetFaction());
                     return true;
                 }
@@ -1034,7 +1034,7 @@ namespace EmpireCraft.Core
                     if (city == null || city.IsGone()) return false;
                     Person cityLeader = city.Leader ?? city.Realm?.Ruler;
                     if (cityLeader != pActor) return false;
-                    if (pActor.Record == null || pActor.Record.renown < CultureService.CulturalAssimilationDutyInfluenceCost) return false;
+                    if (pActor.Record == null || pActor.Renown < CultureService.CulturalAssimilationDutyInfluenceCost) return false;
                     return CultureService.FindCulturalAssimilationDutyCandidate(city, out _);
                 },
                 check_should_continue = delegate (Person pActor)
@@ -1043,7 +1043,7 @@ namespace EmpireCraft.Core
                     if (city == null || city.IsGone()) return false;
                     Person cityLeader = city.Leader ?? city.Realm?.Ruler;
                     if (cityLeader != pActor) return false;
-                    if (pActor.Record == null || pActor.Record.renown < CultureService.CulturalAssimilationDutyInfluenceCost) return false;
+                    if (pActor.Record == null || pActor.Renown < CultureService.CulturalAssimilationDutyInfluenceCost) return false;
                     return CultureService.FindCulturalAssimilationDutyCandidate(city, out _);
                 },
                 action = delegate (Person pActor)
@@ -1052,10 +1052,10 @@ namespace EmpireCraft.Core
                     if (city == null || city.IsGone()) return false;
                     Person cityLeader = city.Leader ?? city.Realm?.Ruler;
                     if (cityLeader != pActor) return false;
-                    if (pActor.Record == null || pActor.Record.renown < CultureService.CulturalAssimilationDutyInfluenceCost) return false;
+                    if (pActor.Record == null || pActor.Renown < CultureService.CulturalAssimilationDutyInfluenceCost) return false;
                     if (!CultureService.FindCulturalAssimilationDutyCandidate(city, out string candidate)) return false;
                     if (!CultureService.ApplyCulturalAssimilationDuty(city, candidate)) return false;
-                    pActor.Record.renown -= CultureService.CulturalAssimilationDutyInfluenceCost;
+                    pActor.Renown -= CultureService.CulturalAssimilationDutyInfluenceCost;
                     TranslateHelper.LogCulturalAssimilationDuty(city, candidate, CultureService.CulturalAssimilationDutyInfluenceCost);
                     return true;
                 }
@@ -1231,7 +1231,7 @@ namespace EmpireCraft.Core
                         return false;
                     }
                     Person targetKing = target.Ruler;
-                    pActor.Record.renown -= targetKing.renown / 2;
+                    pActor.Renown -= targetKing.Renown / 2;
                     targetKing.AddTyrantValue(30);
                     if (targetKing.GetViolateValue() >= 100)
                     {
@@ -1278,7 +1278,7 @@ namespace EmpireCraft.Core
                             var context = EmpireLawSystem.PrepareEnforcement(targetKing, crime, kingdom);
                             if (context == null) return false;
                             //当影响力小于两百, 或者脱罪次数达到2的上限则进行惩罚
-                            if (targetKing.renown <= 200 && targetKing.EscapeFromPunishment(true))
+                            if (targetKing.Renown <= 200 && targetKing.EscapeFromPunishment(true))
                             {
                                 var punishments = new List<PunishmentLevel>()
                                 {
@@ -1292,7 +1292,7 @@ namespace EmpireCraft.Core
                             }
                             else
                             {
-                                targetKing.addRenown(-200);
+                                targetKing.AddRenown(-200);
                                 EmpireLawSystem.ApplyPunishment(context, PunishmentLevel.无罪);
                                 targetKing.AddTyrantValue(-30);
                                 context.AppliedPunishments = new List<PunishmentLevel>() {PunishmentLevel.无罪};
@@ -1736,7 +1736,7 @@ namespace EmpireCraft.Core
                 check_should_continue = delegate (Person pActor)
                 {
                     if (!pActor.IsRuler()) return false;
-                    if (!pActor.hasKingdom()) return false;
+                    if (!pActor.HasRealm()) return false;
                     Realm kingdom = pActor.Realm;
                     if (!kingdom.Alive) return false;
                     if (!kingdom.IsEmpire()) return false;
@@ -1838,7 +1838,7 @@ namespace EmpireCraft.Core
                 },
                 check_should_continue = delegate (Person pActor) {
                     if (!pActor.hasPlot()) return false;
-                    if (!pActor.hasKingdom()) return false;
+                    if (!pActor.HasRealm()) return false;
                     if (pActor.Realm.HasTakenAlliance()) return false;
                     var plot = pActor.plot;
                     var targetKingdom = plot.target_kingdom;
@@ -1850,7 +1850,7 @@ namespace EmpireCraft.Core
                 action = delegate(Person pActor)
                 {
                     if (!pActor.hasPlot()) return false;
-                    if (!pActor.hasKingdom()) return false;
+                    if (!pActor.HasRealm()) return false;
                     var kingdom = pActor.Realm;
                     if (kingdom.HasTakenAlliance()) return false;
                     var plot = pActor.plot;
@@ -2079,7 +2079,7 @@ namespace EmpireCraft.Core
                     Realm kingdom = pActor.Realm;
                     if (kingdom.Capital==null) return false;
                     if (!pActor.IsRuler()) return false;
-                    if (!pActor.hasKingdom()) return false; 
+                    if (!pActor.HasRealm()) return false; 
                     if (kingdom.HasTakenAlliance()) return false;
                     if (kingdom.IsDeJureTitleAcquisitionBlocked()) return false;
                     if (kingdom.Capital.hasTitle()) return false;
@@ -2112,7 +2112,7 @@ namespace EmpireCraft.Core
                     Realm kingdom = pActor.Realm;
                     if (kingdom.Capital==null) return false;
                     if (!pActor.IsRuler()) return false;
-                    if (!pActor.hasKingdom()) return false; 
+                    if (!pActor.HasRealm()) return false; 
                     if (!kingdom.HasMainTitle()) return false;
                     if (kingdom.Cities.All(c=>c.hasTitle())) return false;
                     if (!KingdomTitleManager.HasRoomFor(kingdom.GetMainTitle())) return false;
@@ -2271,7 +2271,7 @@ namespace EmpireCraft.Core
 				    {
 					    return false;
 				    }
-				    if (pActor.hasTrait("pacifist"))
+				    if (pActor.HasTrait("pacifist"))
 				    {
 					    return false;
 				    }
@@ -2369,7 +2369,7 @@ namespace EmpireCraft.Core
 			    },
 			    check_should_continue = delegate(Person pActor)
 			    {
-				    if (!pActor.hasCity())
+				    if (!pActor.HasCity())
 				    {
 					    return false;
 				    }
@@ -2766,7 +2766,7 @@ namespace EmpireCraft.Core
             Regime regime = kingdom.GetRegime();
             if (regime == null || !regime.IsAllowDiplomacy()) return false;
             if (actor.hasCulture() && actor.culture.hasTrait("serenity_now") ||
-                actor.hasTrait("pacifist")) return false;
+                actor.HasTrait("pacifist")) return false;
             sharedWarPlot ??= AssetManager.plots_library.get("empirecraft_war");
             if (kingdom.hasAlliance())
             {

@@ -138,7 +138,7 @@ public static class CityStabilitySystem
         (state.last_update < 0d || GameClock.MonthsSince(state.last_update) >= 1);
 
 #if EC_PENDING
-    private static bool CanRetire(Person actor, City city) => actor != null && actor.Alive && actor.isWarrior() &&
+    private static bool CanRetire(Person actor, City city) => actor != null && actor.Alive && actor.IsWarrior() &&
         !actor.IsRuler() && !actor.IsCityLeader() && actor.City == city && actor.current_tile?.zone_city == city &&
         actor.Realm != null && (actor.Realm == city.Realm || actor.Realm.IsInSameEmpire(city.Realm));
 
@@ -399,7 +399,7 @@ public static class CityStabilitySystem
         if (city?.units == null) { assigned = present = 0; return; }
         foreach (Person actor in city.units)
         {
-            if (actor == null || actor.IsGone() || !actor.Alive || !actor.isWarrior() || actor.Realm == null || actor.City != city ||
+            if (actor == null || actor.IsGone() || !actor.Alive || !actor.IsWarrior() || actor.Realm == null || actor.City != city ||
                 actor.Realm != city.Realm && !actor.Realm.IsInSameEmpire(city.Realm)) continue;
             double people = CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.LegionAlive(actor) : 1d;
             all += people;
@@ -482,10 +482,10 @@ public static class CityStabilitySystem
             if (filled >= Math.Min(4, needed)) break;
             if (cursor >= city.units.Count) cursor = 0;
             Person actor = city.units[cursor++]; visited++;
-            if (actor == null || actor.IsGone() || !actor.Alive || !actor.IsAdult() || actor.isWarrior() ||
+            if (actor == null || actor.IsGone() || !actor.Alive || !actor.IsAdult() || actor.IsWarrior() ||
                 actor.IsRuler() || actor.IsCityLeader() || actor.equipment == null || !actor.CanFoundCivKingdom()) continue;
             city.makeWarrior(actor);
-            if (actor.isWarrior()) filled++;
+            if (actor.IsWarrior()) filled++;
         }
         RecruitCursors[city] = cursor;
     }

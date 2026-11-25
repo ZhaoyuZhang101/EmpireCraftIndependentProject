@@ -213,8 +213,8 @@ public class EmpireCraftKingdomBehCheckHeir : GameAIKingdomBase
         if (actor != null)
         {
             bool virtualPopulation = CityPopulationSystem.AbstractPopulationEnabled;
-            IEnumerable<Person> nativeChildren = virtualPopulation ? actor.getChildren() :
-                actor.getChildren(pOnlyCurrentFamily: false);
+            IEnumerable<Person> nativeChildren = virtualPopulation ? actor.GetChildren() :
+                actor.GetChildren(pOnlyCurrentFamily: false);
             int knownLiving = children.Values.Count(person => person._actor != null && !person._actor.IsGone() && person._actor.Alive);
             if (virtualPopulation && (forceRepair || knownLiving < actor.current_children_count))
             {
@@ -222,7 +222,7 @@ public class EmpireCraftKingdomBehCheckHeir : GameAIKingdomBase
                 if (forceRepair || Time.unscaledTime >= repair.NextScan)
                 {
                     repair.NextScan = Time.unscaledTime + 10f;
-                    nativeChildren = nativeChildren.Concat(actor.getChildren(pOnlyCurrentFamily: false));
+                    nativeChildren = nativeChildren.Concat(actor.GetChildren(pOnlyCurrentFamily: false));
                 }
             }
             foreach (Person child in nativeChildren)
@@ -232,12 +232,12 @@ public class EmpireCraftKingdomBehCheckHeir : GameAIKingdomBase
                 PersonalClanIdentity identity = child.GetPersonalIdentity();
                 if (identity == null) continue;
                 if (!parent.children.Contains(identity.id)) identity.setParent(parent, recordHistory: false);
-                foreach (Person otherParent in child.getParents())
+                foreach (Person otherParent in child.GetParents())
                 {
                     if (otherParent == null || otherParent == actor) continue;
                     otherParent.CheckSpecificClan(false);
                     PersonalClanIdentity other = otherParent.GetPersonalIdentity();
-                    if (other != null && (other.sex == ActorSex.Male ? identity.father <= 0 : identity.mother <= 0))
+                    if (other != null && (other.sex == Sex.Male ? identity.father <= 0 : identity.mother <= 0))
                         identity.setParent(other, recordHistory: false);
                 }
                 children[identity.id] = identity;
@@ -266,8 +266,8 @@ public class EmpireCraftKingdomBehCheckHeir : GameAIKingdomBase
     public static bool SexEligible(PersonalClanIdentity person, PersonalClanIdentity parent, bool maleOnly, bool allowFemale)
     {
         if (person == null) return false;
-        if (!maleOnly) return person.CanHeir(parent) || allowFemale && person.sex == ActorSex.Female;
-        return person.sex == ActorSex.Male && !person.disinherited && person.id != parent?.id &&
+        if (!maleOnly) return person.CanHeir(parent) || allowFemale && person.sex == Sex.Female;
+        return person.sex == Sex.Male && !person.disinherited && person.id != parent?.id &&
                (person.is_main || BornInLine(person));
     }
 #endif
@@ -330,7 +330,7 @@ public class EmpireCraftKingdomBehCheckHeir : GameAIKingdomBase
         if (parent == null) return new List<Person>();
         bool maleOnly = MaleOnlyThrone(kingdom);
         bool Fit(Person actor) => IsFitCandidate(actor, parent) && actor != kingdom.Ruler && !ForeignRuler(kingdom, actor) &&
-                                 !(maleOnly && actor.Record.sex != ActorSex.Male);
+                                 !(maleOnly && actor.Sex != Sex.Male);
         List<PersonalClanIdentity> children = ChildrenOf(parent);
         List<Person> result = children.Select(person => person._actor).Where(Fit).Distinct().ToList();
         if (!realize) return result;
@@ -351,23 +351,19 @@ public class EmpireCraftKingdomBehCheckHeir : GameAIKingdomBase
         return ChildrenOf(parent).Count(person => KinRoster.Counts(person,
             virtualPerson => VirtualHeirFit(virtualPerson, parent, maleOnly) && (!adultOnly || KinRoster.Adult(virtualPerson)),
             actor => IsFitCandidate(actor, parent) && actor != kingdom.Ruler && !ForeignRuler(kingdom, actor) &&
-                     !(maleOnly && actor.Record.sex != ActorSex.Male) && (!adultOnly || actor.IsAdult())));
+                     !(maleOnly && actor.Sex != Sex.Male) && (!adultOnly || actor.IsAdult())));
     }
 #endif
 
     // 虚拟皇子按族谱能不能列为储君候选(同 IsFitCandidate：没被废储；不立女主的国只列皇子)
-#if EC_PENDING
     private static bool VirtualHeirFit(PersonalClanIdentity person, PersonalClanIdentity parent, bool maleOnly) =>
         person != null && person.is_alive && person.id != parent?.id && !person.disinherited &&
-        !(maleOnly && person.sex != ActorSex.Male);
-#endif
+        !(maleOnly && person.sex != Sex.Male);
 
     // 宗人府废了储的(见 EmpireLawSystem.ApplyRoyalCourt)不再入继承人之列
-#if EC_PENDING
     private static bool IsFitCandidate(Person actor, PersonalClanIdentity parent) =>
-        actor != null && actor != parent?._actor && !actor.IsGone() && actor.Alive && actor.isUnitFitToRule() &&
+        actor != null && actor != parent?._actor && !actor.IsGone() && actor.Alive && actor.IsFitToRule() &&
         actor.GetPersonalIdentity()?.disinherited != true;
-#endif
 
     // 已经是别国君主的人不按继承法入继(用户 2026-10-16："明明南北朝了，两边的皇帝有时候还会通过继承法同时继承给一个人，
     // 这是华夏又不是西方")：
@@ -411,7 +407,7 @@ public class EmpireCraftKingdomBehCheckHeir : GameAIKingdomBase
     }
 
     public static bool BarredBySex(Realm kingdom, Person actor) =>
-        actor?.Record != null && actor.Record.sex != ActorSex.Male && MaleOnlyThrone(kingdom);
+        actor?.Record != null && actor.Sex != Sex.Male && MaleOnlyThrone(kingdom);
 
     private static Person Pick(Realm kingdom, IEnumerable<PersonalClanIdentity> candidates, PersonalClanIdentity parent,
         out PersonalClanIdentity selected)
@@ -422,7 +418,7 @@ public class EmpireCraftKingdomBehCheckHeir : GameAIKingdomBase
         {
             Person actor = person.Realize();
             // 族谱记的性别和落成的人对不上时以人为准(即位时看的是人，见 BarredBySex)
-            if (!IsFitCandidate(actor, parent) || ForeignRuler(kingdom, actor) || maleOnly && actor.Record.sex != ActorSex.Male ||
+            if (!IsFitCandidate(actor, parent) || ForeignRuler(kingdom, actor) || maleOnly && actor.Sex != Sex.Male ||
                 protectedDynasty && !ConstitutionalSuccessionSystem.CanInherit(kingdom.GetEmpire(), actor)) continue;
             selected = person;
             return actor;
@@ -438,7 +434,7 @@ public class EmpireCraftKingdomBehCheckHeir : GameAIKingdomBase
         bool maleOnly = MaleOnlyThrone(kingdom);
         bool allowFemale = !maleOnly && PersonalUnionService.AllowsFemaleSuccession(kingdom);
         bool Preferred(PersonalClanIdentity person) =>
-            maleOnly ? person.sex == ActorSex.Male : person._specificClan != null && person.IsHeirPriority();
+            maleOnly ? person.sex == Sex.Male : person._specificClan != null && person.IsHeirPriority();
         string relation = LM.Get(selection.ToString());
         IEnumerable<PersonalClanIdentity> candidates;
         switch (selection)
@@ -478,7 +474,7 @@ public class EmpireCraftKingdomBehCheckHeir : GameAIKingdomBase
                     : ordered.ThenByDescending(person => person.age).ThenBy(person => person.rank).ThenBy(person => person.id);
                 Person child = Pick(kingdom, candidates, parent, out PersonalClanIdentity selected);
                 if (child != null)
-                    relation = string.Format(LM.Get($"rank_child_{(kingdom.IsEmpire() ? "empire" : "kingdom")}_{(selected.sex == ActorSex.Female ? "female" : "male")}"), selected.rank);
+                    relation = string.Format(LM.Get($"rank_child_{(kingdom.IsEmpire() ? "empire" : "kingdom")}_{(selected.sex == Sex.Female ? "female" : "male")}"), selected.rank);
                 return (child, relation.ColorString(pColor: new Color(0.9f, 0.3f, 0.2f)));
             case EmpireHeirLawType.siblings:
                 candidates = SpecificClanManager.GetSiblingsWithRelation(parent).Select(pair => pair.Item2)
@@ -506,7 +502,7 @@ public class EmpireCraftKingdomBehCheckHeir : GameAIKingdomBase
             case EmpireHeirLawType.officer:
                 if (kingdom.IsEmpire()) return (null, relation);
                 Person officer = kingdom.Cities.Select(city => city?.Leader)
-                    .FirstOrDefault(actor => IsFitCandidate(actor, parent) && !(maleOnly && actor.Record.sex != ActorSex.Male));
+                    .FirstOrDefault(actor => IsFitCandidate(actor, parent) && !(maleOnly && actor.Sex != Sex.Male));
                 return (officer, relation);
             default: return (null, relation);
         }
@@ -596,10 +592,9 @@ public class EmpireCraftKingdomBehCheckHeir : GameAIKingdomBase
         return 99;
     }
 
-#if EC_PENDING
     private static bool IsBornOfPrimarySpouse(PersonalClanIdentity parent, PersonalClanIdentity child)
     {
-        long otherId = parent.sex == ActorSex.Male ? child.mother : child.father;
+        long otherId = parent.sex == Sex.Male ? child.mother : child.father;
         if (otherId <= 0) return false;
         if (parent.lover.identity == otherId) return true;
         // 再婚不能把前任正妻所生的孩子全部降为非嫡。
@@ -607,6 +602,7 @@ public class EmpireCraftKingdomBehCheckHeir : GameAIKingdomBase
         return other != null && !other.is_concubine && !parent.concubines.Any(pair => pair.identity == otherId);
     }
 
+#if EC_PENDING
     private static (Person actor, string relation) CheckStrongestHeir(Realm kingdom, PersonalClanIdentity parent, bool childrenOnly)
     {
         IEnumerable<PersonalClanIdentity> pool = ChildrenOf(parent);
@@ -615,7 +611,7 @@ public class EmpireCraftKingdomBehCheckHeir : GameAIKingdomBase
         var candidates = pool.Where(person => IsEligibleRelative(person, parent, false, maleOnly))
             // 政绩(没做过官的算零)，再看声望：虚拟族人按并回人口时记下的声望折算。以前没实体的一律排在最后
             .OrderByDescending(person => KinRoster.OnMap(person) ? person._actor.GetIdentity()?.TotalPerformance ?? 0d : 0d)
-            .ThenByDescending(person => KinRoster.OnMap(person) ? person._actor.renown : VirtualGenealogySystem.VirtualRenown(person))
+            .ThenByDescending(person => KinRoster.OnMap(person) ? person._actor.Renown : VirtualGenealogySystem.VirtualRenown(person))
             .ThenByDescending(person => person.age).ThenBy(person => person.id);
         return (Pick(kingdom, candidates, parent, out _),
             LM.Get(SuccessionLawType.强者继承法.ToString()).ColorString(pColor: new Color(0.6f, 0.05f, 0.05f)));

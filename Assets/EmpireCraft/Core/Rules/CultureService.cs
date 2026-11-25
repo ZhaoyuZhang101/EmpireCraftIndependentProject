@@ -1294,7 +1294,7 @@ public static class CultureService
     /// 找不到该文化的任何存活单位可供借用时返回 null。人名要传性别(不传原版随手定男女，男丁会取成女名)。
     /// </summary>
 #if EC_PENDING
-    public static string GenerateCulturalName(MetaType metaType, long id, string culture, ActorSex sex = ActorSex.None)
+    public static string GenerateCulturalName(MetaType metaType, long id, string culture, Sex sex = Sex.None)
     {
         Person templateActor = FindCultureTemplateActor(culture);
         if (templateActor == null) return null;

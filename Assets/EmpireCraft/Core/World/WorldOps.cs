@@ -225,6 +225,7 @@ namespace EmpireCraft.Core
         public static void JoinAttackers(this War war,Realm realm){if(war.Alive&&!realm.IsGone()&&!war.HasRealm(realm))WorldOps.JoinWar(World,war,realm,true);}
         public static void JoinDefenders(this War war,Realm realm){if(war.Alive&&!realm.IsGone()&&!war.HasRealm(realm))WorldOps.JoinWar(World,war,realm,false);}
         public static void Leave(this War war,Realm realm){if(war.Alive&&war.HasRealm(realm))WorldOps.LeaveWar(World,war,realm);}
+        public static void JoinCity(this Person person,City city){if(person!=null&&person.Alive&&(city==null||city.Alive))person.City=city;}
         public static void JoinRealm(this City city,Realm realm,bool captured=false,bool rebellion=false){if(city.Realm!=realm)WorldOps.TransferCity(World,city,realm);}
     }
 }

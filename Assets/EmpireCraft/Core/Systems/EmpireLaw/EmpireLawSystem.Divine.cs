@@ -141,7 +141,7 @@ public static partial class EmpireLawSystem
         if (identity.law_bail?.revoked == true) return "law_divine_bail_revoked";
         return condition switch
         {
-            "bond" => actor.money < BailBond ? "law_divine_bail_no_money" : null,
+            "bond" => actor.Money < BailBond ? "law_divine_bail_no_money" : null,
             "guarantor" => FindGuarantor(actor) == null ? "law_divine_bail_no_guarantor" : null,
             _ => null
         };
@@ -167,7 +167,7 @@ public static partial class EmpireLawSystem
         switch (condition)
         {
             case "bond":
-                actor.addMoney(-BailBond);
+                actor.AddMoney(-BailBond);
                 bail.bond = BailBond;
                 break;
             case "guarantor":

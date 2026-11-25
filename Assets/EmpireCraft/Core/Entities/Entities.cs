@@ -84,6 +84,54 @@ namespace EmpireCraft.Core
         public bool HasClan()=>Clan!=null;
         public int Age()=>(int)(((Alive?GameClock.Now:DeathMonth)-BirthMonth)/12);
         public bool IsAdult()=>Age()>=AdultAge;
+
+        // Standing, purse and the four talents. They start at zero; the ported systems that
+        // hand them out (birth, office, deeds) set them once they run.
+        public int Renown,Money;
+        public int Stewardship,Warfare,Intelligence,Diplomacy;
+        public void AddRenown(int amount){Renown=System.Math.Max(0,Renown+amount);}
+        public void AddMoney(int amount){Money+=amount;}
+        // Talents by the name the ported systems ask for; anything else reads as zero.
+        public sealed class Talents
+        {
+            readonly Person _owner;internal Talents(Person owner){_owner=owner;}
+            public float this[string name]
+            {
+                get
+                {
+                    switch(name)
+                    {
+                        case "stewardship":return _owner.Stewardship;
+                        case "warfare":return _owner.Warfare;
+                        case "intelligence":return _owner.Intelligence;
+                        case "diplomacy":return _owner.Diplomacy;
+                        default:return 0f;
+                    }
+                }
+            }
+        }
+        Talents _talents;
+        public Talents Stats=>_talents??(_talents=new Talents(this));
+
+        // Traits are plain ids; what a trait means is up to the system that gives it.
+        HashSet<string> _traits;
+        public IEnumerable<string> Traits=>_traits??(IEnumerable<string>)System.Array.Empty<string>();
+        public int TraitCount=>_traits==null?0:_traits.Count;
+        public bool HasTrait(string id)=>id!=null&&_traits!=null&&_traits.Contains(id);
+        public bool AddTrait(string id,bool removeOpposites=false){if(string.IsNullOrEmpty(id))return false;if(_traits==null)_traits=new HashSet<string>(System.StringComparer.Ordinal);return _traits.Add(id);}
+        public bool RemoveTrait(string id)=>id!=null&&_traits!=null&&_traits.Remove(id);
+
+        public bool IsMale()=>Sex==Sex.Male;
+        public bool IsFemale()=>Sex==Sex.Female;
+        public bool IsFitToRule()=>Alive&&IsAdult();
+        public bool IsSapient()=>true;
+        public bool IsWarrior()=>false;     // soldiers are counted, not tracked as people
+        public bool HasRealm()=>Realm!=null;
+        public bool HasCity()=>City!=null;
+        public bool HasSpouse()=>Spouse!=null;
+        public bool HasDied()=>!Alive;
+        public IEnumerable<Person> GetChildren()=>Children;
+        public IEnumerable<Person> GetParents(){if(Father!=null)yield return Father;if(Mother!=null)yield return Mother;}
     }
 
     public sealed class Clan : Entity

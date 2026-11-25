@@ -116,13 +116,12 @@ public class HeirFinderHelper
 #endif
 
     // 你的校验逻辑（不要调用 UnityEngine API；如果会，请把校验放回主线程执行）
-#if EC_PENDING
     private bool IsValid(PersonalClanIdentity id)
     {
         if (id?._actor == null) return false;
 
         if (id._actor.IsGone()) return false;
-        if (!id._actor.isUnitFitToRule() ||
+        if (!id._actor.IsFitToRule() ||
             id._actor.IsRuler() ||
             id._actor.IsCityLeader() ||
             !id._actor.HasClan() ||
@@ -133,6 +132,5 @@ public class HeirFinderHelper
 
         return true;
     }
-#endif
 }
 }

@@ -85,14 +85,12 @@ public static class PersonRef
 #endif
 
     // 在位的君主或储君(在地图上)
-#if EC_PENDING
     private static bool Ruling(PersonalClanIdentity person)
     {
         if (!KinRoster.OnMap(person)) return false;
         Person actor = person._actor;
         return actor.IsRuler() || actor.Realm != null && actor.Realm.HasHeir() && actor.Realm.GetHeir() == actor;
     }
-#endif
 
     // 帝国上一位皇帝的族谱身份(见 Empire.GetPreviousEmperorWife)
     private static long PreviousEmperor(Empire empire)

@@ -331,7 +331,6 @@ public static partial class GentrySystem
 #endif
 
     // 开局挑世家：族人的官爵(同门第里做官一项的算法)、名望
-#if EC_PENDING
     private static float Standing(List<PersonalClanIdentity> living)
     {
         float score = 0f;
@@ -344,7 +343,7 @@ public static partial class GentrySystem
                 else if (actor.IsOnOffice()) score += 6f;
                 else if (actor.IsCityLeader()) score += 4f;
                 if (actor.HasHonoraryPeerage()) score += 6f;
-                score += 5f * (actor.GetOwnedTitle()?.Count ?? 0) + actor.renown / 30f;
+                score += 5f * (actor.GetOwnedTitle()?.Count ?? 0) + actor.Renown / 30f;
             }
             else
             {
@@ -355,7 +354,6 @@ public static partial class GentrySystem
         }
         return score;
     }
-#endif
 
     #endregion
 }

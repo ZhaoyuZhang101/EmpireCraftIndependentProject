@@ -40,13 +40,11 @@ public static class LateImperialSystem
 #endif
 
     // 皇子的才具：四项本事，明君加、昏庸减，声望略算
-#if EC_PENDING
     public static float Ability(Person actor) =>
         actor?.Record == null ? 0f
-            : actor.intelligence + actor.stewardship + actor.diplomacy + actor.warfare +
-              (actor.hasTrait(RulerQualitySystem.Wise) ? 8f : 0f) - (RulerQualitySystem.IsBad(actor) ? 8f : 0f) +
-              Mathf.Min(actor.renown, 500) * 0.01f;
-#endif
+            : actor.Intelligence + actor.Stewardship + actor.Diplomacy + actor.Warfare +
+              (actor.HasTrait(RulerQualitySystem.Wise) ? 8f : 0f) - (RulerQualitySystem.IsBad(actor) ? 8f : 0f) +
+              Mathf.Min(actor.Renown, 500) * 0.01f;
 
     // 暗定储君(储君复查时，见 EmpireCraftKingdomBehCheckHeir)：十年一议，储君不在了就当场再定
 #if EC_PENDING

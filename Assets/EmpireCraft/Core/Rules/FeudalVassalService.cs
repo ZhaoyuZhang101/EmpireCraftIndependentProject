@@ -304,7 +304,7 @@ public static class FeudalVassalService
 
     public static bool CanIncreaseControl(Realm lord, Realm subject)
     {
-        if (lord?.king?.data == null || lord.Ruler.Record.renown < AnnualControlCost ||
+        if (lord?.king?.data == null || lord.Ruler.Renown < AnnualControlCost ||
             GetOverlord(subject) != lord || EmpireWorld.Current == null) return false;
         var data = subject.GetOrCreate();
         return data.feudal_vassal_level is >= 1 and <= 3 &&

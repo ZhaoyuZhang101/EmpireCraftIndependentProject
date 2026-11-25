@@ -583,7 +583,7 @@ public static partial class TransmigrantSystem
             if (at == kingdom || at != null && ColonySystem.MetropoleOf(at) == kingdom) continue;
             if (at != null && actor.IsRuler()) at.RemoveRuler();
             if (actor.IsCityLeader() && actor.City != null) actor.City.removeLeader();
-            actor.joinCity(home);
+            actor.JoinCity(home);
         }
     }
 #endif

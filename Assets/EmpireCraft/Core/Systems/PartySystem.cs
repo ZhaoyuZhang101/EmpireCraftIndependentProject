@@ -623,7 +623,7 @@ public static class PartySystem
                             IsIdeologyUnlocked(empire, IdeologyPopulationSystem.Get(actor)) &&
                             counts.TryGetValue(IdeologyPopulationSystem.Get(actor), out int supporters) &&
                             supporters >= population * share)
-            .OrderByDescending(actor => actor.renown).FirstOrDefault();
+            .OrderByDescending(actor => actor.Renown).FirstOrDefault();
         if (founder == null && CityPopulationSystem.AbstractPopulationEnabled)
         {
             // 无小人模式：取支持率达到组党门槛、还没有政党代表的理念里支持者最多的一个，从京师推举发起人
@@ -673,7 +673,7 @@ public static class PartySystem
     private static void Recruit(FixedFaction party, List<Person> citizens, int limit)
     {
         foreach (Person actor in citizens.Where(actor => actor.GetFaction() != party)
-                     .OrderByDescending(actor => actor.renown).ToList())
+                     .OrderByDescending(actor => actor.Renown).ToList())
         {
             if (limit <= 0) break;
             FixedFaction current = actor.GetFaction();
@@ -818,7 +818,7 @@ public static class PartySystem
             .Where(actor => IdeologyPopulationSystem.Get(actor) != big.Ideology &&
                             Distance(IdeologyPopulationSystem.Get(actor), big.Ideology) >= SplitDistance)
             .OrderByDescending(actor => IdeologyPopulationSystem.Get(actor).ToString() == big.WingIdeology)
-            .ThenByDescending(actor => actor.renown).FirstOrDefault();
+            .ThenByDescending(actor => actor.Renown).FirstOrDefault();
         if (rebel == null) return;
         PartyIdeology ideology = IdeologyPopulationSystem.Get(rebel);
         if (parties.Any(party => party.Ideology == ideology)) return;
@@ -853,7 +853,7 @@ public static class PartySystem
         GetCitizens(empire)
             .Where(actor => actor.GetFaction()?.GetLeader() != actor &&
                             IdeologyPopulationSystem.Get(actor) == ideology)
-            .OrderByDescending(actor => actor.renown).FirstOrDefault();
+            .OrderByDescending(actor => actor.Renown).FirstOrDefault();
 
     public static bool CanPlayerFound(Empire empire, PartyIdeology ideology, out string reason)
     {

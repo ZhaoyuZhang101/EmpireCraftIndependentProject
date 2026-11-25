@@ -61,9 +61,9 @@ public static class ExamSystem
             if (actor.isOfficer()) continue;
             if (actor.IsCityLeader()) continue;
             if (actor.IsRuler()) continue;
-            if (actor.hasTrait("jingshi")) continue;
-            if (actor.hasTrait("juren")) continue;
-            if (actor.hasTrait("gongshi")) continue;
+            if (actor.HasTrait("jingshi")) continue;
+            if (actor.HasTrait("juren")) continue;
+            if (actor.HasTrait("gongshi")) continue;
             // 只记中榜，不记每次赴考：屡试不第的考生每次都记一条，存档会膨胀到几百 MB
             mark = actor.startCityExam();
             if (mark > 0)
@@ -97,7 +97,7 @@ public static class ExamSystem
         {
             sorted.ForEach(item =>
             {
-                item.Key.addTrait("juren");
+                item.Key.AddTrait("juren");
                 item.Key.RecordPersonalHistory(PassedText(item.Key, "city"));
                 OfficeIdentity identity = new OfficeIdentity
                 {
@@ -141,8 +141,8 @@ public static class ExamSystem
         {
             sorted.ForEach(item =>
             {
-                bool newlyPassed = !item.Key.hasTrait("gongshi");
-                item.Key.addTrait("gongshi");
+                bool newlyPassed = !item.Key.HasTrait("gongshi");
+                item.Key.AddTrait("gongshi");
                 if (newlyPassed)
                 {
                     item.Key.RecordPersonalHistory(PassedText(item.Key, "province"));
@@ -193,8 +193,8 @@ public static class ExamSystem
         else
         {
             sorted.ForEach(item => {
-                bool newlyPassed = !item.Key.hasTrait("jingshi");
-                item.Key.addTrait("jingshi");
+                bool newlyPassed = !item.Key.HasTrait("jingshi");
+                item.Key.AddTrait("jingshi");
                 if (newlyPassed)
                 {
                     item.Key.RecordPersonalHistory(PassedText(item.Key, "empire"));
@@ -215,6 +215,7 @@ public static class ExamSystem
         actor.SetIdentity(identity, true);
         return identity;
     }
+#endif
 
     public static double startCityExam(this Person actor) 
     {
@@ -242,7 +243,6 @@ public static class ExamSystem
         mark = ability.intelligence + ability.diplomacy + ability.stewardship;
         return mark;
     }
-#endif
 }
 
 public class ActorAbility
@@ -250,12 +250,11 @@ public class ActorAbility
     public double intelligence;
     public double stewardship;
     public double diplomacy;
-#if EC_PENDING
     public ActorAbility(Person a)
     {
-        diplomacy = a.stats["diplomacy"];
-        stewardship = a.stats["stewardship"];
-        intelligence = a.stats["intelligence"];
+        diplomacy = a.Stats["diplomacy"];
+        stewardship = a.Stats["stewardship"];
+        intelligence = a.Stats["intelligence"];
         //double warfare = a.stats["warfare"];
         //double mana = a.stats["mana"];
         //double stamina = a.stats["stamina"];
@@ -272,6 +271,5 @@ public class ActorAbility
         //double armor = a.stats["armor"];
         //double attack_speed = a.stats["attack_speed"];
     }
-#endif
 }
 }

@@ -2202,11 +2202,11 @@ public static partial class TechnologySystem
             foreach (Person actor in city.units.ToList())
             {
                 if (done >= perCity) break;
-                if (actor == null || !actor.Alive || !actor.isWarrior() || actor.equipment == null ||
+                if (actor == null || !actor.Alive || !actor.IsWarrior() || actor.equipment == null ||
                     actor.IsWarMachine()) continue;
                 int grant = Math.Max(0, Math.Min(subsidy, TreasurySystem.Enabled(kingdom)
                     ? StateSettlementSystem.DiscretionaryFunds(kingdom) : kingdom.GetMoney()));
-                int own = actor.money;
+                int own = actor.Money;
                 int debited = 0;
                 int credited = 0;
                 bool weapon = false;
@@ -2230,7 +2230,7 @@ public static partial class TechnologySystem
                     {
                         if (actor.Record != null)
                         {
-                            int beforeRefund = actor.money;
+                            int beforeRefund = actor.Money;
                             int refund = ActorMoneyTransfers.Received(own, beforeRefund, credited);
                             if (refund > 0)
                             {
@@ -2238,7 +2238,7 @@ public static partial class TechnologySystem
                                 finally
                                 {
                                     // 原版扣款后的显示效果可能抛异常，以实际扣回的钱退款。
-                                    returnToTreasury += ActorMoneyTransfers.Received(actor.money, beforeRefund, refund);
+                                    returnToTreasury += ActorMoneyTransfers.Received(actor.Money, beforeRefund, refund);
                                 }
                             }
                         }

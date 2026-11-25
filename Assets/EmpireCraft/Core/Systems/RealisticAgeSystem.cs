@@ -21,7 +21,7 @@ public static class RealisticAgeSystem
 #if EC_PENDING
     public static bool CheckNaturalDeath(Person actor, ref bool result)
     {
-        if (!Enabled || actor?.Record == null || !actor.isSapient() ||
+        if (!Enabled || actor?.Record == null || !actor.IsSapient() ||
             EmpireCraft.Core.AncientWarfareCompatibility.OwnsObject(actor)) return true;
         result = false;
         return false;
@@ -112,7 +112,7 @@ public static class RealisticAgeSystem
 #if EC_PENDING
     public static bool AgeDeathDue(Person actor)
     {
-        if (actor.hasTrait("immortal")) return false;
+        if (actor.HasTrait("immortal")) return false;
         // 穿越政权的元老按席位的天年(现代人的寿数，见 TransmigrantSystem.SenatorDeathAge)
         if (TransmigrantSystem.SenatorDeathAge(actor, out int senatorAge)) return Due(actor.Age(), senatorAge);
         if (RoyalHouseSystem.IsRoyal(actor)) return actor.Age() >= RoyalLifespan(actor);
@@ -141,9 +141,9 @@ public static class RealisticAgeSystem
 #if EC_PENDING
     public static int MinParentAge(Person actor)
     {
-        if (actor?.Record == null || !actor.isSapient()) return 0;
+        if (actor?.Record == null || !actor.IsSapient()) return 0;
         if (Enabled) return ParentAge;
-        float lifespan = actor.stats?["lifespan"] ?? 0f;
+        float lifespan = actor.Stats?["lifespan"] ?? 0f;
         return lifespan > 0f && lifespan < 80f ? Math.Max(1, (int)Math.Round(ParentAge * lifespan / 80f)) : ParentAge;
     }
 #endif
@@ -160,9 +160,9 @@ public static class RealisticAgeSystem
 #if EC_PENDING
     public static bool YoungEnoughToParent(Person actor)
     {
-        if (actor?.Record == null || !actor.isSapient()) return true;
-        int max = actor.Record.sex == ActorSex.Female ? MotherAgeMax : FatherAgeMax;
-        float lifespan = actor.stats?["lifespan"] ?? 0f;
+        if (actor?.Record == null || !actor.IsSapient()) return true;
+        int max = actor.Sex == Sex.Female ? MotherAgeMax : FatherAgeMax;
+        float lifespan = actor.Stats?["lifespan"] ?? 0f;
         if (!Enabled && lifespan > 0f) max = Math.Max(MinParentAge(actor) + 1, (int)Math.Round(max * lifespan / 80f));
         return actor.Age() <= max;
     }
@@ -223,7 +223,7 @@ public static class RealisticAgeSystem
 #if EC_PENDING
     public static void OnCrowned(Person actor)
     {
-        if (!Enabled || actor?.Record == null || !actor.Alive || !actor.isSapient() || actor.hasTrait("immortal")) return;
+        if (!Enabled || actor?.Record == null || !actor.Alive || !actor.IsSapient() || actor.HasTrait("immortal")) return;
         Anchor(actor, true);
     }
 #endif
@@ -236,7 +236,7 @@ public static class RealisticAgeSystem
 #if EC_PENDING
     public static void OnScenarioStart(Person actor)
     {
-        if (!Enabled || actor?.Record == null || !actor.Alive || !actor.isSapient() || actor.hasTrait("immortal")) return;
+        if (!Enabled || actor?.Record == null || !actor.Alive || !actor.IsSapient() || actor.HasTrait("immortal")) return;
         var data = actor.GetOrCreate();
         int age = actor.Age();
         data.royal_anchor_age = age;
@@ -350,9 +350,9 @@ public static class RealisticAgeSystem
 #if EC_PENDING
     public static bool NativeAgeDeathDue(Person actor)
     {
-        if (Enabled || !OldAgeEnabled || actor?.Record == null || !actor.isSapient() || actor.hasTrait("immortal")) return false;
+        if (Enabled || !OldAgeEnabled || actor?.Record == null || !actor.IsSapient() || actor.HasTrait("immortal")) return false;
         if (!CityPopulationSystem.AbstractPopulationEnabled && !PureMapMode.Enabled) return false;
-        float lifespan = actor.stats?["lifespan"] ?? 0f;
+        float lifespan = actor.Stats?["lifespan"] ?? 0f;
         return Math.Min(NativeYearlyCap, NativeDeathChance(actor.Age(), lifespan)) > EcRandom.value;
     }
 #endif
@@ -381,7 +381,7 @@ public static class RealisticAgeSystem
         int age = actor.Age();
         if (!Enabled)
         {
-            Log($"寿终 {Who(actor)} 享年 {age}，真实年龄关着，按原版寿命 {Math.Round(actor.stats?["lifespan"] ?? 0f)}({source})");
+            Log($"寿终 {Who(actor)} 享年 {age}，真实年龄关着，按原版寿命 {Math.Round(actor.Stats?["lifespan"] ?? 0f)}({source})");
             return;
         }
         var data = actor.GetOrCreate();
@@ -414,13 +414,11 @@ public static class RealisticAgeSystem
 
     #endregion
 
-#if EC_PENDING
     public static void CaptureNativeLifetime(Person actor, PersonalClanIdentity person)
     {
-        person.virtual_native_lifespan = actor.stats?["lifespan"] ?? 0f;
-        person.virtual_immortal = actor.hasTrait("immortal");
+        person.virtual_native_lifespan = actor.Stats?["lifespan"] ?? 0f;
+        person.virtual_immortal = actor.HasTrait("immortal");
     }
-#endif
 
     // 真实年龄开着时按科技时代的天年(与实体同一个散列，见 Seed)，不看原版老死法则；关着时照原版
 #if EC_PENDING
@@ -457,7 +455,7 @@ public static class RealisticAgeSystem
             foreach (Person actor in EmpireWorld.Current?.Living ?? Enumerable.Empty<Person>())
             {
                 if (actor?.Record == null || actor.asset?.id != key || !actor.Alive) continue;
-                lifespan = actor.stats?["lifespan"] ?? 0f;
+                lifespan = actor.Stats?["lifespan"] ?? 0f;
                 if (lifespan > 0f) break;
             }
         }

@@ -195,7 +195,7 @@ public static partial class TransmigrantSystem
         {
             kingdom = EmpireWorld.Current.LiveRealms.makeNewCivKingdom(founder);
             city = EmpireWorld.Current.Cities.buildNewCity(founder, zone);
-            founder.joinCity(city);
+            founder.JoinCity(city);
             // 新建的城不自动当都城：组建政府(称帝)时要读都城，没有就报"读取帝国首都失败"
             if (kingdom.Capital == null) kingdom.SetCapital(city);
             founder.createDefaultCultureAndLanguageAndClan(city.Name);
@@ -540,7 +540,7 @@ public static partial class TransmigrantSystem
     private static void Bind(TransmigrantState state, SenatorSeat seat, Person actor, City city)
     {
         SenatorIds.Add(actor.Key);
-        actor.Record.sex = seat.male ? ActorSex.Male : ActorSex.Female;
+        actor.Sex = seat.male ? Sex.Male : Sex.Female;
         int age = GameClock.Year - seat.birth_year;
         actor.Record.age_overgrowth += age - actor.Age();
         actor.SetFamilyName(seat.surname);

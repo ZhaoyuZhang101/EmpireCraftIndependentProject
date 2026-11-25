@@ -14,9 +14,9 @@ public class EmpireCraftActorCheckSkeleton: GameAIActorBase
         if(pActor.IsGone()) return BehResult.Continue;
         if (pActor.subspecies == null) return BehResult.Continue;
         if (pActor.subspecies.species_id != "skeleton") return BehResult.Continue;
-        if (!pActor.hasTrait("death_mark"))
+        if (!pActor.HasTrait("death_mark"))
         {
-            pActor.addTrait("death_mark");
+            pActor.AddTrait("death_mark");
         }
         return BehResult.Continue;
     }

@@ -34,7 +34,7 @@ public static class PopulationJurenRanking
     {
         var values = new List<PopulationRankValue>();
         foreach (Person actor in city.units)
-            if (actor?.Record != null && !actor.IsGone() && actor.Alive && actor.hasTrait("juren"))
+            if (actor?.Record != null && !actor.IsGone() && actor.Alive && actor.HasTrait("juren"))
                 values.Add(new PopulationRankValue(actor.Key, actor.GetIdentity()?.TotalPerformance ?? 0d));
         return values.ToArray();
     }

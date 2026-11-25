@@ -57,7 +57,7 @@ public static partial class HolyRomanSystem
         Members(empire).Where(realm => realm.HasRuler() && Estate(realm) == EstateNone && !IsBanned(realm))
             .Select(realm => realm.Ruler)
             .Where(candidate => candidate?.Record != null && !candidate.IsGone() && candidate.Alive && candidate.IsAdult() &&
-                                candidate.isUnitFitToRule() && candidate.CanServeOffice(empire.CoreKingdom) && !candidate.IsSkeleton())
+                                candidate.IsFitToRule() && candidate.CanServeOffice(empire.CoreKingdom) && !candidate.IsSkeleton())
             .ToList();
 #endif
 

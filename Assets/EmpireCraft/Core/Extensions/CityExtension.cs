@@ -1486,11 +1486,11 @@ public static class CityExtension
             capturer.GetIdentity().TotalPerformance += performanceReward;
         }
 
-        int capturedInfluence = victim.Record?.renown ?? 0;
+        int capturedInfluence = victim.Record?.Renown ?? 0;
         if (capturer.Record != null && capturedInfluence > 0)
         {
-            capturer.Record.renown += capturedInfluence;
-            victim.Record.renown = 0;
+            capturer.Renown += capturedInfluence;
+            victim.Renown = 0;
         }
     }
 
@@ -2444,7 +2444,7 @@ public static class CityExtension
             Person actor = city.units[i];
             if (actor == null || actor.IsGone()) continue;
             if (!actor.Alive) continue;
-            if (!actor.isWarrior()) continue;
+            if (!actor.IsWarrior()) continue;
             count++;
         }
 

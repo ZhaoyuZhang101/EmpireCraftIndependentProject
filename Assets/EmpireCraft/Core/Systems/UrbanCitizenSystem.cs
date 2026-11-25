@@ -29,8 +29,8 @@ public static class UrbanCitizenSystem
             Release(actor);
             citizens.Remove(actor);
         }
-        foreach (Person actor in citizens.OrderBy(actor => actor.stats["intelligence"])
-                     .ThenBy(actor => actor.money).Take(Math.Max(0, citizens.Count - capacity)).ToList())
+        foreach (Person actor in citizens.OrderBy(actor => actor.Stats["intelligence"])
+                     .ThenBy(actor => actor.Money).Take(Math.Max(0, citizens.Count - capacity)).ToList())
         {
             Release(actor);
             citizens.Remove(actor);
@@ -39,8 +39,8 @@ public static class UrbanCitizenSystem
         int openings = Math.Min(capacity - citizens.Count, annualLimit);
         if (openings <= 0) return;
         foreach (Person actor in residents.Where(actor => !IsCitizen(actor) && IsEligible(actor))
-                     .OrderByDescending(actor => actor.stats["intelligence"])
-                     .ThenByDescending(actor => actor.money).ThenBy(actor => actor.id).Take(openings))
+                     .OrderByDescending(actor => actor.Stats["intelligence"])
+                     .ThenByDescending(actor => actor.Money).ThenBy(actor => actor.Key).Take(openings))
         {
             actor.GetOrCreate().urban_citizen_city_id = city.Key;
             actor.SetSocialClass(SocialClass.Citizen);
@@ -66,7 +66,7 @@ public static class UrbanCitizenSystem
 
     private static bool IsEligible(Person actor)
     {
-        if (actor == null || actor.IsOnOffice() || actor.isWarrior() ||
+        if (actor == null || actor.IsOnOffice() || actor.IsWarrior() ||
             EmpireCaftActorJudgeClass.IsManualWorkerJob(actor) || UrbanEmploymentSystem.IsEmployed(actor) ||
             LandEconomySystem.IsLandlord(actor) || actor.GetOrCreate().is_economic_merchant) return false;
         return !EmpireCaftActorJudgeClass.IsNoble(actor);

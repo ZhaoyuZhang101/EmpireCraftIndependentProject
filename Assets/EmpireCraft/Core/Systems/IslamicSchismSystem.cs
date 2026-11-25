@@ -855,7 +855,7 @@ public static class IslamicSchismSystem
         City capital = realm?.Capital;
         if (!Alive(parent) || !Alive(realm) || !Alive(head) || capital?.Record == null || capital.IsGone()) return null;
         Religion old = realm.hasReligion() ? realm.religion : parent;
-        if (head.City != capital) head.joinCity(capital);
+        if (head.City != capital) head.JoinCity(capital);
         Religion faith = EmpireWorld.Current.religions.newReligion(head, false);
         if (faith?.data == null) return null;
         faith.data.name = branch == BranchRival

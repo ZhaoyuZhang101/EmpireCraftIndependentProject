@@ -90,33 +90,29 @@ public static class RenownSystem
     public static void Yearly(Person actor)
     {
         if (actor?.Record == null || actor.IsGone() || !actor.Alive || actor.IsWarMachine()) return;
-        int renown = Math.Max(0, actor.Record.renown);
+        int renown = Math.Max(0, actor.Renown);
         int decay = renown > 0 ? Math.Max(1, (int)Math.Ceiling(renown * Decay)) : 0;
-        actor.Record.renown = renown - decay + Income(actor);
+        actor.Renown = renown - decay + Income(actor);
     }
 #endif
 
     // 打赢一仗：按战功记名望(统领满额、战争统帅一半，见 FamousTalentSystem.OnBattle)
-#if EC_PENDING
     public static void OnBattle(Person actor, float fame)
     {
         if (actor?.Record == null || actor.IsGone() || !actor.Alive || fame <= 0f) return;
-        actor.Record.renown += Mathf.RoundToInt(fame);
+        actor.Renown += Mathf.RoundToInt(fame);
     }
-#endif
 
     // 原版加的名望只留 VanillaShare(余数按机会进位，平均不差)；减名望的不管(见 RenownPatch)
-#if EC_PENDING
     public static void ScaleVanilla(Person actor, int before)
     {
         if (actor?.Record == null) return;
-        int gained = actor.Record.renown - before;
+        int gained = actor.Renown - before;
         if (gained <= 0) return;
         float kept = gained * VanillaShare;
         int whole = (int)kept;
         if (EcRandom.value < kept - whole) whole++;
-        actor.Record.renown = before + whole;
+        actor.Renown = before + whole;
     }
-#endif
 }
 }

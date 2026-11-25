@@ -840,7 +840,7 @@ public static class AdministrativeControlSystem
     {
         Person current = city.Leader;
         if (current != null && !current.IsGone() && current.Alive && current.IsAdult() && !current.IsRuler() &&
-            current.isUnitFitToRule()) return current;
+            current.IsFitToRule()) return current;
         return (city.units ?? new List<Person>()).ToList()
             .Where(actor => actor != null && !actor.IsGone() && actor.Alive && actor.isAdult() && !actor.isKing() &&
                             actor.isUnitFitToRule())

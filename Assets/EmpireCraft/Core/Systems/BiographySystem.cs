@@ -211,7 +211,6 @@ public static class BiographySystem
     #region 列传
 
     // 一段自动成文的列传；不够立传的返回空
-#if EC_PENDING
     public static string Compose(PersonalClanIdentity person)
     {
         if (person == null) return "";
@@ -250,13 +249,12 @@ public static class BiographySystem
         {
             PersonalClanIdentity child = SpecificClanManager.getPerson(id);
             if (child == null) continue;
-            if (child.sex == ActorSex.Male) sons++;
+            if (child.sex == Sex.Male) sons++;
             else daughters++;
         }
         if (sons + daughters > 0) text.Append(string.Format(LM.Get("biography_children"), sons, daughters));
         return text.ToString();
     }
-#endif
 
     private static bool IsDeath(PersonalHistoryRecord record) => record?.event_key == DeathKey;
 

@@ -2225,11 +2225,11 @@ public static partial class InstitutionSystem
                 ? new[] { empire.CoreKingdom }
                 : (IEnumerable<Realm>)empire.kingdoms_hashset;
             Person leader = EmpirePopulation.Enumerate(sourceKingdoms)
-                .Where(actor => actor != null && !actor.IsGone() && actor.Alive && actor.hasCity() &&
+                .Where(actor => actor != null && !actor.IsGone() && actor.Alive && actor.HasCity() &&
                                 actor.City.Realm != null && actor.City != actor.City.Realm.Capital &&
                                 RebellionSystem.CanAttempt(actor.City.Realm) && CityStabilitySystem.CanRise(actor.City) &&
                                 actor.GetOrCreate().socialClass == socialClass)
-                .OrderByDescending(actor => actor.data?.renown ?? 0).FirstOrDefault();
+                .OrderByDescending(actor => actor.Record?.Renown ?? 0).FirstOrDefault();
             // 无小人模式里该阶层多半没有实体人物：从虚拟人口里推举
             leader ??= SocialCrisisSystem.SpawnClassLeader(sourceKingdoms, socialClass);
             splitSeat = leader?.City;
@@ -2348,11 +2348,11 @@ public static partial class InstitutionSystem
         int transferred = 0;
         foreach (Person soldier in soldiers.ToList())
         {
-            if (soldier == null || soldier.IsGone() || !soldier.Alive || !soldier.isWarrior() ||
+            if (soldier == null || soldier.IsGone() || !soldier.Alive || !soldier.IsWarrior() ||
                 soldier.IsRuler() || soldier.Realm != source) continue;
             soldier.removeFromArmy();
             if (soldier.IsCityLeader()) soldier.City.removeLeader();
-            soldier.joinCity(destination);
+            soldier.JoinCity(destination);
             transferred++;
         }
         return transferred;
@@ -3127,19 +3127,17 @@ public static partial class InstitutionSystem
         if (string.IsNullOrWhiteSpace(traitId)) return;
         foreach (Person actor in EmpirePopulation.Enumerate(EnumerateAffectedKingdoms(realm)))
         {
-            if (actor.isWarrior() && !actor.hasTrait(traitId)) actor.addTrait(traitId);
+            if (actor.IsWarrior() && !actor.HasTrait(traitId)) actor.AddTrait(traitId);
         }
     }
 #endif
 
     // 王国没有正统，正统增减折成君主声望(不低于零)
-#if EC_PENDING
     private static void AddRulerRenown(Person ruler, int amount)
     {
         if (ruler?.Record == null || ruler.IsGone() || amount == 0) return;
-        ruler.Record.renown = Math.Max(0, ruler.Record.renown + amount);
+        ruler.Renown = Math.Max(0, ruler.Renown + amount);
     }
-#endif
 
     // 已经解锁的 grant_trait 效果要持续覆盖新入伍的士兵，不只是研究完成那一刻的存量部队——
     // 跟着 Update 的年度节奏顺便扫一遍，找到还没有对应特质的士兵补上。
@@ -3160,9 +3158,9 @@ public static partial class InstitutionSystem
         if (traitIds.Count == 0) return;
         foreach (Person actor in EmpirePopulation.Enumerate(EnumerateAffectedKingdoms(realm)))
         {
-            if (!actor.isWarrior()) continue;
+            if (!actor.IsWarrior()) continue;
             foreach (string traitId in traitIds)
-                if (!actor.hasTrait(traitId)) actor.addTrait(traitId);
+                if (!actor.HasTrait(traitId)) actor.AddTrait(traitId);
         }
     }
 

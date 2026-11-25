@@ -217,7 +217,6 @@ public static partial class EmpireLawSystem
     }
 
     // 能不能出任官职(ActorExtension.CanServeOffice 调)：在押的不能；不在帝国里的国家按本国株连禁锢查祖上
-#if EC_PENDING
     public static bool IsBarredFromOffice(Person actor, Realm kingdom)
     {
         if (actor?.Record == null) return false;
@@ -233,13 +232,12 @@ public static partial class EmpireLawSystem
         List<long> bans = actor.GetOrCreate().banned_office_kingdom_ids;
         if (bans != null && bans.Contains(kingdomId)) return true;
         if (depth == 0 && OfficeBans.Banned(actor.GetPersonalIdentity(), kingdomId, kingdom: true)) return true;
-        var parents = actor.getParents();
+        var parents = actor.GetParents();
         if (parents == null) return false;
         foreach (Person parent in parents)
             if (parent != null && BannedInKingdom(parent, kingdomId, depth + 1)) return true;
         return false;
     }
-#endif
 
     // 不在帝国里的国家株连子孙(罢官的 AffectDescendants)：本人与子孙不得在本国出仕
     private static void BanFromKingdomOffice(Person actor, Realm kingdom)

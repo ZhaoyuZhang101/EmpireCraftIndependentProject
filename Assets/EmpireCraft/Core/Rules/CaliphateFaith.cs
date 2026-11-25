@@ -202,7 +202,7 @@ public static class CaliphateFaith
     {
         bool first = !EmpireWorld.Current.religions.list.Any(religion => religion?.data != null && !religion.IsGone() && ReligionFaith.IsCaliphal(religion));
         Religion parent = ReligionSphere.OrthodoxOf(sphere);
-        if (ruler.City != capital) ruler.joinCity(capital);
+        if (ruler.City != capital) ruler.JoinCity(capital);
         Religion sect = EmpireWorld.Current.religions.newReligion(ruler, false);
         if (sect?.data == null) return null;
         sect.data.name = (first ? ReligionFaith.PickName(FaithType.Islam) : null) ??

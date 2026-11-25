@@ -54,7 +54,7 @@ public static class CityLedgerSupply
                 {
                     if (other.getResourcesAmount(resource.id) >= resource.supply_bound_take) continue;
                     CityResourceTransferSystem.Move(city, other, resource.id, resource.supply_give);
-                    city.Record.timer_supply = Cooldown(city.HasLeader() ? city.Leader.stats["multiplier_supply_timer"] : 1f);
+                    city.Record.timer_supply = Cooldown(city.HasLeader() ? city.Leader.Stats["multiplier_supply_timer"] : 1f);
                     return BehResult.Continue;
                 }
             }

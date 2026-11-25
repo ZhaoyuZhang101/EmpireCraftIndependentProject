@@ -231,7 +231,7 @@ public static class EmpirePartitionSystem
             newCore = seat.makeOwnKingdom(ruler);
             if (newCore == null) return null;
             newCore.SetCapital(seat);
-            ruler.joinCity(seat);
+            ruler.JoinCity(seat);
         }
         newCore.SetRegimeType(sourceCore.GetOrCreate().regimeType);
         newCore.LoadRegime();
@@ -346,7 +346,7 @@ public static class EmpirePartitionSystem
                 foreach (long child in person.children ?? new List<long>()) family.Add(child);
             if (actor != null)
             {
-                actor.joinCity(seat);
+                actor.JoinCity(seat);
                 actor.setKingdom(newCore);
             }
             else person.virtual_city_id = seat.Key;
@@ -678,7 +678,7 @@ public static class EmpirePartitionSystem
         if (mapSize <= 0f || span < mapSize * WillSpanShare) return;
         bool allowFemale = PersonalUnionService.AllowsFemaleSuccession(core);
         bool Fit(Person child) => child?.Record != null && !child.IsGone() && child.Alive && child.IsAdult() &&
-                                 (allowFemale || child.isSexMale()) && !child.IsEmperor() && RealmOf(child.Realm) == empire;
+                                 (allowFemale || child.IsMale()) && !child.IsEmperor() && RealmOf(child.Realm) == empire;
         // 皇子连族谱里的虚拟族人一起数(纯净地图下皇子多不在地图上；以前只数地图上的儿子，几乎永远凑不够两个，
         // 罗马这样的大帝国从没遗诏分治过)；掷中了才把要用的落成实体
         PersonalClanIdentity emperorIdentity = emperor.GetPersonalIdentity();
@@ -686,9 +686,9 @@ public static class EmpirePartitionSystem
             : SpecificClanManager.getChildren(emperorIdentity).Select(pair => pair.Item2)
                 .Where(person => person != null && person.is_alive && person.is_virtual &&
                                  (person._actor == null || person._actor.IsGone()) && person.age >= 18 &&
-                                 (allowFemale || person.sex == ActorSex.Male))
+                                 (allowFemale || person.sex == Sex.Male))
                 .Distinct().ToList();
-        List<Person> sons = (emperor.getChildren(false) ?? Enumerable.Empty<Person>()).Where(Fit).ToList();
+        List<Person> sons = (emperor.GetChildren(false) ?? Enumerable.Empty<Person>()).Where(Fit).ToList();
         if (sons.Count + virtualSons.Count < 2) return;
         // 游牧不遗诏分治(用户 2026-11-18 "理论上游牧是碎一地而不是东西南北分裂")：汗国碎裂见 KhanateSplit
         if (NomadCycleSystem.IsKhanate(empire)) return;
@@ -723,7 +723,7 @@ public static class EmpirePartitionSystem
         Plan plan = null;
         Realm ownKingdom = null;
         // 受封在远方的皇子以自己的封国称帝
-        foreach (Person son in sons.Where(son => son != heir).OrderByDescending(son => son.renown))
+        foreach (Person son in sons.Where(son => son != heir).OrderByDescending(son => son.Renown))
         {
             Realm fief = son.IsRuler() ? son.Realm : null;
             if (fief?.Capital == null || fief.GetEmpire() != empire || fief == core) continue;
@@ -734,7 +734,7 @@ public static class EmpirePartitionSystem
         }
         if (ruler == null)
         {
-            ruler = sons.Where(son => son != heir && !son.IsRuler()).OrderByDescending(son => son.renown).FirstOrDefault();
+            ruler = sons.Where(son => son != heir && !son.IsRuler()).OrderByDescending(son => son.Renown).FirstOrDefault();
             seat = ruler == null ? null : FarSeat(empire, capital.city_center, 0.25f, 0.6f, out plan);
         }
         if (ruler == null || seat == null || plan == null) return;
@@ -897,10 +897,10 @@ public static class EmpirePartitionSystem
     {
         Realm core = empire.CoreKingdom;
         string ministerName = minister.FullName();
-        int fortune = Mathf.Max(0, minister.money);
+        int fortune = Mathf.Max(0, minister.Money);
         if (fortune > 0)
         {
-            minister.Record.money = 0;
+            minister.Money = 0;
             core.AddMoney(fortune, TreasuryCategory.RecoveredFunds);
         }
         empire.ResetPowerfulMinister();

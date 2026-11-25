@@ -333,7 +333,7 @@ public static class TreasurySystem
         if (stolen > 0)
         {
             city.SubMoney(stolen, TreasuryCategory.Corruption);
-            city.Leader.addMoney(stolen);
+            city.Leader.AddMoney(stolen);
             RecordTaxCorruption(city.Leader, stolen);
             if (taxed) TaxErosionSystem.RecordStolen(realm, stolen);
         }
@@ -376,7 +376,7 @@ public static class TreasurySystem
         data.tax_corruption_carry = (int)Math.Floor((leak - stolen) * 10000d);
         if (stolen <= 0) return;
         kingdom.SubMoney(stolen, TreasuryCategory.Corruption);
-        kingdom.Ruler.addMoney(stolen);
+        kingdom.Ruler.AddMoney(stolen);
         PrivyPurse.Note(kingdom, PrivyPurse.Graft, stolen);
         RecordTaxCorruption(kingdom.Ruler, stolen);
     }

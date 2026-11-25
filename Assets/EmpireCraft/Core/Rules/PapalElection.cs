@@ -40,10 +40,10 @@ public static class PapalElection
                 pick = CityPopulationSystem.SpawnOfficial(kingdom.Capital, kingdom);
             }
             if (pick == null) return false;
-            if (pick.City != kingdom.Capital) pick.joinCity(kingdom.Capital);
+            if (pick.City != kingdom.Capital) pick.JoinCity(kingdom.Capital);
             GraceEdictService.Crown(kingdom, pick);
             if (kingdom.Ruler != pick) return false;
-            if (!pick.hasTrait("cleric")) pick.addTrait("cleric");
+            if (!pick.HasTrait("cleric")) pick.AddTrait("cleric");
             if (pick.religion != religion) pick.setReligion(religion);
             ReligionExtension.ReligionExtraData data = religion.GetOrCreate();
             data.LeaderID = pick.Key;
@@ -97,9 +97,9 @@ public static class PapalElection
 
     private static Person Pick(IEnumerable<City> cities, Person patron) =>
         cities.SelectMany(Candidates).Distinct()
-            .OrderByDescending(actor => actor.hasTrait("cleric"))
+            .OrderByDescending(actor => actor.HasTrait("cleric"))
             .ThenByDescending(actor => patron != null && SameHouse(actor, patron))
-            .ThenByDescending(actor => actor.data.renown).FirstOrDefault();
+            .ThenByDescending(actor => actor.Renown).FirstOrDefault();
 
     private static IEnumerable<Person> Candidates(City city) =>
         (city?.units ?? new List<Person>()).ToList().Where(actor => actor?.data != null && !actor.IsGone() && actor.Alive &&

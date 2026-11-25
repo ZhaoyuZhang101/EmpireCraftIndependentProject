@@ -59,7 +59,7 @@ public class PerformanceEvents
         double score = 0;               // 证据分数，>0 越偏好，<0 越不偏好
         const double k = 0.6;           // 斜率系数，越大曲线越“陡”，可调
 
-        foreach (var trait in actor.traits)
+        foreach (var trait in actor.Traits)
         {
             if (trait.type == TraitType.Positive) score += 1;
             if (trait.type == TraitType.Negative) score -= 1;

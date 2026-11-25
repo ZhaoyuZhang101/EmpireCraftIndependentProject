@@ -551,7 +551,7 @@ public static class ScenarioEventSystem
                 bool reserve = post != null && Holds(a, post);
                 if (heir.Realm != a) heir.joinKingdom(a);
                 City stay = reserve ? post : a.Capital;
-                if (stay != null && heir.City != stay) heir.joinCity(stay);
+                if (stay != null && heir.City != stay) heir.JoinCity(stay);
                 ScenarioPlotRules.AddHeir(a.GetOrCreate().scripted_heirs ??= new List<long>(), heir.Key, reserve);
                 if (!reserve) a.SetHeir(heir);
                 return null;
@@ -605,7 +605,7 @@ public static class ScenarioEventSystem
         else
         {
             Leave(leader);
-            leader.joinCity(seat);
+            leader.JoinCity(seat);
             rebel = seat.makeOwnKingdom(leader, pRebellion: true);
         }
         if (rebel == null) return "立国失败";
@@ -631,7 +631,7 @@ public static class ScenarioEventSystem
         {
             Leave(follower);
             follower.joinKingdom(rebel);
-            if (follower.City?.Realm != rebel) follower.joinCity(seat);
+            if (follower.City?.Realm != rebel) follower.JoinCity(seat);
         }
         foreach ((Realm from, CorpsData entry) in corps)
         {
@@ -666,7 +666,7 @@ public static class ScenarioEventSystem
         // 养兵看国库，可新国年入是零，起兵三个月后军费系数掉到 0，五千兵剩三百，西安又被明军收复，大顺没建成国)
         if (step.roving && !(_state.roving ??= new List<long>()).Contains(rebel.Key)) _state.roving.Add(rebel.Key);
         // 雄主(用户 2026-11-09 "给李自成也加上开国雄主的特质")：起兵就带上，称帝以后生效
-        if (step.hero && !leader.hasTrait(RulerTraitSystem.Founder)) leader.addTrait(RulerTraitSystem.Founder);
+        if (step.hero && !leader.HasTrait(RulerTraitSystem.Founder)) leader.AddTrait(RulerTraitSystem.Founder);
         string targetName = empire?.GetEmpireName() ?? target.GetKingdomName();
         string text = string.Format(LM.Get("scenario_rebel_history"), leader.FullName(), seat.GetCityName(), rebel.GetKingdomName(), targetName);
         if (empire != null) EventRecorder.Record(empire, text, leader, rebel);
@@ -848,7 +848,7 @@ public static class ScenarioEventSystem
                 case ScenarioPlotRules.RebelFate.Return:
                     Leave(leader);
                     leader.joinKingdom(rebel);
-                    leader.joinCity(rebel.Capital);
+                    leader.JoinCity(rebel.Capital);
                     if (!rebel.HasRuler()) rebel.SetRuler(leader);
                     LogService.LogInfo($"[EmpireCraft][剧情事件] {leader.FullName()} 城破后逃回 {rebel.GetKingdomName()}");
                     break;
@@ -872,7 +872,7 @@ public static class ScenarioEventSystem
     // 点名的人没了，由城主代领：华夏不立女主
 #if EC_PENDING
     private static bool MayLead(Person actor, City seat) =>
-        !actor.isSexFemale() || InstitutionSystem.GetCultureLine(CultureService.GetMainCulture(seat, initialize: false)) != "Huaxia";
+        !actor.IsFemale() || InstitutionSystem.GetCultureLine(CultureService.GetMainCulture(seat, initialize: false)) != "Huaxia";
 #endif
 
     // 结果点名的城里还在 a 手里的
@@ -960,7 +960,7 @@ public static class ScenarioEventSystem
             City home = person.City != null && cities.Contains(person.City) && person.City.Realm == to ? person.City : seat;
             Leave(person);
             if (person.Realm != to) person.joinKingdom(to);
-            if (home != null && person.City != home) person.joinCity(home);
+            if (home != null && person.City != home) person.JoinCity(home);
             if (home != null && cities.Contains(home) && home.Leader == null)
             {
                 home.GetOffice()?.SetActor(person);

@@ -154,7 +154,7 @@ public static partial class EmpireLawSystem
                 info.Breakdown.Add(new LawFactor("law_stance_wise", config.WiseRulerSeverity, ruler.FullName()));
             float traits = 0f;
             foreach (KeyValuePair<string, float> pair in config.TraitSeverity)
-                if (ruler.hasTrait(pair.Key)) traits += pair.Value;
+                if (ruler.HasTrait(pair.Key)) traits += pair.Value;
             traits = Mathf.Clamp(traits, -0.5f, 0.5f);
             if (Mathf.Abs(traits) > 0.001f) info.Breakdown.Add(new LawFactor("law_stance_ruler_traits", traits, ruler.FullName()));
         }
@@ -246,13 +246,10 @@ public static partial class EmpireLawSystem
 #endif
 
     // 才干：智力与管理之和，30 为满
-#if EC_PENDING
     private static float Ability(Person actor) =>
-        actor == null ? 0f : Mathf.Clamp01((Mathf.Max(0, actor.intelligence) + Mathf.Max(0, actor.stewardship)) / 30f);
-#endif
+        actor == null ? 0f : Mathf.Clamp01((Mathf.Max(0, actor.Intelligence) + Mathf.Max(0, actor.Stewardship)) / 30f);
 
     // 司法官的得分(0~1)
-#if EC_PENDING
     public static float JusticeScore(Person holder)
     {
         if (holder == null) return 0f;
@@ -261,7 +258,6 @@ public static partial class EmpireLawSystem
         if (HasAnyTrait(holder, "greedy", "deceitful")) score -= 0.25f;
         return Mathf.Clamp01(score);
     }
-#endif
 
     #endregion
 
@@ -279,7 +275,7 @@ public static partial class EmpireLawSystem
         }
 
         // 底数：犯人越聪明越难查(与以前相同，0.45 ~ 0.15)
-        int intelligence = Mathf.Clamp(actor.intelligence, 0, 40);
+        int intelligence = Mathf.Clamp(actor.Intelligence, 0, 40);
         float baseline = Mathf.Clamp(0.45f - intelligence / 40f * 0.30f, 0.05f, 0.45f);
         info.Breakdown.Add(new LawFactor("law_discovery_base", baseline));
         float chance = baseline;
@@ -315,7 +311,6 @@ public static partial class EmpireLawSystem
     }
 
     // 身份：宗室 ×0.7；公以上的贵族 ×0.8、侯伯与封号 ×0.9；名望 300 以上 ×0.8、120 以上 ×0.9。合起来最低 0.45
-#if EC_PENDING
     private static float StandingFactor(Person actor, Realm kingdom, List<LawFactor> breakdown)
     {
         float factor = 1f;
@@ -335,7 +330,7 @@ public static partial class EmpireLawSystem
             breakdown?.Add(new LawFactor("law_discovery_noble", noble));
         }
 
-        int renown = actor.renown;
+        int renown = actor.Renown;
         float fame = renown >= 300 ? 0.8f : renown >= 120 ? 0.9f : 1f;
         if (fame < 1f)
         {
@@ -345,7 +340,6 @@ public static partial class EmpireLawSystem
 
         return Mathf.Max(MinStandingFactor, factor);
     }
-#endif
 
     #endregion
 
@@ -597,7 +591,6 @@ public static partial class EmpireLawSystem
     private enum RoyalRank { None, Kin, Close, Heir }
 
     // 皇室：本朝储君；君主的子女、兄弟、父母(按族谱父母，死了的也认)；同宗(含支系)。废为庶人的不算(见 ApplyRoyalCourt)
-#if EC_PENDING
     private static RoyalRank RoyalRankOf(Person actor, Realm kingdom)
     {
         if (actor?.Record == null || actor.IsGone()) return RoyalRank.None;
@@ -613,12 +606,9 @@ public static partial class EmpireLawSystem
             return RoyalRank.Close;
         return RoyalRank.Kin;
     }
-#endif
 
     // 皇室身份：0 不是、1 宗室、2 近支、3 储君(名望年入也按它，见 RenownSystem)
-#if EC_PENDING
     public static int RoyalStanding(Person actor, Realm kingdom) => (int)RoyalRankOf(actor, kingdom);
-#endif
 
     // 叛逆：起兵叛乱、拥兵自立的次数(见 NoteDefiance)与犯过的十恶。这一案就是那场兵败的叛乱的，那一回不重算
     private static int DefianceCount(PersonalClanIdentity identity, string reasonKey)
@@ -663,7 +653,7 @@ public static partial class EmpireLawSystem
         Weigh(info.Guilt, "law_scale_loot", SentencingScale.LootFactor(loot), loot.ToString());
         Person accuser = context?.Accuser;
         if (accuser?.Record != null && !accuser.IsGone())
-            Weigh(info.Guilt, "law_scale_accuser", SentencingScale.AccuserFactor(accuser.renown, actor.renown), accuser.FullName());
+            Weigh(info.Guilt, "law_scale_accuser", SentencingScale.AccuserFactor(accuser.Renown, actor.Renown), accuser.FullName());
         Weigh(info.Guilt, "law_scale_harsh", SentencingScale.HarshFactor(stance.Severity));
         if (ruler != null && ruler != actor && PersonalTieSystem.AreRivals(ruler, actor))
             Weigh(info.Guilt, "law_scale_rival", SentencingScale.RulerRival, ruler.FullName());
@@ -694,7 +684,7 @@ public static partial class EmpireLawSystem
             OfficeIdentity office = actor.GetOrCreate().officeIdentity;
             if (office != null && office.meritLevel <= GreatMeritLevel) Weigh(info.Mercy, "law_scale_merit", SentencingScale.GreatMerit);
             if (office != null) Weigh(info.Mercy, "law_scale_performance", SentencingScale.PerformanceFactor(office.TotalPerformance));
-            Weigh(info.Mercy, "law_scale_influence", SentencingScale.InfluenceFactor(actor.renown, ruler?.renown ?? 0, ruler != null));
+            Weigh(info.Mercy, "law_scale_influence", SentencingScale.InfluenceFactor(actor.Renown, ruler?.Renown ?? 0, ruler != null));
             Empire empire = RealmEmpire(kingdom);
             if (empire != null && FavouriteSystem.Of(empire) == actor)
             {
@@ -989,10 +979,10 @@ public static partial class EmpireLawSystem
     {
         if (context == null || context.RansomPaid <= 0) return;
         Person actor = context.Actor;
-        int paid = Math.Min(context.RansomPaid, Math.Max(0, actor?.money ?? 0));
+        int paid = Math.Min(context.RansomPaid, Math.Max(0, actor?.Money ?? 0));
         context.RansomPaid = paid;
         if (paid <= 0) return;
-        actor.addMoney(-paid);
+        actor.AddMoney(-paid);
         if (context.Kingdom != null && !context.Kingdom.IsGone()) context.Kingdom.AddMoney(paid, TreasuryCategory.Other);
     }
 #endif

@@ -152,7 +152,7 @@ public static class FactionBalanceSystem
         };
         if (EcRandom.value >= chance) return;
         FixedFaction second = factions.Where(faction => faction != top).OrderByDescending(faction => faction.CentralRatio).First();
-        int amount = Mathf.Clamp(3 + decider.stewardship / 3, 3, 8);
+        int amount = Mathf.Clamp(3 + decider.Stewardship / 3, 3, 8);
         if (!empire.CoreKingdom.TryIncreaseFactionRatio(second, amount)) return;
         CourtSystem.Log(CourtSystem.State(empire), "faction_balance_boost", decider.FullName(), second.Name, top.Name);
     }

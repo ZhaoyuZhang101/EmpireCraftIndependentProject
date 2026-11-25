@@ -110,7 +110,7 @@ public static partial class PapacySystem
         Person head = empire.Emperor;
         City capital = empire.CoreKingdom.Capital;
         if (head == null || capital == null) return false;
-        head.joinCity(capital);
+        head.JoinCity(capital);
         Religion church = EmpireWorld.Current.religions.newReligion(head, false);
         if (church?.data == null) return false;
         church.data.name = string.Format(LM.Get("national_church_name"), empire.GetEmpireName());

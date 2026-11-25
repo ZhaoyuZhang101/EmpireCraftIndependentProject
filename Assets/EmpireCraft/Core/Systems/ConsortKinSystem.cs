@@ -28,7 +28,7 @@ public static class ConsortKinSystem
         Person emperor = empire?.Emperor;
         if (emperor?.Record == null) return null;
         SpecificClan royal = empire.EmpireSpecificClan;
-        foreach (Person woman in new[] { empire.GetEmpressDowager(), emperor.lover })
+        foreach (Person woman in new[] { empire.GetEmpressDowager(), emperor.Spouse })
         {
             SpecificClan clan = woman?.Record == null ? null : woman.GetSpecificClan();
             if (clan != null && (royal == null || !SpecificClanManager.SameLineage(clan, royal))) return clan;
@@ -50,20 +50,20 @@ public static class ConsortKinSystem
     {
         SpecificClan clan = ConsortClan(empire);
         if (clan == null) return null;
-        Person dowager = empire.GetEmpressDowager(), emperor = empire.Emperor, empress = emperor?.lover;
+        Person dowager = empire.GetEmpressDowager(), emperor = empire.Emperor, empress = emperor?.Spouse;
         bool Fit(Person actor) => actor?.Record != null && !actor.IsGone() && actor.Alive &&
                                  actor.IsAdult() && actor != dowager && actor != empress &&
                                  actor != emperor && !actor.IsRuler() &&
                                  actor.Realm?.GetEmpire() == empire &&
                                  actor.CanServeOffice(empire.CoreKingdom);
-        Person chief = clan.AllAliveMembers?.Where(Fit).OrderByDescending(actor => actor.renown).FirstOrDefault();
+        Person chief = clan.AllAliveMembers?.Where(Fit).OrderByDescending(actor => actor.Renown).FirstOrDefault();
         // 纯净地图下外戚宗族多是虚拟族人(以前只在地图上的人里挑，大将军常年没人)：族谱里名望(并回人口时记下、逐年折算)
         // 高过地图上的才落成，之后作外戚首领留在地图上(见 PersonRef.Keeps)
         PersonalClanIdentity best = clan.LivingPeople
             .Where(person => KinRoster.Virtual(person) && person.age >= KinRoster.AdultAge && !person.is_concubine &&
                              KinRoster.KingdomOf(person)?.GetEmpire() == empire)
             .OrderByDescending(VirtualGenealogySystem.VirtualRenown).ThenByDescending(person => person.age).FirstOrDefault();
-        if (best != null && (chief == null || VirtualGenealogySystem.VirtualRenown(best) > chief.renown))
+        if (best != null && (chief == null || VirtualGenealogySystem.VirtualRenown(best) > chief.Renown))
             chief = KinRoster.RealizeFirst(new[] { best }, Fit, 1) ?? chief;
         if (empire.data != null)
         {
@@ -90,7 +90,7 @@ public static class ConsortKinSystem
     public static Person RegentFor(Empire empire, Person courtCandidate)
     {
         Person chief = Chief(empire);
-        return chief != null && chief.renown >= (courtCandidate?.renown ?? 0) * RegentShare ? chief : null;
+        return chief != null && chief.Renown >= (courtCandidate?.Renown ?? 0) * RegentShare ? chief : null;
     }
 #endif
 
@@ -100,7 +100,7 @@ public static class ConsortKinSystem
     {
         if (!Backed(empire)) return null;
         Person chief = Chief(empire);
-        return chief != null && chief.renown >= entryInfluence ? chief : null;
+        return chief != null && chief.Renown >= entryInfluence ? chief : null;
     }
 
     public static bool Backed(Empire empire)
@@ -127,11 +127,11 @@ public static class ConsortKinSystem
             Person emperor = empire.Emperor, kin = empire.GetPowerfulMinister();
             if (emperor?.Record == null || !emperor.Alive || !emperor.IsAdult() || kin?.Record == null ||
                 RulerQualitySystem.Indulgent(emperor)) return;
-            float chance = PurgeBase + Mathf.Clamp((emperor.stats["stewardship"] - 10f) * 0.01f, -0.04f, 0.1f);
+            float chance = PurgeBase + Mathf.Clamp((emperor.Stats["stewardship"] - 10f) * 0.01f, -0.04f, 0.1f);
             if (RulerQualitySystem.Of(emperor) == RulerQualitySystem.Grade.Weak) chance *= 0.5f;
             if (EcRandom.value >= chance) return;
             float success = Mathf.Clamp(0.35f + empire.Mandate / 200f - empire.data.powerful_minister_progress / 300f +
-                                        (emperor.renown - kin.renown) / 2000f, 0.1f, 0.85f);
+                                        (emperor.Renown - kin.Renown) / 2000f, 0.1f, 0.85f);
             if (EcRandom.value < success) Purge(empire, emperor, kin);
             else Backfire(empire, emperor, kin);
         }
@@ -145,13 +145,13 @@ public static class ConsortKinSystem
     {
         string kinName = kin.FullName();
         Realm core = empire.CoreKingdom;
-        int fortune = Math.Max(0, kin.money);
+        int fortune = Math.Max(0, kin.Money);
         if (fortune > 0)
         {
-            kin.Record.money = 0;
+            kin.Money = 0;
             core.AddMoney(fortune, TreasuryCategory.RecoveredFunds);
         }
-        kin.Record.renown = kin.renown / 2;
+        kin.Renown = kin.Renown / 2;
         kin.BanFromOffice(empire.Key);
         empire.ResetPowerfulMinister();
         empire.AddMandate(5);

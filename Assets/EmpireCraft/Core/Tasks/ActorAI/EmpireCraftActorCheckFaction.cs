@@ -44,7 +44,7 @@ public class EmpireCraftActorCheckFaction : GameAIActorBase
         foreach (Person actor in empire.getUnits()
                      .Where(actor => actor?.Record != null && !actor.IsGone() && actor.Alive && !actor.HasFaction() &&
                                      actor.IsOnOffice())
-                     .OrderByDescending(actor => actor.renown).ToList())
+                     .OrderByDescending(actor => actor.Renown).ToList())
         {
             if (joined >= MaxEnrollPerYear) break;
             if (TryJoin(actor)) joined++;

@@ -114,7 +114,7 @@ public static class ReligionSchismSystem
         Realm core = empire.CoreKingdom;
         Person head = empire.Emperor;
         City capital = core.Capital;
-        if (head.City != capital) head.joinCity(capital);
+        if (head.City != capital) head.JoinCity(capital);
         Religion church = EmpireWorld.Current.religions.newReligion(head, false);
         if (church?.data == null) return;
         string culture = CultureService.GetRealmCulture(core);
@@ -264,7 +264,7 @@ public static class ReligionSchismSystem
         Person head = empire.Emperor ?? core.Ruler;
         City capital = core.Capital;
         if (head?.Record == null || !head.Alive || capital == null) return false;
-        if (head.City != capital) head.joinCity(capital);
+        if (head.City != capital) head.JoinCity(capital);
         Religion church = EmpireWorld.Current.religions.newReligion(head, false);
         if (church?.data == null) return false;
         church.data.name = ReligionFaith.PickName("orthodox", 3) ?? church.data.name;
@@ -367,7 +367,7 @@ public static class ReligionSchismSystem
         Person head = claimant.Ruler;
         City capital = claimant.Capital;
         if (head?.Record == null || !head.Alive || capital == null) return;
-        if (head.City != capital) head.joinCity(capital);
+        if (head.City != capital) head.JoinCity(capital);
         Religion shia = EmpireWorld.Current.religions.newReligion(head, false);
         if (shia?.data == null) return;
         shia.data.name = ReligionFaith.PickName("shia", 1) ?? shia.data.name;

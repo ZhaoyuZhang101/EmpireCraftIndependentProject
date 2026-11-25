@@ -128,7 +128,7 @@ public static class CityStateService
             if (!city.HasLeader()) CityPopulationSystem.EnsureLeader(city);
             Person current = city.Leader;
             Person leader = current != null && !current.IsGone() && current.Alive && current.IsAdult() &&
-                           !current.IsRuler() && current.isUnitFitToRule()
+                           !current.IsRuler() && current.IsFitToRule()
                 ? current
                 : FindLocalLeader(city, mother.Ruler);
             if (leader == null) continue;
@@ -208,8 +208,8 @@ public static class CityStateService
                             actor.isAdult() && !actor.isKing() && actor.isUnitFitToRule())
             .ToList();
         return locals.Where(actor => actor.GetOrCreate().socialClass == SocialClass.Noble)
-                   .OrderByDescending(actor => actor.Record?.renown ?? 0).FirstOrDefault()
-               ?? locals.OrderByDescending(actor => actor.Record?.renown ?? 0).FirstOrDefault();
+                   .OrderByDescending(actor => actor.Record?.Renown ?? 0).FirstOrDefault()
+               ?? locals.OrderByDescending(actor => actor.Record?.Renown ?? 0).FirstOrDefault();
     }
 
     public static bool TryCrownLocalRuler(Realm realm)

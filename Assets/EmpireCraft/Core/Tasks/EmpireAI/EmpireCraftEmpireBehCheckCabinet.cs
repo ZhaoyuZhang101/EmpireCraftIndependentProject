@@ -99,7 +99,7 @@ public class EmpireCraftEmpireBehCheckCabinet : GameAIEmpireBase
         if (dominateFaction==null) return;
         if (dominateFaction.Members.Count<=0) return;
         // —— 1) 计算内阁规模：0~15 → 1~5 ——
-        int S = empire.Emperor?.stewardship??0;        // 组织能力
+        int S = empire.Emperor?.Stewardship??0;        // 组织能力
         if (S < 3) S = 0; if (S > 15) S = 15;      // 手动 clamp
         int cabinetSize = 1 + (S * regime.cabinet_number-1) / 15;        // 线性映射到 1..5，最多 5 个
 

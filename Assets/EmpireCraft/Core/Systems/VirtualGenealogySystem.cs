@@ -252,7 +252,7 @@ public static partial class VirtualGenealogySystem
         EnsureIndex();
         if (person == null)
         {
-            if (actor.money == 0 && actor.Record.loot == 0) return true;
+            if (actor.Money == 0 && actor.Record.loot == 0) return true;
             CityPopulationData population = CityPopulationSystem.Get(city);
             if (population == null) return false;
             return WalletReserveTransfers.TryCapture(actor,
@@ -269,12 +269,12 @@ public static partial class VirtualGenealogySystem
         if (string.IsNullOrWhiteSpace(person.birthplace))
             person.birthplace = city?.GetCityName() ?? actor.City?.GetCityName() ?? "";
         person.recordedAge = actor.Age();
-        if (actor.money != 0 || actor.Record.loot != 0 || WalletReserveTransfers.HasAssets(person.wallet_reserve))
+        if (actor.Money != 0 || actor.Record.loot != 0 || WalletReserveTransfers.HasAssets(person.wallet_reserve))
             if (!WalletReserveTransfers.TryCapture(actor, person.wallet_reserve ??= new WalletReserve())) return false;
         person.is_virtual = true;
         person.virtual_city_id = city?.data?.id ?? actor.City?.data?.id ?? -1L;
         person.virtual_since = GameClock.Now;
-        person.virtual_renown = Math.Max(0, actor.Record.renown);
+        person.virtual_renown = Math.Max(0, actor.Renown);
         RealisticAgeSystem.CaptureNativeLifetime(actor, person);
         actor.RemovePersonalIdentity();
         VirtualIds.Add(person.id);
@@ -364,7 +364,7 @@ public static partial class VirtualGenealogySystem
         if (string.IsNullOrWhiteSpace(person.surname)) person.surname = SurnameInheritanceSystem.SurnameOf(person);
         if (!string.IsNullOrWhiteSpace(person.surname)) actor.SetFamilyName(person.surname);
         if (!string.IsNullOrWhiteSpace(person.name)) actor.Name = person.name;
-        actor.Record.sex = person.sex;
+        actor.Sex = person.sex;
         int age = person.age;
         long previousActorId = person.actor_id;
         int renown = VirtualRenown(person);
@@ -374,7 +374,7 @@ public static partial class VirtualGenealogySystem
             if (string.IsNullOrWhiteSpace(person.name)) actor.GetModName().SetName(actor);
             else actor.GetModName().RepairOrder(actor);
         }
-        if (person.virtual_immortal) actor.addTrait("immortal");
+        if (person.virtual_immortal) actor.AddTrait("immortal");
         person.actor_id = actor.Key;
         person.is_virtual = false;
         person.recordedAge = age;
@@ -382,7 +382,7 @@ public static partial class VirtualGenealogySystem
         SpecificClanManager._actorToPersonLookup[actor.Key] = person;
         VirtualIds.Remove(person.id);
         WalletReserveTransfers.Restore(actor, person.wallet_reserve);
-        actor.Record.renown = Math.Max(actor.Record.renown, renown);
+        actor.Renown = Math.Max(actor.Renown, renown);
         person.virtual_renown = 0;
         // 年龄与族谱卡片一致；与有实体的亲人重新接上原版的家庭关系
         SetAge(actor, age);
@@ -579,10 +579,10 @@ public static partial class VirtualGenealogySystem
             if (clan != null && actor.Clan != clan) actor.setClan(clan);
 
             // 配偶：对方有实体、还没有别的伴侣时重新结为伴侣，并进入对方的家庭
-            if (spouse != null && _setLover != null && (spouse.lover == null || spouse.lover.IsGone()))
+            if (spouse != null && _setLover != null && (spouse.Spouse == null || spouse.Spouse.IsGone()))
             {
                 _setLover.Invoke(actor, Args(_setLover, spouse));
-                if (spouse.lover != actor) _setLover.Invoke(spouse, Args(_setLover, actor));
+                if (spouse.Spouse != actor) _setLover.Invoke(spouse, Args(_setLover, actor));
             }
             // 家庭：配偶的家庭，其次(未成年时)父母的家庭，再次子女的家庭
             Family family = spouse?.family ?? (actor.IsAdult() ? null : father?.family ?? mother?.family) ??
@@ -1353,7 +1353,7 @@ public static partial class VirtualGenealogySystem
             virtual_city_id = parent.virtual_city_id,
             recordedAge = 0,
             birthday = Date.getDate(now),
-            sex = EcRandom.value < 0.5f ? ActorSex.Male : ActorSex.Female,
+            sex = EcRandom.value < 0.5f ? Sex.Male : Sex.Female,
             species = parent.species,
             culture = parent.culture,
             generation = parent.generation + 1,
@@ -1403,7 +1403,7 @@ public static partial class VirtualGenealogySystem
                 virtual_city_id = adopter.virtual_city_id > 0 ? adopter.virtual_city_id : adopter._actor?.city?.data?.id ?? -1L,
                 recordedAge = years,
                 birthday = Date.getDate(now - years * 60d),
-                sex = ActorSex.Male,
+                sex = Sex.Male,
                 species = adopter.species,
                 culture = adopter.culture,
                 generation = adopter.generation + 1,
@@ -1442,7 +1442,7 @@ public static partial class VirtualGenealogySystem
             virtual_city_id = city.Key,
             recordedAge = years,
             birthday = Date.getDate(now - years * 60d - EcRandom.Range(0, 12) * 5d),
-            sex = clan.isMalePriority() ? ActorSex.Male : ActorSex.Female,
+            sex = clan.isMalePriority() ? Sex.Male : Sex.Female,
             species = last.species,
             culture = last.culture,
             generation = last.generation,
@@ -1478,14 +1478,14 @@ public static partial class VirtualGenealogySystem
             virtual_city_id = city?.data?.id ?? -1L,
             recordedAge = 0,
             birthday = Date.getDate(now),
-            sex = EcRandom.value < 0.5f ? ActorSex.Male : ActorSex.Female,
+            sex = EcRandom.value < 0.5f ? Sex.Male : Sex.Female,
             species = !string.IsNullOrEmpty(parent.species) ? parent.species : royal.asset?.id,
             culture = parent.culture,
             generation = parent.generation + 1,
             is_main = true
         };
         PersonalClanIdentity other = consort?.GetPersonalIdentity();
-        if (royal.Record.sex == ActorSex.Female)
+        if (royal.Sex == Sex.Female)
         {
             child.mother = parent.id;
             if (other != null) child.father = other.id;
@@ -1587,7 +1587,7 @@ public static partial class VirtualGenealogySystem
             recordedAge = years,
             // 一年 60 秒、一月 5 秒；生日落在 years 年前再往前几个月
             birthday = Date.getDate(now - years * 60d - EcRandom.Range(0, 12) * 5d),
-            sex = ActorSex.Male,
+            sex = Sex.Male,
             species = species,
             culture = parent.culture,
             generation = parent.generation + 1,

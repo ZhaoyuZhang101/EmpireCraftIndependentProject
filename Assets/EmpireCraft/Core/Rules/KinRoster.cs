@@ -32,7 +32,7 @@ public static class KinRoster
                 if (pair.Item2 != null && pair.Item2.is_alive && seen.Add(pair.Item2.id)) result.Add(pair.Item2);
         actor ??= parent?._actor;
         if (actor?.Record == null || actor.IsGone()) return result;
-        foreach (Person child in actor.getChildren(false) ?? Enumerable.Empty<Person>())
+        foreach (Person child in actor.GetChildren(false) ?? Enumerable.Empty<Person>())
         {
             if (child?.Record == null || child.IsGone() || !child.Alive) continue;
             PersonalClanIdentity identity = child.GetPersonalIdentity();
@@ -43,13 +43,11 @@ public static class KinRoster
 #endif
 
     // 在世兄弟姐妹(族谱)
-#if EC_PENDING
     public static List<PersonalClanIdentity> Siblings(PersonalClanIdentity person) =>
         person == null ? new List<PersonalClanIdentity>()
             : SpecificClanManager.GetSiblingsWithRelation(person).Select(pair => pair.Item2)
                 .Where(sibling => sibling != null && sibling.is_alive).GroupBy(sibling => sibling.id)
                 .Select(group => group.First()).ToList();
-#endif
 
     // 世系里在世的族人(本宗和分出去的各支，见 SpecificClanManager.LineageClans)
 #if EC_PENDING
@@ -79,10 +77,8 @@ public static class KinRoster
     public static bool Adult(PersonalClanIdentity person) =>
         OnMap(person) ? person._actor.IsAdult() : person != null && person.age >= AdultAge;
 
-#if EC_PENDING
     public static bool Male(PersonalClanIdentity person) =>
-        OnMap(person) ? person._actor.isSexMale() : person?.sex == ActorSex.Male;
-#endif
+        OnMap(person) ? person._actor.IsMale() : person?.sex == Sex.Male;
 
     // 所在的城：地图上的看单位，虚拟族人看记下的城(城没了为空)
 #if EC_PENDING
@@ -110,7 +106,7 @@ public static class KinRoster
         clan == null ? null
             : RealizeFirst(Lineage(clan).Where(person => Virtual(person) && person.age >= AdultAge && !person.is_concubine &&
                                                           !person.disinherited && inRealm(KingdomOf(person)))
-                .OrderBy(person => person.sex == ActorSex.Male ? 0 : 1).ThenByDescending(person => person.age)
+                .OrderBy(person => person.sex == Sex.Male ? 0 : 1).ThenByDescending(person => person.age)
                 .ThenBy(person => person.id), fitActor, max);
 
     public static Person RealizeFirst(IEnumerable<PersonalClanIdentity> people, Func<Person, bool> fitActor, int maxRealized = 3) =>

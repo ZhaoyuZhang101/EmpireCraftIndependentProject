@@ -100,13 +100,13 @@ public static class BakufuSystem
         SpecificClan court = SpecificClanManager.Get(empire.data.court_clan_id);
         Person heir = court?.AllAliveMembers?
             .Where(actor => actor?.Record != null && !actor.IsGone() && actor.Alive && actor.GetPersonalIdentity()?.is_main == true)
-            .OrderByDescending(actor => actor.isSexMale())
+            .OrderByDescending(actor => actor.IsMale())
             .ThenBy(actor => actor.GetPersonalIdentity()?.generation ?? int.MaxValue)
-            .ThenByDescending(actor => actor.getAge()).FirstOrDefault();
+            .ThenByDescending(actor => actor.Age()).FirstOrDefault();
         // 天皇家只剩虚拟族人(纯净地图下多是这样，以前就找不到天皇)：照同样的先后落成一位
         heir ??= KinRoster.RealizeFirst(court?.LivingPeople
                      .Where(person => KinRoster.Virtual(person) && person.is_main)
-                     .OrderByDescending(person => person.sex == ActorSex.Male).ThenBy(person => person.generation)
+                     .OrderByDescending(person => person.sex == Sex.Male).ThenBy(person => person.generation)
                      .ThenByDescending(person => person.age),
             actor => actor.Alive && !actor.IsGone(), 2);
         if (heir != null) empire.data.court_emperor_id = heir.Key;

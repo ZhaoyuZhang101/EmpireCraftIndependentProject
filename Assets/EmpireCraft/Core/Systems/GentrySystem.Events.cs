@@ -35,19 +35,21 @@ public static partial class GentrySystem
         if (Unwed(emperor) && Random.value < ConsortChance) Wed(empire, clans, emperor, "gentry_empress_history");
         else if (heir != emperor && Unwed(heir) && Random.value < HeirConsortChance) Wed(empire, clans, heir, "gentry_heir_consort_history");
     }
+#endif
 
     private static bool Unwed(Person actor)
     {
-        if (actor?.Record == null || actor.IsGone() || !actor.Alive || !actor.IsAdult() || !actor.isSexMale()) return false;
+        if (actor?.Record == null || actor.IsGone() || !actor.Alive || !actor.IsAdult() || !actor.IsMale()) return false;
         PersonalClanIdentity identity = actor.GetPersonalIdentity();
         return identity != null && identity.IsFreeToMarry(-2L);
     }
 
+#if EC_PENDING
     private static void Wed(Empire empire, List<SpecificClan> clans, Person groom, string key)
     {
         foreach (SpecificClan clan in clans.Take(ConsortClans).OrderByDescending(clan => clan.gentry_pedigree * Random.Range(0.6f, 1f)))
         {
-            PersonalClanIdentity candidate = clan.LivingPeople.FirstOrDefault(person => person.sex == ActorSex.Female &&
+            PersonalClanIdentity candidate = clan.LivingPeople.FirstOrDefault(person => person.sex == Sex.Female &&
                 person.age >= BrideMinAge && person.age <= BrideMaxAge && !person.is_concubine && person.IsFreeToMarry(-2L));
             if (candidate == null) continue;
             Person bride = candidate.is_virtual ? candidate.Realize() : candidate._actor;
@@ -63,7 +65,7 @@ public static partial class GentrySystem
             Realm core = empire.CoreKingdom;
             if (bride.IsCityLeader() && bride.City != null) bride.City.removeLeader();
             if (bride.Realm != core) bride.joinKingdom(core);
-            if (core.Capital != null && bride.City != core.Capital) bride.joinCity(core.Capital);
+            if (core.Capital != null && bride.City != core.Capital) bride.JoinCity(core.Capital);
             clan.gentry_pedigree = Mathf.Min(100f, clan.gentry_pedigree + ConsortPedigree);
             ShiftFavor(empire, FavorEmpress);
             Record(Seat(clan), string.Format(LM.Get(key), JunWang(clan), bride.FullName(), groom.FullName()), force: true);

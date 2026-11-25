@@ -51,7 +51,7 @@ public class EmpireCraftKingdomBehCheckTax : GameAIKingdomBase
         corruptedMoney = Math.Min(collected, corruptedMoney);
         if (corruptedMoney > 0 && pKingdom.HasRuler())
         {
-            pKingdom.Ruler.addMoney(corruptedMoney);
+            pKingdom.Ruler.AddMoney(corruptedMoney);
             PrivyPurse.Note(pKingdom, PrivyPurse.Graft, corruptedMoney);
             pKingdom.Ruler.RecordCrime(LawType.贪污, corruptedMoney);
         }

@@ -738,6 +738,7 @@ public class FixedFaction
         }
         return result;
     }
+#endif
     public float CalcPossibility(Person pActor, float minProb = 0.5f, float maxProb = 0.95f)
     {
         int required = RequiredTraits?.Count ?? 0;
@@ -746,7 +747,7 @@ public class FixedFaction
         int matched = 0;
         if (RequiredTraits != null)
             foreach (var trait in RequiredTraits)
-                if (pActor.hasTrait(trait))
+                if (pActor.HasTrait(trait))
                     matched++;
 
         // 匹配占比 0~1
@@ -763,6 +764,7 @@ public class FixedFaction
         }
         return prob;
     }
+#if EC_PENDING
     public void AddMember(Person pActor)
     {
         if (pActor == null || pActor.IsGone() || pActor.IsWarMachine()) return;
@@ -796,7 +798,7 @@ public class FixedFaction
                 Person preferredMember = Members.Select(id => EmpireWorld.Current.PersonByKey(id))
                     .Where(actor => IsEligibleLeader(actor) && actor.IsOnOffice() && actor.HasOfficeIdentity() &&
                                     OfficeSelector.IsPreferredOfficeCandidate(actor, Empire.CoreKingdom))
-                    .OrderByDescending(actor => actor.Record?.renown ?? 0)
+                    .OrderByDescending(actor => actor.Record?.Renown ?? 0)
                     .ThenByDescending(actor => actor.GetIdentity()?.TotalPerformance ?? 0d)
                     .FirstOrDefault();
                 if (preferredMember != null) SetLeader(preferredMember);
@@ -806,16 +808,16 @@ public class FixedFaction
         Person candidate = Members.Select(id => EmpireWorld.Current.PersonByKey(id))
             .Where(IsEligibleLeader)
             .OrderByDescending(actor => OfficeSelector.IsPreferredOfficeCandidate(actor, Empire.CoreKingdom))
-            .ThenByDescending(actor => actor.Record?.renown ?? 0)
+            .ThenByDescending(actor => actor.Record?.Renown ?? 0)
             .ThenByDescending(actor => actor.GetIdentity()?.TotalPerformance ?? 0d)
             .FirstOrDefault();
         candidate ??= Empire.getUnits().Where(actor => IsEligibleLeader(actor) && !actor.HasFaction() &&
                 actor.IsOnOffice() && actor.HasOfficeIdentity())
             .OrderByDescending(actor => OfficeSelector.IsPreferredOfficeCandidate(actor, Empire.CoreKingdom))
-            .ThenByDescending(actor => actor.Record?.renown ?? 0).FirstOrDefault();
+            .ThenByDescending(actor => actor.Record?.Renown ?? 0).FirstOrDefault();
         candidate ??= Empire.getUnits().Where(actor => IsEligibleLeader(actor) && !actor.HasFaction())
             .OrderByDescending(actor => OfficeSelector.IsPreferredOfficeCandidate(actor, Empire.CoreKingdom))
-            .ThenByDescending(actor => actor.Record?.renown ?? 0).FirstOrDefault();
+            .ThenByDescending(actor => actor.Record?.Renown ?? 0).FirstOrDefault();
         if (candidate == null) return;
         if (candidate.GetFaction() != this) candidate.SetFaction(this);
         else SetLeader(candidate);

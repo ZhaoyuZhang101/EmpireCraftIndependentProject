@@ -312,7 +312,7 @@ public static partial class EmpireLawSystem
         // Central procedures keep their existing rules, including modern constitutional cases.
         if (actor == empire.Emperor && kingdom != empire.CoreKingdom) return false;
 
-        if (!actor.hasKingdom() || !actor.Realm.IsInEmpire())
+        if (!actor.HasRealm() || !actor.Realm.IsInEmpire())
         {
             return false;
         }
@@ -414,7 +414,7 @@ public static partial class EmpireLawSystem
         context.ReasonKey = reasonKey;
         context.Accuser = accuser != null && !accuser.IsGone() && accuser != actor ? accuser : null;
         // 当场拿获的是实事，不论国大国小都上公屏；有名望、爵位的要人也上，不只官员
-        context.Broadcast = TranslateHelper.ShouldBroadcastLawActor(actor) || actor.renown >= 30 ||
+        context.Broadcast = TranslateHelper.ShouldBroadcastLawActor(actor) || actor.Renown >= 30 ||
                             actor.GetPeeragesLevel() != PeeragesLevel.peerages_6 || actor.HasTitle();
         ResolvePendingRecords(context.Identity, type, context.Kingdom);
         return Execute(context, null);
@@ -467,7 +467,7 @@ public static partial class EmpireLawSystem
         PayRansom(context);
         RecordSentenceHistory(context);
 
-        int moneyBefore = actor.money;
+        int moneyBefore = actor.Money;
         foreach (PunishmentLevel punishment in OrderedPunishments(context.Sentence))
         {
             if (ApplyPunishment(context, punishment))
@@ -486,7 +486,7 @@ public static partial class EmpireLawSystem
         ApplyScaleCosts(context);
 
         CorruptionSystem.OnLawEnforced(kingdom, corruptionCity, corruptionAdministration, type,
-            context.AppliedPunishments, moneyBefore, actor.money);
+            context.AppliedPunishments, moneyBefore, actor.Money);
 
         FinishCase(context);
 
@@ -513,7 +513,7 @@ public static partial class EmpireLawSystem
         if (!Enabled) return;
         if (actor == null || actor.IsGone() || !actor.Alive || !actor.IsAdult()) return;
         if (!ShouldAutoCheckCrimeActor(actor)) return;
-        if (!actor.hasKingdom()) return;
+        if (!actor.HasRealm()) return;
 
         Realm kingdom = actor.Realm;
         if (!CanEnforceLawInEmpireScope(actor, kingdom)) return;
@@ -590,8 +590,8 @@ public static partial class EmpireLawSystem
         if (empireWarriors <= 0) return;
         if (kingdom.countTotalWarriors() * 2 < empireWarriors) return;
 
-        int emperorInfluence = emperor.Record != null ? emperor.Record.renown : 0;
-        int leaderInfluence = leader.Record != null ? leader.Record.renown : 0;
+        int emperorInfluence = emperor.Record != null ? emperor.Renown : 0;
+        int leaderInfluence = leader.Record != null ? leader.Renown : 0;
         if (leaderInfluence <= 0 || emperorInfluence <= leaderInfluence) return;
 
         leader.RecordCrime(lawType);
@@ -923,8 +923,8 @@ public static partial class EmpireLawSystem
             if (kingdom.countTotalWarriors() * 2 < empire.countWarriors()) return false;
 
             Person emperor = empire.Emperor;
-            int emperorInfluence = emperor != null && emperor.Record != null ? emperor.Record.renown : 0;
-            int actorInfluence = actor.Record?.renown ?? 0;
+            int emperorInfluence = emperor != null && emperor.Record != null ? emperor.Renown : 0;
+            int actorInfluence = actor.Record?.Renown ?? 0;
             return emperor != null && emperorInfluence > actorInfluence && actorInfluence > 0;
         }
 
@@ -976,22 +976,23 @@ public static partial class EmpireLawSystem
 
         int cost = context.Actor.data.renown;
         if (cost <= 0) return;
-        if (emperor.Record.renown < cost) return;
+        if (emperor.Renown < cost) return;
 
-        emperor.Record.renown -= cost;
-        if (emperor.Record.renown < 0)
+        emperor.Renown -= cost;
+        if (emperor.Renown < 0)
         {
-            emperor.Record.renown = 0;
+            emperor.Renown = 0;
         }
     }
+#endif
 
     private static float GetEconomicCrimeModifier(Person actor)
     {
         float chance = 0f;
         if (HasAnyTrait(actor, "greedy", "deceitful", "evil", "ambitious")) chance += 0.04f;
         if (HasAnyTrait(actor, "honest", "content", "wise")) chance -= 0.02f;
-        if (actor.money > 150) chance += 0.015f;
-        if (actor.stewardship >= 10) chance += 0.01f;
+        if (actor.Money > 150) chance += 0.015f;
+        if (actor.Stewardship >= 10) chance += 0.01f;
         return chance;
     }
 
@@ -1000,7 +1001,7 @@ public static partial class EmpireLawSystem
         float chance = 0f;
         if (HasAnyTrait(actor, "ambitious", "evil", "deceitful")) chance += 0.05f;
         if (HasAnyTrait(actor, "content", "honest")) chance -= 0.015f;
-        if (actor.stewardship >= 8 || actor.intelligence >= 8) chance += 0.01f;
+        if (actor.Stewardship >= 8 || actor.Intelligence >= 8) chance += 0.01f;
         return chance;
     }
 
@@ -1016,7 +1017,7 @@ public static partial class EmpireLawSystem
     {
         float chance = 0f;
         if (HasAnyTrait(actor, "evil", "bloodlust", "madness")) chance += 0.04f;
-        if (actor.warfare >= 10) chance += 0.01f;
+        if (actor.Warfare >= 10) chance += 0.01f;
         if (HasAnyTrait(actor, "pacifist")) chance -= 0.02f;
         return chance;
     }
@@ -1025,7 +1026,7 @@ public static partial class EmpireLawSystem
     {
         float chance = 0f;
         if (HasAnyTrait(actor, "deceitful", "greedy", "evil")) chance += 0.04f;
-        if (actor.intelligence >= 10) chance += 0.01f;
+        if (actor.Intelligence >= 10) chance += 0.01f;
         if (HasAnyTrait(actor, "honest")) chance -= 0.02f;
         return chance;
     }
@@ -1038,12 +1039,14 @@ public static partial class EmpireLawSystem
         return chance;
     }
 
+#if EC_PENDING
     private static float GetNobleCrimeModifier(Person actor)
     {
         if (actor == null) return 0f;
         if (actor.HasTitle() || actor.isNoble() || actor.IsRuler()) return 0.015f;
         return 0f;
     }
+#endif
 
     private static float GetDutyEvasionModifier(Person actor)
     {
@@ -1057,7 +1060,7 @@ public static partial class EmpireLawSystem
     {
         float chance = 0f;
         if (HasAnyTrait(actor, "ambitious", "evil", "deceitful")) chance += 0.03f;
-        if (actor.warfare >= 10) chance += 0.015f;
+        if (actor.Warfare >= 10) chance += 0.015f;
         return chance;
     }
 
@@ -1067,7 +1070,7 @@ public static partial class EmpireLawSystem
         for (int i = 0; i < traitIds.Length; i++)
         {
             string traitId = traitIds[i];
-            if (!string.IsNullOrEmpty(traitId) && actor.hasTrait(traitId))
+            if (!string.IsNullOrEmpty(traitId) && actor.HasTrait(traitId))
             {
                 return true;
             }
@@ -1075,6 +1078,7 @@ public static partial class EmpireLawSystem
         return false;
     }
 
+#if EC_PENDING
     public static bool ApplyPunishment(LawEnforcementContext context, PunishmentLevel punishment)
     {
         if (context == null || !CanEnforceLawInEmpireScope(context.Actor, context.Kingdom)) return false;
@@ -1119,7 +1123,7 @@ public static partial class EmpireLawSystem
         Person actor = context?.Actor;
         if (actor == null || actor.IsGone()) return false;
         int amount = FineAmount(actor, context.Kingdom);
-        if (amount > 0) actor.addMoney(-amount);
+        if (amount > 0) actor.AddMoney(-amount);
         context.FinePaid += amount;
         return true;
     }
@@ -1127,7 +1131,7 @@ public static partial class EmpireLawSystem
     public static int FineAmount(Person actor, Realm kingdom)
     {
         if (actor == null) return 0;
-        int money = Math.Max(0, actor.money);
+        int money = Math.Max(0, actor.Money);
         float factor = kingdom != null ? GetLawStance(kingdom).FineFactor : 1f;
         int amount = Math.Max(FineFloor, Mathf.RoundToInt(money * FineShare * factor));
         return Math.Min(amount, money);
@@ -1182,17 +1186,17 @@ public static partial class EmpireLawSystem
             return false;
         }
 
-        actor.joinCity(exileCity);
+        actor.JoinCity(exileCity);
         return true;
     }
+#endif
 
     private static bool ApplyConfiscateProperty(Person actor)
     {
         if (actor == null || actor.IsGone()) return false;
-        actor.addMoney(-actor.money);
+        actor.AddMoney(-actor.Money);
         return true;
     }
-#endif
 
     private static bool ApplyStripPeerage(Person actor)
     {
@@ -1282,9 +1286,9 @@ public static partial class EmpireLawSystem
         {
             string kinCause = string.Format(LM.Get("death_cause_law_kin"), actor.FullName());
             var kinfolk = new List<Person>();
-            foreach (Person child in actor.getChildren() ?? Enumerable.Empty<Person>())
+            foreach (Person child in actor.GetChildren() ?? Enumerable.Empty<Person>())
                 if (child != null && !child.IsGone() && child.Alive) kinfolk.Add(child);
-            if (actor.lover != null && !actor.lover.IsGone() && actor.lover.Alive) kinfolk.Add(actor.lover);
+            if (actor.Spouse != null && !actor.Spouse.IsGone() && actor.Spouse.Alive) kinfolk.Add(actor.Spouse);
             // 子女、配偶是虚拟族人的(纯净地图下多是这样，以前族诛漏掉、族谱上照旧在世)：落成后一并处死，照常记生平、分家产
             PersonalClanIdentity self = actor.GetPersonalIdentity();
             var virtualKin = KinRoster.Children(actor).Where(KinRoster.Virtual).ToList();

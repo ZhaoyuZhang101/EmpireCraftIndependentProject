@@ -193,7 +193,7 @@ public static partial class CourtSystem
             case "money":
                 Person leader = proposer.GetLeader();
                 return leader?.Record == null || leader.IsGone() ||
-                       term.amount + rest.Where(other => other.kind == "money").Sum(other => other.amount) > leader.money ? "deal_no_money" : null;
+                       term.amount + rest.Where(other => other.kind == "money").Sum(other => other.amount) > leader.Money ? "deal_no_money" : null;
             case "promise":
                 return mine.owed.Values.Sum() + 1 + rest.Count(other => other.kind == "promise") > MaxPromises ? "deal_too_many_promises" : null;
             case "ally":
@@ -214,7 +214,7 @@ public static partial class CourtSystem
 #if EC_PENDING
     private static Person Successor(FixedFaction partner, OfficeObject office) =>
         partner.AllMembers.Where(actor => actor != null && !actor.IsGone() && actor.Alive && office.GetActor() != actor && office.Accepts(actor))
-            .OrderByDescending(actor => actor.renown).FirstOrDefault();
+            .OrderByDescending(actor => actor.Renown).FirstOrDefault();
 #endif
 
     // 上奏一派能拿出来的筹码(交换台的"加筹码")：本派在中枢的官、各档资本与钱、人情、结盟
@@ -265,8 +265,8 @@ public static partial class CourtSystem
                     theirs.capital = Mathf.Min(100f, theirs.capital + term.amount);
                     break;
                 case "money":
-                    proposer.GetLeader()?.addMoney(-term.amount);
-                    partner.GetLeader()?.addMoney(term.amount);
+                    proposer.GetLeader()?.AddMoney(-term.amount);
+                    partner.GetLeader()?.AddMoney(term.amount);
                     break;
                 case "promise":
                     mine.owed[partner.GetID()] = (mine.owed.TryGetValue(partner.GetID(), out int count) ? count : 0) + 1;

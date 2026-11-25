@@ -206,7 +206,7 @@ public static partial class PapacySystem
     public static Religion FoundReformedChurch(Religion old, City city, Person founder, int kind)
     {
         if (old?.data == null || city?.Record == null || city.IsGone() || founder?.Record == null || !founder.Alive) return null;
-        if (founder.City != city && !founder.IsRuler()) founder.joinCity(city);
+        if (founder.City != city && !founder.IsRuler()) founder.JoinCity(city);
         Religion church = EmpireWorld.Current.religions.newReligion(founder, false);
         if (church?.data == null) return null;
         church.data.name = string.Format(LM.Get("hre_reformed_church_name"), city.GetCityName());
@@ -353,7 +353,7 @@ public static partial class PapacySystem
             if (Party(kingdom) == PartyPope) factor *= 0.3f;
         }
         Person king = kingdom.Ruler;
-        if (king != null && (king.hasTrait("pious") || king.hasTrait("religious") || king.hasTrait("devout") || king.hasTrait("cleric")))
+        if (king != null && (king.HasTrait("pious") || king.HasTrait("religious") || king.HasTrait("devout") || king.HasTrait("cleric")))
             factor *= 0.5f;
         if (PopeLegitimacy.Applies(old))
         {

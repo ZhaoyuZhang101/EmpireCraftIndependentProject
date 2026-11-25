@@ -115,8 +115,8 @@ public static partial class HolyRomanSystem
             .Where(actor => actor?.data != null && actor != exclude && !actor.IsGone() && actor.Alive && actor.isAdult() &&
                             !actor.isKing() && actor.isUnitFitToRule()).ToList();
         return locals.Where(actor => actor.GetOrCreate().socialClass == SocialClass.Merchant)
-                   .OrderByDescending(actor => actor.Record.renown).FirstOrDefault()
-               ?? locals.OrderByDescending(actor => actor.Record.renown).FirstOrDefault()
+                   .OrderByDescending(actor => actor.Renown).FirstOrDefault()
+               ?? locals.OrderByDescending(actor => actor.Renown).FirstOrDefault()
                ?? CityPopulationSystem.SpawnOfficial(city, city.Realm);
     }
 #endif
@@ -125,7 +125,7 @@ public static partial class HolyRomanSystem
 #if EC_PENDING
     private static Realm SpinOff(Empire empire, City city, Person ruler, LeaderSelectMethod method, int estate)
     {
-        if (ruler.City != city) ruler.joinCity(city);
+        if (ruler.City != city) ruler.JoinCity(city);
         // 立为帝国成员：受命立国，不许自立的闸放行(见 SecessionGate)
         Realm realm = SecessionGate.Sanctioned(() => city.makeOwnKingdom(ruler));
         if (realm?.Record == null) return null;
@@ -262,7 +262,7 @@ public static partial class HolyRomanSystem
         string cityName = city.GetCityName();
         Realm church = SpinOff(empire, city, bishop, LeaderSelectMethod.Exam, EstateChurch);
         if (church == null) return null;
-        if (!bishop.hasTrait("cleric")) bishop.addTrait("cleric");
+        if (!bishop.HasTrait("cleric")) bishop.AddTrait("cleric");
         Record(empire, string.Format(LM.Get("hre_church_endowed_history"), empire.Emperor?.FullName() ?? empire.CoreKingdom.GetKingdomName(),
             cityName, bishop.FullName()));
         return church;
@@ -285,10 +285,10 @@ public static partial class HolyRomanSystem
             }
             Person bishop = ChooseBishop(empire, church.Capital, out string appointer);
             if (bishop == null) return false;
-            if (bishop.City != church.Capital) bishop.joinCity(church.Capital);
+            if (bishop.City != church.Capital) bishop.JoinCity(church.Capital);
             GraceEdictService.Crown(church, bishop);
             if (church.Ruler != bishop) return false;
-            if (!bishop.hasTrait("cleric")) bishop.addTrait("cleric");
+            if (!bishop.HasTrait("cleric")) bishop.AddTrait("cleric");
             Record(empire, string.Format(LM.Get("hre_bishop_appointed_history"), appointer, bishop.FullName(), church.GetKingdomName()));
             return true;
         }
@@ -321,13 +321,13 @@ public static partial class HolyRomanSystem
             source = empire.CoreKingdom.Capital;
             appointer = emperor?.FullName() ?? empire.CoreKingdom.GetKingdomName();
         }
-        Person pick = Candidates(source).OrderByDescending(actor => actor.hasTrait("cleric"))
+        Person pick = Candidates(source).OrderByDescending(actor => actor.HasTrait("cleric"))
             .ThenByDescending(actor => investiture == PapacySystem.InvestitureCrown && SameHouse(actor, emperor))
-            .ThenByDescending(actor => actor.data.renown).FirstOrDefault();
+            .ThenByDescending(actor => actor.Renown).FirstOrDefault();
         if (pick == null && source != seat)
         {
-            pick = Candidates(seat).OrderByDescending(actor => actor.hasTrait("cleric"))
-                .ThenByDescending(actor => actor.data.renown).FirstOrDefault();
+            pick = Candidates(seat).OrderByDescending(actor => actor.HasTrait("cleric"))
+                .ThenByDescending(actor => actor.Renown).FirstOrDefault();
             appointer = LM.Get("hre_appointer_chapter");
         }
         return pick ?? CityPopulationSystem.SpawnOfficial(seat, seat.Realm);

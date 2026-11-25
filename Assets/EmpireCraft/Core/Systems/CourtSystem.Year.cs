@@ -93,7 +93,7 @@ public static partial class CourtSystem
             .OrderByDescending(faction => FactionState(empire, faction).grievance).FirstOrDefault();
         if (top.CentralRatio >= 55) return ("balance", top.GetID());
         if (darling != null && legitimacy < 60) return ("favorite", darling.GetID());
-        if (angry != null && (legitimacy >= 70 || empire.Emperor.hasTrait("paranoid"))) return ("suppress", angry.GetID());
+        if (angry != null && (legitimacy >= 70 || empire.Emperor.HasTrait("paranoid"))) return ("suppress", angry.GetID());
         return ("personal", "");
     }
 
@@ -472,7 +472,7 @@ public static partial class CourtSystem
     {
         Regime regime = empire?.CoreKingdom?.GetRegime();
         if (regime == null) return 0;
-        int stewardship = empire.Emperor?.stewardship ?? 0;
+        int stewardship = empire.Emperor?.Stewardship ?? 0;
         if (stewardship < 3) stewardship = 0;
         if (stewardship > 15) stewardship = 15;
         return Mathf.Max(1, 1 + (stewardship * regime.cabinet_number - 1) / 15);
@@ -488,9 +488,11 @@ public static partial class CourtSystem
                                    actor.CanServeOffice(core))
             .Distinct();
     }
+#endif
 
-    public static float Competence(Person actor) => actor == null ? 0f : actor.stewardship + actor.intelligence;
+    public static float Competence(Person actor) => actor == null ? 0f : actor.Stewardship + actor.Intelligence;
 
+#if EC_PENDING
     public static float AppointScore(Empire empire, Person actor, List<Person> members, int size)
     {
         CourtState state = State(empire);

@@ -159,17 +159,15 @@ public static class FamousTalentSystem
 
     public static IReadOnlyList<string> Traits => AllTraits;
 
-#if EC_PENDING
     private static void ApplyTrait(Person actor, TalentRecord record)
     {
         string wanted = TraitOf(record.kind, record.rank);
         foreach (string trait in AllTraits)
         {
-            if (trait != wanted && actor.hasTrait(trait)) actor.removeTrait(trait);
+            if (trait != wanted && actor.HasTrait(trait)) actor.RemoveTrait(trait);
         }
-        if (!actor.hasTrait(wanted)) actor.addTrait(wanted);
+        if (!actor.HasTrait(wanted)) actor.AddTrait(wanted);
     }
-#endif
 
     #endregion
 
@@ -339,14 +337,14 @@ public static class FamousTalentSystem
     private static void CreditMinister(Person actor)
     {
         bool tracked = ByActor.ContainsKey(actor.Key);
-        if (!tracked && actor.stewardship < MinisterGate) return;
+        if (!tracked && actor.Stewardship < MinisterGate) return;
         OfficeIdentity identity = actor.GetIdentity();
         bool cabinet = identity?.IsCabinet() == true;
-        float gain = (cabinet ? CabinetFame : OfficeFame) + Mathf.Max(0f, actor.stewardship - 8f) * StewardFame +
-                     Mathf.Max(0f, actor.intelligence - 8f) * ScholarFame;
+        float gain = (cabinet ? CabinetFame : OfficeFame) + Mathf.Max(0f, actor.Stewardship - 8f) * StewardFame +
+                     Mathf.Max(0f, actor.Intelligence - 8f) * ScholarFame;
         string deed = cabinet ? "cabinet"
-            : actor.diplomacy > actor.stewardship && actor.diplomacy >= actor.intelligence ? "envoy"
-            : actor.intelligence > actor.stewardship ? "scholar" : "steward";
+            : actor.Diplomacy > actor.Stewardship && actor.Diplomacy >= actor.Intelligence ? "envoy"
+            : actor.Intelligence > actor.Stewardship ? "scholar" : "steward";
         Credit(actor, TalentKind.Minister, gain, deed, "");
         if (!ByActor.TryGetValue(actor.Key, out TalentRecord record) || record.kind != TalentKind.Minister) return;
         double performance = identity?.TotalPerformance ?? 0d;
@@ -405,7 +403,7 @@ public static class FamousTalentSystem
             else ApplyTrait(actor, record);
             return;
         }
-        if (record.kind == TalentKind.General ? actor.warfare < GeneralGate : actor.stewardship < MinisterGate) return;
+        if (record.kind == TalentKind.General ? actor.Warfare < GeneralGate : actor.Stewardship < MinisterGate) return;
         string key = RealmKey(record, record.kind);
         if (Alive().Count(other => other != record && other.kind == record.kind && RealmKey(other, other.kind) == key) >=
             MaxPerRealmKind) return;

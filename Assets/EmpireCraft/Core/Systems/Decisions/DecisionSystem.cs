@@ -223,15 +223,15 @@ public static class DecisionSystem
         if (def.action != null && def.action(author)) def.post_action?.Invoke(author);
         return Close(item, plot, finished: true);
     }
+#endif
 
     private static float Talent(Person actor) =>
-        Math.Max(0, Math.Min(30, Math.Max(Math.Max(actor.intelligence, actor.stewardship), Math.Max(actor.diplomacy, actor.warfare))));
+        Math.Max(0, Math.Min(30, Math.Max(Math.Max(actor.Intelligence, actor.Stewardship), Math.Max(actor.Diplomacy, actor.Warfare))));
 
     private static float Pace(Person actor) => PaceBase + Talent(actor) * 0.5f;
 
     private static int LapseMonths(DecisionCase item, Person author) =>
         Math.Max(LapseMinMonths, (int)Math.Ceiling(item.effort / Pace(author) * LapseFactor));
-#endif
 
     // 牌子上的进度(游戏里谋划的进度条、别的系统查"进度满了没有")
 #if EC_PENDING
@@ -260,9 +260,7 @@ public static class DecisionSystem
 
     // ───────── 发起：天平(见 DecisionScale) ─────────
     // 资望：按名望折算的档次，定义里的 min_level 当资望档用(游戏存档里君主名望中位约 220、四分之三位约 340)
-#if EC_PENDING
-    public static int Standing(Person actor) => 1 + (int)(Math.Max(0, actor.renown) / StandingPerTier);
-#endif
+    public static int Standing(Person actor) => 1 + (int)(Math.Max(0, actor.Renown) / StandingPerTier);
 
     // 过完秤、等主线程办的：某人到了时候(due)，按候选从高到低验条件、发起
     private sealed class Ready
@@ -433,8 +431,8 @@ public static class DecisionSystem
         {
             actor = actor.Key, realm = realmId, king = actor.IsRuler(), leader = actor.IsCityLeader(), standing = Standing(actor),
             skipsWarRulerGate = actor.IsRuler() && EmpireCraftPlotsAddition.SkipsWarPlotRulerGate(actor),
-            renown = actor.renown, intelligence = actor.intelligence, diplomacy = actor.diplomacy, warfare = actor.warfare,
-            stewardship = actor.stewardship, talent = (int)Talent(actor), money = actor.money, realmRenown = shared.realmRenown,
+            renown = actor.Renown, intelligence = actor.Intelligence, diplomacy = actor.Diplomacy, warfare = actor.Warfare,
+            stewardship = actor.Stewardship, talent = (int)Talent(actor), money = actor.Money, realmRenown = shared.realmRenown,
             treasury = shared.treasury, wars = shared.wars, busy = shared.busy, authority = shared.authority, month = _month, now = now,
             lastByDef = shared.lastByDef, lastByKind = shared.lastByKind, monthSeconds = month,
             unfitByDef = Unfit.TryGetValue(actor.Key, out double[] unfit) ? unfit : null
@@ -564,12 +562,12 @@ public static class DecisionSystem
 
 #if EC_PENDING
     private static bool CanPay(Person actor, int cost) =>
-        cost <= 0 || actor.money >= cost || Public(actor) && StateSettlementSystem.DiscretionaryFunds(actor.Realm) >= cost;
+        cost <= 0 || actor.Money >= cost || Public(actor) && StateSettlementSystem.DiscretionaryFunds(actor.Realm) >= cost;
 
     private static void Pay(Person actor, int cost)
     {
         if (cost <= 0) return;
-        if (actor.money >= cost) actor.spendMoney(cost);
+        if (actor.Money >= cost) actor.spendMoney(cost);
         else if (Public(actor)) TreasurySystem.TrySpend(actor.Realm, cost, TreasuryCategory.Administration);
     }
 #endif
@@ -582,7 +580,6 @@ public static class DecisionSystem
             if (EmpireWorld.Current.PersonByKey(item.initiator)?.Realm == realm) yield return item;
     }
 
-#if EC_PENDING
     public static float PaceOf(DecisionCase item)
     {
         Person author = EmpireWorld.Current.PersonByKey(item.initiator);
@@ -594,7 +591,6 @@ public static class DecisionSystem
         Person author = EmpireWorld.Current.PersonByKey(item.initiator);
         return author == null ? LapseMinMonths : LapseMonths(item, author);
     }
-#endif
 
     // ───────── 亲自发起(手机席位) ─────────
     public sealed class Advice

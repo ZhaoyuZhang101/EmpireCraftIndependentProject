@@ -775,7 +775,7 @@ public static class CityPopulationSystem
         if (socialClass == SocialClass.Landlord) return "地主";
         if (socialClass == SocialClass.Noble && IsImportantNoble(actor)) return "贵族";
         if (actor.GetFaction() != null) return "派系";
-        if (actor.hasTrait("gongshi") || actor.hasTrait("jingshi") || actor.hasTrait("juren")) return "士人";
+        if (actor.HasTrait("gongshi") || actor.HasTrait("jingshi") || actor.HasTrait("juren")) return "士人";
         if (VirtualGenealogySystem.IsClanHead(actor)) return "族长";
         return "普通人";
     }
@@ -1101,7 +1101,7 @@ public static class CityPopulationSystem
         {
             if (actor == null || actor.IsGone() || !actor.Alive) continue;
             alive++;
-            if (actor.hasTrait("plague")) infected++;
+            if (actor.HasTrait("plague")) infected++;
         }
         if (infected == 0 || alive == 0) return;
         float rate = Mathf.Min(PlagueMaxDeath, PlagueBaseDeath + PlagueDeathPerShare * infected / alive);
@@ -1634,8 +1634,8 @@ public static class CityPopulationSystem
         if (socialClass == SocialClass.Landlord) return "地主";
         if (socialClass == SocialClass.Noble && IsImportantNoble(actor)) return "要紧贵族";
         if (actor.GetFaction() != null) return "派系成员";
-        if (actor.hasTrait("gongshi") || actor.hasTrait("jingshi")) return "进士贡士";
-        if (actor.hasTrait("juren") && IsKeptJuren(actor)) return "举人";
+        if (actor.HasTrait("gongshi") || actor.HasTrait("jingshi")) return "进士贡士";
+        if (actor.HasTrait("juren") && IsKeptJuren(actor)) return "举人";
         if (VirtualGenealogySystem.IsClanHead(actor)) return "族长";
         return "普通(待并入)";
     }
@@ -1693,8 +1693,8 @@ public static class CityPopulationSystem
             if (actor.GetFaction() != null) return true;
         // 有功名的读书人：选官的人才库。进士、贡士一律保留；举人每城只留政绩最好的 MaxKeptJuren 位，
         // 其余回到人口里(族谱里的人转为虚拟族人)，免得每年中举的人越积越多
-        if (actor.hasTrait("gongshi") || actor.hasTrait("jingshi")) return true;
-        if (actor.hasTrait("juren"))
+        if (actor.HasTrait("gongshi") || actor.HasTrait("jingshi")) return true;
+        if (actor.HasTrait("juren"))
             using (FrameProfiler.Measure("名人判定·举人"))
                 if (IsKeptJuren(actor)) return true;
         // 宗族族长：每个宗族至少保留一名实体族长
@@ -1715,8 +1715,8 @@ public static class CityPopulationSystem
         if (EmpireCaftActorJudgeClass.IsNoble(actor) && IsImportantNoble(actor)) return true;
         if (actor.GetFaction() != null) return true;
         // 科举要实体考生：乡试从各城的举人里取、会试从贡士里取。进士、贡士全留(全图百来人)，举人每城只留最好的两位
-        if (actor.hasTrait("gongshi") || actor.hasTrait("jingshi")) return true;
-        return actor.hasTrait("juren") && IsKeptJuren(actor, PureKeptJuren);
+        if (actor.HasTrait("gongshi") || actor.HasTrait("jingshi")) return true;
+        return actor.HasTrait("juren") && IsKeptJuren(actor, PureKeptJuren);
     }
 #endif
 
@@ -1739,21 +1739,19 @@ public static class CityPopulationSystem
 
     // 要紧的贵族：君主、继承人、君主与储君的配偶和子女、有封地或爵位的人。其余宗室并入虚拟族谱，需要时再落成。
     // 储君的配偶、子女(皇孙)以前不算，会被并回人口，储君一即位就无妻无子
-#if EC_PENDING
     private static bool IsImportantNoble(Person actor)
     {
         if (actor.IsRuler()) return true;
         Realm kingdom = actor.Realm;
         if (kingdom != null && kingdom.GetHeir() == actor) return true;
-        if (actor.lover != null && !actor.lover.IsGone() && IsRoyalLine(actor.lover)) return true;
-        foreach (Person parent in actor.getParents())
+        if (actor.Spouse != null && !actor.Spouse.IsGone() && IsRoyalLine(actor.Spouse)) return true;
+        foreach (Person parent in actor.GetParents())
             if (parent != null && !parent.IsGone() && IsRoyalLine(parent)) return true;
         if (actor.GetOwnedTitle()?.Count > 0) return true;
         return actor.HasHonoraryPeerage() || actor.HasVirtualEnfeoff();
     }
 
     private static bool IsRoyalLine(Person actor) => actor.IsRuler() || actor.Realm != null && actor.Realm.GetHeir() == actor;
-#endif
 
     private const int MaxKeptJuren = 5;
 
@@ -1767,7 +1765,7 @@ public static class CityPopulationSystem
         int better = 0;
         foreach (Person other in city.units)
         {
-            if (other == null || other == actor || other.IsGone() || !other.Alive || !other.hasTrait("juren")) continue;
+            if (other == null || other == actor || other.IsGone() || !other.Alive || !other.HasTrait("juren")) continue;
             double theirs = other.GetIdentity()?.TotalPerformance ?? 0d;
             if (theirs > mine || theirs == mine && other.Key < actor.Key) better++;
             if (better >= limit) return false;
@@ -1776,7 +1774,7 @@ public static class CityPopulationSystem
     }
 
     public static bool IsSoldier(Person actor) =>
-        actor != null && (actor.isWarrior() || actor.army != null || actor.is_army_captain);
+        actor != null && (actor.IsWarrior() || actor.army != null || actor.is_army_captain);
 #endif
 
     // 无小人模式下的城市实体单位(参考 CK3 的征召兵)：
@@ -2029,7 +2027,7 @@ public static class CityPopulationSystem
         if (extra.legion_home_city_id >= 0L) socialClass = extra.legion_home_social_class;
         if (socialClass == SocialClass.Army) socialClass = SocialClass.Peasant;
         var identity = actor.GetPersonalIdentity();
-        int capturedCash = actor.money, capturedLoot = actor.Record.loot;
+        int capturedCash = actor.Money, capturedLoot = actor.Record.loot;
         float oldLegionSize = extra.legion_size, oldLegionFull = extra.legion_full;
         long oldLegionHome = extra.legion_home_city_id;
         // Preserve existing balances before removing the actor or its legion
@@ -2248,7 +2246,7 @@ public static class CityPopulationSystem
     // 载具(WarBox 的坦克、装甲车、飞机等)不是人：不计人口、不代表军团、不并回人口
 #if EC_PENDING
     public static bool IsVehicle(Person actor) =>
-        actor?.asset != null && (actor.asset.is_boat || actor.asset.id.StartsWith("warbox_") || actor.hasTrait("warbox_unit"));
+        actor?.asset != null && (actor.asset.is_boat || actor.asset.id.StartsWith("warbox_") || actor.HasTrait("warbox_unit"));
 
     public static float LegionAlive(Person actor)
     {
@@ -2354,7 +2352,7 @@ public static class CityPopulationSystem
         Culture culture = CultureService.GetNativeCultureObject(group.culture);
         if (culture != null) actor.setCulture(culture);
         actor.joinKingdom(city.Realm);
-        actor.joinCity(city);
+        actor.JoinCity(city);
         // 背景人口信本城的宗教(见 BackgroundReligionSystem)，落成的人也带着。以前不带，补上来的城主、君主都无教，
         // 原版的城教、国教跟着城主、君主走，就跟不上人口的信仰
         if (!actor.hasReligion() && city.hasReligion()) actor.setReligion(city.religion);
@@ -2410,12 +2408,12 @@ public static class CityPopulationSystem
                 if (stock != null && stock.Count > 0 && City.giveItem(actor, stock, city)) continue;
                 int budget = treasury == null ? 0 : treasury.GetMoney();
                 if (budget <= 0) continue;
-                int saved = actor.Record.money;
-                actor.Record.money = budget;
+                int saved = actor.Money;
+                actor.Money = budget;
                 // 打造用掉的料走公家用料，物资账在那里记(见 PopulationEconomySystem.ChargePublicUse)
                 bool made = ItemCrafting.craftItem(actor, maker, type, Mathf.Max(1, actor.asset.item_making_skill), city);
-                int spent = Mathf.Max(0, budget - actor.Record.money);
-                actor.Record.money = saved;
+                int spent = Mathf.Max(0, budget - actor.Money);
+                actor.Money = saved;
                 if (made && spent > 0) treasury.SubMoney(spent, TreasuryCategory.Military);
             }
             actor.setStatsDirty();
@@ -2435,7 +2433,7 @@ public static class CityPopulationSystem
     {
         try
         {
-            float lifespan = actor.stats?["lifespan"] ?? 0f;
+            float lifespan = actor.Stats?["lifespan"] ?? 0f;
             if (lifespan > 0f && lifespan < 80f)
             {
                 min = Mathf.Max(1, Mathf.RoundToInt(min * lifespan / 80f));

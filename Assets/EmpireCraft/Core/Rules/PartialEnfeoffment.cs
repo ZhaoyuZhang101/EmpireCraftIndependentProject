@@ -181,7 +181,7 @@ public static class PartialEnfeoffment
     public static bool IsEligiblePrince(Person actor, Empire empire)
     {
         if (actor?.Record == null || actor.IsGone() || !actor.Alive || actor.IsRuler() || empire?.CoreKingdom == null) return false;
-        if (actor == empire.Emperor || RealisticAgeSystem.IsMinor(actor) || !actor.isUnitFitToRule()) return false;
+        if (actor == empire.Emperor || RealisticAgeSystem.IsMinor(actor) || !actor.IsFitToRule()) return false;
         Realm core = empire.CoreKingdom;
         if (actor.Key == (core.GetHeir()?.Key ?? -1L) || core.GetOrCreate()?.scripted_heirs?.Contains(actor.Key) == true) return false;
         return !actor.HasVirtualEnfeoff(empire) && actor.Realm?.GetEmpire() == empire;
@@ -196,7 +196,7 @@ public static class PartialEnfeoffment
         SpecificClan royal = empire.EmpireSpecificClan;
         long heir = empire.CoreKingdom?.GetHeir()?.Key ?? -1L;
         bool Fit(Person actor) => actor?.Record != null && !actor.IsGone() && actor.Alive && actor.IsAdult() &&
-                                 !actor.IsRuler() && actor.Key != heir && actor.isUnitFitToRule() &&
+                                 !actor.IsRuler() && actor.Key != heir && actor.IsFitToRule() &&
                                  (royal == null || !SpecificClanManager.SameLineage(actor.GetSpecificClan(), royal));
         if (seat.HasLeader() && Fit(seat.Leader)) return seat.Leader;
         return seat.getUnits()?.FirstOrDefault(Fit);

@@ -121,8 +121,8 @@ public static class PersonalUnionService
                         .Select(item => item.Item2)
                         .Where(person => person != null && person.is_alive)
                         .OrderBy(person => person.rank),
-                    child => !child.IsGone() && child.Alive && child.isUnitFitToRule() &&
-                             (child.Record?.renown ?? 0) >= 200);
+                    child => !child.IsGone() && child.Alive && child.IsFitToRule() &&
+                             (child.Record?.Renown ?? 0) >= 200);
 
             if (!partitionUnlocked && qualifiedChild == null)
                 DissolveCityStateUnion(cityRealms);
@@ -148,7 +148,7 @@ public static class PersonalUnionService
                 .Select(item => item.Item2)
                 .Where(person => person != null && person.is_alive)
                 .OrderBy(person => person.rank),
-            actor => !actor.IsGone() && actor.Alive && actor.isUnitFitToRule());
+            actor => !actor.IsGone() && actor.Alive && actor.IsFitToRule());
         if (children.Count == 0) return;
         for (int i = 0; i < feudalRealms.Count; i++)
             feudalRealms[i].GetOrCreate().union_partition_heir_id = (i < children.Count ? children[i] : children[0]).Key;
@@ -175,7 +175,7 @@ public static class PersonalUnionService
         {
             Person heir = EmpireWorld.Current.PersonByKey(data.union_city_state_heir_id);
             data.union_city_state_heir_id = -1L;
-            if (heir != null && !heir.IsGone() && heir.Alive && heir.isUnitFitToRule())
+            if (heir != null && !heir.IsGone() && heir.Alive && heir.IsFitToRule())
             {
                 if (heir.IsRuler()) CrownInUnion(kingdom, heir);
                 else GraceEdictService.Crown(kingdom, heir);

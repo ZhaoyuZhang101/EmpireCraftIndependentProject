@@ -316,7 +316,7 @@ public static partial class GentrySystem
         Person head = living.Where(person => !person.is_virtual).Select(person => person._actor)
             .Where(actor => actor?.Record != null && !actor.IsGone() && actor.Alive && actor.IsAdult() && actor.City == seat &&
                             !actor.IsRuler())
-            .OrderByDescending(actor => actor.renown).FirstOrDefault()
+            .OrderByDescending(actor => actor.Renown).FirstOrDefault()
             ?? living.FirstOrDefault(person => person.is_virtual && person.age >= 18 && person.virtual_city_id == seat.Key)?.Realize();
         if (head?.Record == null || head.IsRuler()) return false;
         if (head.IsCityLeader() && head.City != null && head.City != seat) head.City.removeLeader();
@@ -745,7 +745,7 @@ public static partial class GentrySystem
                 else if (actor.IsCityLeader()) office += 4f;
                 if (actor.HasHonoraryPeerage()) office += 6f;
                 office += 5f * (actor.GetOwnedTitle()?.Count ?? 0);
-                renown.Add(actor.renown);
+                renown.Add(actor.Renown);
             }
             else
             {

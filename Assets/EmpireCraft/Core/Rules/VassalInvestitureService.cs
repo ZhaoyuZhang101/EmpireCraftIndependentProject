@@ -223,7 +223,7 @@ public static class VassalInvestitureService
         replacement.removeFromArmy();
         if (replacement.IsCityLeader()) replacement.City.removeLeader();
         if (vassal.Capital != null && !vassal.Capital.IsGone() && replacement.City != vassal.Capital)
-            replacement.joinCity(vassal.Capital);
+            replacement.JoinCity(vassal.Capital);
         OfficeObject office = vassal.GetOffice();
         if (office == null)
         {

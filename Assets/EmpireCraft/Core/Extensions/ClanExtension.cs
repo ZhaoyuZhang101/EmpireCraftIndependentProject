@@ -53,7 +53,7 @@ public static class ClanExtension
         return !string.IsNullOrWhiteSpace(surname) ? surname : clan.GetClanName();
     }
 
-    public static string GetClanName(this Clan clan, ActorSex sex = ActorSex.None, bool hasSexPost = false)
+    public static string GetClanName(this Clan clan, Sex sex = Sex.None, bool hasSexPost = false)
     {
         if (clan?.Record == null || string.IsNullOrWhiteSpace(clan.Name)) return "";
         var nameParts = clan.Name.SplitNameParts();

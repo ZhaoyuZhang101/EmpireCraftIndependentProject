@@ -205,7 +205,7 @@ public static partial class PapacySystem
             float lean = Mathf.Clamp01(distance / PartyDistance) * 0.5f;
             if (member.GetKingdomType() == KingdomType.Feudalism_papal_state) lean += 0.6f;
             Person king = member.Ruler;
-            if (king != null && (king.hasTrait("pious") || king.hasTrait("religious") || king.hasTrait("devout"))) lean += 0.25f;
+            if (king != null && (king.HasTrait("pious") || king.HasTrait("religious") || king.HasTrait("devout"))) lean += 0.25f;
             lean += ((member.Key * 7919L) % 100) / 100f * 0.3f;
             int party = data.papal_party;
             if (party == PartyPope && lean < 0.4f) party = PartyEmperor;

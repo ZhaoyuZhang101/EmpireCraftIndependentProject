@@ -376,7 +376,7 @@ public static class WorldMapScenario
                     if (founder?.language != null) actor.setLanguage(founder.language);
                     if (founder?.religion != null) actor.setReligion(founder.religion);
                     planned.city = EmpireWorld.Current.Cities.buildNewCity(actor, zone);
-                    actor.joinCity(planned.city);
+                    actor.JoinCity(planned.city);
                     PrepareName(actor, planned.culture);
                     planned.city.setUnitMetas(actor);
                     actor.GetModName().SetName(actor);
@@ -420,7 +420,7 @@ public static class WorldMapScenario
                 {
                     SetSexAge(actor, person, false);
                     actor.joinKingdom(polity.kingdom);
-                    if (seat != null) actor.joinCity(seat);
+                    if (seat != null) actor.JoinCity(seat);
                     PrepareName(actor, polity.culture);
                     ApplyNames(actor, person.fam, person.giv);
                     Person kin = person.sameHouse >= 0 && person.sameHouse < made.Count ? made[person.sameHouse] : null;
@@ -433,7 +433,7 @@ public static class WorldMapScenario
                 {
                     SetSexAge(actor, person, false);
                     actor.joinKingdom(polity.kingdom);
-                    if (seat != null) actor.joinCity(seat);
+                    if (seat != null) actor.JoinCity(seat);
                     PrepareName(actor, polity.culture);
                     if (founder.Clan != null) actor.setClan(founder.Clan);
                     ApplyNames(actor, person.fam ?? surname, person.giv);
@@ -506,14 +506,14 @@ public static class WorldMapScenario
                     // 开局前就成的婚：族谱照记夫妻、妾室，个人经历里不记一条开局那年的"成婚""纳妾"
                     if (person.rel == "wife")
                     {
-                        if (husband.lover != null && husband.lover != actor) continue;
+                        if (husband.Spouse != null && husband.Spouse != actor) continue;
                         identity?.setLover(actor, recordHistory: false);
                         husband.becomeLoversWith(actor);
                     }
                     else
                     {
                         identity?.setLover(actor, isCus: true, recordHistory: false);
-                        actor.lover = husband;
+                        actor.Spouse = husband;
                     }
                 }
                 catch (Exception exception)
@@ -575,7 +575,7 @@ public static class WorldMapScenario
                 if (actor == null) continue;
                 SetSexAge(actor, person.AsPerson(), false);
                 actor.joinKingdom(polity.kingdom);
-                if (seat != null) actor.joinCity(seat);
+                if (seat != null) actor.JoinCity(seat);
                 PrepareName(actor, polity.culture);
                 ApplyNames(actor, person.fam, person.giv);
                 // 当场立家族，家族名就是剧本的姓(诸葛亮入诸葛氏)：以前等任官时才立，没姓的(扬古利)被安上模板起的家族名与姓
@@ -648,7 +648,7 @@ public static class WorldMapScenario
                             City city = _famousCities.TryGetValue(person.post, out City found) ? found : null;
                             if (city?.Record == null || city.IsGone() || city.Realm == null) break;
                             if (actor.Realm != city.Realm) actor.joinKingdom(city.Realm);
-                            actor.joinCity(city);
+                            actor.JoinCity(city);
                             city.GetOffice()?.SetActor(actor);
                             if (city.Leader != actor) city.setLeader(actor, true);
                             break;
@@ -774,8 +774,8 @@ public static class WorldMapScenario
 #if EC_PENDING
     private static void SetSexAge(Person actor, WorldMapPerson person, bool monarch)
     {
-        if (person != null && person.Female) actor.Record.sex = ActorSex.Female;
-        else if (monarch || person != null) actor.Record.sex = ActorSex.Male;
+        if (person != null && person.Female) actor.Sex = Sex.Female;
+        else if (monarch || person != null) actor.Sex = Sex.Male;
         int age = person != null && person.age >= 0 ? person.age : monarch ? Randy.randomInt(28, 50) : -1;
         if (age >= 0) actor.Record.age_overgrowth = age;
     }
@@ -802,7 +802,7 @@ public static class WorldMapScenario
         if (!name.hasFirstName(actor) && native != null)
         {
             string first = CulturePatch.GetOnomasticDataSafe(native, MetaType.Unit)
-                ?.generateName(actor.isSexMale() ? ActorSex.Male : ActorSex.Female);
+                ?.generateName(actor.IsMale() ? Sex.Male : Sex.Female);
             if (!string.IsNullOrEmpty(first)) actor.SetFirstName(first.UseLocalizedNameSeparator());
         }
     }
@@ -1009,7 +1009,7 @@ public static class WorldMapScenario
         native.joinKingdom(polity.kingdom);
         if (founder.language != null) native.setLanguage(founder.language);
         if (founder.religion != null) native.setReligion(founder.religion);
-        native.joinCity(planned.city);
+        native.JoinCity(planned.city);
         PrepareName(native, planned.culture);
         native.GetModName().SetName(native);
     }
@@ -2547,9 +2547,9 @@ public static class WorldMapScenario
             if (polity.empire != null) VirtualGenealogySystem.EnsureYoungRulerHouse(polity.founder);
             // 剧本点名的雄主(用户 2026-11-08 "清怎么没有开国雄主特质")：中途开局的今上不算开国(见 WorldMapHistory.NotFounder)，
             // 皇太极这样的照样给开国雄主
-            if (polity.data?.hero == true && polity.empire != null && !polity.founder.hasTrait(RulerTraitSystem.Founder))
+            if (polity.data?.hero == true && polity.empire != null && !polity.founder.HasTrait(RulerTraitSystem.Founder))
             {
-                polity.founder.addTrait(RulerTraitSystem.Founder);
+                polity.founder.AddTrait(RulerTraitSystem.Founder);
                 LogService.LogInfo($"[EmpireCraft][世界地图] {polity.name} 的 {polity.founder.FullName()} 是剧本点名的雄主，授开国雄主");
             }
         }

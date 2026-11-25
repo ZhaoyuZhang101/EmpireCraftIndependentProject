@@ -203,11 +203,11 @@ public static class LandmarkBookSystem
             }
         }
     }
+#endif
 
     private static bool IsLiterate(Person actor) =>
-        actor.hasTrait("juren") || actor.hasTrait("gongshi") ||
+        actor.HasTrait("juren") || actor.HasTrait("gongshi") ||
         actor.GetOrCreate().socialClass is SocialClass.Officer or SocialClass.Citizen;
-#endif
 
     #endregion
 
@@ -284,7 +284,7 @@ public static class LandmarkBookSystem
             {
                 if (actor == null || !actor.Alive || !actor.IsAdult() || actor.language == null ||
                     actor.IsWarMachine()) continue;
-                float score = actor.stats["intelligence"] + actor.renown * 0.01f;
+                float score = actor.Stats["intelligence"] + actor.Renown * 0.01f;
                 if (score <= bestScore) continue;
                 bestScore = score;
                 best = actor;
@@ -428,7 +428,7 @@ public static class LandmarkBookSystem
         bool unrest = industrial && (grievance >= 25f ||
             LandEconomySystem.GetReport(city).LandlessPopulationRatio >= LandEconomySystem.RebellionLandlessThreshold);
         bool militarized = city.Realm.HasEnemies() ||
-            adults.Count(actor => actor.isWarrior()) >= Math.Max(3, (int)Math.Ceiling(adults.Count * 0.12f));
+            adults.Count(actor => actor.IsWarrior()) >= Math.Max(3, (int)Math.Ceiling(adults.Count * 0.12f));
         bool massPolitics = adults.Count >= 40 && InstitutionSystem.GetFeature(
             CultureService.GetMainCulture(city), PartySystem.FeaturePartyPolitics) > 0f;
         return environment switch

@@ -755,7 +755,7 @@ public static class RevolutionSystem
             FixedFaction governing = PartySystem.GetGovernmentParty(empire) ?? empire.CoreKingdom.GetRegime()?.GetDominateFaction();
             successor = governing?.AllMembers?
                 .Where(actor => actor != null && !actor.IsGone() && actor.Alive && actor.IsAdult() && actor.Key != head.Key)
-                .OrderByDescending(actor => actor.renown).FirstOrDefault();
+                .OrderByDescending(actor => actor.Renown).FirstOrDefault();
             if (successor != null) empire.InstallHeadOfState(successor);
         }
         EventRecorder.Record(empire, successor != null

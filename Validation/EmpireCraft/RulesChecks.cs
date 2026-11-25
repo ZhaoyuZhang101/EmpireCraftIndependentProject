@@ -207,6 +207,29 @@ public static class RulesChecks
         Console.WriteLine("PASS wars (" + checks + " checks)");
     }
 
+    // What a person carries beyond the family record, and that it is saved.
+    public static void People()
+    {
+        checks = 0;
+        var map = FlatGenerator.Generate(256, 128, "EMPIRE-PEOPLE", TerrainPreset.Continents, default);
+        var w = Start(map); w.Activate();
+        Person ruler = w.LiveRealms[0].Ruler, other = w.LiveRealms[1].Ruler;
+        Check(ruler.Renown == 0 && ruler.TraitCount == 0 && !ruler.HasTrait("wise") && ruler.Stats["warfare"] == 0f, "people start without standing, traits or talents");
+        ruler.AddRenown(40); ruler.AddRenown(-100); ruler.AddRenown(25); ruler.AddMoney(300); ruler.AddMoney(-50);
+        ruler.Stewardship = 7; ruler.Warfare = 3; ruler.Intelligence = 9; ruler.Diplomacy = 5;
+        Check(ruler.Renown == 25 && ruler.Money == 250 && ruler.Stats["intelligence"] == 9f && ruler.Stats["nonsense"] == 0f, "renown does not go below zero; talents read by name");
+        Check(ruler.AddTrait("wise") && !ruler.AddTrait("wise") && ruler.AddTrait("frugal") && ruler.HasTrait("wise") && ruler.RemoveTrait("frugal") && !ruler.HasTrait("frugal") && ruler.TraitCount == 1 && !other.HasTrait("wise"), "traits are a set of ids on the person");
+        Check(ruler.IsMale() && !ruler.IsFemale() && ruler.IsFitToRule() && ruler.HasRealm() && !ruler.IsWarrior() && ruler.GetParents().Count() == 0 && ruler.GetChildren().All(c => c.GetParents().Contains(ruler)), "what the ported code asks about a person");
+        var bytes = EmpireSave.Encode(w); var loaded = EmpireSave.Decode(bytes, w.Map);
+        var again = loaded.People[ruler.Id];
+        Check(EmpireSave.Encode(loaded).SequenceEqual(bytes) && again.Renown == 25 && again.Money == 250 && again.Intelligence == 9 && again.HasTrait("wise") && again.TraitCount == 1, "person attributes survive the save");
+        Check(EmpireSave.Decode(EmpireSave.Encode(w, 3), w.Map).People[ruler.Id].Renown == 0, "a version-3 section loads people without attributes");
+        var child = ruler.Children.FirstOrDefault();
+        if (child != null) { child.JoinCity(other.City); Check(child.City == other.City && child.Realm == other.Realm, "a person who moves belongs to the new city's realm"); }
+        EmpireWorld.Current = null;
+        Console.WriteLine("PASS people (" + checks + " checks)");
+    }
+
     // The shared frame budget: jobs run once a frame while there is budget, are put
     // off when there is none, and are never starved.
     public static void Scheduling()

@@ -142,13 +142,13 @@ public static class CourtActions
             weights?.Add(new ScaleWeight(key, factor, false));
         }
         Push("court_w_mandate", 1f + Math.Max(0, empire.Legitimacy) / 100f);
-        Push("court_w_ruler_standing", 1f + Math.Min(1f, Math.Max(0, emperor.renown) / 800f));
-        Push("court_w_ruler_talent", 1f + Math.Max(0, Math.Min(30, Math.Max(emperor.intelligence, emperor.stewardship))) / 60f);
+        Push("court_w_ruler_standing", 1f + Math.Min(1f, Math.Max(0, emperor.Renown) / 800f));
+        Push("court_w_ruler_talent", 1f + Math.Max(0, Math.Min(30, Math.Max(emperor.Intelligence, emperor.Stewardship))) / 60f);
         FixedFaction side = MinisterFaction(empire, minister);
         int loyal = CourtSystem.Factions(empire).Where(faction => faction != side && CourtSystem.FactionState(empire, faction).favor >= 60f)
             .Sum(faction => faction.CentralRatio);
         Push("court_w_loyal", 1f + Math.Min(60, loyal) / 60f);
-        Pull("court_w_minister_standing", 1f + Math.Min(1.5f, Math.Max(0, minister.renown) / 600f));
+        Pull("court_w_minister_standing", 1f + Math.Min(1.5f, Math.Max(0, minister.Renown) / 600f));
         if (side != null) Pull("court_w_minister_faction", 1f + Math.Min(60, side.CentralRatio) / 50f);
         int stage = empire.data.powerful_minister_stage;
         if (stage > 0) Pull("court_w_minister_stage", 1f + 0.35f * stage);

@@ -101,13 +101,13 @@ public static class BattleDrama
             CorpsSystem.LoseGeneral(general);
             BiographySystem.Note(general, string.Format(LM.Get("bio_captured_defected"), place, captor.GetKingdomName()), victor);
             Report(kingdom, general, string.Format(LM.Get("battle_general_defected_log"), place, name, captor.GetKingdomName()));
-            general.joinCity(captor.Capital);
+            general.JoinCity(captor.Capital);
             general.setKingdom(captor);
             return;
         }
         if (loyal || roll < DefectShare + RansomShare)
         {
-            int price = Mathf.Max(30, Mathf.RoundToInt(general.renown * 2f)) * (sovereign ? 10 : 1);
+            int price = Mathf.Max(30, Mathf.RoundToInt(general.Renown * 2f)) * (sovereign ? 10 : 1);
             if (TreasurySystem.TrySpend(kingdom, price, TreasuryCategory.Reparations, discretionary: false))
             {
                 captor.AddMoney(price, TreasuryCategory.Reparations);

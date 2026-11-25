@@ -121,8 +121,8 @@ public class TemporaryPushProgress
     public int ConsumeInfluenceAndCalcAdd(Person actor)
     {
         if (actor == null || actor.IsGone()) return 0;
-        if (actor.Record == null || actor.Record.renown < InfluenceCostPerMonth) return 0;
-        actor.Record.renown -= InfluenceCostPerMonth;
+        if (actor.Record == null || actor.Renown < InfluenceCostPerMonth) return 0;
+        actor.Renown -= InfluenceCostPerMonth;
         return CalcPolicyProgressAdd(actor.GetIdentity()?.TotalPerformance ?? 0, Progress);
     }
 
@@ -200,7 +200,7 @@ public class TemporaryPushProgress
         if (!StartedToPushTf || actor?.Record == null || actor.IsGone()) return (0, 0, false, -1);
         double performance = actor.GetIdentity()?.TotalPerformance ?? 0;
         int add = CalcPolicyProgressAdd(performance, Progress);
-        int renown = actor.Record.renown, progress = Progress, months = 0;
+        int renown = actor.Renown, progress = Progress, months = 0;
         while (progress < 100 && months < 1200)
         {
             if (renown < InfluenceCostPerMonth) { months = -1; break; }
@@ -208,7 +208,7 @@ public class TemporaryPushProgress
             progress += CalcPolicyProgressAdd(performance, progress);
             months++;
         }
-        return (add, (int)performance, actor.Record.renown >= InfluenceCostPerMonth, months);
+        return (add, (int)performance, actor.Renown >= InfluenceCostPerMonth, months);
     }
 #endif
 
@@ -1237,7 +1237,7 @@ public static class KingdomExtension
         if (k?.Ruler == null) return;
         var progressObject = k.GetOrCreate().PushProgress ??= new TemporaryPushProgress();
         if (!TemporaryPushProgress.IsLocalPusher(k.Ruler)) { progressObject.Stop(); return; }
-        if (!progressObject.StartedToPushTf && k.Ruler.renown >= TemporaryPushProgress.InfluenceCostPerYear)
+        if (!progressObject.StartedToPushTf && k.Ruler.Renown >= TemporaryPushProgress.InfluenceCostPerYear)
         {
             if (type.HasValue) progressObject.StartToPush(k.Ruler, type.Value);
             else
@@ -2743,27 +2743,25 @@ public static class KingdomExtension
     private static bool IsRepublicCore(Realm k) =>
         k != null && k.IsEmpire() && RepublicSystem.IsRepublic(k.GetEmpire());
 
-#if EC_PENDING
     public static Person GetHeir(this Realm k)
     {
         if (k?.Record == null || EmpireWorld.Current?.Living == null) return null;
         var ed = k.GetOrCreate();
         if (IsRepublicCore(k)) return null;
         Person heir = EmpireWorld.Current.PersonByKey(ed.HeirID);
-        return heir != null && heir != k.Ruler && !heir.IsGone() && heir.Alive && heir.isUnitFitToRule() ? heir : null;
+        return heir != null && heir != k.Ruler && !heir.IsGone() && heir.Alive && heir.IsFitToRule() ? heir : null;
     }
-#endif
     public static void RemoveHeir(this Realm k)
     {
         var ed = k.GetOrCreate();
         ed.HeirID = -1L;
     }
-#if EC_PENDING
     public static bool HasHeir(this Realm k)
     {
         return k.GetHeir() != null;
     }
 
+#if EC_PENDING
     public static OfficeObject[] GetAllOffices(this Realm k)
     {
         OfficeObject[] officeObjects = Array.Empty<OfficeObject>();

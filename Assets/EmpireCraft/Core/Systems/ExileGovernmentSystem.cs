@@ -190,7 +190,7 @@ public static class ExileGovernmentSystem
             .Where(actor => actor?.data != null && !actor.IsGone() && actor.Alive && actor.asset?.civ == true && !actor.asset.is_boat &&
                             actor.kingdom == exile)
             .Select(actor => (actor, rank: actor == king ? 0 : actor == heir ? 1 :
-                king?.Clan != null && actor.clan == king.Clan ? 2 : actor == king?.lover ? 2 :
+                king?.Clan != null && actor.clan == king.Clan ? 2 : actor == king?.Spouse ? 2 :
                 CityPopulationSystem.IsNotable(actor) ? 3 : 9))
             .Where(entry => entry.rank < 9)
             .OrderBy(entry => entry.rank).ThenByDescending(entry => entry.actor.renown)
@@ -206,7 +206,7 @@ public static class ExileGovernmentSystem
             try
             {
                 // 离城不离国：无城之人仍算本国的人(原版 joinCity(null) 不改国家)
-                if (actor.City != null) actor.joinCity(null);
+                if (actor.City != null) actor.JoinCity(null);
                 if (at != null) actor.setCurrentTilePosition(at);
             }
             catch (Exception exception)
@@ -405,7 +405,7 @@ public static class ExileGovernmentSystem
             foreach (Person actor in exile.units.ToList())
                 if (actor?.Record != null && !actor.IsGone() && actor.Alive && actor.City == null && actor.Realm == exile &&
                     actor.asset?.civ == true && !actor.asset.is_boat)
-                    actor.joinCity(seat);
+                    actor.JoinCity(seat);
         }
         string text = string.Format(LM.Get("exile_return_history"), exile.GetKingdomName(), seat?.GetCityName() ?? "");
         EventRecorder.Record(exile, text, exile.Ruler);
@@ -428,7 +428,7 @@ public static class ExileGovernmentSystem
         if (refuge == null || refuge.IsGone()) return;
         foreach (Person actor in exile.units.ToList())
             if (actor?.Record != null && !actor.IsGone() && actor.Alive && actor.City == null && actor.asset?.civ == true && !actor.asset.is_boat)
-                actor.joinCity(refuge);
+                actor.JoinCity(refuge);
     }
 #endif
 

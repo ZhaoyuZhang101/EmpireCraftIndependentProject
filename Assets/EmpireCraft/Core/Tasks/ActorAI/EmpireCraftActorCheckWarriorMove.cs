@@ -182,7 +182,7 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
 
         if (kingdom.IsGone() ||
             kingdom.IsNeutral() ||
-            !pActor.isWarrior())
+            !pActor.IsWarrior())
         {
             ClearActorMoveState(pActor);
             return BehResult.Continue;
@@ -300,14 +300,13 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
 #endif
 
     // 新征召成功的 Warrior 可直接加入同一个分帧队列。
-#if EC_PENDING
     public static void QueueActorForWarMobilization(Person actor, Realm kingdom)
     {
         if (actor == null ||
             actor.Record == null ||
             kingdom == null ||
             !actor.Alive ||
-            !actor.isWarrior() ||
+            !actor.IsWarrior() ||
             actor.Realm != kingdom)
         {
             return;
@@ -325,7 +324,6 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
             kingdom = kingdom
         });
     }
-#endif
 
     // 由 WarPatch.update 每帧调用；内部有 frame guard。
 #if EC_PENDING
@@ -443,7 +441,7 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
                 continue;
             }
 
-            if (!actor.Alive || !actor.isWarrior() ||
+            if (!actor.Alive || !actor.IsWarrior() ||
                 actor.Realm == null || !actor.Realm.HasEnemies() ||
                 actor.current_tile?.zone == null)
             {
@@ -499,7 +497,7 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
                 kingdom == null ||
                 !actor.Alive ||
                 actor.Realm != kingdom ||
-                !actor.isWarrior() ||
+                !actor.IsWarrior() ||
                 !kingdom.HasEnemies())
             {
                 continue;
@@ -1100,14 +1098,14 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
 
         return nearest;
     }
+#endif
 
     private static bool IsOccupyArmyGroupMember(Person actor)
     {
         return actor != null &&
                actor.Alive &&
-               actor.isWarrior();
+               actor.IsWarrior();
     }
-#endif
 
     // ============================================================
     // State

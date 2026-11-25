@@ -25,7 +25,7 @@ public static class ScorchedEarthSystem
         Person king = occupier?.Ruler;
         if (king == null || king.IsGone() || city?.Realm == null) return false;
         foreach (string trait in CruelTraits)
-            if (king.hasTrait(trait)) return true;
+            if (king.HasTrait(trait)) return true;
         if (!king.hasXenophobic()) return false;
         string cityCulture = CultureService.GetMainCulture(city, initialize: false);
         string ownCulture = CultureService.GetRealmCulture(occupier);

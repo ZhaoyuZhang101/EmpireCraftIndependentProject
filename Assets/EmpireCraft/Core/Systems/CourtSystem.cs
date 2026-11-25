@@ -306,7 +306,7 @@ public static partial class CourtSystem
             float capital = Mathf.Min(MaxCapitalBid, Mathf.Max(0f, data.capital - ProposalCost)) * Random.Range(0.5f, 1f);
             Person leader = faction.GetLeader();
             int money = leader?.Record == null || leader.IsGone() ? 0
-                : Mathf.Max(0, Mathf.FloorToInt(leader.money * MaxMoneyShare * Random.Range(0.3f, 1f)));
+                : Mathf.Max(0, Mathf.FloorToInt(leader.Money * MaxMoneyShare * Random.Range(0.3f, 1f)));
             float weight = 5f + capital + money / MoneyPerPoint + Mathf.Max(0f, data.favor - 50f) / 5f + faction.CentralRatio * 0.2f;
             entrants.Add((faction, claim, capital, money, weight));
         }
@@ -326,7 +326,7 @@ public static partial class CourtSystem
         }
         CourtFactionState winnerData = FactionState(empire, winner.faction);
         winnerData.capital -= ProposalCost + winner.capital;
-        if (winner.money > 0) winner.faction.GetLeader()?.addMoney(-winner.money);
+        if (winner.money > 0) winner.faction.GetLeader()?.AddMoney(-winner.money);
         state.memorial = new CourtMemorial
         {
             claim = winner.claim.type.ToString(), proposer = winner.faction.GetID(), stage = 0, stage_time = now,
@@ -732,12 +732,12 @@ public static partial class CourtSystem
         bool centralise = issue is TemporaryFactionType.削藩 or TemporaryFactionType.夺取诸侯开战权 or
             TemporaryFactionType.恢复世袭皇权 or TemporaryFactionType.颁布帝国治安令;
         // 好大喜功(见 CorveeSystem)：也更爱封禅、兴修水利这类工程
-        if (emperor.hasTrait("ambitious")) stance += expansion ? 1f : appeasement ? -1f :
+        if (emperor.HasTrait("ambitious")) stance += expansion ? 1f : appeasement ? -1f :
             issue == TemporaryFactionType.封禅 ? 1f : issue == TemporaryFactionType.兴修水利 ? 0.5f : 0f;
-        if (emperor.hasTrait("greedy")) stance += issue == TemporaryFactionType.提高赋税 ? 1f :
+        if (emperor.HasTrait("greedy")) stance += issue == TemporaryFactionType.提高赋税 ? 1f :
             issue is TemporaryFactionType.降低赋税 ? -1f : issue == TemporaryFactionType.赈济灾荒 ? -0.5f : 0f;
-        if (emperor.hasTrait("content")) stance += appeasement ? 0.5f : expansion ? -0.5f : 0f;
-        if (emperor.hasTrait("paranoid")) stance += devolution ? -1f : centralise ? 0.5f :
+        if (emperor.HasTrait("content")) stance += appeasement ? 0.5f : expansion ? -0.5f : 0f;
+        if (emperor.HasTrait("paranoid")) stance += devolution ? -1f : centralise ? 0.5f :
             issue == TemporaryFactionType.整顿吏治 ? 0.5f : 0f;
         stance += devolution ? -0.5f : centralise ? 0.5f : 0f;
         // 荒淫、暴虐之君偏好加税，不肯赈济、整顿吏治(见 RulerQualitySystem)

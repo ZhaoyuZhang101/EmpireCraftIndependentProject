@@ -117,7 +117,7 @@ public static class UrbanEmploymentSystem
             Release(actor);
             employed.Remove(actor);
         }
-        foreach (Person actor in employed.OrderByDescending(actor => actor.money)
+        foreach (Person actor in employed.OrderByDescending(actor => actor.Money)
                      .Take(Math.Max(0, employed.Count - capacity)).ToList())
         {
             Release(actor);
@@ -130,7 +130,7 @@ public static class UrbanEmploymentSystem
         {
             foreach (Person actor in residents.Where(actor => !IsEmployed(actor) && IsEligible(actor))
                          .OrderByDescending(LandEconomySystem.IsLandlessResident)
-                         .ThenBy(actor => actor.money).ThenBy(actor => actor.id).Take(openings))
+                         .ThenBy(actor => actor.Money).ThenBy(actor => actor.Key).Take(openings))
             {
                 actor.GetOrCreate().urban_employment_city_id = city.Key;
                 actor.GetOrCreate().urban_citizen_city_id = -1L;
@@ -196,7 +196,7 @@ public static class UrbanEmploymentSystem
                         actor.city == city).ToList() ?? new List<Person>();
 
     private static bool IsEligibleWorker(Person actor) => actor != null && !actor.IsOnOffice() &&
-        !actor.isWarrior() && !EmpireCaftActorJudgeClass.IsManualWorkerJob(actor) &&
+        !actor.IsWarrior() && !EmpireCaftActorJudgeClass.IsManualWorkerJob(actor) &&
         !LandEconomySystem.IsLandlord(actor) &&
         !actor.GetOrCreate().is_economic_merchant && !EmpireCaftActorJudgeClass.IsNoble(actor);
 

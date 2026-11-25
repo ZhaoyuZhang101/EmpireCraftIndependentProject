@@ -160,8 +160,8 @@ internal static class WorldMapHistory
         empire.data.dynasty_founder_actor_id = founder.id;
         if (empire.data.currentHistory != null) empire.data.currentHistory.is_first = false;
         Person emperor = empire.Emperor;
-        if (emperor == null || emperor.IsGone() || !emperor.hasTrait(RulerTraitSystem.Founder)) return;
-        emperor.removeTrait(RulerTraitSystem.Founder);
+        if (emperor == null || emperor.IsGone() || !emperor.HasTrait(RulerTraitSystem.Founder)) return;
+        emperor.RemoveTrait(RulerTraitSystem.Founder);
         RulerTraitSystem.OnCrowned(empire, emperor);
     }
 #endif
@@ -341,7 +341,7 @@ internal static class WorldMapHistory
                 is_alive = false,
                 is_virtual = false,
                 recordedAge = -1,
-                sex = ActorSex.Male,
+                sex = Sex.Male,
                 species = me.species,
                 culture = me.culture,
                 is_main = true,

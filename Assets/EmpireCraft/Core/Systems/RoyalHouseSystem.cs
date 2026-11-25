@@ -52,10 +52,10 @@ public static class RoyalHouseSystem
     private static int _months;
     private static object _world;
 
-#if EC_PENDING
     public static bool IsRoyal(Person actor) =>
         actor?.Record != null && !actor.IsGone() && (actor.IsRuler() || actor.Realm != null && actor.Realm.GetHeir() == actor);
 
+#if EC_PENDING
     private static bool Has(Person actor, string tech)
     {
         string culture = actor?.Realm == null ? null : TechnologySystem.GetCultureOf(actor.Realm);
@@ -91,7 +91,7 @@ public static class RoyalHouseSystem
 #if EC_PENDING
     public static void OnBirthday(Person actor)
     {
-        if (actor?.Record == null || actor.IsGone() || !actor.Alive || !actor.isSapient()) return;
+        if (actor?.Record == null || actor.IsGone() || !actor.Alive || !actor.IsSapient()) return;
         RepairSurname(actor);
         // 真实年龄开着时按科技时代的天年(不看原版老死法则，见 RealisticAgeSystem.AgeDeathDue)；
         // 关着时按原版寿命曲线每年掷一次(只在纯净地图、无小人模式，见 RealisticAgeSystem.NativeAgeDeathDue)
@@ -113,7 +113,7 @@ public static class RoyalHouseSystem
         if (IsRoyal(actor)) return 0f;
         // 父母按族谱认(落成的皇嗣与转成虚拟族人的父母，原版亲子关系接不上)
         PersonalClanIdentity self = actor.GetPersonalIdentity();
-        bool royal = IsRoyal(actor) || (actor.getParents()?.Any(IsRoyal) ?? false) ||
+        bool royal = IsRoyal(actor) || (actor.GetParents()?.Any(IsRoyal) ?? false) ||
                      self != null && new[] { self.father, self.mother }.Any(id => id > 0 &&
                          SpecificClanManager.getPerson(id) is PersonalClanIdentity parent && KinRoster.OnMap(parent) && IsRoyal(parent._actor));
         if (!royal) return 0f;
@@ -164,9 +164,9 @@ public static class RoyalHouseSystem
 
     private static void Tend(Realm kingdom, Person royal)
     {
-        if (royal?.Record == null || royal.IsGone() || !royal.Alive || !royal.isSapient()) return;
+        if (royal?.Record == null || royal.IsGone() || !royal.Alive || !royal.IsSapient()) return;
         int age = royal.Age();
-        Person lover = royal.lover;
+        Person lover = royal.Spouse;
         if (lover?.Record == null || lover.IsGone() || !lover.Alive) lover = null;
         // 婚配：成年还没配偶的，从本国现有人物里挑一位(不另落成新人)
         int from = RoyalMarriageSystem.Applies(kingdom) ? RoyalMarryLateAge : RoyalMarryAge;
@@ -178,9 +178,9 @@ public static class RoyalHouseSystem
         // 添丁：记入族谱为虚拟子嗣。生母的年龄：君主是女子看她自己，否则看配偶；没有配偶的按宫人所出，
         // 父亲不过 RoyalFatherAgeMax 岁
         // 后宫各妃嫔自己算，不受正妻年纪、正妻那份间隔的限制
-        if (royal.Record.sex != ActorSex.Female && age >= RoyalMarryAge) TendHarem(royal, age, lover);
+        if (royal.Sex != Sex.Female && age >= RoyalMarryAge) TendHarem(royal, age, lover);
         if (age < RoyalMarryAge || lover != null && lover.Age() < RoyalMarryAge) return;
-        bool queen = royal.Record.sex == ActorSex.Female;
+        bool queen = royal.Sex == Sex.Female;
         if (queen ? age > RoyalBirthAgeMax : lover != null ? lover.Age() > RoyalBirthAgeMax : age > RoyalFatherAgeMax) return;
         // 无子求嗣：三十岁以上还没有在世的子女，添丁的机会加倍
         float chance = age >= HeirlessAge && LivingChildren(royal) == 0 ? RoyalBirthChance * 2f : RoyalBirthChance;
@@ -221,7 +221,7 @@ public static class RoyalHouseSystem
             Person consort = KinRoster.OnMap(consortPerson) ? consortPerson._actor
                 : KinRoster.KingdomOf(consortPerson) == royal.Realm ? PersonRef.Present(consortPerson) : null;
             if (consort?.Record == null || consort.IsGone() || !consort.Alive || consort == wife ||
-                consort.Record.sex != ActorSex.Female || Infertile(consort)) continue;
+                consort.Sex != Sex.Female || Infertile(consort)) continue;
             int consortAge = consort.Age();
             if (consortAge < RoyalMarryAge || consortAge > RoyalBirthAgeMax) continue;
             double last = consort.GetOrCreate().last_royal_birth;
@@ -242,7 +242,7 @@ public static class RoyalHouseSystem
 #if EC_PENDING
     private static int LivingChildren(Person parent)
     {
-        int living = parent.getChildren(false)?.Count(child => child?.data != null && !child.IsGone() && child.Alive) ?? 0;
+        int living = parent.GetChildren(false)?.Count(child => child?.Record != null && !child.IsGone() && child.Alive) ?? 0;
         PersonalClanIdentity person = parent.GetPersonalIdentity();
         if (person?.children != null)
             living = Math.Max(living, person.children.Count(id => SpecificClanManager.getPerson(id)?.is_alive == true));
@@ -259,29 +259,29 @@ public static class RoyalHouseSystem
         foreach (Person candidate in kingdom.units)
         {
             if (candidate?.Record == null || candidate == royal || candidate.IsGone() || !candidate.Alive ||
-                candidate.IsRuler() || candidate.lover != null && !candidate.lover.IsGone() && candidate.lover.Alive ||
-                candidate.Record.sex == royal.Record.sex || candidate.asset != royal.asset ||
+                candidate.IsRuler() || candidate.Spouse != null && !candidate.Spouse.IsGone() && candidate.Spouse.Alive ||
+                candidate.Sex == royal.Sex || candidate.asset != royal.asset ||
                 candidate.Age() < RoyalMarryAge || candidate.Age() > ConsortMaxAge || Kin(royal, candidate)) continue;
-            if (best == null || candidate.renown > best.renown) best = candidate;
+            if (best == null || candidate.Renown > best.Renown) best = candidate;
         }
         if (best != null) return best;
         // 纯净地图下本国地图上没几个人：京城大族里成年未婚、不是近亲的虚拟族人，声望(并回人口时记下的)高的落成一位
         PersonalClanIdentity self = royal.GetPersonalIdentity();
         IEnumerable<PersonalClanIdentity> pool = VirtualGenealogySystem.MagnatesOf(kingdom.Capital)
             .SelectMany(clan => clan.LivingPeople)
-            .Where(person => KinRoster.Virtual(person) && person.sex != royal.Record.sex && !person.is_concubine &&
+            .Where(person => KinRoster.Virtual(person) && person.sex != royal.Sex && !person.is_concubine &&
                              person.age >= RoyalMarryAge && person.age <= ConsortMaxAge && person.IsFreeToMarry(-2L) &&
                              person.species == royal.asset?.id && !KinshipRules.AreCloseKin(self, person))
             .OrderByDescending(VirtualGenealogySystem.VirtualRenown).ThenBy(person => person.id);
-        return KinRoster.RealizeFirst(pool, candidate => candidate.Alive && candidate.lover == null, 1);
+        return KinRoster.RealizeFirst(pool, candidate => candidate.Alive && candidate.Spouse == null, 1);
     }
 
     private static bool Kin(Person a, Person b)
     {
         // 族谱上的近亲(父母转成了虚拟族人时原版 getParents 找不到)
         if (KinshipRules.AreCloseKin(a, b)) return true;
-        List<Person> parentsA = a.getParents()?.Where(parent => parent != null).ToList() ?? new List<Person>();
-        List<Person> parentsB = b.getParents()?.Where(parent => parent != null).ToList() ?? new List<Person>();
+        List<Person> parentsA = a.GetParents()?.Where(parent => parent != null).ToList() ?? new List<Person>();
+        List<Person> parentsB = b.GetParents()?.Where(parent => parent != null).ToList() ?? new List<Person>();
         return parentsA.Contains(b) || parentsB.Contains(a) || parentsA.Any(parentsB.Contains);
     }
 #endif
@@ -303,14 +303,12 @@ public static class RoyalHouseSystem
 #endif
 
     // 添了孩子(BabyHelperPatch.MakeBaby)：记下君主、储君添孩子的时间
-#if EC_PENDING
     public static void NoteBirth(Person parent1, Person parent2)
     {
         double now = GameClock.Now;
         if (IsRoyal(parent1)) parent1.GetOrCreate().last_royal_birth = now;
         if (IsRoyal(parent2)) parent2.GetOrCreate().last_royal_birth = now;
     }
-#endif
 
     #endregion
 
@@ -495,7 +493,7 @@ public static class RoyalHouseSystem
         City capital = kingdom?.Capital;
         if (king?.Record == null || capital?.Record == null || kingdom.Cities == null || kingdom.Cities.Count < 2) return;
         Person heir = kingdom.HasHeir() ? kingdom.GetHeir() : null;
-        var princes = (king.getChildren(false) ?? Enumerable.Empty<Person>())
+        var princes = (king.GetChildren(false) ?? Enumerable.Empty<Person>())
             .Where(son => son?.data != null && !son.IsGone() && son.Alive && son.isAdult() && son != heir &&
                           !son.isKing() && !son.IsOnOffice() && son.kingdom == kingdom && son.city == capital).ToList();
         foreach (Person prince in princes)
@@ -505,7 +503,7 @@ public static class RoyalHouseSystem
                 .OrderBy(city => city.units?.Count(unit => unit != null && unit.Alive && unit.getParents().Contains(king)) ?? 0)
                 .ThenByDescending(CityPopulationSystem.GetBackgroundTotal).FirstOrDefault();
             if (fief == null) continue;
-            prince.joinCity(fief);
+            prince.JoinCity(fief);
             if (PureMapMode.Enabled) prince.setCurrentTilePosition(fief.getTile());
             else prince.goTo(fief.getTile());
         }

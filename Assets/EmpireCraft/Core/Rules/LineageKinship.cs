@@ -14,7 +14,6 @@ public static class LineageKinship
     private const int MaxGenerations = 6;
 
     // person 是 elder 的什么人(elder 一般是先君，person 是新君)
-#if EC_PENDING
     public static string Term(PersonalClanIdentity elder, PersonalClanIdentity person)
     {
         if (elder == null || person == null) return "";
@@ -34,7 +33,7 @@ public static class LineageKinship
             maternalB = other.maternal;
         }
         if (bestA < 0) return Text("lineage_rel_clan");
-        bool female = person.sex == ActorSex.Female, older = Birth(person) < Birth(elder);
+        bool female = person.sex == Sex.Female, older = Birth(person) < Birth(elder);
         bool maternal = maternalA || maternalB;
         int a = bestA, b = bestB;
         // 直系
@@ -87,7 +86,6 @@ public static class LineageKinship
             _ => "lineage_rel_clan_grandson"
         });
     }
-#endif
 
     private static string Text(string key) => LM.Get(key) ?? key;
 

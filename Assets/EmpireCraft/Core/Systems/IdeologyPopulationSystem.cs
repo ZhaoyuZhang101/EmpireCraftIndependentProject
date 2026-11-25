@@ -75,11 +75,12 @@ public static partial class IdeologyPopulationSystem
             !Enum.IsDefined(typeof(PartyIdeology), ideology)) return true;
         actor.GetOrCreate().personal_ideology = ideology.ToString();
         foreach (PartyIdeology other in Enum.GetValues(typeof(PartyIdeology)))
-            if (other != ideology && actor.hasTrait(TraitId(other))) actor.removeTrait(TraitId(other));
+            if (other != ideology && actor.HasTrait(TraitId(other))) actor.RemoveTrait(TraitId(other));
         if (actor.City != null) DominantCache.Remove(actor.City);
         SyncedTraits.Add(actor);
         return true;
     }
+#endif
 
     public static void Set(Person actor, PartyIdeology ideology)
     {
@@ -93,11 +94,12 @@ public static partial class IdeologyPopulationSystem
     {
         if (!_traitsReady || actor == null || actor.IsGone()) return;
         foreach (PartyIdeology other in Enum.GetValues(typeof(PartyIdeology)))
-            if (other != ideology && actor.hasTrait(TraitId(other))) actor.removeTrait(TraitId(other));
-        if (!actor.hasTrait(TraitId(ideology))) actor.addTrait(TraitId(ideology));
+            if (other != ideology && actor.HasTrait(TraitId(other))) actor.RemoveTrait(TraitId(other));
+        if (!actor.HasTrait(TraitId(ideology))) actor.AddTrait(TraitId(ideology));
         SyncedTraits.Add(actor);
     }
 
+#if EC_PENDING
     public static PartyIdeology Get(Person actor)
     {
         if (actor == null) return PartyIdeology.Conservatism;
@@ -109,13 +111,13 @@ public static partial class IdeologyPopulationSystem
         // 查表代替每次 Enum.TryParse：统计全城人口时每个人都要走这里
         if (data.personal_ideology != null && ParsedIdeologies.TryGetValue(data.personal_ideology, out PartyIdeology ideology))
         {
-            if (!SyncedTraits.Contains(actor) || _traitsReady && !actor.hasTrait(TraitId(ideology)))
+            if (!SyncedTraits.Contains(actor) || _traitsReady && !actor.HasTrait(TraitId(ideology)))
                 SyncTrait(actor, ideology);
             return ideology;
         }
         if (_traitsReady)
             foreach (PartyIdeology existing in Enum.GetValues(typeof(PartyIdeology)))
-                if (actor.hasTrait(TraitId(existing)))
+                if (actor.HasTrait(TraitId(existing)))
                 {
                     Set(actor, existing);
                     return existing;
@@ -268,7 +270,7 @@ public static partial class IdeologyPopulationSystem
         int supporters = 0;
         foreach (Person actor in empire.getUnits())
         {
-            if (actor == null || actor.IsGone() || !actor.Alive || !actor.isWarrior()) continue;
+            if (actor == null || actor.IsGone() || !actor.Alive || !actor.IsWarrior()) continue;
             soldiers++;
             if (Get(actor) == ideology) supporters++;
         }

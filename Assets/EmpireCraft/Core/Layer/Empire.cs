@@ -147,7 +147,7 @@ public class Empire : RecordObject<EmpireData>
         if (!RulerTraitSystem.FounderReigns(CoreKingdom)) return false;
         Person emperor = Emperor;
         if (emperor == null) return false;
-        bool greatRestorer = emperor.hasTrait(RulerTraitSystem.GreatRestorer);
+        bool greatRestorer = emperor.HasTrait(RulerTraitSystem.GreatRestorer);
         if (!greatRestorer && (data.inherited_decline || emperor.Key != data.founder_actor_id)) return false;
         double since = data.newEmperor_timestamp;
         return since < 0d || EmpireWorld.Current == null || GameClock.Now < since ||
@@ -235,7 +235,7 @@ public class Empire : RecordObject<EmpireData>
         List<Person>  list = new List<Person>();
         foreach (Person actor in EmpirePopulation.Enumerate(kingdoms_hashset))
         {
-            if (actor.hasTrait(trait))
+            if (actor.HasTrait(trait))
             {
                 list.Add(actor);
             }
@@ -558,7 +558,7 @@ public class Empire : RecordObject<EmpireData>
     private void MoveToEmpireCapital(Person actor)
     {
         if (CoreKingdom?.capital?._city_tile==null) return;
-        actor.joinCity(this.CoreKingdom.Capital);
+        actor.JoinCity(this.CoreKingdom.Capital);
         actor.goTo(this.CoreKingdom.Capital._city_tile);
     }
 #endif
@@ -728,7 +728,7 @@ public class Empire : RecordObject<EmpireData>
         List<long> stateTitleIds = SnapshotSovereignTitles(previousHead, core);
         if (actor.IsRuler() && actor.Realm != core) actor.Realm.RemoveRuler();
         if (core.Ruler != null) core.RemoveRuler();
-        actor.joinCity(capital);
+        actor.JoinCity(capital);
         actor.setKingdom(core);
         _completingMinisterUsurpation = true;
         try { core.SetRuler(actor); }
@@ -918,7 +918,7 @@ public class Empire : RecordObject<EmpireData>
         }
         actor.SetPeeragesLevel(PeeragesLevel.peerages_0);
         
-        actor.Record.renown += 20;
+        actor.Renown += 20;
         MoveToEmpireCapital(actor);
         if (NoDynasty)
         {
@@ -950,6 +950,7 @@ public class Empire : RecordObject<EmpireData>
         // 君主早逝、皇位更迭频繁推高王朝积弊(用户 2026-10-26，见 DynasticCycleSystem.OnSuccession)
         if (!NoDynasty) DynasticCycleSystem.OnSuccession(this, actor, isNew);
     }
+#endif
 
     private bool IsDynasticSuccessor(Person actor, SpecificClan previousRoyalClan, Clan previousEmpireClan)
     {
@@ -982,10 +983,11 @@ public class Empire : RecordObject<EmpireData>
         }
 
         Person previousEmperor = EmpireWorld.Current.PersonByKey(previousReign.id);
-        return actor.getParents().Any(parent => parent != null && parent.id == previousReign.id) ||
-               (previousEmperor?.getChildren().Any(child => child != null && child.id == actor.Key) ?? false);
+        return actor.GetParents().Any(parent => parent != null && parent.Key == previousReign.id) ||
+               (previousEmperor?.GetChildren().Any(child => child != null && child.Key == actor.Key) ?? false);
     }
 
+#if EC_PENDING
     private static SpecificClan RestoreDynasticSuccessorClan(Person actor, SpecificClan previousRoyalClan,
         Clan previousEmpireClan)
     {
@@ -2162,18 +2164,18 @@ public class Empire : RecordObject<EmpireData>
 
     private Person GetHonoraryPeerageCandidate(IEnumerable<Person> candidates, string peerageKey)
     {
-        bool IsCivilMerit(Person a) => !a.isWarrior() && (a.GetOrCreate().officeIdentity?.TotalPerformance ?? 0) >= 500 && a.renown >= 100;
-        bool IsMilitaryMerit(Person a) => a.isWarrior() && a.renown >= 120;
+        bool IsCivilMerit(Person a) => !a.IsWarrior() && (a.GetOrCreate().officeIdentity?.TotalPerformance ?? 0) >= 500 && a.Renown >= 100;
+        bool IsMilitaryMerit(Person a) => a.IsWarrior() && a.Renown >= 120;
         return peerageKey switch
         {
             "tang_honorary_anle_gong" => candidates.Select(actor => (actor, priority: GetAnlePeeragePriority(actor)))
                 .Where(item => item.priority > 0).OrderByDescending(item => item.priority)
                 .ThenBy(item => item.actor.GetPersonalIdentity()?.rank ?? int.MaxValue)
                 .ThenBy(item => item.actor.Key).Select(item => item.actor).FirstOrDefault(),
-            "tang_honorary_wenan_gong" or "tang_honorary_longxi_gong" => candidates.Where(IsCivilMerit).OrderByDescending(a => a.renown).FirstOrDefault(),
-            "tang_honorary_wujun_hou" => candidates.Where(a => IsMilitaryMerit(a) && a.renown >= 250).OrderByDescending(a => a.renown).FirstOrDefault(),
-            "tang_honorary_zhongyong_hou" => candidates.Where(a => IsMilitaryMerit(a) && (a.GetOrCreate().officeIdentity?.TotalPerformance ?? 0) >= 150).OrderByDescending(a => a.renown).FirstOrDefault(),
-            "tang_honorary_huaide_hou" => candidates.Where(a => !a.isWarrior() && (a.GetOrCreate().officeIdentity?.TotalPerformance ?? 0) >= 350).OrderByDescending(a => a.GetOrCreate().officeIdentity.TotalPerformance).FirstOrDefault(),
+            "tang_honorary_wenan_gong" or "tang_honorary_longxi_gong" => candidates.Where(IsCivilMerit).OrderByDescending(a => a.Renown).FirstOrDefault(),
+            "tang_honorary_wujun_hou" => candidates.Where(a => IsMilitaryMerit(a) && a.Renown >= 250).OrderByDescending(a => a.Renown).FirstOrDefault(),
+            "tang_honorary_zhongyong_hou" => candidates.Where(a => IsMilitaryMerit(a) && (a.GetOrCreate().officeIdentity?.TotalPerformance ?? 0) >= 150).OrderByDescending(a => a.Renown).FirstOrDefault(),
+            "tang_honorary_huaide_hou" => candidates.Where(a => !a.IsWarrior() && (a.GetOrCreate().officeIdentity?.TotalPerformance ?? 0) >= 350).OrderByDescending(a => a.GetOrCreate().officeIdentity.TotalPerformance).FirstOrDefault(),
             _ => null
         };
     }
@@ -3104,7 +3106,7 @@ public class Empire : RecordObject<EmpireData>
     {
         if (string.IsNullOrEmpty(this.data.motto))
         {
-            this.data.motto = NameGenerator.getName("alliance_mottos", ActorSex.Male, false, null, null, false);
+            this.data.motto = NameGenerator.getName("alliance_mottos", Sex.Male, false, null, null, false);
         }
         return this.data.motto;
     }
@@ -3362,7 +3364,7 @@ public class Empire : RecordObject<EmpireData>
         bool isTributary = kingdom.GetTakenAllianceEmpire() == this;
         KingdomOpinion opinion = EmpireWorld.Current?.diplomacy?.getOpinion(CoreKingdom, kingdom);
         if (!TributaryTitlePetitionRules.CanPetition(isTributary, kingdom.HasMainTitle(),
-                opinion?.total ?? int.MinValue, kingdom.Ruler.renown)) return null;
+                opinion?.total ?? int.MinValue, kingdom.Ruler.Renown)) return null;
 
         EmpireCore core = EmpireCoreManager.Get(this);
         if (core == null) return null;
@@ -3428,7 +3430,7 @@ public class Empire : RecordObject<EmpireData>
         if (GetLandedLegalTitleKingdom(requestedTitle) != kingdom ||
             GetLegalPeerageHolder(requestedTitle) != ruler) return false;
 
-        ruler.Record.renown -= TributaryTitlePetitionRules.PetitionInfluenceCost;
+        ruler.Renown -= TributaryTitlePetitionRules.PetitionInfluenceCost;
         TranslateHelper.LogTributaryTitleGranted(kingdom, this, requestedTitle);
         return true;
     }
@@ -3673,15 +3675,15 @@ public class Empire : RecordObject<EmpireData>
     {
         Person emperor = Emperor;
         if (emperor == null || emperor.IsGone()) return null;
-        Person mother = emperor.getParents()?.Where(parent => parent != null && !parent.IsGone() &&
-            parent.isSexFemale()).OrderByDescending(parent => parent.renown).FirstOrDefault();
+        Person mother = emperor.GetParents()?.Where(parent => parent != null && !parent.IsGone() &&
+            parent.IsFemale()).OrderByDescending(parent => parent.Renown).FirstOrDefault();
         if (mother == null)
         {
             PersonalClanIdentity identity = emperor.GetPersonalIdentity();
             // 生母转成了虚拟族人的落成一次，之后作君主生母留在地图上(见 PersonRef.Keeps)
             mother = identity?.mother > 0 ? PresentHere(SpecificClanManager.getPerson(identity.mother)) : null;
         }
-        return mother != null && !mother.IsGone() && mother.IsAdult() && mother.isSexFemale() &&
+        return mother != null && !mother.IsGone() && mother.IsAdult() && mother.IsFemale() &&
             mother.Realm?.GetEmpire() == this ? mother : null;
     }
 #endif
@@ -3702,8 +3704,8 @@ public class Empire : RecordObject<EmpireData>
         Person wife = previousIdentity?.hasLover() == true
             ? PresentHere(SpecificClanManager.getPerson(previousIdentity.lover.identity))
             : null;
-        wife ??= previousEmperor?.lover;
-        return IsValidRegencyCandidate(wife) && wife.isSexFemale() ? wife : null;
+        wife ??= previousEmperor?.Spouse;
+        return IsValidRegencyCandidate(wife) && wife.IsFemale() ? wife : null;
     }
 #endif
 
@@ -3759,17 +3761,17 @@ public class Empire : RecordObject<EmpireData>
     {
         Person emperor = Emperor;
         return emperor != null && !emperor.IsGone() && !RealisticAgeSystem.IsMinor(emperor) && Mandate >= 80 &&
-            emperor.stewardship >= 10 && !HasVulnerableNewEmperor();
+            emperor.Stewardship >= 10 && !HasVulnerableNewEmperor();
     }
+#endif
 
     private bool HasVulnerableNewEmperor()
     {
         Person emperor = Emperor;
         return emperor != null && !emperor.IsGone() && data.newEmperor_timestamp >= 0 &&
-            PowerfulMinisterRules.IsVulnerableNewEmperor(emperor.renown,
+            PowerfulMinisterRules.IsVulnerableNewEmperor(emperor.Renown,
                 GameClock.MonthsSince(data.newEmperor_timestamp));
     }
-#endif
 
     private bool IsRegencyEnding()
     {
@@ -3790,7 +3792,7 @@ public class Empire : RecordObject<EmpireData>
         bool isFactionLeader = actor.GetFaction()?.GetLeader()?.Key == actor.Key;
         bool isShangshu = actor.GetOffice()?.officeType == 4;
         if (cabinetLeader?.Key != actor.Key && !isFactionLeader && !isShangshu) return false;
-        return !requireInitialInfluence || actor.renown >= PowerfulMinisterRules.EntryInfluence;
+        return !requireInitialInfluence || actor.Renown >= PowerfulMinisterRules.EntryInfluence;
     }
 
     private Person FindPowerfulMinisterCandidate(Regime currentRegime, out bool isRegent,
@@ -3836,18 +3838,18 @@ public class Empire : RecordObject<EmpireData>
                 .OrderByDescending(actor => actor.Key == current?.Key)
                 .ThenByDescending(actor => actor.Key == cabinetLeader?.Key)
                 .ThenByDescending(actor => HasCentralMinisterSupport(actor, currentRegime))
-                .ThenByDescending(actor => actor.renown)
+                .ThenByDescending(actor => actor.Renown)
                 .ThenByDescending(actor => actor.GetOrCreate().officeIdentity?.TotalPerformance ?? 0)
                 .FirstOrDefault();
             normalCandidate ??= getUnits().Where(actor => IsValidRegencyCandidate(actor) &&
                     actor.Key != dowager?.Key && actor.Realm == CoreKingdom &&
                     !SpecificClanManager.SameLineage(actor.GetSpecificClan(), EmpireSpecificClan))
                 .OrderByDescending(actor => actor.Key == current?.Key)
-                .ThenByDescending(actor => actor.renown).ThenBy(actor => actor.id).FirstOrDefault();
+                .ThenByDescending(actor => actor.Renown).ThenBy(actor => actor.Key).FirstOrDefault();
             normalCandidate ??= getUnits().Where(actor => IsValidRegencyCandidate(actor) &&
                     actor.Key != dowager?.Key && actor.Realm == CoreKingdom)
                 .OrderByDescending(actor => actor.Key == current?.Key)
-                .ThenByDescending(actor => actor.renown).ThenBy(actor => actor.id).FirstOrDefault();
+                .ThenByDescending(actor => actor.Renown).ThenBy(actor => actor.Key).FirstOrDefault();
             // 外戚：外戚首领以大将军辅政，优先于朝臣与太后本人(见 ConsortKinSystem)
             Person consortRegent = ConsortKinSystem.RegentFor(this, normalCandidate);
             if (consortRegent != null)
@@ -3856,7 +3858,7 @@ public class Empire : RecordObject<EmpireData>
                 return consortRegent;
             }
             if (PowerfulMinisterRules.ShouldPreferEmpressDowager(true, dowager != null,
-                    dowager?.renown ?? 0, normalCandidate != null, normalCandidate?.renown ?? 0))
+                    dowager?.Renown ?? 0, normalCandidate != null, normalCandidate?.Renown ?? 0))
             {
                 isRegent = true;
                 isEmpressDowager = true;
@@ -3879,7 +3881,7 @@ public class Empire : RecordObject<EmpireData>
         return centralCandidates.Where(actor => IsEligiblePowerBase(actor, currentRegime, true, out _))
             .OrderByDescending(actor => actor.Key == cabinetLeader?.Key)
             .ThenByDescending(actor => HasCentralMinisterSupport(actor, currentRegime))
-            .ThenByDescending(actor => actor.renown)
+            .ThenByDescending(actor => actor.Renown)
             .ThenByDescending(actor => actor.GetOrCreate().officeIdentity?.TotalPerformance ?? 0)
             .FirstOrDefault();
     }
@@ -3898,9 +3900,9 @@ public class Empire : RecordObject<EmpireData>
         EmpireCraftDebugProbe.Observe("powerful_minister.candidate", id.ToString(),
             $"{emperor.Key}:{candidate?.Key ?? -1L}:{isRegent}:{isEmpressDowager}:{isFormerEmpress}", () =>
                 $"empire={GetEmpireFullName()}({id}), emperor={emperor.FullName()}({emperor.Key}), " +
-                $"emperorRenown={emperor.renown}, emperorAdult={emperor.IsAdult()}, " +
+                $"emperorRenown={emperor.Renown}, emperorAdult={emperor.IsAdult()}, " +
                 $"candidate={candidate?.FullName() ?? "none"}({candidate?.Key ?? -1L}), " +
-                $"candidateRenown={candidate?.renown ?? 0}, regent={isRegent}, " +
+                $"candidateRenown={candidate?.Renown ?? 0}, regent={isRegent}, " +
                 $"empressDowager={isEmpressDowager}, formerEmpress={isFormerEmpress}, regime={currentRegime.type}");
         if (candidate?.Key != data.powerful_minister_id && data.is_been_controlled)
         {
@@ -3991,13 +3993,13 @@ public class Empire : RecordObject<EmpireData>
         monthlyChange = LateImperialSystem.MinisterGrowth(this, monthlyChange, isRegent || isEmpressDowager);
         int previousProgress = data.powerful_minister_progress;
         data.powerful_minister_progress = PowerfulMinisterRules.Advance(data.powerful_minister_progress,
-            candidate.renown, elapsedMonths, monthlyChange, out int cost);
-        candidate.Record.renown -= cost;
+            candidate.Renown, elapsedMonths, monthlyChange, out int cost);
+        candidate.Renown -= cost;
         EmpireCraftDebugProbe.Hit("powerful_minister.progress", () =>
             $"empire={GetEmpireFullName()}({id}), emperor={emperor.FullName()}({emperor.Key}), " +
             $"minister={candidate.FullName()}({candidate.Key}), progress={previousProgress}->" +
             $"{data.powerful_minister_progress}, elapsedMonths={elapsedMonths}, monthlyChange={monthlyChange}, " +
-            $"renownCost={cost}, remainingRenown={candidate.renown}, mandate={Mandate}, " +
+            $"renownCost={cost}, remainingRenown={candidate.Renown}, mandate={Mandate}, " +
             $"support={hasSupport}, chiefAndLeader={chiefAndLeader}, regent={isRegent}, " +
             $"empressDowager={isEmpressDowager}");
         if (data.is_been_controlled && data.powerful_minister_progress < PowerfulMinisterRules.ReleaseControlBelow)
@@ -4077,7 +4079,7 @@ public class Empire : RecordObject<EmpireData>
     {
         if (dowager == null || dowager.IsGone()) return null;
         PersonalClanIdentity dowagerIdentity = dowager.GetPersonalIdentity();
-        bool IsEligibleSon(Person son) => son != null && !son.IsGone() && son.isSexMale() &&
+        bool IsEligibleSon(Person son) => son != null && !son.IsGone() && son.IsMale() &&
             son.Key != (Emperor?.Key ?? -1L) && son.Realm?.GetEmpire() == this;
         Person son = SpecificClanManager.getChildren(dowagerIdentity)
             .Select(item => item.Item2)
@@ -4086,11 +4088,11 @@ public class Empire : RecordObject<EmpireData>
             .OrderBy(identity => identity.rank).ThenBy(identity => identity.id)
             .Select(identity => identity._actor).FirstOrDefault();
         if (son != null) return son;
-        son = dowager.getChildren().Where(IsEligibleSon)
+        son = dowager.GetChildren().Where(IsEligibleSon)
             .Where(child => child.GetPersonalIdentity()?.mother == dowagerIdentity?.id ||
-                child.getParents().Any(parent => parent?.id == dowager.Key))
-            .OrderByDescending(child => child.isAdult()).ThenByDescending(child => child.getAge())
-            .ThenBy(child => child.id).FirstOrDefault();
+                child.GetParents().Any(parent => parent?.Key == dowager.Key))
+            .OrderByDescending(child => child.IsAdult()).ThenByDescending(child => child.Age())
+            .ThenBy(child => child.Key).FirstOrDefault();
         // 纯净地图下亲子多是虚拟族人：真要废立时才落成
         return son ?? (realize ? KinRoster.RealizeFirst(VirtualDowagerSons(dowagerIdentity), IsEligibleSon, 2) : null);
     }
@@ -4100,7 +4102,7 @@ public class Empire : RecordObject<EmpireData>
 #if EC_PENDING
     private IEnumerable<PersonalClanIdentity> VirtualDowagerSons(PersonalClanIdentity dowager) =>
         dowager == null ? Enumerable.Empty<PersonalClanIdentity>()
-            : KinRoster.Children(dowager).Where(person => KinRoster.Virtual(person) && person.sex == ActorSex.Male &&
+            : KinRoster.Children(dowager).Where(person => KinRoster.Virtual(person) && person.sex == Sex.Male &&
                                                           person.mother == dowager.id &&
                                                           KinRoster.KingdomOf(person)?.GetEmpire() == this)
                 .OrderBy(person => person.rank).ThenBy(person => person.id);
@@ -4110,7 +4112,7 @@ public class Empire : RecordObject<EmpireData>
 #if EC_PENDING
     private IEnumerable<PersonalClanIdentity> VirtualDynastMen(long excludeActor) =>
         KinRoster.Lineage(EmpireSpecificClan)
-            .Where(person => KinRoster.Virtual(person) && person.sex == ActorSex.Male && person.age >= 18 &&
+            .Where(person => KinRoster.Virtual(person) && person.sex == Sex.Male && person.age >= 18 &&
                              person.actor_id != excludeActor && KinRoster.KingdomOf(person)?.GetEmpire() == this)
             .OrderByDescending(person => person.age).ThenBy(person => person.id);
 #endif
@@ -4118,9 +4120,9 @@ public class Empire : RecordObject<EmpireData>
     // 后宫干政(用户 2026-10-15："为什么会存在妃子篡位""她们无法篡位，唯一能做的就是废立皇帝")：
     // 掌权的是女子(皇后、妃嫔、太后)。华夏一系里她们不能封公、加九锡、篡位，权势到顶只能废立——
     // 废掉当今皇帝，另立皇族的人(先立亲子，没有就挑宗室里的成年男子)
-#if EC_PENDING
-    public bool IsHaremPower(Person actor) => actor?.Record != null && actor.isSexFemale();
+    public bool IsHaremPower(Person actor) => actor?.Record != null && actor.IsFemale();
 
+#if EC_PENDING
     private bool HaremBarred(Person actor)
     {
         if (!IsHaremPower(actor) || CoreKingdom == null) return false;
@@ -4141,7 +4143,7 @@ public class Empire : RecordObject<EmpireData>
     {
         Person son = GetEmpressDowagerPreferredSon(actor, realize: true);
         if (son != null || !HaremBarred(actor)) return son;
-        bool Fit(Person unit) => unit != null && !unit.IsGone() && unit.Alive && unit.isSexMale() && unit.IsAdult() &&
+        bool Fit(Person unit) => unit != null && !unit.IsGone() && unit.Alive && unit.IsMale() && unit.IsAdult() &&
                                 unit.Key != (Emperor?.Key ?? -1L) && unit.Realm?.GetEmpire() == this &&
                                 SpecificClanManager.SameLineage(unit.GetSpecificClan(), EmpireSpecificClan);
         return getUnits().Where(Fit).OrderByDescending(unit => unit.Age()).ThenBy(unit => unit.Key).FirstOrDefault() ??
@@ -4156,7 +4158,7 @@ public class Empire : RecordObject<EmpireData>
         if (GetEmpressDowagerPreferredSon(actor) != null) return true;
         if (VirtualDowagerSons(actor?.GetPersonalIdentity()).Any()) return true;
         if (!HaremBarred(actor)) return false;
-        return getUnits().Any(unit => unit != null && !unit.IsGone() && unit.Alive && unit.isSexMale() && unit.IsAdult() &&
+        return getUnits().Any(unit => unit != null && !unit.IsGone() && unit.Alive && unit.IsMale() && unit.IsAdult() &&
                                       unit.Key != (Emperor?.Key ?? -1L) && unit.Realm?.GetEmpire() == this &&
                                       SpecificClanManager.SameLineage(unit.GetSpecificClan(), EmpireSpecificClan)) ||
                VirtualDynastMen(Emperor?.Key ?? -1L).Any();
@@ -4194,7 +4196,7 @@ public class Empire : RecordObject<EmpireData>
         Realm formerKingdom = son.Realm;
         if (son.IsRuler() && formerKingdom != coreKingdom) formerKingdom.RemoveRuler();
         if (coreKingdom.Ruler?.Key == deposedEmperor.Key) coreKingdom.RemoveRuler();
-        son.joinCity(capital);
+        son.JoinCity(capital);
         son.setKingdom(coreKingdom);
         // Palace deposition has its own outcome and must not trigger the generic dynasty-usurpation revolt.
         _completingMinisterUsurpation = true;
@@ -4215,16 +4217,16 @@ public class Empire : RecordObject<EmpireData>
         Realm core = CoreKingdom;
         City capital = core?.Capital;
         if (deposed == null || core == null || capital == null || faction == null) return null;
-        Person heir = getUnits().Where(unit => unit != null && !unit.IsGone() && unit.Alive && unit.isSexMale() &&
+        Person heir = getUnits().Where(unit => unit != null && !unit.IsGone() && unit.Alive && unit.IsMale() &&
                                               unit.IsAdult() && unit.Key != deposed.Key && unit.Realm?.GetEmpire() == this &&
                                               SpecificClanManager.SameLineage(unit.GetSpecificClan(), EmpireSpecificClan))
             .OrderByDescending(unit => unit.GetFaction() == faction)
-            .ThenByDescending(unit => unit.getAge()).ThenBy(unit => unit.id).FirstOrDefault();
+            .ThenByDescending(unit => unit.Age()).ThenBy(unit => unit.Key).FirstOrDefault();
         // 无小人模式下宗室可能都在虚拟族谱中；只把实际要迎立的人落成，不能把“没有实体”当作皇族绝嗣。
         if (heir == null && EmpireSpecificClan != null)
             foreach (PersonalClanIdentity person in SpecificClanManager.LineageClans(EmpireSpecificClan)
                          .SelectMany(clan => clan.SnapshotPeople())
-                         .Where(person => person != null && person.is_alive && person.is_virtual && person.sex == ActorSex.Male &&
+                         .Where(person => person != null && person.is_alive && person.is_virtual && person.sex == Sex.Male &&
                              person.age >= 18 && person.actor_id != deposed.Key && person.virtual_city_id > 0 &&
                              EmpireWorld.Current.CityByKey(person.virtual_city_id)?.kingdom?.GetEmpire() == this)
                          .OrderByDescending(person => person.age).ThenBy(person => person.id))
@@ -4247,7 +4249,7 @@ public class Empire : RecordObject<EmpireData>
         Realm formerKingdom = heir.Realm;
         if (heir.IsRuler() && formerKingdom != core) formerKingdom.RemoveRuler();
         if (core.Ruler?.Key == deposed.Key) core.RemoveRuler();
-        heir.joinCity(capital);
+        heir.JoinCity(capital);
         heir.setKingdom(core);
         _completingMinisterUsurpation = true;
         try { core.SetRuler(heir); }
@@ -4290,7 +4292,7 @@ public class Empire : RecordObject<EmpireData>
         }).ToList();
         return titles.Where(item => item.Holder != null && item.Holder != Emperor &&
                 EmpireSpecificClan != null && SpecificClanManager.SameLineage(item.Holder.GetSpecificClan(), EmpireSpecificClan))
-            .OrderBy(item => item.Holder.renown).ThenBy(item => item.Title.id)
+            .OrderBy(item => item.Holder.Renown).ThenBy(item => item.Title.Key)
             .Select(item => item.Title).FirstOrDefault() ??
             titles.Where(item => item.Holder == null).OrderBy(item => item.Title.Key)
                 .Select(item => item.Title).FirstOrDefault();
@@ -4367,12 +4369,14 @@ public class Empire : RecordObject<EmpireData>
         ResolveMinisterOpposition(actor);
         return true;
     }
+#endif
 
     private static bool HasUsurpingDisposition(Person actor)
     {
-        return actor != null && (actor.hasTrait("evil") || actor.hasTrait("ambitious"));
+        return actor != null && (actor.HasTrait("evil") || actor.HasTrait("ambitious"));
     }
 
+#if EC_PENDING
     public bool CanPowerfulMinisterUsurp(Person actor)
     {
         // 开国气象(统一战争期间、统一后三十年)权臣不篡位(见 UnificationSystem)
@@ -4389,7 +4393,7 @@ public class Empire : RecordObject<EmpireData>
         Person minister = data.minister_usurper_id == Emperor?.Key ? Emperor :
             data.is_been_controlled && data.powerful_minister_stage == PowerfulMinisterStageKing
                 ? GetPowerfulMinister() : null;
-        return minister == null || minister.IsGone() ? 0 : PowerfulMinisterRules.OppositionPenalty(minister.renown);
+        return minister == null || minister.IsGone() ? 0 : PowerfulMinisterRules.OppositionPenalty(minister.Renown);
     }
 
     private City GetMinisterOpponentPowerBase(Person actor)
@@ -4417,11 +4421,11 @@ public class Empire : RecordObject<EmpireData>
         if (EmpireCraft.Core.UnificationSystem.InGrace(CoreKingdom)) return;
         // 不许自立(见 SecessionGate)：成员国君领头时先开战后起事，要在开战前问
         if (SecessionGate.Forbids("逼反权臣", data?.name)) return;
-        int ministerInfluence = influence ?? minister.renown;
+        int ministerInfluence = influence ?? minister.Renown;
         if (!PowerfulMinisterRules.ShouldRiseAgainstMinister(ministerInfluence, 501, true)) return;
         // Snapshot before creating kingdoms: each successful revolt changes empire membership.
         var opponents = getUnits().Where(actor => actor != null && actor != minister &&
-                !actor.IsGone() && PowerfulMinisterRules.ShouldRiseAgainstMinister(ministerInfluence, actor.renown, true))
+                !actor.IsGone() && PowerfulMinisterRules.ShouldRiseAgainstMinister(ministerInfluence, actor.Renown, true))
             .Distinct().Select(actor => new { Person = actor, City = GetMinisterOpponentPowerBase(actor) })
             .Where(item => item.City != null).OrderByDescending(item => item.Actor.renown)
             .ThenBy(item => item.Actor.id).ToList();
@@ -4436,7 +4440,7 @@ public class Empire : RecordObject<EmpireData>
                 rebels.IsAtWarWith(CoreKingdom))) continue;
             if (rebels == null)
             {
-                leader.joinCity(seat);
+                leader.JoinCity(seat);
                 rebels = seat.makeOwnKingdom(leader, pRebellion: true);
             }
             if (rebels == null || rebels == CoreKingdom) continue;
@@ -4467,7 +4471,7 @@ public class Empire : RecordObject<EmpireData>
         string newEmpireName = title.data.name;
         string oldEmpireName = GetEmpireName();
         Person previousEmperor = Emperor;
-        int ministerInfluence = actor.renown;
+        int ministerInfluence = actor.Renown;
         TranslateHelper.LogPowerfulMinisterUsurpation(actor, this, newEmpireName);
         this.RecordHistory(directContent: string.Format(LM.Get("history_powerful_minister_usurpation"),
             actor.FullName(), newEmpireName), actorId: actor.Key);
@@ -4490,7 +4494,7 @@ public class Empire : RecordObject<EmpireData>
         {
             coreKingdom.RemoveRuler();
         }
-        actor.joinCity(capital);
+        actor.JoinCity(capital);
         actor.setKingdom(coreKingdom);
         // This path has its own influence-based opposition, not the generic dynasty-change rebellion.
         _completingMinisterUsurpation = true;
@@ -4623,7 +4627,7 @@ public class Empire : RecordObject<EmpireData>
         City destination = title.title_capital;
         if (relocate && destination != null && !destination.IsGone() && destination.Realm?.GetEmpire() == this)
         {
-            actor.joinCity(destination);
+            actor.JoinCity(destination);
             actor.goTo(destination._city_tile);
         }
         AddMandate(mandateChange);
@@ -5049,7 +5053,7 @@ public class Empire : RecordObject<EmpireData>
         bool IsEligible(Person actor) => actor != null && !actor.IsGone() && actor.isActor() &&
             actor.Alive && actor.IsAdult() && !actor.IsRuler() && actor.Key != (Emperor?.Key ?? -1L) &&
             actor.Key != heir && scriptedHeirs?.Contains(actor.Key) != true &&
-            actor.isUnitFitToRule();
+            actor.IsFitToRule();
 
         if (createAdministration)
         {

@@ -11,13 +11,13 @@ public class EmpireCraftActorCheckCity:GameAIActorBase
 #if EC_PENDING
     public override BehResult execute(Person pActor)
     {
-        if (!pActor.isUnitFitToRule()) return BehResult.Continue;
+        if (!pActor.IsFitToRule()) return BehResult.Continue;
         if (pActor.Realm.IsNeutral()) return BehResult.Continue;
         if (!EmpireCraftWorldLawLibrary.empirecraft_law_prevent_city_destroy.isEnabled()) return BehResult.Continue;
         if (pActor.current_zone.hasCity())
         {
             City city = pActor.current_zone.city;
-            if (pActor.hasKingdom() && city != null && city.PopulationCount()<=0)
+            if (pActor.HasRealm() && city != null && city.PopulationCount()<=0)
             {
                 Realm kingdom = pActor.Realm;
                 // 空城换主只在无主、或两国正在交战时(群友 2026-11-22 "城市永不毁灭好像出了点问题")：以前不看城是谁的，
@@ -38,7 +38,7 @@ public class EmpireCraftActorCheckCity:GameAIActorBase
                 }
                 else
                 {
-                    pActor.joinCity(city);
+                    pActor.JoinCity(city);
                     pActor.goTo(city._city_tile);
                 }
             }

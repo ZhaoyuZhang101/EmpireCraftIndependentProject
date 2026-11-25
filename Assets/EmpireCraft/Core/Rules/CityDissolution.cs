@@ -96,7 +96,7 @@ public static class CityDissolution
         {
             if (unit?.Record == null || unit.IsGone() || !unit.Alive) continue;
             if (unit.IsCityLeader() && unit.City == city) city.removeLeader();
-            unit.joinCity(destination);
+            unit.JoinCity(destination);
         }
     }
 #endif

@@ -72,7 +72,7 @@ public static class WarCommandSystem
     public static float Factor(Realm kingdom)
     {
         Person commander = Commander(kingdom);
-        return commander == null ? 1f : 1f + Mathf.Min(MaxBonus, Mathf.Max(0, commander.warfare) * PerWarfare);
+        return commander == null ? 1f : 1f + Mathf.Min(MaxBonus, Mathf.Max(0, commander.Warfare) * PerWarfare);
     }
 #endif
 
@@ -81,13 +81,13 @@ public static class WarCommandSystem
     public static float QuartermasterSupply(Realm kingdom)
     {
         Person quartermaster = Quartermaster(kingdom);
-        return quartermaster == null ? 0f : Mathf.Min(MaxBonus, Mathf.Max(0, quartermaster.stewardship) * SupplyPerStewardship);
+        return quartermaster == null ? 0f : Mathf.Min(MaxBonus, Mathf.Max(0, quartermaster.Stewardship) * SupplyPerStewardship);
     }
 
     public static float QuartermasterSaving(Realm kingdom)
     {
         Person quartermaster = Quartermaster(kingdom);
-        return quartermaster == null ? 0f : Mathf.Min(MaxBonus, Mathf.Max(0, quartermaster.stewardship) * SavingPerStewardship);
+        return quartermaster == null ? 0f : Mathf.Min(MaxBonus, Mathf.Max(0, quartermaster.Stewardship) * SavingPerStewardship);
     }
 #endif
 
@@ -113,16 +113,16 @@ public static class WarCommandSystem
     public static void Appoint(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || kingdom.units == null) return;
-        Person pick = Best(kingdom, actor => actor.warfare, -1L);
+        Person pick = Best(kingdom, actor => actor.Warfare, -1L);
         // 君主兵略最好(或无人可用)时御驾亲征；幼主、被挟制的不亲征，帝国的辅政权臣兵略够就由他挂帅
         Person king = kingdom.Ruler;
         Empire empire = kingdom.GetEmpire();
         bool sidelined = RealisticAgeSystem.IsMinor(king) || empire?.CoreKingdom == kingdom && empire.data.is_been_controlled;
         if (king?.Record != null && !king.IsGone() && king.Alive && !sidelined &&
-            (pick == null || king.warfare >= pick.warfare)) pick = king;
+            (pick == null || king.Warfare >= pick.Warfare)) pick = king;
         Person regent = sidelined && empire?.CoreKingdom == kingdom ? empire.GetPowerfulMinister() : null;
         if (regent?.Record != null && !regent.IsGone() && regent.Alive && regent.Realm == kingdom && !RealisticAgeSystem.IsMinor(regent) &&
-            (pick == null || regent.warfare >= pick.warfare)) pick = regent;
+            (pick == null || regent.Warfare >= pick.Warfare)) pick = regent;
         if (pick == null) return;
         var data = kingdom.GetOrCreate();
         data.war_commander_id = pick.Key;
@@ -134,7 +134,7 @@ public static class WarCommandSystem
     {
         if (kingdom?.Record == null || kingdom.IsGone() || kingdom.units == null) return;
         var data = kingdom.GetOrCreate();
-        Person pick = Best(kingdom, actor => actor.stewardship, data.war_commander_id);
+        Person pick = Best(kingdom, actor => actor.Stewardship, data.war_commander_id);
         if (pick == null) return;
         data.war_quartermaster_id = pick.Key;
         data.war_quartermaster_title = QuartermasterKey(kingdom);

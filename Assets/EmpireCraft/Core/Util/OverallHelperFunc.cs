@@ -365,17 +365,17 @@ namespace EmpireCraft.Core
                     {
                         if (officer.IsSameFactionWithEmpire(empire))
                         {
-                            additions.addition[OfficerPowerType.审核] = officer.intelligence*2;
+                            additions.addition[OfficerPowerType.审核] = officer.Intelligence*2;
                         }
                         else
                         {
                             if (officer.GetFaction() == null)
                             {
-                                additions.addition[OfficerPowerType.审核] = officer.intelligence;
+                                additions.addition[OfficerPowerType.审核] = officer.Intelligence;
                             }
                             else
                             {
-                                additions.addition[OfficerPowerType.审核] = -officer.intelligence;
+                                additions.addition[OfficerPowerType.审核] = -officer.Intelligence;
                             }
                         }
                     }
@@ -387,7 +387,7 @@ namespace EmpireCraft.Core
                 case OfficerPowerType.军事:
                     if (officer != null)
                     {
-                        additions.addition[OfficerPowerType.军事] = officer.warfare;
+                        additions.addition[OfficerPowerType.军事] = officer.Warfare;
                     }
                     else
                     {
@@ -397,7 +397,7 @@ namespace EmpireCraft.Core
                 case OfficerPowerType.建设:
                     if (officer != null)
                     {
-                        additions.addition[OfficerPowerType.建设] = officer.stewardship;
+                        additions.addition[OfficerPowerType.建设] = officer.Stewardship;
                     }
                     else
                     {
@@ -407,7 +407,7 @@ namespace EmpireCraft.Core
                 case OfficerPowerType.教育:
                     if (officer != null)
                     {
-                        additions.addition[OfficerPowerType.教育] = officer.intelligence;
+                        additions.addition[OfficerPowerType.教育] = officer.Intelligence;
                     }
                     else
                     {
@@ -437,7 +437,7 @@ namespace EmpireCraft.Core
                 case OfficerPowerType.天子智教:
                     if (officer != null)
                     {
-                        additions.addition[OfficerPowerType.天子智教] = officer.intelligence;
+                        additions.addition[OfficerPowerType.天子智教] = officer.Intelligence;
                     }
                     else
                     {
@@ -447,7 +447,7 @@ namespace EmpireCraft.Core
                 case OfficerPowerType.宗教:
                     if (officer != null)
                     {
-                        additions.addition[OfficerPowerType.宗教] = officer.intelligence;
+                        additions.addition[OfficerPowerType.宗教] = officer.Intelligence;
                     }
                     else
                     {
@@ -457,7 +457,7 @@ namespace EmpireCraft.Core
                 case OfficerPowerType.礼仪:
                     if (officer != null)
                     {
-                        additions.addition[OfficerPowerType.礼仪] = officer.stewardship;
+                        additions.addition[OfficerPowerType.礼仪] = officer.Stewardship;
                     }
                     else
                     {
@@ -467,7 +467,7 @@ namespace EmpireCraft.Core
                 case OfficerPowerType.财政:
                     if (officer != null)
                     {
-                        additions.addition[OfficerPowerType.财政] = officer.stewardship;
+                        additions.addition[OfficerPowerType.财政] = officer.Stewardship;
                     }
                     else
                     {
@@ -477,7 +477,7 @@ namespace EmpireCraft.Core
                 case OfficerPowerType.人事:
                     if (officer != null)
                     {
-                        additions.addition[OfficerPowerType.人事] = officer.stewardship;
+                        additions.addition[OfficerPowerType.人事] = officer.Stewardship;
                     }
                     else
                     {
@@ -492,7 +492,7 @@ namespace EmpireCraft.Core
                         additions.addition[OfficerPowerType.生育] = EmpireCraft.Core.KinRoster.Children(officer)
                             .Count(child => emperorIdentity > 0 && (child.father == emperorIdentity || child.mother == emperorIdentity) ||
                                             EmpireCraft.Core.KinRoster.OnMap(child) &&
-                                            child._actor.getParents().Any(p => p.IsEmperor()));
+                                            child._actor.GetParents().Any(p => p.IsEmperor()));
                     }
                     else
                     {
@@ -539,7 +539,7 @@ namespace EmpireCraft.Core
             }
             foreach (Person actor in actors)
             {
-                if (actor.isUnitFitToRule())
+                if (actor.IsFitToRule())
                 {
                     string culture = ConfigData.speciesCulturePair.TryGetValue(actor.asset.id, out string culturePair)? culturePair:"Western";
                     string merit = "";
@@ -562,7 +562,7 @@ namespace EmpireCraft.Core
                         officialLevel = string.Join("_", culture, identity.officialLevel.ToString());
                         officialLevel += LM.Get(officialLevel);
                     }
-                    educationLevel = (actor.hasTrait("jingshi") ? "trait_jingshi" : "") +"/" +(actor.hasTrait("gongshi") ? "trait_gongshi" : "") +"/"+ (actor.hasTrait("juren")?"trait_juren":"");
+                    educationLevel = (actor.HasTrait("jingshi") ? "trait_jingshi" : "") +"/" +(actor.HasTrait("gongshi") ? "trait_gongshi" : "") +"/"+ (actor.HasTrait("juren")?"trait_juren":"");
                     educationLevel += string.Join("/", educationLevel.Split('/').Select(c=>LM.Get(c)));
                     PeeragesLevel = string.Join("_", culture, actor.GetPeeragesLevel().ToString());
                     PeeragesLevel += TranslateHelper.PeerageName(PeeragesLevel);
@@ -581,8 +581,8 @@ namespace EmpireCraft.Core
 
         public static bool HasChangeToGiveBirth(Person pMotherTarget, Person pFatherTarget)
         {
-            int mNum = (int)pMotherTarget.stats["birth_rate"];
-            int fNum = (int)pFatherTarget.stats["birth_rate"];
+            int mNum = (int)pMotherTarget.Stats["birth_rate"];
+            int fNum = (int)pFatherTarget.Stats["birth_rate"];
             float num2 = 0.5f;
             for (int i = 0; i < (mNum+fNum)/2; i++)
             {
@@ -631,7 +631,7 @@ namespace EmpireCraft.Core
                         officialLevel = string.Join("_", culture, identity.officialLevel.ToString());
                         officialLevel += LM.Get(officialLevel);
                     }
-                    educationLevel = (actor.hasTrait("jingshi") ? "trait_jingshi" : "") +"/" +(actor.hasTrait("gongshi") ? "trait_gongshi" : "") +"/"+ (actor.hasTrait("juren")?"trait_juren":"");
+                    educationLevel = (actor.HasTrait("jingshi") ? "trait_jingshi" : "") +"/" +(actor.HasTrait("gongshi") ? "trait_gongshi" : "") +"/"+ (actor.HasTrait("juren")?"trait_juren":"");
                     educationLevel += string.Join("/", educationLevel.Split('/').Select(c=>LM.Get(c)));
                     PeeragesLevel = string.Join("_", culture, actor.GetPeeragesLevel().ToString());
                     officeName = actor.GetOffice()?.GetOfficeName()??"";

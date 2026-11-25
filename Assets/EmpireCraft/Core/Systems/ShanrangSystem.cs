@@ -135,13 +135,13 @@ public static class ShanrangSystem
     {
         if (actor?.Record == null) return 0f;
         int age = actor.Age();
-        return actor.Record.renown + PerCity * (tribe?.cities?.Count ?? 0) + (age >= PrimeMin && age <= PrimeMax ? 10f : 0f) -
+        return actor.Renown + PerCity * (tribe?.cities?.Count ?? 0) + (age >= PrimeMin && age <= PrimeMax ? 10f : 0f) -
                (age >= OldAge ? 25f : 0f);
     }
+#endif
 
     private static bool Fit(Person actor) =>
-        actor?.Record != null && !actor.IsGone() && actor.Alive && actor.IsAdult() && actor.isUnitFitToRule();
-#endif
+        actor?.Record != null && !actor.IsGone() && actor.Alive && actor.IsAdult() && actor.IsFitToRule();
 
     // 候选：共主之部各城的城主、共事它的各部首领(不含 ruler)
 #if EC_PENDING

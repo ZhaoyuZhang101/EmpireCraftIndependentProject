@@ -10,7 +10,7 @@ namespace EmpireCraft.Core
     // a bed fingerprint. Derived indices (tile owners, living list) are rebuilt.
     public static class EmpireSave
     {
-        public const int Version=3;
+        public const int Version=4;
         const uint Magic=0x44574345; // "ECWD"
         const int MaxEntities=4_000_000,MaxString=256;
 
@@ -77,6 +77,14 @@ namespace EmpireCraft.Core
                 b.Write(war.Name??"");b.Write(war.Kind.Id);b.Write(war.MainAttacker.IdOf());b.Write(war.MainDefender.IdOf());
                 b.Write(war.StartedMonth);b.Write(war.EndedMonth);b.Write((byte)war.Outcome);
                 Side(b,war.Attackers);Side(b,war.Defenders);Side(b,war.PastAttackers);Side(b,war.PastDefenders);
+            }
+            if(version<4){b.Flush();return stream.ToArray();}
+            // Version 4: what a person has beyond the family record. Traits are written in order so equal people give equal bytes.
+            foreach(var p in w.People)
+            {
+                b.Write(p.Renown);b.Write(p.Money);b.Write(p.Stewardship);b.Write(p.Warfare);b.Write(p.Intelligence);b.Write(p.Diplomacy);
+                var traits=new System.Collections.Generic.List<string>(p.Traits);traits.Sort(StringComparer.Ordinal);
+                b.Write(traits.Count);foreach(string trait in traits)b.Write(trait);
             }
             b.Flush();return stream.ToArray();
         }
@@ -172,6 +180,13 @@ namespace EmpireCraft.Core
                     foreach(var r in war.Defenders)r.Wars.Add(war);
                 }
             }
+            if(version>=4)
+                foreach(var p in w.People)
+                {
+                    p.Renown=b.ReadInt32();p.Money=b.ReadInt32();p.Stewardship=b.ReadInt32();p.Warfare=b.ReadInt32();p.Intelligence=b.ReadInt32();p.Diplomacy=b.ReadInt32();
+                    int traits=Count(b);Check(traits<=4096,"Too many traits");
+                    for(int k=0;k<traits;k++)p.AddTrait(Text(b));
+                }
             Check(stream.Position==stream.Length,"Trailing bytes in EmpireCraft section");
             var errors=EmpireInvariants.Check(w,1);
             Check(errors.Count==0,"Inconsistent EmpireCraft section: "+(errors.Count>0?errors[0]:""));

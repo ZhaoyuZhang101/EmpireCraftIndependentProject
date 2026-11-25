@@ -17,26 +17,26 @@ public static class WalletReserveTransfers
 #if EC_PENDING
     public static bool TryCapture(Person actor, WalletReserve reserve)
     {
-        if (actor?.Record == null || reserve == null || actor.money < 0 || actor.Record.loot < 0 ||
+        if (actor?.Record == null || reserve == null || actor.Money < 0 || actor.Record.loot < 0 ||
             reserve.cash < 0L || reserve.loot < 0L) return false;
-        int cash = actor.money, loot = actor.Record.loot;
+        int cash = actor.Money, loot = actor.Record.loot;
         if (reserve.cash > long.MaxValue - cash || reserve.loot > long.MaxValue - loot) return false;
         // Preflight both assets before mutating either side. Zeroing the removed
         // actor also prevents native removal callbacks from taking the same money.
         reserve.cash += cash;
         reserve.loot += loot;
-        actor.Record.money = 0;
+        actor.Money = 0;
         actor.Record.loot = 0;
         return true;
     }
 
     public static void Restore(Person actor, WalletReserve reserve)
     {
-        if (actor?.Record == null || reserve == null || actor.money < 0 || actor.Record.loot < 0 ||
+        if (actor?.Record == null || reserve == null || actor.Money < 0 || actor.Record.loot < 0 ||
             reserve.cash < 0L || reserve.loot < 0L) return;
-        int cash = (int)Math.Min(reserve.cash, Math.Max(0L, (long)NativeWalletLimit - actor.money));
+        int cash = (int)Math.Min(reserve.cash, Math.Max(0L, (long)NativeWalletLimit - actor.Money));
         int loot = (int)Math.Min(reserve.loot, Math.Max(0L, (long)NativeWalletLimit - actor.Record.loot));
-        actor.Record.money += cash;
+        actor.Money += cash;
         actor.Record.loot += loot;
         reserve.cash -= cash;
         reserve.loot -= loot;
@@ -48,11 +48,11 @@ public static class WalletReserveTransfers
 #if EC_PENDING
     public static void RollbackCapture(Person actor, WalletReserve reserve, int capturedCash, int capturedLoot)
     {
-        if (actor?.Record == null || reserve == null || actor.money < 0 || actor.Record.loot < 0 ||
+        if (actor?.Record == null || reserve == null || actor.Money < 0 || actor.Record.loot < 0 ||
             reserve.cash < 0L || reserve.loot < 0L) return;
-        int cash = (int)Math.Min(reserve.cash, Math.Min(Math.Max(0, capturedCash), (long)int.MaxValue - actor.money));
+        int cash = (int)Math.Min(reserve.cash, Math.Min(Math.Max(0, capturedCash), (long)int.MaxValue - actor.Money));
         int loot = (int)Math.Min(reserve.loot, Math.Min(Math.Max(0, capturedLoot), (long)int.MaxValue - actor.Record.loot));
-        actor.Record.money += cash;
+        actor.Money += cash;
         actor.Record.loot += loot;
         reserve.cash -= cash;
         reserve.loot -= loot;
@@ -79,12 +79,12 @@ public static class WalletReserveTransfers
 #if EC_PENDING
     public static void GrantPerCapita(Person actor, WalletReserve reserve, double people)
     {
-        if (actor?.Record == null || !HasAssets(reserve) || people < 1d || actor.money < 0 || actor.Record.loot < 0 ||
+        if (actor?.Record == null || !HasAssets(reserve) || people < 1d || actor.Money < 0 || actor.Record.loot < 0 ||
             reserve.cash < 0L || reserve.loot < 0L) return;
-        int cash = (int)Math.Min(Math.Floor(reserve.cash / people), Math.Max(0L, (long)NativeWalletLimit - actor.money));
+        int cash = (int)Math.Min(Math.Floor(reserve.cash / people), Math.Max(0L, (long)NativeWalletLimit - actor.Money));
         int loot = (int)Math.Min(Math.Floor(reserve.loot / people), Math.Max(0L, (long)NativeWalletLimit - actor.Record.loot));
         if (cash <= 0 && loot <= 0) return;
-        actor.Record.money += cash;
+        actor.Money += cash;
         actor.Record.loot += loot;
         reserve.cash -= cash;
         reserve.loot -= loot;

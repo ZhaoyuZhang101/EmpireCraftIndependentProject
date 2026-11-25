@@ -501,14 +501,14 @@ public static class RepublicSystem
     private static Person FindSplitLeader(Empire empire, FixedFaction party) => party.AllMembers
         .Concat(EmpirePopulation.Enumerate(empire.kingdoms_hashset))
         .Where(actor => actor != null && !actor.IsGone() && actor.Alive && actor.IsAdult() &&
-                        actor.hasCity() && actor.City.Realm != null &&
+                        actor.HasCity() && actor.City.Realm != null &&
                         empire.kingdoms_hashset.Contains(actor.City.Realm) &&
                         RebellionSystem.CanAttempt(actor.City.Realm) && CityStabilitySystem.CanRise(actor.City) &&
                         actor.City != actor.City.Realm.Capital && !actor.IsRuler() &&
                         PartySystem.GetAffinity(party.Ideology, actor.GetOrCreate().socialClass) >= CoreClassAffinity)
-        .Distinct().OrderByDescending(actor => IdeologyPopulationSystem.GetCityShare(actor.city, party.Ideology))
+        .Distinct().OrderByDescending(actor => IdeologyPopulationSystem.GetCityShare(actor.City, party.Ideology))
         .ThenByDescending(actor => actor.GetFaction() == party)
-        .ThenByDescending(actor => actor.renown).FirstOrDefault();
+        .ThenByDescending(actor => actor.Renown).FirstOrDefault();
 #endif
 
     // 现代革命：共和国里民意所向的理念迟迟不能经选举上台，其政党起兵推翻现政府。
@@ -679,10 +679,10 @@ public static class RepublicSystem
         foreach (Person resident in capital.units.ToList())
         {
             if (raised >= needed) break;
-            if (resident == null || resident.IsGone() || !resident.Alive || resident.isWarrior() ||
+            if (resident == null || resident.IsGone() || !resident.Alive || resident.IsWarrior() ||
                 !capital.checkCanMakeWarrior(resident)) continue;
             capital.makeWarrior(resident);
-            if (resident.isWarrior()) raised++;
+            if (resident.IsWarrior()) raised++;
         }
         return raised;
     }
@@ -800,7 +800,7 @@ public static class RepublicSystem
         Person leader = EmpirePopulation.Enumerate(empire.kingdoms_hashset)
             .Where(actor => actor != null && !actor.IsGone() && actor.Alive && actor.IsAdult() && !actor.IsRuler() &&
                             actor.City == seat)
-            .OrderByDescending(actor => actor.renown).FirstOrDefault();
+            .OrderByDescending(actor => actor.Renown).FirstOrDefault();
         if (leader == null) return false;
         Realm origin = seat.Realm;
         var cause = RebellionSystem.Capture(origin, seat, "rebellion_reason_counter_revolution");
@@ -968,8 +968,8 @@ public static class RepublicSystem
         if (monarch == null || monarch.IsGone()) return new List<Person>();
         // 子女是虚拟族人的(纯净地图下多是这样)落成后一起算，以前革命后王室子女全都漏掉、族谱上照旧是王子公主
         IEnumerable<Person> family = new[] { monarch }
-            .Concat(monarch.lover == null ? Enumerable.Empty<Person>() : new[] { monarch.lover })
-            .Concat(monarch.getChildren() ?? Enumerable.Empty<Person>())
+            .Concat(monarch.Spouse == null ? Enumerable.Empty<Person>() : new[] { monarch.Spouse })
+            .Concat(monarch.GetChildren() ?? Enumerable.Empty<Person>())
             .Concat(KinRoster.Realize(KinRoster.Children(monarch).Where(KinRoster.Virtual), actor => actor.Alive));
         return family.Where(actor => actor != null && !actor.IsGone() && actor.Alive)
             .GroupBy(actor => actor.Key).Select(group => group.First()).ToList();
@@ -1035,7 +1035,7 @@ public static class RepublicSystem
         if (victim == null || victim.IsGone() || !victim.Alive) return;
         victim.RecordPersonalHistory(history, "revolution_execution", revolutionaryLeader?.Key ?? -1L);
         BiographySystem.NoteDeath(victim, LM.Get("death_cause_revolution"), revolutionaryLeader, executed: true);
-        victim.addTrait("death_mark");
+        victim.AddTrait("death_mark");
         victim.ChangeDeathRate(1f);
         victim.setHealth(0);
     }
@@ -1310,7 +1310,7 @@ public static class RepublicSystem
                                          actor.Realm?.GetEmpire() == empire && actor.Key != primeMinister?.Key &&
                                          !actor.IsWarMachine() && !TermLimited(actor))
                          .OrderByDescending(actor => coalition.Contains(actor.GetFaction()?.GetID() ?? "") ? 1 : 0)
-                         .ThenByDescending(actor => actor.renown)
+                         .ThenByDescending(actor => actor.Renown)
                          .FirstOrDefault();
         if (head == null) return currentValid;
         string previous = current?.FullName() ?? LM.Get("label_none");

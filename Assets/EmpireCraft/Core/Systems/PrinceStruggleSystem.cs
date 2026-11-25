@@ -56,23 +56,21 @@ public static class PrinceStruggleSystem
         data.succession_note_actor = successor.Key;
     }
 
-#if EC_PENDING
     private static float Strength(Person actor) =>
         actor?.Record == null ? 0f
-            : actor.renown + (CorpsSystem.IsGeneral(actor) ? 60f : 0f) + (actor.GetOwnedTitle()?.Count ?? 0) * 30f +
+            : actor.Renown + (CorpsSystem.IsGeneral(actor) ? 60f : 0f) + (actor.GetOwnedTitle()?.Count ?? 0) * 30f +
               Mathf.Min(actor.Age(), 60) * 0.5f;
 
     private static bool IsPrince(Person son, Empire empire) =>
-        son?.Record != null && !son.IsGone() && son.Alive && son.isSexMale() && son.IsAdult() &&
+        son?.Record != null && !son.IsGone() && son.Alive && son.IsMale() && son.IsAdult() &&
         !son.IsRuler() && son.Realm?.GetEmpire() == empire;
-#endif
 
     // 成年皇子连族谱里的虚拟族人一起数(纯净地图下多不在地图上；以前只数地图上的，"两位以上成年皇子"几乎永远不成立，
     // 废太子、宫门之变从不发生)
 #if EC_PENDING
     private static List<PersonalClanIdentity> PrincePeople(Empire empire, Person emperor) =>
         KinRoster.Children(emperor).Where(person => KinRoster.Counts(person,
-            son => son.sex == ActorSex.Male && son.age >= KinRoster.AdultAge && KinRoster.KingdomOf(son)?.GetEmpire() == empire,
+            son => son.sex == Sex.Male && son.age >= KinRoster.AdultAge && KinRoster.KingdomOf(son)?.GetEmpire() == empire,
             son => IsPrince(son, empire))).ToList();
 #endif
 
@@ -168,13 +166,11 @@ public static class PrinceStruggleSystem
 #endif
 
     // 皇子的本部：统兵的按所统军团，没统兵的按实力折算亲兵
-#if EC_PENDING
     private static float PrinceForce(Person prince)
     {
         CorpsData corps = CorpsSystem.CorpsOf(prince);
         return corps != null ? Mathf.Max(corps.strength, 1f) : Mathf.Max(1f, Strength(prince) * RetainersPerStrength);
     }
-#endif
 
     // 京城禁军：空饷的不算，不奉诏的不出力
     private static float GuardForce(Realm core)
@@ -252,10 +248,10 @@ public static class PrinceStruggleSystem
         PersonalClanIdentity identity = emperor.GetPersonalIdentity();
         if (identity == null) return;
         Person rival = SpecificClanManager.GetSiblingsWithRelation(identity).Select(pair => pair.Item2)
-            .Where(person => person != null && person.is_alive && person.sex == ActorSex.Male)
+            .Where(person => person != null && person.is_alive && person.sex == Sex.Male)
             .Select(person => person.Realize())
-            .Where(actor => actor?.data != null && actor.Alive && actor.isAdult() && actor != emperor && !actor.isKing() &&
-                            actor.kingdom?.GetEmpire() == empire)
+            .Where(actor => actor?.Record != null && actor.Alive && actor.IsAdult() && actor != emperor && !actor.IsRuler() &&
+                            actor.Realm?.GetEmpire() == empire)
             .OrderByDescending(Strength).FirstOrDefault();
         if (rival == null) return;
         float ratio = Strength(rival) / Mathf.Max(1f, Strength(emperor)) * (emperor.IsAdult() ? 1f : 1.5f);

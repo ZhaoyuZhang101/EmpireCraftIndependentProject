@@ -357,7 +357,6 @@ public class SpecificClan
     {
         return !string.IsNullOrEmpty(empire_name);
     }
-#if EC_PENDING
     public List<(ClanRelation, PersonalClanIdentity)> GetChildren(PersonalClanIdentity identity)
     {
         var children = new List<(ClanRelation, PersonalClanIdentity)>();
@@ -374,6 +373,7 @@ public class SpecificClan
         return children;
     }
 
+#if EC_PENDING
     public void newSpecificClan(Person actor)
     {
         _cache = new Dictionary<long, PersonalClanIdentity>();
@@ -453,9 +453,9 @@ public class SpecificClan
             pci.is_concubine = is_concubines;
             if (pci.is_main)
             {
-                if (actor.getChildren().Any())
+                if (actor.GetChildren().Any())
                 {
-                    foreach (var child in actor.getChildren())
+                    foreach (var child in actor.GetChildren())
                     {
                         child.setClan(pci._actor.Clan);
                         pci.addChild(child, true, recordHistory: false);
@@ -556,7 +556,7 @@ public static class SpecificClanManager
         if (actor?.Record == null) return result;
         try
         {
-            foreach (Person parent in actor.getParents())
+            foreach (Person parent in actor.GetParents())
             {
                 PersonalClanIdentity identity = parent?.GetPersonalIdentity();
                 if (identity != null && !result.Contains(identity)) result.Add(identity);
@@ -597,7 +597,7 @@ public static class SpecificClanManager
 #if EC_PENDING
     public static void SyncVanillaClan(Person actor, Dictionary<long, Clan> cache = null)
     {
-        if (actor?.Record == null || actor.IsGone() || actor.hasDied()) return;
+        if (actor?.Record == null || actor.IsGone() || actor.HasDied()) return;
         SpecificClan specific = actor.GetSpecificClan();
         if (specific == null || actor.Clan != null && actor.Clan.GetSpecificClan() == specific) return;
         try
@@ -646,7 +646,7 @@ public static class SpecificClanManager
         foreach (PersonalClanIdentity parent in RecordedParents(actor))
         {
             if (parent == null || parent.id == child.id) continue;
-            if (parent.sex == ActorSex.Male ? child.father > 0 : child.mother > 0) continue;
+            if (parent.sex == Sex.Male ? child.father > 0 : child.mother > 0) continue;
             child.setParent(parent, recordHistory: false);
             linked = true;
         }
@@ -745,20 +745,21 @@ public static class SpecificClanManager
     public static City GetOriginCity(Person actor)
     {
         if (actor == null) return null;
-        if (actor.hasCity()) return actor.City;
+        if (actor.HasCity()) return actor.City;
         if (actor.current_tile != null && actor.current_tile.hasCity()) return actor.current_tile.zone_city;
-        if (actor.getParents().Any())
+        if (actor.GetParents().Any())
         {
-            foreach (var parent in actor.getParents())
+            foreach (var parent in actor.GetParents())
             {
-                if (parent != null && parent.hasCity())
+                if (parent != null && parent.HasCity())
                 {
-                    return parent.city;
+                    return parent.City;
                 }
             }
         }
         return null;
     }
+#endif
 
     public static List<(ClanRelation, PersonalClanIdentity)> FindAllRelations(PersonalClanIdentity self)
     {
@@ -893,7 +894,6 @@ public static class SpecificClanManager
         }
         return grandChildrenResult;
     }
-#endif
 
     public static List<(ClanRelation relation, PersonalClanIdentity pci)> GetFatherGrandGeneration(PersonalClanIdentity identity)
     {
@@ -939,7 +939,6 @@ public static class SpecificClanManager
         return relatives;
     }
 
-#if EC_PENDING
     public static List<(ClanRelation relation, PersonalClanIdentity pci)> GetFatherGreatGeneration(PersonalClanIdentity identity)
     {
         var relatives = new List<(ClanRelation, PersonalClanIdentity)>();
@@ -954,7 +953,7 @@ public static class SpecificClanManager
             foreach (var rPci in members)
             {
                 // 男性 -> 伯叔（FUNC），女性 -> 姑（FANT）
-                if (rPci.Item2.sex == ActorSex.Male) 
+                if (rPci.Item2.sex == Sex.Male) 
                     relatives.Add((ClanRelation.FUNC, rPci.Item2));
                 else 
                     relatives.Add((ClanRelation.FANT, rPci.Item2));
@@ -977,7 +976,7 @@ public static class SpecificClanManager
             foreach (var rPci in members)
             {
                 // 男性 -> 舅舅（MUNC），女性 -> 姨（MANT）
-                if (rPci.Item2.sex == ActorSex.Male) 
+                if (rPci.Item2.sex == Sex.Male) 
                     relatives.Add((ClanRelation.MUNC, rPci.Item2));
                 else 
                     relatives.Add((ClanRelation.MANT, rPci.Item2));
@@ -1003,7 +1002,7 @@ public static class SpecificClanManager
                 foreach (var rPciKid in kids)
                 {
                     // 性别决定男表/女表
-                    if (rPciKid.Item2.sex == ActorSex.Male) 
+                    if (rPciKid.Item2.sex == Sex.Male) 
                         relatives.Add((ClanRelation.FSIBB, rPciKid.Item2));
                     else 
                         relatives.Add((ClanRelation.FSIBG, rPciKid.Item2));
@@ -1031,7 +1030,7 @@ public static class SpecificClanManager
                 foreach (var rPciKid in kids)
                 {
 
-                    if (rPciKid.Item2.sex == ActorSex.Male)
+                    if (rPciKid.Item2.sex == Sex.Male)
                         relatives.Add((ClanRelation.MSIBB, rPciKid.Item2));
                     else
                         relatives.Add((ClanRelation.MSIBG, rPciKid.Item2));
@@ -1060,11 +1059,11 @@ public static class SpecificClanManager
 
                 ClanRelation r;
                 // 兄（Male） -> 侄子/侄女
-                if (sibPci.sex == ActorSex.Male)
-                    r = childPci.sex == ActorSex.Male ? ClanRelation.SBB : ClanRelation.SBG;
+                if (sibPci.sex == Sex.Male)
+                    r = childPci.sex == Sex.Male ? ClanRelation.SBB : ClanRelation.SBG;
                 // 姐（Female） -> 外甥/外甥女
                 else
-                    r = childPci.sex == ActorSex.Male ? ClanRelation.SGB : ClanRelation.SGG;
+                    r = childPci.sex == Sex.Male ? ClanRelation.SGB : ClanRelation.SGG;
 
                 relatives.Add((r, childPci));
             }
@@ -1131,7 +1130,6 @@ public static class SpecificClanManager
         // 最终默认无关系
         return ClanRelation.NONE;
     }
-#endif
 
     public static void addSpecificClans(SpecificClan sc)
     {
@@ -1298,7 +1296,6 @@ public static class SpecificClanManager
         }
     }
 
-#if EC_PENDING
     public static List<(ClanRelation, PersonalClanIdentity)> getChildren(PersonalClanIdentity identity)
     {
         var identityWithRelation = new List<(ClanRelation, PersonalClanIdentity)>();
@@ -1315,10 +1312,11 @@ public static class SpecificClanManager
         return identityWithRelation;
     }
 
+#if EC_PENDING
     public static void CheckSpecificClan(this Person actor, bool show_log = false)
     {
         if (EmpireCraft.Core.AncientWarfareCompatibility.Owns(actor)) return;
-        if (actor.IsGone()||actor.hasDied()) return;
+        if (actor.IsGone()||actor.HasDied()) return;
         if (!actor.HasClan())
         {
             try
@@ -1353,7 +1351,7 @@ public static class SpecificClanManager
             if (created != null)
             {
                 LinkRecordedParents(actor, created);
-                if (clanParent.sex != ActorSex.Male && clanParent._specificClan.Matrilineal()) created.matrilineal_birth = true;
+                if (clanParent.sex != Sex.Male && clanParent._specificClan.Matrilineal()) created.matrilineal_birth = true;
                 Person parentActor = clanParent.is_alive && !clanParent.is_virtual ? clanParent._actor : null;
                 SyncVanillaClan(actor);
                 if (clanParent._specificClan.Patrilineal() || clanParent._specificClan.Matrilineal() ||
@@ -1497,9 +1495,7 @@ public class PersonalClanIdentity
     public string name { get; set; }
     [JsonIgnore]
     public SpecificClan _specificClan => SpecificClanManager.Get(specific_clan_id);
-#if EC_PENDING
-    public ActorSex sex { get; set; }
-#endif
+    public Sex sex { get; set; }
     public int recordedAge { get; set; } = -1;
     public string birthday { get; set; }
     public string deathday { get; set; }
@@ -1661,7 +1657,7 @@ public class PersonalClanIdentity
         given_name = a.GetModName()?.firstName ?? "";
         surname = a.GetModName()?.familyName ?? "";
         birthday = a.TrueBirthday();
-        sex = a.Record.sex;
+        sex = a.Sex;
         recordedAge = a.Age();
         species = a.asset.id;
         is_main = true;
@@ -1684,12 +1680,12 @@ public class PersonalClanIdentity
         culture = CultureService.ResolveRecordedActorCulture(actor, culture);
         recordedAge = actor.Age();
         OfficeIdentity identity = null;
-        if (actor.hasCity())
+        if (actor.HasCity())
         {
             identity = actor.GetIdentity(); 
         }
         kingdomName = actor.Realm.Name;
-        cityName = actor.hasCity()?actor.City.Name:"";
+        cityName = actor.HasCity()?actor.City.Name:"";
         if (identity!=null)
         {
             merit = string.Join("_", culture, "meritlevel", identity.peerageType.ToString(), identity.meritLevel);
@@ -1711,14 +1707,14 @@ public class PersonalClanIdentity
             .Where(titleName => !string.IsNullOrWhiteSpace(titleName))
             .Distinct()
             .ToList();
-        educationLevel = (actor.hasTrait("jingshi") ? "trait_jingshi" : "") +"/" +(actor.hasTrait("gongshi") ? "trait_gongshi" : "") +"/"+ (actor.hasTrait("juren")?"trait_juren":"");
+        educationLevel = (actor.HasTrait("jingshi") ? "trait_jingshi" : "") +"/" +(actor.HasTrait("gongshi") ? "trait_gongshi" : "") +"/"+ (actor.HasTrait("juren")?"trait_juren":"");
         PeeragesLevel = string.Join("_", culture, actor.GetPeeragesLevel().ToString());
     }
+#endif
     public bool isMale()
     {
-        return sex == ActorSex.Male;
+        return sex == Sex.Male;
     }
-#endif
 
     public bool hasLover()
     {
@@ -1745,7 +1741,7 @@ public class PersonalClanIdentity
 #if EC_PENDING
     public bool IsHeirPriority()
     {
-        return (_specificClan.isMalePriority() && this.sex == ActorSex.Male) || (!_specificClan.isMalePriority() && this.sex == ActorSex.Female);
+        return (_specificClan.isMalePriority() && this.sex == Sex.Male) || (!_specificClan.isMalePriority() && this.sex == Sex.Female);
     }
 
     public bool CanHeir(PersonalClanIdentity identity=null)
@@ -1818,7 +1814,7 @@ public class PersonalClanIdentity
     public void setParent(PersonalClanIdentity identity, bool recordHistory = true)
     {
         if (identity==null) return;
-        if (identity.sex==ActorSex.Male)
+        if (identity.sex==Sex.Male)
         {
             father = identity.id;
         } else
@@ -1846,7 +1842,7 @@ public class PersonalClanIdentity
             _actor.setClan(identity._actor.Clan);
         }
 
-        sex = _actor.Record.sex;
+        sex = _actor.Sex;
         generation = identity.generation + 1;
     }
 
@@ -2010,9 +2006,9 @@ public class PersonalClanIdentity
 
         if (isNeedSetParentBoth)
         {
-            if (actor.getParents().Any())
+            if (actor.GetParents().Any())
             {
-                foreach (var parent in actor.getParents().ToList())
+                foreach (var parent in actor.GetParents().ToList())
                 {
                     parent.CheckSpecificClan(false);
                     PersonalClanIdentity pIdentity = parent.GetPersonalIdentity();

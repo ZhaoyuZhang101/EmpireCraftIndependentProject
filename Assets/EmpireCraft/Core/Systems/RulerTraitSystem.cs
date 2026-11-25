@@ -47,7 +47,7 @@ public static class RulerTraitSystem
         RulerQualitySystem.Assess(empire, actor);
         if (actor.Key == empire.data.dynasty_founder_actor_id)
         {
-            if (!actor.hasTrait(Founder)) actor.addTrait(Founder);
+            if (!actor.HasTrait(Founder)) actor.AddTrait(Founder);
             return;
         }
         CheckRestorer(empire, actor);
@@ -67,17 +67,17 @@ public static class RulerTraitSystem
     {
         if (!IsMonarchy(empire) || actor?.Record == null || !actor.Alive) return;
         // 旧版用两个特质叠加表示高阶中兴；改为高阶包含低阶效果。
-        if (actor.hasTrait(GreatRestorer)) actor.removeTrait(Restorer);
+        if (actor.HasTrait(GreatRestorer)) actor.RemoveTrait(Restorer);
         var recovery = actor.GetOrCreate();
         if (RealisticAgeSystem.IsMinor(actor))
         {
-            actor.removeTrait(Restorer);
-            actor.removeTrait(GreatRestorer);
+            actor.RemoveTrait(Restorer);
+            actor.RemoveTrait(GreatRestorer);
             recovery.restorer_realm = -1L;
             return;
         }
         if (actor.Key == empire.data.dynasty_founder_actor_id ||
-            actor.hasTrait(Founder) || actor.hasTrait(Restorer) || actor.hasTrait(GreatRestorer)) return;
+            actor.HasTrait(Founder) || actor.HasTrait(Restorer) || actor.HasTrait(GreatRestorer)) return;
         if (RulerQualitySystem.IsBad(actor) || empire.data.is_been_controlled ||
             DynasticCycleSystem.GetPressure(empire) < RestorerStrain || EmpireWorld.Current == null)
         {
@@ -98,13 +98,13 @@ public static class RulerTraitSystem
             recovery.restorer_legitimacy = legitimacy;
             return;
         }
-        if (GameClock.YearsSince(recovery.restorer_since) < RecoveryYears || actor.stats["stewardship"] < RestorerStewardship ||
+        if (GameClock.YearsSince(recovery.restorer_since) < RecoveryYears || actor.Stats["stewardship"] < RestorerStewardship ||
             legitimacy < 50 || empire.CurrentMoney < 0 || malady > recovery.restorer_malady ||
             corruption > recovery.restorer_corruption) return;
         bool improved = recovery.restorer_malady - malady >= 10f || recovery.restorer_corruption - corruption >= 0.1d - 1e-6d ||
                         legitimacy - recovery.restorer_legitimacy >= 15;
         if (!improved) return;
-        actor.addTrait(EcRandom.value < GreatRestorerChance ? GreatRestorer : Restorer);
+        actor.AddTrait(EcRandom.value < GreatRestorerChance ? GreatRestorer : Restorer);
     }
 #endif
 
@@ -112,7 +112,7 @@ public static class RulerTraitSystem
 #if EC_PENDING
     public static bool HasActiveTrait(Person actor, string trait) =>
         actor?.Record != null && actor.Alive && !RealisticAgeSystem.IsMinor(actor) && !RulerQualitySystem.IsBad(actor) &&
-        (trait == Restorer ? actor.hasTrait(Restorer) || actor.hasTrait(GreatRestorer) : actor.hasTrait(trait));
+        (trait == Restorer ? actor.HasTrait(Restorer) || actor.HasTrait(GreatRestorer) : actor.HasTrait(trait));
 
     public static bool ReignedBy(Realm kingdom, string trait)
     {
@@ -146,11 +146,9 @@ public static class RulerTraitSystem
 #endif
 
     // 在位雄主的称号(开国雄主 / 中兴雄主)，史书措辞用
-#if EC_PENDING
     public static string FounderTitle(Person ruler) =>
-        LM.Get(ruler != null && ruler.hasTrait(GreatRestorer) && !ruler.hasTrait(Founder)
+        LM.Get(ruler != null && ruler.HasTrait(GreatRestorer) && !ruler.HasTrait(Founder)
             ? "trait_" + GreatRestorer : "trait_" + Founder);
-#endif
 
     // 开国雄主与本帝国核心(法理疆域)内割据政权之间的战争：不论谁先开战，都算统一战争
 #if EC_PENDING

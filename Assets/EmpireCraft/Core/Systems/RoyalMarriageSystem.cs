@@ -68,7 +68,7 @@ public static class RoyalMarriageSystem
         Person king = kingdom.Ruler;
         if (kingdom.HasHeir()) yield return kingdom.GetHeir();
         yield return king;
-        foreach (Person child in king?.getChildren(false) ?? Enumerable.Empty<Person>()) yield return child;
+        foreach (Person child in king?.GetChildren(false) ?? Enumerable.Empty<Person>()) yield return child;
     }
 #endif
 
@@ -81,10 +81,8 @@ public static class RoyalMarriageSystem
         return identity != null && !identity.is_concubine && identity.IsFreeToMarry(-2L);
     }
 
-#if EC_PENDING
     private static bool Ruling(Person actor, Realm kingdom) =>
         actor == kingdom.Ruler || kingdom.HasHeir() && kingdom.GetHeir() == actor;
-#endif
 
     // 国王在族谱里的虚拟子女(纯净地图下王子公主多不在地图上；以前只配得到国王、储君，王子公主从不外嫁)：
     // 议婚时按族谱比，定下来才落成
@@ -104,7 +102,7 @@ public static class RoyalMarriageSystem
         Person royal = Royals(kingdom).Distinct().FirstOrDefault(actor => Marriageable(actor, kingdom));
         PersonalClanIdentity royalPerson = royal != null ? royal.GetPersonalIdentity() : VirtualRoyals(kingdom).FirstOrDefault(Marriageable);
         if (royalPerson == null) return;
-        ActorSex royalSex = royal != null ? royal.Record.sex : royalPerson.sex;
+        Sex royalSex = royal != null ? royal.Sex : royalPerson.sex;
         (Person partner, PersonalClanIdentity person, Realm other) best = (null, null, null);
         float bestScore = float.MinValue;
         foreach (Realm other in EmpireWorld.Current.LiveRealms)
@@ -127,7 +125,7 @@ public static class RoyalMarriageSystem
             }
             foreach (Person candidate in Royals(other).Distinct())
             {
-                if (!Marriageable(candidate, other) || candidate.Record.sex == royalSex ||
+                if (!Marriageable(candidate, other) || candidate.Sex == royalSex ||
                     (royal != null ? KinshipRules.AreCloseKin(royal, candidate)
                         : KinshipRules.AreCloseKin(royalPerson, candidate.GetPersonalIdentity()))) continue;
                 // 够不着的国家不议婚(见类头)；量远近不便宜，到这里才量、一国只量一次
@@ -174,12 +172,12 @@ public static class RoyalMarriageSystem
     {
         if (home?.Record == null || other?.Record == null || !home.HasRuler() || !other.HasRuler()) return null;
         Person groom = new[] { other.Ruler, other.HasHeir() ? other.GetHeir() : null }
-            .FirstOrDefault(actor => actor != null && actor.isSexMale() && Marriageable(actor, other));
+            .FirstOrDefault(actor => actor != null && actor.IsMale() && Marriageable(actor, other));
         if (groom == null) return null;
         IEnumerable<Person> clan = home.GetEmpire()?.EmpireSpecificClan?.AllAliveMembers ?? Enumerable.Empty<Person>();
-        bool Fit(Person actor) => actor != null && actor.isSexFemale() && !Ruling(actor, home) &&
+        bool Fit(Person actor) => actor != null && actor.IsFemale() && !Ruling(actor, home) &&
                                  Marriageable(actor, home) && !KinshipRules.AreCloseKin(actor, groom);
-        Person bride = (home.Ruler?.getChildren(false) ?? Enumerable.Empty<Person>()).Concat(clan).Distinct().FirstOrDefault(Fit);
+        Person bride = (home.Ruler?.GetChildren(false) ?? Enumerable.Empty<Person>()).Concat(clan).Distinct().FirstOrDefault(Fit);
         // 纯净地图下公主、宗室女多是虚拟族人：先君主的女儿，再宗室女，落成一位(以前地图上没有就和不成亲)
         if (bride == null)
         {
@@ -188,13 +186,13 @@ public static class RoyalMarriageSystem
             IEnumerable<PersonalClanIdentity> daughters = home.Ruler?.Record == null ? Enumerable.Empty<PersonalClanIdentity>()
                 : KinRoster.Children(home.Ruler);
             bride = KinRoster.RealizeFirst(daughters.Concat(KinRoster.Lineage(royalClan))
-                    .Where(person => person.sex == ActorSex.Female && Marriageable(person) &&
+                    .Where(person => person.sex == Sex.Female && Marriageable(person) &&
                                      !KinshipRules.AreCloseKin(person, groomPerson))
                     .GroupBy(person => person.id).Select(group => group.First()), Fit, 2);
         }
         if (bride == null) return null;
         Marry(home, bride, other, groom, log: false);
-        return bride.hasLover() ? bride : null;
+        return bride.HasSpouse() ? bride : null;
     }
 
     private static void Marry(Realm home, Person royal, Realm other, Person partner, bool log = true)
@@ -217,7 +215,7 @@ public static class RoyalMarriageSystem
         if (royalRules && !partnerRules) (mover, destination) = (partner, home);
         else if (partnerRules && !royalRules) (mover, destination) = (royal, other);
         else if (!royalRules && !partnerRules)
-            (mover, destination) = royal.isSexFemale() ? (royal, other) : (partner, home);
+            (mover, destination) = royal.IsFemale() ? (royal, other) : (partner, home);
         if (mover != null && destination?.Capital != null) Relocate(mover, destination);
         double now = GameClock.Now;
         home.GetOrCreate().marriage_pacts[other.Key] = now;
@@ -240,7 +238,7 @@ public static class RoyalMarriageSystem
         if (mover.IsCityLeader() && mover.City != null) mover.City.removeLeader();
         mover.removeFromArmy();
         mover.joinKingdom(destination);
-        mover.joinCity(destination.Capital);
+        mover.JoinCity(destination.Capital);
     }
 #endif
 

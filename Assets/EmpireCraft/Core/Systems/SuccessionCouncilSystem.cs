@@ -224,14 +224,14 @@ public static class SuccessionCouncilSystem
             .OrderBy(item => item.kinship).ThenBy(item => item.person.age).FirstOrDefault();
         if (young.person != null) Add(young, Young);
     }
+#endif
 
     private static int Merit(PersonalClanIdentity person)
     {
         if (KinRoster.Virtual(person)) return VirtualGenealogySystem.VirtualRenown(person);
         Person actor = person?.is_virtual == false ? person._actor : null;
-        return actor?.Record == null || actor.IsGone() ? 0 : actor.renown;
+        return actor?.Record == null || actor.IsGone() ? 0 : actor.Renown;
     }
-#endif
 
     // 皇族无人可继：权臣、两位声望最高的重臣，尊王一派可拥立一位宗室远支(从都城人口里认一位，改用皇族的姓)
 #if EC_PENDING
@@ -250,7 +250,7 @@ public static class SuccessionCouncilSystem
         Add(empire.GetPowerfulMinister(), Minister);
         foreach (Person actor in CourtSystem.Council(empire).Concat(empire.GetCabinetMembers())
                      .Where(actor => actor?.Record != null && !actor.IsGone() && actor.Alive && actor.IsAdult())
-                     .OrderByDescending(actor => actor.renown).Take(4))
+                     .OrderByDescending(actor => actor.Renown).Take(4))
         {
             if (result.Count(candidate => candidate.basis == Acclaim) >= 2) break;
             Add(actor, Acclaim);
@@ -319,7 +319,7 @@ public static class SuccessionCouncilSystem
                 if (legitimist) score -= 20f;
                 if (actor != null && CorpsSystem.IsGeneral(actor) && faction.Type is FactionType.攘夷 or FactionType.僭主) score += 20f;
                 if (candidate.basis == Minister && minister?.GetFaction() == faction) score += 30f;
-                return score + (actor?.renown ?? 0) * 0.05f;
+                return score + (actor?.Renown ?? 0) * 0.05f;
         }
         score -= Mathf.Min(candidate.kinship, 12) * (legitimist ? 12f : 6f);
         bool adult = candidate.age >= AdultAge;
@@ -458,7 +458,7 @@ public static class SuccessionCouncilSystem
             case Commoner:
             {
                 Person official = core.Capital == null ? null : CityPopulationSystem.SpawnOfficial(core.Capital, core);
-                if (EmpireCraftKingdomBehCheckHeir.BarredBySex(core, official)) official.Record.sex = ActorSex.Male;
+                if (EmpireCraftKingdomBehCheckHeir.BarredBySex(core, official)) official.Sex = Sex.Male;
                 return official;
             }
         }

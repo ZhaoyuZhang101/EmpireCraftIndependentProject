@@ -78,7 +78,6 @@ public static class PrinceLineage
 #endif
 
     // 世系图、即位记事：对先君的亲属称谓，受封过王的再写上王号(如"叔·湘王""第三子·南越王")
-#if EC_PENDING
     public static string Describe(PersonalClanIdentity predecessor, PersonalClanIdentity person)
     {
         string kin = LineageKinship.Term(predecessor, person);
@@ -86,7 +85,6 @@ public static class PrinceLineage
         if (string.IsNullOrWhiteSpace(title)) return kin;
         return string.IsNullOrEmpty(kin) ? title : kin + "·" + title;
     }
-#endif
 
     // 皇子不论当不当官都封王(用户 2026-10-16)：华夏一系帝国每年一轮，在位皇帝的儿子(储君除外)还没有王号的封王。
     // 以前王爵只封给地图上有实体的人，而且要有空着的法理头衔——无小人、纯净地图下皇子多是虚拟族人，法理头衔又有限，
@@ -102,7 +100,7 @@ public static class PrinceLineage
             !EmpireCraft.Core.EmpireCraftKingdomBehCheckHeir.MaleOnlyThrone(core)) return;
         long heir = core.HasHeir() ? core.GetHeir()?.GetPersonalIdentity()?.id ?? -1L : -1L;
         List<PersonalClanIdentity> sons = SpecificClanManager.getChildren(father).Select(pair => pair.Item2)
-            .Where(son => son != null && son.is_alive && son.is_main && son.sex == ActorSex.Male && son.id != heir && !IsPrince(son) &&
+            .Where(son => son != null && son.is_alive && son.is_main && son.sex == Sex.Male && son.id != heir && !IsPrince(son) &&
                           son._actor?.IsRuler() != true)
             .OrderBy(son => son.id).ToList();
         if (sons.Count == 0) return;

@@ -34,7 +34,7 @@ public static class ThroneSuspicion
         }
         RulerQualitySystem.Grade grade = RulerQualitySystem.Of(ruler);
         float gain = (record.rank == TalentRank.Pillar ? 8f : 4f) *
-                     Mathf.Clamp(actor.renown / Mathf.Max(1f, ruler.renown), 0.5f, 3f) *
+                     Mathf.Clamp(actor.Renown / Mathf.Max(1f, ruler.Renown), 0.5f, 3f) *
                      grade switch
                      {
                          RulerQualitySystem.Grade.Wise => 0.4f,
@@ -43,7 +43,7 @@ public static class ThroneSuspicion
                          RulerQualitySystem.Grade.Tyrant => 2f,
                          _ => 1f
                      } *
-                     (ruler.hasTrait("paranoid") ? 1.5f : 1f) * (CorpsSystem.IsGeneral(actor) ? 1.3f : 1f);
+                     (ruler.HasTrait("paranoid") ? 1.5f : 1f) * (CorpsSystem.IsGeneral(actor) ? 1.3f : 1f);
         record.suspicion += gain;
         if (record.suspicion < Full) return;
         record.suspicion = 0f;
@@ -66,7 +66,7 @@ public static class ThroneSuspicion
             RulerQualitySystem.Grade.Tyrant => (0f, 0.1f, 0.6f, 0.3f),
             _ => (0.3f, 0.5f, 0.1f, 0.1f)
         };
-        if (AmbitionSystem.Wants(actor, AmbitionSystem.Throne) || actor.hasTrait("ambitious")) rebel *= 2f;
+        if (AmbitionSystem.Wants(actor, AmbitionSystem.Throne) || actor.HasTrait("ambitious")) rebel *= 2f;
         float roll = EcRandom.value * (retire + dismiss + execute + rebel);
         string name = actor.FullName(), rulerName = ruler.FullName();
         if (roll < retire)

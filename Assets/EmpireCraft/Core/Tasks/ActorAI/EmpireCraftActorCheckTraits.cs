@@ -20,7 +20,7 @@ public class EmpireCraftActorCheckTraits: GameAIActorBase
                 pActor.EndOffice();
             }
         }
-        if (!pActor.hasKingdom()) return BehResult.Continue;
+        if (!pActor.HasRealm()) return BehResult.Continue;
         if (!pActor.IsAdult()) return BehResult.Continue;
         if (pActor.Realm.GetRegime() == null) return BehResult.Continue;
         if (pActor.Realm.GetRegime().type == RegimeType.LvLing|| pActor.Realm.GetRegime().type == RegimeType.ZhouFeudalism) return BehResult.Continue;
@@ -38,7 +38,7 @@ public class EmpireCraftActorCheckTraits: GameAIActorBase
             };
             if (random.NextDouble() <= clergy)
             {
-                pActor.addTrait("cleric");
+                pActor.AddTrait("cleric");
             }
             pActor.FinishChooseToBecomeCleric();
         }

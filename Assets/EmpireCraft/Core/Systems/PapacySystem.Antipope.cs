@@ -301,8 +301,8 @@ public static partial class PapacySystem
     private static void SeatAntipope(Religion religion, PapalSchismData schism, Person pope, double now)
     {
         City see = EmpireWorld.Current.CityByKey(schism.see_city_id);
-        if (see?.Record != null && !see.IsGone() && pope.City != see) pope.joinCity(see);
-        if (!pope.hasTrait("cleric")) pope.addTrait("cleric");
+        if (see?.Record != null && !see.IsGone() && pope.City != see) pope.JoinCity(see);
+        if (!pope.HasTrait("cleric")) pope.AddTrait("cleric");
         if (pope.religion != religion) pope.setReligion(religion);
         CloseAntipopeRecord(schism, now);
         schism.pope_id = pope.Key;
@@ -429,7 +429,7 @@ public static partial class PapacySystem
         schism.see_city_name = next.Capital.GetCityName();
         schism.patron_id = next.Key;
         Person pope = Antipope(religion);
-        if (pope != null && pope.City != next.Capital) pope.joinCity(next.Capital);
+        if (pope != null && pope.City != next.Capital) pope.JoinCity(next.Capital);
         string text = string.Format(LM.Get("antipope_see_moved_log"), from, schism.see_city_name, next.GetKingdomName());
         TranslateHelper.LogEventMessage(text, next);
         ReligionChronicle.Record(religion, ReligionChronicle.KindPapacy, text);

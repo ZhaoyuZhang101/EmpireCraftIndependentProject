@@ -102,7 +102,7 @@ public static class GuoyeSystem
                 office.SetActor(successor);
             }
             else core.SetRuler(successor);
-            former.joinCity(refuge);
+            former.JoinCity(refuge);
             former.setKingdom(refuge.Realm);
             content = string.Format(LM.Get("guoren_riot_exile_history"), formerName, refuge.GetCityName(), successor.FullName());
             successor.RecordPersonalHistory(content, relatedActorId: former.Key);
@@ -125,7 +125,7 @@ public static class GuoyeSystem
         bool Fit(Person actor) => actor?.Record != null && actor != former && actor.Alive && !actor.IsGone() && actor.IsAdult() &&
                                  !actor.IsRuler() && actor.Realm?.GetEmpire() == empire;
         // 纯净地图下宗亲多是虚拟族人：地图上没有就从世系里落成一位成年的(以前宗室在世也"无人可立")
-        return empire.EmpireSpecificClan?.AllAliveMembers?.Where(Fit).OrderByDescending(actor => actor.renown).FirstOrDefault() ??
+        return empire.EmpireSpecificClan?.AllAliveMembers?.Where(Fit).OrderByDescending(actor => actor.Renown).FirstOrDefault() ??
                KinRoster.RealizeAdultKin(empire.EmpireSpecificClan, kingdom => kingdom?.GetEmpire() == empire, Fit);
     }
 #endif

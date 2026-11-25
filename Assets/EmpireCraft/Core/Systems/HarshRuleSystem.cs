@@ -541,7 +541,7 @@ public static class HarshRuleSystem
             Person successor = governing.AllMembers
                 .Where(actor => actor != null && !actor.IsGone() && actor.Alive && actor.IsAdult() &&
                                 actor != old && actor.Realm?.GetEmpire() == empire)
-                .OrderByDescending(actor => actor.renown).FirstOrDefault();
+                .OrderByDescending(actor => actor.Renown).FirstOrDefault();
             // 无小人模式：党内实体很少，推举一位本党理念的读书人接任
             if (successor == null && CityPopulationSystem.AbstractPopulationEnabled)
             {

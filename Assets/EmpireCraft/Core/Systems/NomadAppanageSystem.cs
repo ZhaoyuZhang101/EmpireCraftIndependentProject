@@ -126,7 +126,7 @@ public static class NomadAppanageSystem
         PersonalClanIdentity identity = khan.GetPersonalIdentity();
         if (identity == null) return new List<Person>();
         bool Fit(Person actor) => actor?.Record != null && !actor.IsGone() && actor.Alive && !actor.IsRuler() && actor.Realm == kingdom &&
-                                 !RealisticAgeSystem.IsMinor(actor) && actor.isUnitFitToRule();
+                                 !RealisticAgeSystem.IsMinor(actor) && actor.IsFitToRule();
         List<PersonalClanIdentity> siblings = KinRoster.Siblings(identity);
         List<Person> result = siblings.Where(KinRoster.OnMap).Select(person => person._actor).Where(Fit).Distinct().ToList();
         // 已经掷中要分帐了：纯净地图下兄弟多是虚拟族人，按长幼落成成年的补够帐数(以前地图上没有就交给当地首领立国)
@@ -165,7 +165,7 @@ public static class NomadAppanageSystem
         Realm tent;
         try
         {
-            if (brother.City != seed) brother.joinCity(seed);
+            if (brother.City != seed) brother.JoinCity(seed);
             tent = seed.makeOwnKingdom(brother);
         }
         catch (Exception exception)

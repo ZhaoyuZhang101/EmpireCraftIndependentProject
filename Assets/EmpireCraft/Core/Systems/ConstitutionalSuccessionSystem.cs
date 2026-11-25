@@ -73,13 +73,15 @@ public static class ConstitutionalSuccessionSystem
                 state.constitution?.clauses?.form_of_state == ConstitutionFormOfState.ConstitutionalMonarchy ||
                 ParliamentSystem.HasParliament(empire));
     }
+#endif
 
     public static bool CanInherit(Empire empire, Person actor) =>
-        actor != null && !actor.IsGone() && actor.Alive && actor.isUnitFitToRule() &&
+        actor != null && !actor.IsGone() && actor.Alive && actor.IsFitToRule() &&
         actor.GetPersonalIdentity() is { is_concubine: false } &&
         empire?.EmpireSpecificClan != null &&
         SpecificClanManager.SameLineage(actor.GetSpecificClan(), empire.EmpireSpecificClan);
 
+#if EC_PENDING
     private static List<Person> LivingDynasty(Empire empire)
     {
         SpecificClan royal = empire?.EmpireSpecificClan;
@@ -116,9 +118,9 @@ public static class ConstitutionalSuccessionSystem
         Person real = LivingDynasty(empire)
             .Where(actor => actor != empire.Emperor && CanInherit(empire, actor))
             .OrderByDescending(actor => actor.GetIdentity()?.TotalPerformance ?? 0d)
-            .ThenByDescending(actor => actor.stewardship)
-            .ThenByDescending(actor => actor.renown)
-            .ThenBy(actor => actor.id).FirstOrDefault();
+            .ThenByDescending(actor => actor.Stewardship)
+            .ThenByDescending(actor => actor.Renown)
+            .ThenBy(actor => actor.Key).FirstOrDefault();
         if (real != null) return real;
         PersonalClanIdentity virtualHeir = VirtualDynasty(empire)
             .Where(person => person.age >= 16)

@@ -785,7 +785,7 @@ public static class KingdomFrontLineHelper
                 continue;
             }
 
-            if (!actor.isWarrior())
+            if (!actor.IsWarrior())
             {
                 continue;
             }

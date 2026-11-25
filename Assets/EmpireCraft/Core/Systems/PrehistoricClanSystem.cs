@@ -232,10 +232,10 @@ public static class PrehistoricClanSystem
             case SurnameEra.Xing:
                 return surname;
             case SurnameEra.ShiEmerging:
-                return actor.isSexMale() && ShiOf(actor) is string emerging ? emerging : surname;
+                return actor.IsMale() && ShiOf(actor) is string emerging ? emerging : surname;
             case SurnameEra.ZhouShi:
-                if (actor.isSexMale() && ShiOf(actor) is string shi) return shi;
-                return !actor.isSexMale() || Noble(actor) ? surname : "";
+                if (actor.IsMale() && ShiOf(actor) is string shi) return shi;
+                return !actor.IsMale() || Noble(actor) ? surname : "";
             case SurnameEra.EliteOnly:
                 // 贵族、官吏、武士称氏(苗字)，平民无姓
                 return Noble(actor, true) ? ShiOf(actor) ?? surname : "";

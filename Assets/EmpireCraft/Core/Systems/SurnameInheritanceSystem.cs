@@ -77,21 +77,21 @@ public static class SurnameInheritanceSystem
     private static int ParentPriority(Person parent)
     {
         // 君主、储君的子女随君主姓(女帝与皇夫所生的也是皇族，以前跟了皇夫的姓，帝系断开、姓氏跳来跳去)
-        if (Reigns(parent)) return 1000 + (parent.isSexMale() ? 10 : 0);
+        if (Reigns(parent)) return 1000 + (parent.IsMale() ? 10 : 0);
         var identity = parent.GetPersonalIdentity();
         // 宗室的子女随宗室的姓(见 Dynasty)；两边都是宗室的，帝国皇族先于王族
         int dynasty = Dynasty(identity);
-        if (dynasty > 0) return 800 + dynasty * 20 + (parent.isSexMale() ? 10 : 0);
+        if (dynasty > 0) return 800 + dynasty * 20 + (parent.IsMale() ? 10 : 0);
         // 华夏一系宗法父系：随父姓(入赘的除外)。以前"婚姻有记录的一方"优先，生母有婚姻记录、生父没有时，
         // 皇子随了生母的姓(聂志之子成了欧阳朗，此后一路姓欧阳)
-        if (parent.isSexMale() && identity?._specificClan?.Patrilineal() == true && identity.is_main) return 500;
+        if (parent.IsMale() && identity?._specificClan?.Patrilineal() == true && identity.is_main) return 500;
         // 华夏母系氏族阶段：随母姓、入母亲的氏族(见 PrehistoricClanSystem)
-        if (!parent.isSexMale() && identity?._specificClan?.Matrilineal() == true && identity.is_main) return 500;
+        if (!parent.IsMale() && identity?._specificClan?.Matrilineal() == true && identity.is_main) return 500;
         // Respect the existing marriage/concubinage and maternal/paternal clan rules.
         int priority = identity == null ? 0 : !identity.is_main ? -100
             : identity.hasLover() || identity.is_concubine ? 100 : 0;
         if (identity?._specificClan != null && identity.IsHeirPriority()) priority += 20;
-        if (parent.isSexMale()) priority += 10;
+        if (parent.IsMale()) priority += 10;
         return priority;
     }
 #endif
@@ -151,12 +151,12 @@ public static class SurnameInheritanceSystem
         if (reigning != null) return reigning;
         // 宗室一方(见 Dynasty)：两边都是宗室的，帝国皇族先于王族，再按父亲
         PersonalClanIdentity dynast = list.Where(parent => Dynasty(parent) > 0).OrderByDescending(Dynasty)
-            .ThenByDescending(parent => parent.sex == ActorSex.Male).FirstOrDefault();
+            .ThenByDescending(parent => parent.sex == Sex.Male).FirstOrDefault();
         if (dynast != null) return dynast;
-        PersonalClanIdentity father = list.FirstOrDefault(parent => parent.sex == ActorSex.Male && parent.is_main &&
+        PersonalClanIdentity father = list.FirstOrDefault(parent => parent.sex == Sex.Male && parent.is_main &&
                                                                      parent._specificClan.Patrilineal());
         if (father != null) return father;
-        PersonalClanIdentity mother = list.FirstOrDefault(parent => parent.sex != ActorSex.Male && parent.is_main &&
+        PersonalClanIdentity mother = list.FirstOrDefault(parent => parent.sex != Sex.Male && parent.is_main &&
                                                                      parent._specificClan.Matrilineal());
         if (mother != null) return mother;
         return list.FirstOrDefault(parent => parent.is_main && parent.IsHeirPriority());
@@ -323,7 +323,7 @@ public static class SurnameInheritanceSystem
         if (child?.Record == null) return false;
         Name name = child.GetModName();
         if (name == null || !overwrite && name.hasFamilyName(child)) return false;
-        Person parent = SelectParent(child.getParents());
+        Person parent = SelectParent(child.GetParents());
         if (parent == null) return false;
         child.SetFamilyName(FamilyNameOf(parent));
         return true;

@@ -774,7 +774,7 @@ public static class StateSettlementSystem
                 CityPopulationSystem.Census(city, population, keepBackground: true, preserveSmallGroups: true);
                 if ((CityStateService.IsCityState(city.Realm) || TribalFissionService.IsTribal(city.Realm)) &&
                     city.Realm.Cities.Count > 1 &&
-                    (city.Leader == null || !city.Leader.IsAdult() || !city.Leader.isUnitFitToRule()))
+                    (city.Leader == null || !city.Leader.IsAdult() || !city.Leader.IsFitToRule()))
                 { state.status = "recovery"; return; }
                 if (project.create_fief)
                 {
@@ -822,7 +822,7 @@ public static class StateSettlementSystem
         {
             if (EnfeoffmentHelper.IsRealmCapital(city)) return false;
             Person leader = city.Leader;
-            if (leader == null || !leader.IsAdult() || !leader.isUnitFitToRule()) return false;
+            if (leader == null || !leader.IsAdult() || !leader.IsFitToRule()) return false;
             // 复用城市立国入口，只拆新建城市，不把旧法理下的其它城市一起划走。
             Realm previous = city.Realm;
             // 新城立封国：受命立国，不许自立的闸放行(见 SecessionGate)

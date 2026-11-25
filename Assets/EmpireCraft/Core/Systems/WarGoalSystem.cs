@@ -353,8 +353,8 @@ public static class WarGoalSystem
     {
         SpecificClan clan = defender?.king?.GetSpecificClan();
         bool Fit(Person actor) => actor?.Record != null && !actor.IsGone() && actor.Alive && actor.IsAdult() &&
-                                 actor != defender.Ruler && !actor.IsRuler() && actor.Realm == defender && actor.isUnitFitToRule();
-        Person pick = clan?.AllAliveMembers?.Where(Fit).OrderByDescending(actor => actor.Record?.renown ?? 0).FirstOrDefault();
+                                 actor != defender.Ruler && !actor.IsRuler() && actor.Realm == defender && actor.IsFitToRule();
+        Person pick = clan?.AllAliveMembers?.Where(Fit).OrderByDescending(actor => actor.Record?.Renown ?? 0).FirstOrDefault();
         return pick ?? (realize ? KinRoster.RealizeFirst(VirtualInstallCandidates(defender, clan), Fit, 2) : null);
     }
 #endif

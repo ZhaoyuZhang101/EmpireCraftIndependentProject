@@ -262,11 +262,13 @@ public static class TribalFissionService
             LogService.LogWarning($"[EmpireCraft][部落分迁] 共主整理失败: {exception.Message}");
         }
     }
+#endif
 
     private static bool Fit(Person actor, City city) =>
         actor != null && !actor.IsGone() && actor.Alive && actor.IsAdult() && !actor.IsRuler() && actor.City == city &&
-        actor.isUnitFitToRule();
+        actor.IsFitToRule();
 
+#if EC_PENDING
     private static void Split(City city, Realm mother, Person leader)
     {
         try

@@ -32,12 +32,12 @@ public static class HaremSuccessionSystem
                 _ => 0f
             };
             if (chance <= 0f || EcRandom.value >= chance) return;
-            bool Fit(Person child) => child?.Record != null && !child.IsGone() && child.Alive && child.isSexMale() &&
+            bool Fit(Person child) => child?.Record != null && !child.IsGone() && child.Alive && child.IsMale() &&
                                      !child.IsRuler() && child.Realm?.GetEmpire() == empire;
             // 皇子、生母连族谱里的虚拟族人一起算(纯净地图下多不在地图上；以前只数地图上的儿子，几乎永远凑不够两个)；
             // 上面掷中了才把皇子落成实体
             List<PersonalClanIdentity> sonPeople = KinRoster.Children(emperor).Where(person => KinRoster.Counts(person,
-                    virtualSon => virtualSon.sex == ActorSex.Male && KinRoster.KingdomOf(virtualSon)?.GetEmpire() == empire, Fit))
+                    virtualSon => virtualSon.sex == Sex.Male && KinRoster.KingdomOf(virtualSon)?.GetEmpire() == empire, Fit))
                 .ToList();
             if (sonPeople.Count < 2) return;
             List<Person> sons = KinRoster.Realize(sonPeople, Fit);

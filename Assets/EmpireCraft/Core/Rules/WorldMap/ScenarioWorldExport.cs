@@ -815,7 +815,6 @@ public static class ScenarioWorldExport
     #region 人物
 
     // 剧本人物：姓、名(只写一种，三种语言同名；没姓的不写姓，开局按本国文化起)、年龄、女的写 sex f；rel 与君主的关系
-#if EC_PENDING
     private static JObject Person(Person actor, string rel, bool heir)
     {
         if (actor?.Record == null || actor.IsGone()) return null;
@@ -830,38 +829,35 @@ public static class ScenarioWorldExport
         Put(entry, "fam", family);
         Put(entry, "giv", given);
         entry["age"] = actor.Age();
-        if (!actor.isSexMale()) entry["sex"] = "f";
+        if (!actor.IsMale()) entry["sex"] = "f";
         Put(entry, "rel", rel);
         if (heir) entry["heir"] = true;
         return entry;
     }
-#endif
 
     // 宗室：君主在世的子女(年长的在前，至多 MaxKin 个，开局认君主作父)，储君不是子女的另记一条(同父母的记兄弟姐妹)
-#if EC_PENDING
     private static JArray Kin(Realm kingdom, Person king)
     {
         var list = new JArray();
         Person heir = kingdom.GetHeir();
         var added = new HashSet<Person>();
-        foreach (Person child in (king.getChildren() ?? Enumerable.Empty<Person>())
-                 .Where(actor => actor?.data != null && !actor.IsGone() && actor.Alive).OrderByDescending(actor => actor.getAge()).Take(MaxKin))
+        foreach (Person child in (king.GetChildren() ?? Enumerable.Empty<Person>())
+                 .Where(actor => actor?.Record != null && !actor.IsGone() && actor.Alive).OrderByDescending(actor => actor.Age()).Take(MaxKin))
         {
-            JObject person = Person(child, child.isSexMale() ? "son" : "daughter", child == heir);
+            JObject person = Person(child, child.IsMale() ? "son" : "daughter", child == heir);
             if (person == null) continue;
             list.Add(person);
             added.Add(child);
         }
         if (heir != null && !added.Contains(heir))
         {
-            var parents = new HashSet<Person>((king.getParents() ?? Enumerable.Empty<Person>()).Where(parent => parent != null));
-            bool sibling = parents.Count > 0 && (heir.getParents() ?? Enumerable.Empty<Person>()).Any(parents.Contains);
-            JObject person = Person(heir, sibling ? heir.isSexMale() ? "brother" : "sister" : null, true);
+            var parents = new HashSet<Person>((king.GetParents() ?? Enumerable.Empty<Person>()).Where(parent => parent != null));
+            bool sibling = parents.Count > 0 && (heir.GetParents() ?? Enumerable.Empty<Person>()).Any(parents.Contains);
+            JObject person = Person(heir, sibling ? heir.IsMale() ? "brother" : "sister" : null, true);
             if (person != null) list.Add(person);
         }
         return list;
     }
-#endif
 
     #endregion
 

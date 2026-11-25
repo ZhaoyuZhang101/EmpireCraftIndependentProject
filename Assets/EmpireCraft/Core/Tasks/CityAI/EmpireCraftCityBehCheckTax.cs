@@ -46,7 +46,7 @@ public class EmpireCraftCityBehCheckTax : GameAICityBase
         corruptedMoney = Math.Min(collected, corruptedMoney);
         if (corruptedMoney > 0 && pCity.HasLeader())
         {
-            pCity.Leader.addMoney(corruptedMoney);
+            pCity.Leader.AddMoney(corruptedMoney);
             pCity.Leader.RecordCrime(LawType.贪污, corruptedMoney);
         }
         pCity.SubMoney(collected);

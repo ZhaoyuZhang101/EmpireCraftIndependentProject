@@ -19,8 +19,8 @@ public static class OfficeSelector
         if (string.IsNullOrEmpty(culture)) return true;
         if (!OnomasticsRule.ALL_CULTURE_RULE.TryGetValue(culture, out Setting setting) || setting?.traits == null)
             return true;
-        if (setting.traits.Contains("patriarchy")) return actor.isSexMale();
-        if (setting.traits.Contains("matriarchy")) return actor.isSexFemale();
+        if (setting.traits.Contains("patriarchy")) return actor.IsMale();
+        if (setting.traits.Contains("matriarchy")) return actor.IsFemale();
         return true;
     }
 
@@ -50,7 +50,7 @@ public static class OfficeSelector
                 break;
             case LeaderSelectMethod.Succession:
                 // 世家子弟入仕(九品中正、察举、世卿世禄，见 GentrySystem)
-                actor = GentrySystem.Candidate(pKingdom, unit => unit.isUnitFitToRule() && unit.CanServeOffice(pKingdom) &&
+                actor = GentrySystem.Candidate(pKingdom, unit => unit.IsFitToRule() && unit.CanServeOffice(pKingdom) &&
                                                                  IsPreferredOfficeCandidate(unit, pKingdom) && office.Accepts(unit))
                         ?? TryGetClanOfficer(pKingdom, office)??TryGetProfessionOfficer(pKingdom, office);
                 break;
@@ -126,9 +126,9 @@ public static class OfficeSelector
         if (kingdom?.units == null) return null;
         foreach (Person unit in kingdom.units)
         {
-            if (unit == null || unit.IsGone() || !unit.Alive || !unit.isSexMale() || !unit.IsAdult() || unit.IsRuler() ||
-                !unit.isUnitFitToRule() || !unit.CanServeOffice(kingdom) || unit.IsSkeleton() || !office.Accepts(unit)) continue;
-            if (best == null || unit.renown > best.renown) best = unit;
+            if (unit == null || unit.IsGone() || !unit.Alive || !unit.IsMale() || !unit.IsAdult() || unit.IsRuler() ||
+                !unit.IsFitToRule() || !unit.CanServeOffice(kingdom) || unit.IsSkeleton() || !office.Accepts(unit)) continue;
+            if (best == null || unit.Renown > best.Renown) best = unit;
         }
         return best;
     }
@@ -160,38 +160,38 @@ public static class OfficeSelector
                                         a => a.CanServeOffice(pKingdom) && !a.IsSkeleton() && !a.IsOnOffice(), 1);
                     if (consort != null)
                     {
-                        if (consort.City != emperor.City && emperor.City != null) consort.joinCity(emperor.City);
+                        if (consort.City != emperor.City && emperor.City != null) consort.JoinCity(emperor.City);
                         return consort;
                     }
                     var lover = empire.getUnits().ToList().Find(a =>
-                        a.CanServeOffice(pKingdom) && a.isSexFemale() && a.IsAdult() && a.age <= 25 &&
+                        a.CanServeOffice(pKingdom) && a.IsFemale() && a.IsAdult() && a.age <= 25 &&
                         (a.Clan == null || a.Clan != emperor.Clan) &&
-                        !a.hasLover() && !lives.Contains(a) && !KinshipRules.AreCloseKin(emperor, a));
+                        !a.HasSpouse() && !lives.Contains(a) && !KinshipRules.AreCloseKin(emperor, a));
                     if (lover != null)
                     {
-                        lover.lover = emperor;
+                        lover.Spouse = emperor;
                         emperor.GetPersonalIdentity().setLover(lover, isCus:true);
-                        lover.joinCity(emperor.City);
+                        lover.JoinCity(emperor.City);
                         return lover;
                     }
                 }
                 else
                 {
-                    if (emperor.hasLover() && emperor.lover.CanServeOffice(pKingdom))
+                    if (emperor.HasSpouse() && emperor.Spouse.CanServeOffice(pKingdom))
                     {
-                        return emperor.lover;
+                        return emperor.Spouse;
                     }
 
                     var lover = empire.getUnits().ToList().Find(a =>
-                        a.CanServeOffice(pKingdom) && a.isSexFemale() && a.IsAdult() && a.age <= 25 &&
+                        a.CanServeOffice(pKingdom) && a.IsFemale() && a.IsAdult() && a.age <= 25 &&
                         (a.Clan == null || a.Clan != emperor.Clan) &&
-                        !a.hasLover() && !a.IsSkeleton() && !KinshipRules.AreCloseKin(emperor, a));
+                        !a.HasSpouse() && !a.IsSkeleton() && !KinshipRules.AreCloseKin(emperor, a));
                     if (lover != null)
                     {
-                        lover.lover = emperor;
+                        lover.Spouse = emperor;
                         emperor.setLover(lover);
                         emperor.GetPersonalIdentity().setLover(lover, isCus:false);
-                        lover.joinCity(emperor.City);
+                        lover.JoinCity(emperor.City);
                         return lover;
                     }
                 }
@@ -232,13 +232,13 @@ public static class OfficeSelector
                               HolyRomanSystem.Estate(kingdom) == HolyRomanSystem.EstateNone)
             .Select(kingdom => kingdom.Ruler)
             .Where(candidate => candidate != null && !candidate.IsGone() && candidate.IsAdult() &&
-                                candidate.isUnitFitToRule() && candidate.CanServeOffice(pKingdom) &&
+                                candidate.IsFitToRule() && candidate.CanServeOffice(pKingdom) &&
                                 !candidate.IsSkeleton())
             .Select(candidate => (candidate, votes: electors.Count(elector => elector.GetFaction() == candidate.GetFaction())))
             .OrderByDescending(item => item.votes)
             .ThenByDescending(item => IsPreferredOfficeCandidate(item.candidate, pKingdom))
-            .ThenByDescending(item => item.candidate.renown)
-            .ThenByDescending(item => item.candidate.kingdom?.countTotalWarriors() ?? 0)
+            .ThenByDescending(item => item.candidate.Renown)
+            .ThenByDescending(item => item.candidate.Realm?.countTotalWarriors() ?? 0)
             .ToList();
     }
 #endif
@@ -328,7 +328,7 @@ public static class OfficeSelector
         foreach (Person unit in targetPool)
         {
             if (LeadsElsewhere(unit, pOffice)) continue;
-            if (unit.isUnitFitToRule() && unit.IsAdult() && unit.CanServeOffice(pKingdom) && !unit.IsEmperor() && !unit.IsOnOffice() && unit.HasClan()&& (!unit.IsRuler()||(unit.IsRuler()&&unit.Realm.GetRegime().GetLeaderSelectMethod()!=LeaderSelectMethod.Succession)))
+            if (unit.IsFitToRule() && unit.IsAdult() && unit.CanServeOffice(pKingdom) && !unit.IsEmperor() && !unit.IsOnOffice() && unit.HasClan()&& (!unit.IsRuler()||(unit.IsRuler()&&unit.Realm.GetRegime().GetLeaderSelectMethod()!=LeaderSelectMethod.Succession)))
             {
                 if (unit.IsSkeleton()) continue;
                 if (!pOffice.Accepts(unit)) continue;
@@ -341,8 +341,8 @@ public static class OfficeSelector
                     {
                         flag1 = true;
                     }
-                    if (CityPopulationSystem.AbstractPopulationEnabled ? pOffice.require_traits.Any(t => unit.hasTrait(t)) :
-                        pOffice.require_traits.FindAll(t => unit.hasTrait(t)).Any())
+                    if (CityPopulationSystem.AbstractPopulationEnabled ? pOffice.require_traits.Any(t => unit.HasTrait(t)) :
+                        pOffice.require_traits.FindAll(t => unit.HasTrait(t)).Any())
                     {
                         flag2 = true;
                     }
@@ -417,7 +417,7 @@ public static class OfficeSelector
         {
             foreach (Person unit in city.units)
             {
-                if (unit.isUnitFitToRule() && unit.IsAdult() && unit.CanServeOffice(pKingdom) && !unit.IsRuler() && !unit.IsCityLeader() && unit.HasClan()&&!unit.IsOnOffice() && !unit.IsSkeleton() &&
+                if (unit.IsFitToRule() && unit.IsAdult() && unit.CanServeOffice(pKingdom) && !unit.IsRuler() && !unit.IsCityLeader() && unit.HasClan()&&!unit.IsOnOffice() && !unit.IsSkeleton() &&
                     (office == null || office.Accepts(unit)))
                 {
                     if (clan != null && unit.Clan == clan)
