@@ -40,11 +40,14 @@ Shader "Hidden/ORBIS/HPCloudColumn"
   float lon=(i.uv.x-.5)*6.283185307,lat=(i.uv.y-.5)*3.141592654;
   float3 up=float3(sin(lon)*cos(lat),sin(lat),cos(lon)*cos(lat));
   float2 tau=0;
-  // Radial HP density integral cached at 5Hz, preserving map readability.
+  // Radial HP density integral cached at 5Hz, preserving map readability and ground cloud-shadow sync.
+  // Pass the macro orbital column angular footprint (matching orbital Clouds.shader) rather than 0.0,
+  // avoiding close-up 3.4x cuLwcBoost tau inflation across the global column cache.
+  const float colFootprint=0.0018;
   [loop] for(int k=0;k<8;k++)
   {
    float metres=400+(k+.5)*1637.5;
-   tau+=ScrollClimateDensities(up*(1+metres*_CloudHeightScale),false)*1637.5*_CloudHeightScale*ORBIS_EXTINCTION;
+   tau+=ScrollClimateDensitiesMip(up*(1+metres*_CloudHeightScale),false,colFootprint,0.0)*1637.5*_CloudHeightScale*ORBIS_EXTINCTION;
   }
   float2 opacity=1-exp(-tau);
   float4 weather=tex2Dlod(_ScrollWeatherTex,float4(i.uv,0,0));
