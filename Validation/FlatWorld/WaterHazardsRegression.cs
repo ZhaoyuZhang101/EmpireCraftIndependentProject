@@ -758,6 +758,27 @@ public static class WaterHazardsRegression
         Check(mWet.RainInputVolumeM3 > 0.0 && mWet.ChannelInflowVolumeM3 > 0.0 && mDry.RainInputVolumeM3 == 0.0 && mDry.ChannelInflowVolumeM3 == 0.0,
             $"6h surface precipitation vs virga=0 ledger mismatch: wetRain={mWet.RainInputVolumeM3:E2}, dryRain={mDry.RainInputVolumeM3:E2}");
 
+        // A catch-up task may receive a whole six-hour slice. The CFL limit
+        // in a deep coastal patch can require several batches of substeps.
+        foreach (var scenario in new[] { FlatStormScenario.EastChinaSeaLandfall, FlatStormScenario.NorthAtlanticLandfall })
+        {
+            Check(FlatStormScenarios.TryCreateScenarioWorld(baseEarth, scenario, out var catchUpWorld, out int catchUpTile, out _),
+                $"Cannot initialize {scenario} for a six-hour SWE catch-up");
+            var catchUp = FlatWaterHazardSession.Create(catchUpWorld, FlatHazardKind.TyphoonSurge, catchUpTile, liveWeatherDriven: true);
+            var sim = new FlatSimulation(catchUpWorld);
+            const double secondsPerSixHours = .25 * FlatWaterHazardSession.LiveSweSecondsPerCalendarDay;
+            for (int tick = 0; tick < 4; tick++)
+            {
+                sim.Step(.25f);
+                double before = catchUp.Solver.Elapsed;
+                var storm = catchUpWorld.Cyclones.Sample(true, catchUpWorld.Day);
+                catchUp.StepWithCalendar(secondsPerSixHours, catchUpWorld.Day, storm, catchUpWorld.Cyclones, maxSubsteps: 48);
+                double advanced = catchUp.Solver.Elapsed - before;
+                Check(Math.Abs(advanced - secondsPerSixHours) < 1e-5,
+                    $"{scenario} six-hour catch-up advanced {advanced:F3}s of {secondsPerSixHours:F3}s");
+            }
+        }
+
         // B. Shared FlatSolarClock calendar progression across 1x speed, pause, and 20x speed (3.0 simulated days):
         //    cyclone track, 6h snapshot tick, rainfall ledger, flood peak, and recession must advance along the same CalendarDay.
         (int peakCells, int endCells, double rainVol, double endElapsed, long endTick) RunCalendarCoupled(double speedMultiplier)

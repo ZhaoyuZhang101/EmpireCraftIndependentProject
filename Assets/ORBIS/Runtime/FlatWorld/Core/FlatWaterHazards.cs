@@ -1133,7 +1133,8 @@ namespace Orbis.Flat
             int maxSubsteps = 24)
         {
             double sfcRain6h = publishedSurfaceRainKgM2Per6h;
-            if (LiveWeatherDriven && Kind != FlatHazardKind.Tsunami && !double.IsNaN(calendarDay))
+            bool calendarDriven = LiveWeatherDriven && Kind != FlatHazardKind.Tsunami && !double.IsNaN(calendarDay);
+            if (calendarDriven)
             {
                 LastCalendarDay = calendarDay;
                 LastPrecipitationTick = FlatCycloneWeather.StepAt(calendarDay);
@@ -1150,10 +1151,14 @@ namespace Orbis.Flat
                     LastSurfacePrecipKgM2Per6h = (float)sfcRain6h;
                 }
             }
-            Step(dtSimSeconds, liveCyclone, maxSubsteps, sfcRain6h);
+            Step(dtSimSeconds, liveCyclone, maxSubsteps, sfcRain6h, completeCalendarSlice: calendarDriven);
         }
 
-        public void Step(double dtSimSeconds, FlatCycloneTrack liveCyclone, int maxSubsteps, double externalSurfaceRainKgM2Per6h)
+        public void Step(double dtSimSeconds, FlatCycloneTrack liveCyclone, int maxSubsteps, double externalSurfaceRainKgM2Per6h) =>
+            Step(dtSimSeconds, liveCyclone, maxSubsteps, externalSurfaceRainKgM2Per6h, completeCalendarSlice: false);
+
+        void Step(double dtSimSeconds, FlatCycloneTrack liveCyclone, int maxSubsteps,
+            double externalSurfaceRainKgM2Per6h, bool completeCalendarSlice)
         {
             if (dtSimSeconds <= 0) return;
             UpdateForcing(Solver.Elapsed + 0.5 * dtSimSeconds, liveCyclone, externalSurfaceRainKgM2Per6h);
@@ -1172,10 +1177,20 @@ namespace Orbis.Flat
                 }
             }
 
-            Solver.Advance(dtSimSeconds, maxSubsteps);
-
-            int curInundated = CountInundatedDryCells();
-            if (curInundated > peakInundatedDryCells) peakInundatedDryCells = curInundated;
+            // Live calendar slices must finish with the same forcing. Deep
+            // water can exhaust a CFL substep batch before reaching the target.
+            double remaining = dtSimSeconds;
+            do
+            {
+                double before = Solver.Elapsed;
+                Solver.Advance(remaining, maxSubsteps);
+                peakInundatedDryCells = Math.Max(peakInundatedDryCells, CountInundatedDryCells());
+                double advanced = Solver.Elapsed - before;
+                remaining -= advanced;
+                if (completeCalendarSlice && remaining > 1e-7 && advanced <= 0)
+                    throw new InvalidOperationException("Live SWE solver did not advance its calendar slice.");
+            }
+            while (completeCalendarSlice && remaining > 1e-7);
         }
 
         public void UpdateForcing(double tSeconds, FlatCycloneTrack liveCyclone) =>
