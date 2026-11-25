@@ -30,6 +30,7 @@ public static class Program {
     case "--moisture-flux": MoistureFluxRegression.Run(args); break;
     case "--gleba-supplement": GlebaSupplementRegression.Run(); break;
     case "--exoplasim-supplement": ExoPlaSimSupplementRegression.Run(); break;
+    case "--cloud-forcing": CloudForcingRegression.Run(); break;
     case "--ocean-circulation": OceanCirculationRegression.Run(); break;
     case "--seasonal-rainfall": SeasonalRainfallRegression.Run(); break;
     case "--orographic-rainfall": OrographicRainfallRegression.Run(); break;

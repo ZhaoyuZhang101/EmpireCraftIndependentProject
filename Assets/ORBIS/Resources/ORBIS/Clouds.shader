@@ -31,7 +31,7 @@ Shader "ORBIS/Clouds"
    #include "OrbisAtmosphereCommon.cginc"
    struct MRT {float4 light:SV_Target0;float4 transmission:SV_Target1;};
    MRT frag(v2f_img i)
-   {OrbisVolumeResult r=OrbisMarch(i.uv);MRT o;o.light=float4(r.light,r.sceneDepth);o.transmission=float4(r.transmission,r.sceneDepth);return o;}
+   {OrbisVolumeResult r=OrbisMarchPixel(i.uv,i.pos.xy);MRT o;o.light=float4(r.light,r.sceneDepth);o.transmission=float4(r.transmission,r.sceneDepth);return o;}
    ENDCG
   }
   Pass
@@ -46,7 +46,7 @@ Shader "ORBIS/Clouds"
    #include "OrbisCelestialLens.cginc"
    float4 frag(OrbisLensVaryings i):SV_Target
    {
-    OrbisVolumeResult r=OrbisMarch(i.uv);
+    OrbisVolumeResult r=OrbisMarchPixel(i.uv,i.pos.xy);
     float3 background=OrbisBackgroundWithSun(tex2D(_MainTex,i.uv).rgb,i.uv,r.sceneDepth);
     return float4(OrbisTone(background*r.transmission+r.light+OrbisLensRadiance(i)),1);
    }
