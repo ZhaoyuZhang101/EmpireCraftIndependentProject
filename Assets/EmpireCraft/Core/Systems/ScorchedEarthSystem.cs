@@ -1,0 +1,182 @@
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/ScorchedEarthSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
+// see Port/manifest.json and Tools/PortTool.
+using Mathf = EmpireCraft.Core.EcMath;
+using System;
+using System.Collections.Generic;
+
+namespace EmpireCraft.Core
+{
+
+// 烧杀抢掠(无小人模式)：敌军占着一座城的区块时，若占领国的君主残暴(邪恶、嗜血、残忍、疯狂)，
+// 或者仇外而这座城是异族(主流文化或物种不同)，军队纵兵烧杀——每月按敌占区块的比例：
+//   杀伤背景人口 KillRatePerMonth × 敌占比例；烧掉敌占区块里的庄稼；抢走城中存粮 PlunderRate × 敌占比例。
+// 死难人数记入屠城之恨(见 MassacreSystem)：日后由屠城者统治时城市忠诚下降。
+// 城破纵兵烧杀的，攻城统领犯抢掠平民(见 LawEvents.Sacked)。
+// 庄稼被烧、存粮被抢、敌占区块又不能耕种(见 FarmlandSystem)，城市随之缺粮闹饥荒。
+public static class ScorchedEarthSystem
+{
+    private const float KillRatePerMonth = 0.08f;
+    private const float PlunderRate = 0.5f;
+    private static readonly string[] CruelTraits = { "evil", "bloodlust", "psychopath", "madness", "savage" };
+
+#if EC_PENDING
+    public static bool WillScorch(Realm occupier, City city)
+    {
+        Person king = occupier?.Ruler;
+        if (king == null || king.IsGone() || city?.Realm == null) return false;
+        foreach (string trait in CruelTraits)
+            if (king.HasTrait(trait)) return true;
+        if (!king.hasXenophobic()) return false;
+        string cityCulture = CultureService.GetMainCulture(city, initialize: false);
+        string ownCulture = CultureService.GetRealmCulture(occupier);
+        bool foreignCulture = CultureService.IsValidCulture(cityCulture) && cityCulture != ownCulture;
+        bool foreignSpecies = city.GetSpecies() != null && king.Asset != null && city.GetSpecies() != king.Asset.Id;
+        return foreignCulture || foreignSpecies;
+    }
+#endif
+
+    // 敌占区块(区块 id → 占领国)；没有敌占时返回 null
+    public static Dictionary<int, long> OccupiedZones(City city)
+    {
+        Dictionary<int, long> owners = city?.GetOrCreate().OccupiedZoneOwners;
+        return owners == null || owners.Count == 0 ? null : owners;
+    }
+
+    public static bool IsOccupiedZone(City city, Cell zone)
+    {
+        Dictionary<int, long> owners = OccupiedZones(city);
+        return owners != null && zone != null && owners.ContainsKey(zone.Index);
+    }
+
+    // ---- 城破(无小人模式) ----
+    // 城市被攻占时：破城伤亡 SackDeathRate(会纵兵烧杀的再加 SackScorchDeathRate，记入屠城之恨)；
+    // 一部分人逃往原国家离得最近的其他城市(基础 RefugeeRate，异族占领、纵兵烧杀各再加)；城中存粮被抢走一部分
+    private const float SackDeathRate = 0.03f;
+    private const float SackScorchDeathRate = 0.07f;
+    private const float RefugeeRate = 0.05f;
+    private const float ForeignRefugeeRate = 0.1f;
+    private const float ScorchRefugeeRate = 0.1f;
+    private const int RefugeeNoticePeople = 100;
+
+#if EC_PENDING
+    public static void OnCityCaptured(City city, Realm oldKingdom, Realm conqueror)
+    {
+        if (!CityPopulationSystem.AbstractPopulationEnabled || city?.Record == null || oldKingdom == null ||
+            conqueror == null || oldKingdom == conqueror || oldKingdom.IsWild || conqueror.IsWild) return;
+        try
+        {
+            bool scorch = WillScorch(conqueror, city);
+            string cityCulture = CultureService.GetMainCulture(city, initialize: false);
+            bool foreign = CultureService.IsValidCulture(cityCulture) &&
+                           cityCulture != CultureService.GetRealmCulture(conqueror) ||
+                           conqueror.Ruler?.Asset != null && city.GetSpecies() != null &&
+                           city.GetSpecies() != conqueror.Ruler.Asset.Id;
+            int killed = Kill(city, SackDeathRate + (scorch ? SackScorchDeathRate : 0f));
+            if (scorch && killed > 0) MassacreSystem.RecordBackgroundMassacre(city, conqueror, killed);
+            // 纵兵烧杀：攻城统领犯抢掠平民(本帝国的城当场追究，外国的城暗中记一笔，见 LawEvents)
+            if (scorch) LawEvents.Sacked(city, oldKingdom, conqueror);
+            Plunder(city, scorch ? 0.6f : 0.3f);
+            // 施行奴隶制的一方俘其民为奴(见 SlaverySystem)
+            SlaverySystem.OnCityCaptured(city, conqueror);
+
+            float refugees = RefugeeRate + (foreign ? ForeignRefugeeRate : 0f) + (scorch ? ScorchRefugeeRate : 0f);
+            City refuge = null;
+            float best = float.MaxValue;
+            // 通达层算好后(用户 2026-11-06 同意"先信息类、再贸易迁徙"，见 ConnectivitySystem)：逃往原主手里人员走过去成本最低、
+            // 走得到的城——不再隔海、隔着过不去的无人区"飞"过去；一座也走不到就地逃散(不迁)
+            bool reach = false;
+            if (ConnectivitySystem.Ready && oldKingdom.Cities != null)
+            {
+                refuge = ConnectivitySystem.ClosestOf(city, oldKingdom.Cities, ConnectivityMode.People, out float cost);
+                reach = cost >= 0f;
+            }
+            if (!reach && oldKingdom.Cities != null)
+                foreach (City other in oldKingdom.Cities)
+                {
+                    if (other == null || other == city || other.IsGone()) continue;
+                    float distance = (other.Center - city.Center).sqrMagnitude;
+                    if (distance >= best) continue;
+                    best = distance;
+                    refuge = other;
+                }
+            if (refuge == null) return;
+            float moved = CityPopulationSystem.TransferBackground(city, refuge, refugees);
+            if (moved >= RefugeeNoticePeople)
+                TranslateHelper.LogEventMessage(string.Format(LM.Get("city_fall_refugees"), city.GetCityName(),
+                    Mathf.RoundToInt(moved), refuge.GetCityName()), oldKingdom);
+        }
+        catch (Exception exception)
+        {
+            LogService.LogWarning($"[EmpireCraft][城破] 结算失败({city.Name}): {exception.Message}");
+        }
+    }
+#endif
+
+    // 每月随无小人模式的城市结算调用
+#if EC_PENDING
+    public static void Settle(City city)
+    {
+        if (!CityPopulationSystem.AbstractPopulationEnabled || city?.Zones == null || city.Zones.Count == 0) return;
+        Dictionary<int, long> owners = OccupiedZones(city);
+        if (owners == null) return;
+        try
+        {
+            var byKingdom = new Dictionary<long, int>();
+            foreach (long id in owners.Values) byKingdom[id] = byKingdom.TryGetValue(id, out int n) ? n + 1 : 1;
+            foreach (KeyValuePair<long, int> pair in byKingdom)
+            {
+                Realm occupier = EmpireWorld.Current.RealmByKey(pair.Key);
+                if (occupier == null || occupier.IsGone() || !occupier.IsEnemy(city.Realm) || !WillScorch(occupier, city))
+                    continue;
+                float share = Mathf.Clamp01(pair.Value / (float)city.Zones.Count);
+                int killed = Kill(city, KillRatePerMonth * share);
+                BurnCrops(city, owners, pair.Key);
+                Plunder(city, PlunderRate * share);
+                if (killed > 0) MassacreSystem.RecordBackgroundMassacre(city, occupier, killed);
+            }
+        }
+        catch (Exception exception)
+        {
+            LogService.LogWarning($"[EmpireCraft][烧杀] 结算失败({city.Name}): {exception.Message}");
+        }
+    }
+#endif
+
+    public static int Kill(City city, float rate)
+    {
+        CityPopulationData data = CityPopulationSystem.Get(city);
+        if (data?.groups == null || rate <= 0f) return 0;
+        float killed = 0f;
+        foreach (PopGroup group in data.groups)
+            killed += CityPopulationSystem.RemoveBackground(group, group.Background * rate);
+        return Mathf.RoundToInt(killed);
+    }
+
+#if EC_PENDING
+    private static void BurnCrops(City city, Dictionary<int, long> owners, long occupierId)
+    {
+        foreach (Cell zone in city.Zones)
+        {
+            if (zone?.Tiles == null || !owners.TryGetValue(zone.Index, out long id) || id != occupierId) continue;
+            foreach (Cell tile in zone.Tiles)
+            {
+                Building crop = tile?.Building;
+                if (crop?.Asset != null && crop.Asset.Wheat) crop.startDestroyBuilding();
+            }
+        }
+    }
+
+    public static void Plunder(City city, float rate)
+    {
+        if (rate <= 0f || AssetManager.resources?.list == null) return;
+        foreach (ResourceAsset asset in AssetManager.resources.list)
+        {
+            if (asset == null || asset.type != ResType.Food) continue;
+            int have = city.getResourcesAmount(asset.id);
+            int take = Mathf.FloorToInt(have * rate);
+            if (take > 0) city.takeResource(asset.id, take);
+        }
+    }
+#endif
+}
+}

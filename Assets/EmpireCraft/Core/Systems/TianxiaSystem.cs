@@ -1,0 +1,650 @@
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/TianxiaSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
+// see Port/manifest.json and Tools/PortTool.
+using Time = EmpireCraft.Core.FrameClock;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace EmpireCraft.Core
+{
+
+// 天下(帝国核心之上的一层，仿 CK3 的霸权，用户 2026-10-17 定)：
+//   · 一个帝国核心自成一个天下；玩家可以用神力把几个帝国核心并成一个联合天下(主核心记名号与天命)。
+//   · 自动并分(用户："可以给个天下id，玩家可以在文化配置里面标记上，这样就可以自动了")：文化配置的 tianxia 标识
+//     相同的相邻帝国法理每年自动并成一个天下(比如华夏、中国、山海都标 Huaxia)；联合天下里文化标识已经不同的法理自动退出。
+//     只并文化配置里明写了同一标识(用户："如果标注了同一个id的文化可以")、同一块陆地上领地接壤的(不跨大陆、不隔海)——没写标识的文化一个帝国法理一个天下，
+//     不论开不开固定法理，都不会自动滚成横跨几个大陆、几种文化、几个法理的天下，古典时代尤其不该有(固定法理开着时帝国法理也不再扩张)。
+//     列岛天下例外(用户 2026-10-21 选"列岛天下")：文化配置标了 archipelago 的(日本)，隔着海峡、在水师辐射里的同标识天下也并(见 IsArchipelago)。
+//     玩家用神力动过的法理不再自动并分。
+//     统一战争在天下里打(见 UnificationSystem.Survey)：天下 = 这些核心的法理城市，不再按文化圈临时圈出来，
+//     城市文化变了、被外族占了，天下也还是那个天下；还没有帝国核心的地方照旧按文化连片。
+//   · 天命：据有天下七成五以上的国家受天命、为天下共主(外族入主也算)，正统 +8；
+//     天下共主地盘跌破一半、或别家占得比它多、或国家亡了，天命去之，天下无主——
+//     天下仍在、头衔悬空，原朝廷不解体，只是失去共主身份、成为群雄之一，正统 -5；谁再据有七成五谁受天命。
+//   · 天命周期三段(仿 CK3 王朝周期，与历史周期律合用)：
+//       - 治世：有共主，据有七成五以上、正统不低于三十、积弊不到六十——共主正统 +8；
+//       - 动荡：有共主，但地盘跌到七成五以下、正统低于三十或积弊六十以上(天命动摇)——共主正统只 +2；
+//       - 乱世：天下无主，群雄逐鹿。
+//     有共主的天下(治世、动荡)里别家不能起统一战争问鼎，只有乱世才有统一战争(见 UnificationSystem)。
+//   · 天下朝贡：治世时天下以外、与共主接壤、国力不到共主四分之一的国家每年一成五机会来朝(走原有朝贡，
+//     见 KingdomExtension.JoinTakenAlliance，朝贡制度的要求照旧)，不论文化；来朝两国以上共主正统 +2(万邦来朝)；
+//     动荡时来朝诸国每年一成散去，失了天命一齐散去。
+public static class TianxiaSystem
+{
+    public const float ClaimShare = 0.75f, KeepShare = 0.5f, SealClaimShare = 0.6f;
+    private const int HolderLegitimacy = 8, ShakenLegitimacy = 2, LostLegitimacy = -5;
+    private const int ShakenMandate = 30;
+    private const float TributeChance = 0.15f, TributeLeaveChance = 0.1f, TributePowerRatio = 0.25f;
+    private const int TributeLegitimacy = 2, TributeLegitimacyMin = 2;
+    private const float ShakenPressure = 60f;
+
+    public const int Peace = 0, Unrest = 1, Chaos = 2, Minor = 3;
+    // 天下要有这么多城才评天命(用户 2026-10-19 选"各文明一个共同天下"：单核心要够大才给天命，免得一核心一天下白拿)；
+    // 不够的记为偏安(不算治世、动荡、乱世，分治、起事、正统都照常)
+    public const int MinMandateCities = 8;
+
+    // 天命周期：0 治世、1 动荡、2 乱世(年度结算定下，见 Settle)
+    public static int Phase(EmpireCore lead) => lead == null ? Chaos : lead.tianxia_phase < 0
+        ? Holder(lead) == null ? Chaos : Peace
+        : lead.tianxia_phase;
+
+    public static string PhaseName(int phase) => LM.Get("tianxia_phase_" + phase);
+
+    // 各文明的天下称呼(用户 2026-10-19 选"各文明一个共同天下")：罗马一系"普世帝国"、阿拉伯一系"乌玛"、草原"大汗"、
+    // 日本"天下人"；有对应后缀译文的键就换(没有照旧用"天下、天命")
+    private static string Term(EmpireCore lead, string key)
+    {
+        string suffix = TianxiaId(lead) switch
+        {
+            "Roma" => "_roma",
+            "Umma" => "_umma",
+            "Steppe" => "_steppe",
+            "Tenka" => "_tenka",
+            _ => null
+        };
+        return suffix != null && LM.Has(key + suffix) ? key + suffix : key;
+    }
+
+    // 有共主的天下里，别家不能问鼎(起统一战争)
+    public static bool BarsContender(EmpireCore lead, Realm contender)
+    {
+        Realm holder = Holder(lead);
+        return holder != null && holder != contender;
+    }
+
+    #region 结构
+
+    // 天下的主核心：并入联合天下的核心指向主核心；军阀时期另立政府的临时子核心归原核心的天下
+    public static EmpireCore Lead(EmpireCore core)
+    {
+        if (core == null) return null;
+        if (core.warlord_parent_core_id >= 0 && EmpireCoreManager.Get(core.warlord_parent_core_id) is EmpireCore parent && parent != core)
+            core = parent;
+        if (core.tianxia_lead_id >= 0 && core.tianxia_lead_id != core.id &&
+            EmpireCoreManager.Get(core.tianxia_lead_id) is EmpireCore lead && lead.tianxia_lead_id < 0)
+            return lead;
+        return core;
+    }
+
+    // 城所在的天下：按法理所属的帝国核心；法理不在任何核心、又连不成一片的零星城，算进相邻的同一文化圈天下
+    // (见 UnificationSystem.OrphanLeadOf)
+    public static EmpireCore LeadOf(City city) => city == null ? null : CoreLeadOf(city) ?? UnificationSystem.OrphanLeadOf(city);
+
+    // 只按法理所属的帝国核心(不含并入的零星城)
+    public static EmpireCore CoreLeadOf(City city) => city == null ? null : Lead(city.GetEmpireCore());
+
+    // 天下里的各帝国核心(主核心在前；不含临时子核心)
+    public static List<EmpireCore> Members(EmpireCore lead)
+    {
+        var result = new List<EmpireCore>();
+        if (lead == null) return result;
+        result.Add(lead);
+        foreach (EmpireCore core in EmpireCoreManager.EmpireCores.Values)
+            if (core != null && core != lead && core.warlord_parent_core_id < 0 && Lead(core) == lead) result.Add(core);
+        return result;
+    }
+
+    public static bool IsJoint(EmpireCore lead) => Members(lead).Count > 1;
+
+    // 所有天下的主核心(不含临时子核心)
+    public static IEnumerable<EmpireCore> Leads() =>
+        EmpireCoreManager.EmpireCores.Values.Where(core => core != null && core.warlord_parent_core_id < 0 && Lead(core) == core);
+
+    // 天下里的城(图层每帧要用：一帧只按城扫一遍)
+    private static int _citiesFrame = -1;
+    private static object _citiesWorld;
+    private static readonly Dictionary<long, List<City>> CitiesByLead = new();
+
+    public static List<City> Cities(EmpireCore lead)
+    {
+        if (lead == null || EmpireWorld.Current?.Cities == null) return new List<City>();
+        if (_citiesFrame != Time.frameCount || !ReferenceEquals(_citiesWorld, EmpireWorld.Current))
+        {
+            _citiesFrame = Time.frameCount;
+            _citiesWorld = EmpireWorld.Current;
+            CitiesByLead.Clear();
+            foreach (City city in EmpireWorld.Current.Cities)
+            {
+                if (city?.Record == null || city.IsGone()) continue;
+                EmpireCore owner = LeadOf(city);
+                if (owner != null)
+                {
+                    if (!CitiesByLead.TryGetValue(owner.id, out List<City> list)) CitiesByLead[owner.id] = list = new List<City>();
+                    list.Add(city);
+                }
+                // 兼属：兼属的王国法理、帝国法理所在的天下，兼属的天下，也都算这座城(统一占比、统一战争的目标，见 DeJureShareSystem)
+                if (!DeJureShareSystem.Involved(city)) continue;
+                List<EmpireCore> leads = DeJureShareSystem.LeadsOf(city);
+                for (int i = 0; i < leads.Count; i++)
+                {
+                    EmpireCore other = leads[i];
+                    if (other == null || other == owner) continue;
+                    if (!CitiesByLead.TryGetValue(other.id, out List<City> shared)) CitiesByLead[other.id] = shared = new List<City>();
+                    if (!shared.Contains(city)) shared.Add(city);
+                }
+            }
+        }
+        return CitiesByLead.TryGetValue(lead.id, out List<City> found) ? found : new List<City>();
+    }
+
+    // 天下里各家(宗主)据有的城数与城的总数
+    // 与年度结算同一口径(见 UnificationSystem.Tally)：野生国的城不算(以前窗口里的占比把野生国算进总数，与结算不一致)
+    public static (Dictionary<Realm, int> held, int total) Holdings(EmpireCore lead)
+    {
+        List<City> cities = Cities(lead).Where(city => city?.Realm != null && !city.Realm.IsGone() && !city.Realm.IsWild)
+            .ToList();
+        return (EmpireCoreControl.CountHolders(cities), cities.Count);
+    }
+
+    public static string Name(EmpireCore lead)
+    {
+        if (lead == null) return "";
+        if (!string.IsNullOrWhiteSpace(lead.tianxia_name)) return lead.tianxia_name.Trim();
+        return string.Format(LM.Get(Term(lead, "tianxia_default_name")), EmpireCoreManager.GetDisplayName(lead));
+    }
+
+    public static void Rename(EmpireCore core, string name)
+    {
+        EmpireCore lead = Lead(core);
+        if (lead != null) lead.tianxia_name = name?.Trim() ?? "";
+    }
+
+    // 把 core 所在的天下整个并进 target 所在的天下(target 的主核心作主，名号、天命照它的)
+    public static bool Join(EmpireCore core, EmpireCore target, bool manual = true)
+    {
+        EmpireCore from = Lead(core), into = Lead(target);
+        if (from == null || into == null || from == into) return false;
+        foreach (EmpireCore member in Members(from))
+        {
+            member.tianxia_lead_id = into.id;
+            if (manual) member.tianxia_locked = true;
+            ClearState(member);
+        }
+        into.tianxia_lead_id = -1L;
+        return true;
+    }
+
+    // 退出联合天下，自成一个天下(天命要重新据有七成五才受)；退出的是主核心就由下一个核心接着作主
+    public static bool Leave(EmpireCore core, bool manual = true)
+    {
+        if (core == null) return false;
+        if (manual) core.tianxia_locked = true;
+        EmpireCore lead = Lead(core);
+        List<EmpireCore> members = Members(lead);
+        if (members.Count <= 1) return false;
+        if (lead == core) Handover(lead, Largest(members.Where(member => member != lead)), members);
+        core.tianxia_lead_id = -1L;
+        core.tianxia_name = "";
+        ClearState(core);
+        return true;
+    }
+
+    // 城最多的核心(交接天下时由它作主)
+    private static EmpireCore Largest(IEnumerable<EmpireCore> cores) =>
+        cores.Where(core => core != null).OrderByDescending(core => EmpireCoreManager.GetCities(core).Count).ThenBy(core => core.id)
+            .FirstOrDefault();
+
+    // 天下交给 heir 作主：名号、天命、历代共主、天命阶段、天下朝贡国一并移交，其余成员改挂 heir
+    private static void Handover(EmpireCore lead, EmpireCore heir, List<EmpireCore> members)
+    {
+        if (lead == null || heir == null || heir == lead) return;
+        heir.tianxia_lead_id = -1L;
+        heir.tianxia_name = lead.tianxia_name;
+        heir.mandate_kingdom_id = lead.mandate_kingdom_id;
+        heir.mandate_at = lead.mandate_at;
+        heir.mandate_holder_name = lead.mandate_holder_name;
+        heir.mandate_lost_at = lead.mandate_lost_at;
+        heir.mandate_former_kingdom_id = lead.mandate_former_kingdom_id;
+        heir.mandate_history = lead.mandate_history;
+        heir.tianxia_phase = lead.tianxia_phase;
+        lead.mandate_history = null;
+        foreach (EmpireCore member in members)
+            if (member != null && member != lead && member != heir) member.tianxia_lead_id = heir.id;
+        MoveTributaries(lead.id, heir.id);
+    }
+
+    private static void MoveTributaries(long from, long to)
+    {
+        if (EmpireWorld.Current?.LiveRealms == null) return;
+        foreach (Realm kingdom in EmpireWorld.Current.LiveRealms)
+            if (kingdom?.Record != null && kingdom.GetOrCreate().tianxia_tributary_lead == from)
+                kingdom.GetOrCreate().tianxia_tributary_lead = to;
+    }
+
+    // 帝国核心被销毁(军阀、法统之争、现代国家、神力……，见 EmpireCoreManager.DestroyEmpireCore)：它作主的天下交给
+    // 城最多的成员接着作主，名号天命不丢；没有别的成员就散了，天下朝贡国的标记一并清掉
+    public static void OnCoreDestroyed(EmpireCore core)
+    {
+        if (core == null || Lead(core) != core) return;
+        List<EmpireCore> members = Members(core);
+        EmpireCore heir = Largest(members.Where(member => member != core));
+        if (heir != null) Handover(core, heir, members);
+        else MoveTributaries(core.id, -1L);
+    }
+
+    // 每年(自动并分之前)：指向已不存在、或已不作主的核心的天下归属理顺——以前主核心被销毁后成员一直挂着失效的编号，
+    // 天命、正统、封禅、造玺都判不成
+    private static void Repair()
+    {
+        foreach (EmpireCore core in EmpireCoreManager.EmpireCores.Values.ToList())
+        {
+            if (core == null || core.tianxia_lead_id < 0 || core.tianxia_lead_id == core.id) continue;
+            EmpireCore target = EmpireCoreManager.Get(core.tianxia_lead_id);
+            EmpireCore lead = target == null ? null : Lead(target);
+            core.tianxia_lead_id = lead == null || lead == core ? -1L : lead.id;
+        }
+    }
+
+    private static void ClearState(EmpireCore core)
+    {
+        core.mandate_kingdom_id = -1L;
+        core.mandate_at = -1d;
+        core.mandate_holder_name = "";
+        core.mandate_lost_at = -1d;
+        core.mandate_former_kingdom_id = -1L;
+        core.tianxia_phase = -1;
+    }
+
+    #endregion
+
+    #region 自动并分
+
+    // 文化配置里的天下标识；explicitOnly 时没写标识的返回空
+    public static string TianxiaId(EmpireCore core, bool explicitOnly = false)
+    {
+        string culture = core?.default_culture;
+        if (!CultureService.IsValidCulture(culture)) return "";
+        // 明写的标识才算(华夏文化写的 tianxia 就是"Huaxia"，与文化同名，以前被当成没写，几个纯华夏核心永远并不到一起)
+        return explicitOnly && !culture.HasExplicitTianxia() ? "" : culture.GetTianxiaId();
+    }
+
+    // 年度(统计天下之前)：标识不同的退出，标识相同的相邻天下并成一个
+#if EC_PENDING
+    public static void AutoArrange()
+    {
+        if (EmpireCoreManager.EmpireCores == null || EmpireWorld.Current?.Cities == null) return;
+        Repair();
+        // 退出：联合天下里文化标识与主核心不同的(玩家动过的不管)
+        foreach (EmpireCore core in EmpireCoreManager.EmpireCores.Values.ToList())
+        {
+            if (core == null || core.tianxia_locked || core.warlord_parent_core_id >= 0) continue;
+            EmpireCore lead = Lead(core);
+            if (lead == core) continue;
+            string own = TianxiaId(core), theirs = TianxiaId(lead);
+            if (own != "" && theirs != "" && own != theirs) Leave(core, manual: false);
+        }
+        // 相邻：同一块陆地上两座接壤的城分属两个天下(用户："跨大陆跨海洋就算了"——隔海的不并，标了同一标识也不并；
+        // 列岛天下另算，见 AddStraitPairs)
+        var pairs = new HashSet<(long, long)>();
+        foreach (City city in EmpireWorld.Current.Cities)
+        {
+            if (city?.Record == null || city.IsGone() || city.NeighbourCities == null) continue;
+            EmpireCore a = LeadOf(city);
+            if (a == null) continue;
+            object island = city.SeatCell()?.region?.island;
+            foreach (City next in city.NeighbourCities)
+            {
+                if (next?.Record == null || next.IsGone() || island == null || !ReferenceEquals(island, next.SeatCell()?.region?.island)) continue;
+                EmpireCore b = LeadOf(next);
+                if (b == null || b == a) continue;
+                pairs.Add(a.id < b.id ? (a.id, b.id) : (b.id, a.id));
+            }
+        }
+        AddStraitPairs(pairs);
+        foreach ((long first, long second) in pairs)
+        {
+            EmpireCore a = Lead(EmpireCoreManager.Get(first)), b = Lead(EmpireCoreManager.Get(second));
+            if (a == null || b == null || a == b) continue;
+            string id = TianxiaId(a, explicitOnly: true);
+            if (id == "" || id != TianxiaId(b, explicitOnly: true)) continue;
+            // 小的并进大的(城多的作主)；任一边被玩家动过(加入、退出都会锁)就不自动合并——以前锁了的一边反而把对面并进来：
+            // 刚退出的小核心第二年就把原来的大天下吞了、抹掉大天下的天命
+            List<EmpireCore> ma = Members(a), mb = Members(b);
+            if (ma.Any(core => core.tianxia_locked) || mb.Any(core => core.tianxia_locked)) continue;
+            int ca = ma.Sum(core => EmpireCoreManager.GetCities(core).Count), cb = mb.Sum(core => EmpireCoreManager.GetCities(core).Count);
+            if (ca < cb || ca == cb && a.id > b.id) Join(a, b, manual: false);
+            else Join(b, a, manual: false);
+        }
+    }
+#endif
+
+    // 列岛天下(用户 2026-10-21 选"列岛天下")：文化配置标了 archipelago 的(日本)，隔着海峡的天下、帝国法理也能相并
+    // (帝国法理见 EmpireCoreManager.TryAbsorbTitle)——以前只认同一块陆地，列岛被拆成几个不足八城的小天下(偏安，没有天命)
+    public static bool IsArchipelago(string culture) =>
+        !string.IsNullOrEmpty(culture) && OnomasticsRule.ALL_CULTURE_RULE.TryGetValue(culture, out var setting) &&
+        setting?.archipelago == true;
+
+    // 隔海峡相邻的两个天下：明写同一标识、至少一边是列岛文化，一边据有城的国家(帝国按全体成员)水师辐射够得着另一边的城
+    // (见 StraitReach，同宣战、统一的"隔海相望")；没到有水师的时代、没有战舰就够不着，照旧不并
+#if EC_PENDING
+    private static void AddStraitPairs(HashSet<(long, long)> pairs)
+    {
+        List<EmpireCore> leads = Leads().Where(lead => TianxiaId(lead, explicitOnly: true) != "").ToList();
+        for (int i = 0; i < leads.Count; i++)
+        for (int j = i + 1; j < leads.Count; j++)
+        {
+            EmpireCore a = leads[i], b = leads[j];
+            (long, long) key = a.id < b.id ? (a.id, b.id) : (b.id, a.id);
+            if (pairs.Contains(key) || (!IsArchipelago(a.default_culture) && !IsArchipelago(b.default_culture)) ||
+                TianxiaId(a, explicitOnly: true) != TianxiaId(b, explicitOnly: true)) continue;
+            if (AcrossStrait(a, b) || AcrossStrait(b, a)) pairs.Add(key);
+        }
+    }
+#endif
+
+    // from 天下里据有城的各国(野生国除外)，有一家的水师够得着 to 天下的某座城
+#if EC_PENDING
+    private static bool AcrossStrait(EmpireCore from, EmpireCore to)
+    {
+        List<City> theirs = Cities(to);
+        if (theirs.Count == 0) return false;
+        foreach (Realm holder in Cities(from).Select(city => city?.Realm)
+                     .Where(kingdom => kingdom?.Record != null && !kingdom.IsGone() && !kingdom.IsWild).Distinct().ToList())
+        foreach (City city in theirs)
+            if (StraitReach.Reaches(holder, city)) return true;
+        return false;
+    }
+#endif
+
+    #endregion
+
+    #region 天命
+
+    public static Realm Holder(EmpireCore lead)
+    {
+        if (lead == null || lead.mandate_kingdom_id < 0 || EmpireWorld.Current?.LiveRealms == null) return null;
+        Realm kingdom = EmpireWorld.Current.RealmByKey(lead.mandate_kingdom_id);
+        return kingdom?.Record != null && !kingdom.IsGone() && !kingdom.IsWild ? kingdom : null;
+    }
+
+    // 年度(UnificationSystem.Yearly 统计完天下以后)：各家据有的城数 → 受天命、失天命
+#if EC_PENDING
+    public static void Settle(EmpireCore lead, Dictionary<Realm, int> held, int total, string name)
+    {
+        if (lead == null || total <= 0) return;
+        NoteWorld();
+        double now = GameClock.Now;
+        if (total < MinMandateCities)
+        {
+            // 偏安一隅：受着的天命悄悄收回(不记"天命去某"——本不足以称天下)
+            if (lead.mandate_kingdom_id >= 0)
+            {
+                Realm former = Holder(lead);
+                MandateRecord open = lead.mandate_history?.LastOrDefault(record => record.lost_at < 0d);
+                if (open != null) open.lost_at = now;
+                lead.mandate_kingdom_id = -1L;
+                lead.mandate_lost_at = -1d;
+                lead.mandate_former_kingdom_id = -1L;
+                DisperseTributaries(lead, former, name, 1f);
+                InvalidateLegitimacy(former);
+            }
+            lead.tianxia_phase = Minor;
+            return;
+        }
+        Realm holder = Holder(lead);
+        if (lead.mandate_kingdom_id >= 0)
+        {
+            int ours = holder != null && held.TryGetValue(holder, out int count) ? count : 0;
+            bool keeps = holder != null && ours >= total * KeepShare && !held.Any(pair => pair.Key != holder && pair.Value > ours);
+            if (keeps)
+            {
+                SetPhase(lead, Shaken(holder, ours / (float)total) ? Unrest : Peace, name, holder);
+                Tribute(lead, holder, name);
+                return;
+            }
+            string former = holder?.GetKingdomName() ?? lead.mandate_holder_name;
+            lead.mandate_former_kingdom_id = lead.mandate_kingdom_id;
+            lead.mandate_kingdom_id = -1L;
+            lead.mandate_lost_at = now;
+            MandateRecord open = lead.mandate_history?.LastOrDefault(record => record.lost_at < 0d);
+            if (open != null) open.lost_at = now;
+            Announce(holder, string.Format(LM.Get(Term(lead, "tianxia_mandate_lost_history")), former, name));
+            DisperseTributaries(lead, holder, name, 1f);
+            InvalidateLegitimacy(holder);
+        }
+        KeyValuePair<Realm, int> top = held.Count == 0 ? default : held.OrderByDescending(pair => pair.Value).First();
+        float claimShare = top.Key != null && ImperialSealSystem.Holds(top.Key) ? SealClaimShare : ClaimShare;
+        if (held.Count == 0 || top.Value < total * claimShare || top.Key?.Record == null || top.Key.IsGone() || top.Key.IsWild)
+        {
+            SetPhase(lead, Chaos, name, null);
+            return;
+        }
+        Claim(lead, top.Key, top.Value, total, name, now);
+    }
+#endif
+
+    private static void Claim(EmpireCore lead, Realm kingdom, int count, int total, string name, double now)
+    {
+        lead.mandate_kingdom_id = kingdom.Key;
+        lead.mandate_at = now;
+        lead.mandate_holder_name = kingdom.GetKingdomName();
+        lead.mandate_lost_at = -1d;
+        lead.mandate_history ??= new List<MandateRecord>();
+        lead.mandate_history.Add(new MandateRecord
+        {
+            kingdom_id = kingdom.Key, kingdom_name = lead.mandate_holder_name,
+            dynasty = kingdom.GetEmpire()?.EmpireSpecificClan?.name ?? "", claimed_at = now
+        });
+        Announce(kingdom, string.Format(LM.Get(Term(lead, "tianxia_mandate_claim_history")), lead.mandate_holder_name, name,
+            $"{count / (float)total:P0}"));
+        lead.tianxia_phase = Peace;
+        lead.tianxia_phase_since = now;
+        InvalidateLegitimacy(kingdom);
+    }
+
+    // 统一完成即受天命(用户 2026-10-17 选"以天命为准"：统一了就是治世的开头)，不论据有几成；之后照常过半才守得住
+    public static void Grant(EmpireCore lead, Realm unifier, int count, int total, string name)
+    {
+        if (lead == null || unifier?.Record == null || unifier.IsGone() || unifier.IsWild || total <= 0 ||
+            lead.mandate_kingdom_id >= 0 || EmpireWorld.Current == null) return;
+        Claim(lead, unifier, count, total, name, GameClock.Now);
+    }
+
+    // 这一国受着哪个天下的天命(没有为空)
+    public static EmpireCore MandateOf(Realm kingdom) => kingdom == null ? null
+        : EmpireCoreManager.EmpireCores.Values.FirstOrDefault(lead => lead != null && lead.tianxia_lead_id < 0 && lead.mandate_kingdom_id == kingdom.Key);
+
+    // 这一国所处天下的天命周期(受天命的看它那个天下，否则看都城所在的天下；不在天下里算乱世)
+    public static int PhaseOf(Realm kingdom)
+    {
+        EmpireCore lead = MandateOf(kingdom) ?? LeadOf(kingdom?.Capital);
+        return lead == null ? Chaos : Phase(lead);
+    }
+
+    // 来朝诸国(仰慕这个天下的共主而来的、还在朝贡的)
+    public static List<Realm> Tributaries(EmpireCore lead)
+    {
+        var result = new List<Realm>();
+        if (lead == null || EmpireWorld.Current?.LiveRealms == null) return result;
+        foreach (Realm kingdom in EmpireWorld.Current.LiveRealms)
+            if (kingdom?.Record != null && !kingdom.IsGone() && kingdom.GetOrCreate().tianxia_tributary_lead == lead.id) result.Add(kingdom);
+        return result;
+    }
+
+#if EC_PENDING
+    private static void Tribute(EmpireCore lead, Realm holder, string name)
+    {
+        Empire empire = holder.GetEmpire();
+        // 已不朝贡的(战争、改投、被灭)去掉标记
+        foreach (Realm kingdom in Tributaries(lead))
+            if (empire == null || kingdom.GetTakenAllianceEmpire() != empire) kingdom.GetOrCreate().tianxia_tributary_lead = -1L;
+        if (empire == null) return;
+        if (Phase(lead) == Unrest)
+        {
+            DisperseTributaries(lead, holder, name, TributeLeaveChance);
+            return;
+        }
+        if (Phase(lead) != Peace) return;
+        double power = WarSituation.Power(empire);
+        foreach (Realm neighbour in empire.GetKingdomNeighbours().ToList())
+        {
+            if (neighbour?.Record == null || neighbour.IsGone() || neighbour.IsWild || neighbour.IsInEmpire() ||
+                neighbour.HasTakenAlliance() || EmpireCoreControl.Sovereign(neighbour) != neighbour) continue;
+            if (neighbour.Capital != null && LeadOf(neighbour.Capital) == lead) continue;
+            // 别的天下的共主不来朝(两个天下的共主互不称臣)
+            if (MandateOf(neighbour) != null) continue;
+            if (WarSituation.Power(neighbour) > power * TributePowerRatio || EcRandom.value >= TributeChance) continue;
+            // 天下共主的直辖之地够不着的不来朝(见 TributaryRelations.InReach)
+            if (!TributaryRelations.InReach(neighbour, empire)) continue;
+            neighbour.JoinTakenAlliance(empire, pForce: true);
+            if (neighbour.GetTakenAllianceEmpire() != empire) continue;
+            neighbour.GetOrCreate().tianxia_tributary_lead = lead.id;
+            Record(holder, string.Format(LM.Get(Term(lead, "tianxia_tribute_history")), neighbour.GetKingdomName(), holder.GetKingdomName(), name));
+            InvalidateLegitimacy(holder);
+        }
+    }
+#endif
+
+    private static void DisperseTributaries(EmpireCore lead, Realm holder, string name, float chance)
+    {
+        var left = new List<string>();
+        foreach (Realm kingdom in Tributaries(lead))
+        {
+            if (chance < 1f && EcRandom.value >= chance) continue;
+            kingdom.GetOrCreate().tianxia_tributary_lead = -1L;
+            if (kingdom.HasTakenAlliance()) kingdom.RemoveTakenAlliance();
+            left.Add(kingdom.GetKingdomName());
+        }
+        if (left.Count > 0)
+            Record(holder, string.Format(LM.Get("tianxia_tribute_leave_history"), string.Join("、", left), name));
+    }
+
+    // 天命动摇：地盘跌到七成五以下、正统低于三十、积弊六十以上
+    private static bool Shaken(Realm holder, float share)
+    {
+        Empire empire = holder?.GetEmpire();
+        // 怀玺者六成受命，也按六成判动摇(以前受命第二年就按七成五记"天命动摇")
+        if (share < (holder != null && ImperialSealSystem.Holds(holder) ? SealClaimShare : ClaimShare)) return true;
+        if (empire == null) return false;
+        return empire.Legitimacy < ShakenMandate || DynasticCycleSystem.GetPressure(empire) >= ShakenPressure;
+    }
+
+    // 天命动摇的缘由(天下窗口显示)
+    public static List<string> ShakenReasons(EmpireCore lead)
+    {
+        var reasons = new List<string>();
+        Realm holder = Holder(lead);
+        if (holder == null) return reasons;
+        (Dictionary<Realm, int> held, int total) = Holdings(lead);
+        float share = total > 0 && held.TryGetValue(holder, out int ours) ? ours / (float)total : 0f;
+        float need = ImperialSealSystem.Holds(holder) ? SealClaimShare : ClaimShare;
+        if (share < need) reasons.Add(string.Format(LM.Get("tianxia_shaken_share"), share, need));
+        Empire empire = holder.GetEmpire();
+        if (empire == null) return reasons;
+        if (empire.Legitimacy < ShakenMandate) reasons.Add(string.Format(LM.Get("tianxia_shaken_legitimacy"), empire.Legitimacy, ShakenMandate));
+        float pressure = DynasticCycleSystem.GetPressure(empire);
+        if (pressure >= ShakenPressure) reasons.Add(string.Format(LM.Get("tianxia_shaken_pressure"), pressure, ShakenPressure));
+        return reasons;
+    }
+
+    // 换段：治世转动荡记"天命动摇"、动荡回治世记"复归治世"(乱世由失天命那一笔记过)
+    private static void SetPhase(EmpireCore lead, int phase, string name, Realm holder)
+    {
+        int old = lead.tianxia_phase;
+        if (old == phase) return;
+        lead.tianxia_phase = phase;
+        lead.tianxia_phase_since = GameClock.Now;
+        if (old < 0 || holder == null) return;
+        if (phase == Unrest && old == Peace)
+            Record(holder, string.Format(LM.Get(Term(lead, "tianxia_unrest_history")), name, holder.GetKingdomName()));
+        else if (phase == Peace && old == Unrest)
+            Record(holder, string.Format(LM.Get(Term(lead, "tianxia_peace_history")), name, holder.GetKingdomName()));
+        InvalidateLegitimacy(holder);
+    }
+
+    // 正统：天下共主 +8；失了天命、天下仍无主的旧朝 -5
+    public static IEnumerable<(string key, int value)> LegitimacyItems(Empire empire)
+    {
+        Realm core = empire?.CoreKingdom;
+        if (core == null) yield break;
+        bool holds = false, lost = false, calm = false;
+        foreach (EmpireCore lead in EmpireCoreManager.EmpireCores.Values)
+        {
+            if (lead == null || lead.tianxia_lead_id >= 0) continue;
+            if (lead.mandate_kingdom_id == core.Key)
+            {
+                holds = true;
+                // 一国持几个天命分开算：有一个不在动荡就按共主算
+                calm |= lead.tianxia_phase != Unrest;
+            }
+            else if (lead.mandate_kingdom_id < 0 && lead.mandate_lost_at >= 0d && lead.mandate_former_kingdom_id == core.Key)
+                lost = true;
+        }
+        if (holds && EmpireCoreManager.EmpireCores.Values.Any(lead => lead != null && lead.tianxia_lead_id < 0 &&
+                lead.mandate_kingdom_id == core.Key && Tributaries(lead).Count >= TributeLegitimacyMin))
+            yield return ("mandate_tianxia_tribute", TributeLegitimacy);
+        if (holds && !calm) yield return ("mandate_tianxia_shaken", ShakenLegitimacy);
+        else if (holds) yield return ("mandate_tianxia_holder", HolderLegitimacy);
+        else if (lost) yield return ("mandate_tianxia_lost", LostLegitimacy);
+    }
+
+    // 界面上的天命状况
+    public static string MandateText(EmpireCore lead)
+    {
+        if (lead == null) return "";
+        Realm holder = Holder(lead);
+        if (holder != null)
+            return string.Format(LM.Get("tianxia_mandate_held"), holder.GetKingdomName(), GameClock.YearsSince(lead.mandate_at)) +
+                   " · " + PhaseName(Phase(lead));
+        if (lead.mandate_lost_at >= 0d)
+            return string.Format(LM.Get("tianxia_mandate_vacant"), lead.mandate_holder_name, GameClock.YearsSince(lead.mandate_lost_at));
+        return LM.Get("tianxia_mandate_never");
+    }
+
+    private static void InvalidateLegitimacy(Realm kingdom)
+    {
+        Empire empire = kingdom?.GetEmpire();
+        if (empire != null) MonarchyLegitimacy.Invalidate(empire);
+    }
+
+    // 天命得失：记史册之外也上世界公告(以前只记本国史册，看不到)。读档(或开新世界)后头一年只记史册不公告——
+    // 旧档第一次结算时各天下一齐受命，公告刷屏
+    private static object _announceWorld;
+    private static double _announceFrom = -1d;
+
+    private static void Announce(Realm kingdom, string text)
+    {
+        Record(kingdom, text);
+        if (EmpireWorld.Current == null) return;
+        NoteWorld();
+        double now = GameClock.Now;
+        if (now >= _announceFrom && GameClock.YearsSince(_announceFrom) < 1) return;
+        if (kingdom?.Record != null && !kingdom.IsGone()) TranslateHelper.LogEventOnly(text, kingdom);
+    }
+
+    // 记下读档(换世界)的时间：年度结算一开始就记，头一年的天命得失不公告
+    private static void NoteWorld()
+    {
+        if (EmpireWorld.Current == null || ReferenceEquals(_announceWorld, EmpireWorld.Current)) return;
+        _announceWorld = EmpireWorld.Current;
+        _announceFrom = GameClock.Now;
+    }
+
+    private static void Record(Realm kingdom, string text)
+    {
+        if (kingdom?.Record == null || kingdom.IsGone()) TranslateHelper.LogEventMessage(text);
+        else EventRecorder.Record(kingdom, text);
+    }
+
+    #endregion
+}
+}

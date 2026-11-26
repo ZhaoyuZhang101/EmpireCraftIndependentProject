@@ -1,0 +1,109 @@
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/InternalBoundarySystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
+// see Port/manifest.json and Tools/PortTool.
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace EmpireCraft.Core
+{
+
+// 国内行政区按王国法理划界(与国家海外飞地的维护、放弃分开，见 ExclaveMaintenanceSystem)：
+//   每座城有自己所属的王国法理；帝国里管这片法理的成员(持有该法理的行政区，或王畿/都城法理所在的中央)
+//   才是它该归的行政区。城落在别的行政区或中央名下时，改隶管它法理的那个成员。
+//   本区法理里的城(哪怕不连成一片)不动；没有法理的城、帝国里还没有成员管的法理也不动，
+//   留待"按法理整合行政区"决议整体重划。首都、王畿等受保护的直辖城、战时代管的城不动。
+//   战时只动不在前线的城(见 EnfeoffmentHelper.DeferCity；以前帝国一有战事就整年不做，常年打仗的帝国从不划界)，
+//   每个帝国每年最多改隶两座城，免得版图一夜大变。
+public static class InternalBoundarySystem
+{
+    private const int MovesPerYear = 2;
+    private static double _lastScan = -1d;
+
+#if EC_PENDING
+    public static void TryYearlyScan()
+    {
+        if (EmpireWorld.Current == null || ModClass.EMPIRE_MANAGER == null || ModClass.IS_CLEAR) return;
+        double now = GameClock.Now;
+        if (_lastScan >= 0d && now >= _lastScan && GameClock.YearsSince(_lastScan) < 1) return;
+        _lastScan = now;
+        foreach (Empire empire in ModClass.EMPIRE_MANAGER)
+        {
+            try
+            {
+                FixOne(empire);
+            }
+            catch (Exception exception)
+            {
+                LogService.LogWarning($"[EmpireCraft][行政区划界] 检查失败: {exception.Message}");
+            }
+        }
+    }
+#endif
+
+    // 行政区自己的法理：持有的主法理，或受托管理的法理
+    private static KingdomTitle RegionTitle(Realm kingdom) =>
+        kingdom.GetMainTitle() ?? kingdom.GetAdministrativeTitle();
+
+    private static bool Usable(KingdomTitle title) => title != null && !title.IsGone();
+
+#if EC_PENDING
+    private static void FixOne(Empire empire)
+    {
+        if (empire?.data == null || empire.IsGone() || empire.IsArchived() ||
+            WorldMapWilderness.FixedLayout ||
+            AdministrationReorganizationSystem.IsRunning(empire) || ZhouEraSystem.RoyalReclaimBlocked(empire)) return;
+        Realm core = empire.CoreKingdom;
+        if (core == null || core.IsGone()) return;
+        bool atWar = empire.HasTerritorialWar();
+
+        // 法理 → 帝国里管它的成员(一个法理隔着长城分设了几个行政区的，几个都记下，见 FrontierWalls)
+        var holders = new Dictionary<KingdomTitle, List<Realm>>();
+        foreach (Realm member in empire.kingdoms_list.ToArray())
+        {
+            if (member == null || member == core || member.IsGone() || !member.IsAdministrativeKingdomType() ||
+                member.IsFactionRebelling() || member.IsLocalRebelling()) continue;
+            KingdomTitle own = RegionTitle(member);
+            if (!Usable(own)) continue;
+            if (!holders.TryGetValue(own, out List<Realm> list)) holders[own] = list = new List<Realm>();
+            list.Add(member);
+        }
+        // 王畿(中央主法理)与都城所在法理归中央直辖
+        KingdomTitle coreMain = core.GetMainTitle();
+        KingdomTitle coreCapital = core.Capital?.GetTitle();
+        if (Usable(coreMain)) holders[coreMain] = new List<Realm> { core };
+        if (Usable(coreCapital)) holders[coreCapital] = new List<Realm> { core };
+
+        HashSet<long> protectedCities = empire.GetProtectedDirectCityIds();
+        int moves = 0;
+        foreach (Realm source in empire.kingdoms_list.ToArray())
+        {
+            if (source == null || source.IsGone() || source.Cities == null) continue;
+            if (source != core && !source.IsAdministrativeKingdomType()) continue;
+            KingdomTitle own = source == core ? null : RegionTitle(source);
+            foreach (City city in source.Cities.ToArray())
+            {
+                if (city == null || city.IsGone() || city == source.Capital || city == core.Capital ||
+                    protectedCities.Contains(city.Key) || WartimeCustodySystem.InCustody(city) ||
+                    WorldMapWilderness.PreservesAdministration(city) ||
+                    EnfeoffmentHelper.DeferCity(city, core, atWar)) continue;
+                KingdomTitle title = city.GetTitle();
+                // 没有法理、或本就在本区法理里(含不连片的飞地)：法理归属没错，不动
+                if (!Usable(title) || title == own) continue;
+                // 中央名下的王畿/都城法理城也不动
+                if (source == core && (title == coreMain || title == coreCapital)) continue;
+                // 帝国里还没有成员管这片法理：留待按法理整合行政区时整体重划；管它的行政区治所都隔着长城的也不动
+                if (!holders.TryGetValue(title, out List<Realm> owners)) continue;
+                Realm target = owners.FirstOrDefault(owner => owner == core || !FrontierWalls.Separates(city, owner.Capital));
+                if (target == null || target == source) continue;
+                city.JoinRealm(target);
+                if (city.Realm != target) continue;
+                FiscalDiagnostics.Count("行政区划界");
+                TranslateHelper.LogEventMessage(string.Format(LM.Get("internal_boundary_dejure"),
+                    city.GetCityName(), title.data.name, source.GetKingdomName(), target.GetKingdomName()), core);
+                if (++moves >= MovesPerYear) return;
+            }
+        }
+    }
+#endif
+}
+}

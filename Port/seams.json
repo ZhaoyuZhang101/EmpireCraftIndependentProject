@@ -1,0 +1,24 @@
+{
+  "CityPopulationSystem": [
+    "SpawnFromGroup"
+  ],
+  "KingdomColorService": [
+    "*"
+  ],
+  "VassalColorService": [
+    "*"
+  ],
+  "EmpireManager": [
+    "EnsureDistinctColor"
+  ],
+  "Empire": [
+    "getColorLibrary",
+    "getColor"
+  ],
+  "KingdomTitle": [
+    "getColor",
+    "getColorLibrary",
+    "generateColor",
+    "getActorAsset"
+  ]
+}

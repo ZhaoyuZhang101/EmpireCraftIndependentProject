@@ -1,0 +1,548 @@
+// Generated from the EmpireCraft mod: Scripts/AI/KingdomAI/EmpireCraftKingdomBehCheckKingdomType.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
+// see Port/manifest.json and Tools/PortTool.
+using Time = EmpireCraft.Core.FrameClock;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace EmpireCraft.Core
+{
+
+public enum ConditionType
+{
+    empire_center,
+    succession,
+    allow_diplomacy,
+    allow_army,
+    support_center_army,
+    another_race,
+    controlled_titles,
+    cities_count,
+    religion_level,
+    empire_royal,
+    is_border,
+    culture_mismatch,
+    empire_institution,
+    empire_feature,
+    jimi_region,
+    hre_estate,
+    holy_city,
+    papal_rule,
+    None,
+    zhili // 内阁阶段归储君的第二直隶(见 MultiCapitalSystem.Zhili)
+}
+public class EmpireCraftKingdomBehCheckKingdomType: GameAIKingdomBase
+{
+    public override Type OriginalBeh => GetType();
+    // 条件写成"名字:值"的字符串(政体配置里的原样)：拆开、认名字只做一回，记下来。
+    // 以前每个国每个月把各类别的各条条件重新拆一遍、按名字查一遍枚举
+    private static readonly global::System.Collections.Concurrent.ConcurrentDictionary<string, (ConditionType key, string val)> ParsedConditions = new();
+
+    private static (ConditionType key, string val) ParseCondition(string cond) => ParsedConditions.GetOrAdd(cond, text =>
+    {
+        var parts = text.Split(':');
+        var key = Enum.TryParse<ConditionType>(parts[0], out var value) ? value : ConditionType.None;
+        return (key, parts.Length > 1 ? parts[1] : "");
+    });
+
+    private static bool MatchConditions(Realm kingdom, Regime regime, List<string> conditions)
+    {
+        if (conditions == null || conditions.Count == 0) return false;
+        Empire empire = kingdom.IsInEmpire() ? kingdom.GetEmpire() : null;
+        foreach (var cond in conditions)
+        {
+            if (string.IsNullOrEmpty(cond)) continue;
+            (ConditionType key, string val) = ParseCondition(cond);
+            switch (key)
+            {
+                case ConditionType.empire_center:
+                {
+                    var expect = val.Equals("true", StringComparison.OrdinalIgnoreCase);
+                    if (kingdom.IsEmpire() != expect) return false;
+                    break;
+                }
+                case ConditionType.succession:
+                {
+                    var expect = val.Equals("true", StringComparison.OrdinalIgnoreCase);
+                    var actual = regime.GetLeaderSelectMethod() == LeaderSelectMethod.Succession;
+                    if (actual != expect) return false;
+                    break;
+                }
+                case ConditionType.allow_diplomacy:
+                {
+                    var expect = val.Equals("true", StringComparison.OrdinalIgnoreCase);
+                    if (regime.IsAllowDiplomacy() != expect) return false;
+                    break;
+                }
+                case ConditionType.allow_army:
+                {
+                    var expect = val.Equals("true", StringComparison.OrdinalIgnoreCase);
+                    if (regime.IsAllowArmy() != expect) return false;
+                    break;
+                }
+                case ConditionType.support_center_army:
+                {
+                    var expect = val.Equals("true", StringComparison.OrdinalIgnoreCase);
+                    if (regime.IsAllowSupportCenterArmy() != expect) return false;
+                    break;
+                }
+                case ConditionType.another_race:
+                {
+                    var expect = val.Equals("true", StringComparison.OrdinalIgnoreCase);
+                    var actual = empire is { CoreKingdom: not null } && kingdom.SpeciesId != empire.CoreKingdom.SpeciesId;
+                    if (actual != expect) return false;
+                    break;
+                }
+                case ConditionType.controlled_titles:
+                {
+                    if (string.IsNullOrEmpty(val)) return false;
+                    var segs = val.Split('|');
+                    if (segs.Length != 2) return false;
+                    var op = segs[0];
+                    if (!int.TryParse(segs[1], out var n)) return false;
+                    var c = kingdom.GetControlledTitles().Count;
+                    var ok = op switch
+                    {
+                        ">=" => c >= n,
+                        ">" => c > n,
+                        "<=" => c <= n,
+                        "<" => c < n,
+                        "==" => c == n,
+                        "=" => c == n,
+                        _ => false
+                    };
+                    if (!ok) return false;
+                    break;
+                }
+                case ConditionType.cities_count:
+                {
+                    if (string.IsNullOrEmpty(val)) return false;
+                    var segs = val.Split('|');
+                    if (segs.Length != 2) return false;
+                    var op = segs[0];
+                    if (!int.TryParse(segs[1], out var n)) return false;
+                    var c = kingdom.Cities.Count;
+                    var ok = op switch
+                    {
+                        ">=" => c >= n,
+                        ">" => c > n,
+                        "<=" => c <= n,
+                        "<" => c < n,
+                        "==" => c == n,
+                        "=" => c == n,
+                        _ => false
+                    };
+                    if (!ok) return false;
+                    break;
+                }
+                case ConditionType.religion_level:
+                {
+                    if (string.IsNullOrEmpty(val)) return false;
+                    if (int.TryParse(val, out var eqLevel))
+                    {
+                        var actual = (int) regime.GetReligionLevel();
+                        if (actual != eqLevel) return false;
+                    }
+                    else
+                    {
+                        var segs = val.Split('|');
+                        if (segs.Length != 2) return false;
+                        var op = segs[0];
+                        if (!int.TryParse(segs[1], out var n)) return false;
+                        var actual = (int) regime.GetReligionLevel();
+                        var ok = op switch
+                        {
+                            ">=" => actual >= n,
+                            ">" => actual > n,
+                            "<=" => actual <= n,
+                            "<" => actual < n,
+                            "==" => actual == n,
+                            "=" => actual == n,
+                            _ => false
+                        };
+                        if (!ok) return false;
+                    }
+                    break;
+                }
+                case ConditionType.empire_royal:
+                {
+                    var expect = val.Equals("true", StringComparison.OrdinalIgnoreCase);
+                    var actual = empire != null && SpecificClanManager.SameLineage(kingdom.GetSpecificClan(), empire.EmpireSpecificClan);
+                    if (actual != expect) return false;
+                    break;
+                }
+                case ConditionType.is_border:
+                {
+                    var expect = val.Equals("true", StringComparison.OrdinalIgnoreCase);
+                    var actual = kingdom.IsBorder();
+                    if (actual != expect) return false;
+                    break;
+                }
+                case ConditionType.culture_mismatch:
+                {
+                    // 都护府/羁縻州判定用：这个 administration 实际统治的文化（主流文化）
+                    // 跟它所属帝国的官方文化是否不一致——即异文化地区。跟 another_race
+                    // （物种）是两回事：文化是 CultureService 动态追踪的，同一物种也可能
+                    // 已经被同化/还没被同化成不同的文化。
+                    var expect = val.Equals("true", StringComparison.OrdinalIgnoreCase);
+                    string empireCulture = empire != null ? CultureService.GetEmpireDefaultCulture(empire) : "";
+                    string kingdomCulture = CultureService.GetRealmCulture(kingdom);
+                    bool valid = CultureService.IsValidCulture(empireCulture) &&
+                                 CultureService.IsValidCulture(kingdomCulture);
+                    var actual = valid && !string.Equals(empireCulture, kingdomCulture, StringComparison.Ordinal);
+                    if (actual != expect) return false;
+                    break;
+                }
+                case ConditionType.empire_institution:
+                {
+                    // 所属帝国已施行某个制度节点，例："empire_institution:western_theocratic_state"
+                    if (string.IsNullOrEmpty(val) || empire == null) return false;
+                    if (!InstitutionSystem.IsEnacted(empire, val)) return false;
+                    break;
+                }
+                case ConditionType.empire_feature:
+                {
+                    // 所属帝国具备某个制度特性，可选最低值，例："empire_feature:theocratic_state"、
+                    // "empire_feature:vassal_authority|50"。比 empire_institution 更通用：不绑定具体节点，
+                    // 任何线里声明了该特性的制度都能满足。
+                    if (string.IsNullOrEmpty(val) || empire == null) return false;
+                    // 特性名里可能带冒号(如 claim_reform:xxx)，所以取第一个冒号之后的全部内容
+                    string featureSpec = cond.Substring(cond.IndexOf(':') + 1);
+                    string[] featureParts = featureSpec.Split('|');
+                    float minimum = featureParts.Length > 1 &&
+                                    float.TryParse(featureParts[1], global::System.Globalization.NumberStyles.Float,
+                                        global::System.Globalization.CultureInfo.InvariantCulture, out float parsed)
+                        ? parsed
+                        : float.Epsilon;
+                    if (InstitutionSystem.GetFeature(empire, featureParts[0]) < minimum) return false;
+                    break;
+                }
+                case ConditionType.zhili:
+                {
+                    var expect = val.Equals("true", StringComparison.OrdinalIgnoreCase);
+                    if (MultiCapitalSystem.IsZhili(kingdom) != expect) return false;
+                    break;
+                }
+                case ConditionType.hre_estate:
+                {
+                    // 帝国的特殊成员，例："hre_estate:free_city"、"hre_estate:church"(见 HolyRomanSystem.Members)
+                    int estate = val == "free_city" ? HolyRomanSystem.EstateFreeCity
+                        : val == "church" ? HolyRomanSystem.EstateChurch : HolyRomanSystem.EstateNone;
+                    if (empire == null || HolyRomanSystem.Estate(kingdom) != estate) return false;
+                    break;
+                }
+                case ConditionType.holy_city:
+                {
+                    // 握有本国所奉宗教的圣地(教宗国只认圣城之主，地方教会的不算，见 Feudalism 配置与 PapacySystem.HoldsHolyCity)
+                    var expect = val.Equals("true", StringComparison.OrdinalIgnoreCase);
+                    if (PapacySystem.HoldsHolyCity(kingdom) != expect) return false;
+                    break;
+                }
+                case ConditionType.papal_rule:
+                {
+                    // 教宗国的制度前提：帝国之内要帝国施行了教权至上或神权国家；独立的圣城之国不限(见 PapacySystem.PapalRule)
+                    var expect = val.Equals("true", StringComparison.OrdinalIgnoreCase);
+                    if (PapacySystem.PapalRule(empire) != expect) return false;
+                    break;
+                }
+                case ConditionType.jimi_region:
+                {
+                    // 羁縻地区：施行羁縻制度后，按国家的羁縻规划(自动按文化/种族)判定，见 JimiSystem
+                    var expect = val.Equals("true", StringComparison.OrdinalIgnoreCase);
+                    if (JimiSystem.IsJimiRegion(kingdom, empire) != expect) return false;
+                    break;
+                }
+                default:
+                    return false;
+            }
+        }
+        return true;
+    }
+#if EC_PENDING
+    public override BehResult Execute(Realm pKingdom)
+    {
+        if (pKingdom.IsGone()) return BehResult.Continue;
+        pKingdom.CacheData();
+        pKingdom.CheckEmpire();
+        var ked = pKingdom.GetOrCreate();
+        if (ked is { last_kingdom_status_ts: > 0 })
+        {
+            if (GameClock.MonthsSince(ked.last_kingdom_status_ts) < 1)
+            {
+                return BehResult.Continue;
+            }
+        }
+        using (FrameProfiler.Measure("国类·附庸同步")) FeudalVassalService.Sync(pKingdom);
+        // 按默认值装成律令制(或阿拉伯)的改回本文化的政体(见 CultureService.RepairDefaultRegime；玩家 2026-10-22 反馈"全图律令制")。
+        // 每月一次、多数国家第一行就返回；新开的图上已经装错的国家由这里陆续纠正
+        using (FrameProfiler.Measure("国类·政体纠正与过渡"))
+        {
+            CultureService.RepairDefaultRegime(pKingdom);
+            InstitutionSystem.TryAdvanceRegimeTransition(pKingdom);
+        }
+        using (FrameProfiler.Measure("国类·定类别")) SyncKingdomStatus(pKingdom);
+        // 周制诸侯各用各的颜色(帝国仍是天子的颜色)
+        using (FrameProfiler.Measure("国类·颜色与官署"))
+        {
+            KingdomColorService.EnsureDistinctInZhou(pKingdom);
+            SyncOffice(pKingdom);
+        }
+        if (ked != null) ked.last_kingdom_status_ts = GameClock.Now;
+        return BehResult.Continue;
+    }
+#endif
+
+    private static void SyncOffice(Realm pKingdom)
+    {
+        OfficeObject office = pKingdom.GetOffice();
+        if (office == null)
+        {
+            pKingdom.InitialRegime();
+            return;
+        }
+        office.meta_object = pKingdom;
+        office.is_local = true;
+        office.actor_id = pKingdom.Ruler?.Key??-1L;
+        if (pKingdom.IsEmpire())
+        {
+            Empire empire = pKingdom.GetEmpire();
+            if (empire == null || empire.IsGone() || empire.IsArchived()) return;
+            if (empire.data.centerOffice == null)
+            {
+                var core = empire.CoreKingdom;
+                if (core == null) return;
+                empire.data.centerOffice = new CenterOffice();
+                empire.data.centerOffice.Init(core);
+            }
+            empire.data.centerOffice.SyncMetaObject(pKingdom);
+        }
+    }
+
+    public static void SyncKingdomStatus(Realm pKingdom, bool afterIndependence = false)
+    {
+        var originalKingdomType = pKingdom.GetKingdomType();
+        string nameBefore = pKingdom.Name;
+        //计算当前国家类别
+        KingdomType newkingdomType = CalcKingdomType(pKingdom);
+        pKingdom.SetKingdomType(newkingdomType);
+        if (pKingdom.IsEmpire())
+        {
+            Empire empire = pKingdom.GetEmpire();
+            // Keep automatic empire naming alive beneath any temporary player-facing override.
+            // 已改用帝国核心名作国号的(如统一中华核心后称中华民国)不再被本国法理名覆盖回去
+            if (empire != null && (empire.data?.constitutional_economy?.named_after_core_id ?? -1L) <= 0)
+                empire.SetEmpireName(pKingdom.GetAutomaticKingdomName());
+        }
+        //获取国家政体后同步国家官位
+        var regime = pKingdom.GetRegime();
+        if (regime == null) return;
+        if (regime.type == RegimeType.Feudalism && pKingdom.HasRuler() &&
+            WesternPeerageRules.TryGetRulerLevel(newkingdomType, out PeeragesLevel rulerLevel))
+        {
+            pKingdom.Ruler.SetPeeragesLevel(rulerLevel);
+        }
+        var needSyncOffice = pKingdom.GetOffice() == null || pKingdom.GetOffice()?.regimeType != regime.type || originalKingdomType != newkingdomType;
+        if (needSyncOffice)
+        {
+            BureauSetting setting = null;
+            if (regime.bureau_config != null && regime.bureau_config.kingdoms != null)
+            {
+                regime.bureau_config.kingdoms.TryGetValue(newkingdomType, out setting);
+            }
+            OfficeObject officeObject = new OfficeObject();
+            if (setting != null)
+            {
+                officeObject.InitialOffice(setting);
+            }
+            officeObject.regimeType = regime.type;
+            officeObject.meta_object = pKingdom;
+            officeObject.is_local = true;
+            if (officeObject.leader_select_method != LeaderSelectMethod.Default &&
+                !IsHereditaryGarrison(pKingdom, regime))
+            {
+                regime.SetLeaderSelectMethod(officeObject.leader_select_method);
+            }
+            if (pKingdom.HasRuler())
+            {
+                officeObject.SetActor(pKingdom.Ruler);
+            }
+            pKingdom.SetOffice(officeObject);
+            foreach (var city in pKingdom.Cities)
+            {
+                city.InitialRegime();
+            }
+        }
+        
+        string administrativeName = pKingdom.GetAdministrativeProvinceName();
+        KingdomTitle mainTitle = pKingdom.GetMainTitle();
+        var kingdomFront = !string.IsNullOrWhiteSpace(administrativeName)
+            ? administrativeName
+            : !string.IsNullOrWhiteSpace(mainTitle?.Name)
+            ? mainTitle.Name
+            : pKingdom.GetUntitledKingdomName();
+        // 第二直隶以京名为号("某京直隶"，见 MultiCapitalSystem.Zhili)
+        string zhiliFront = MultiCapitalSystem.ZhiliFront(pKingdom);
+        if (!string.IsNullOrWhiteSpace(zhiliFront)) kingdomFront = zhiliFront;
+        // 穿越政体的大区：第三次全体大会以前以治所城名为号(三亚大区)，以后照地区名(广东大区，见 TransmigrantSystem.RegionFront)
+        string regionFront = TransmigrantSystem.RegionFront(pKingdom);
+        if (!string.IsNullOrWhiteSpace(regionFront)) kingdomFront = regionFront;
+
+        if (pKingdom.IsEmpire())
+        {
+            kingdomFront = pKingdom.GetEmpire()?.GetEmpireName();
+        }
+        if (string.IsNullOrWhiteSpace(kingdomFront))
+        {
+            if (!string.IsNullOrWhiteSpace(mainTitle?.Name))
+            {
+                kingdomFront = mainTitle.Name;
+            }
+            else kingdomFront = pKingdom.GetUntitledKingdomName();
+        }
+        // 汉化的行政区名(剧本的都护府，见 KingdomExtraData.admin_name)：还是那个帝国的行政区时照这个名，离了照自己的法理名
+        bool alias = pKingdom.AdministrativeFront(newkingdomType, out string aliasFront, out string aliasBack);
+        if (alias) kingdomFront = aliasFront;
+        // 华夏朝代演进下京畿与行政区改称(司州/京畿道/直隶省，州/道/省，见 DynastyNaming)
+        var kingdomBack = aliasBack ?? LM.Get(DynastyNaming.KingdomTypeKey(pKingdom, newkingdomType));
+        string cultureName = pKingdom.GetEmpireCraftCulture() ?? "Western";
+        string kingdomName = OverallHelperFunc.FormatCountryTypeName(kingdomFront, kingdomBack, cultureName);
+        // 同名去重：法理省名可能被两个政权同时用上(自持法理的行政区不经过省名归属判定；交战中改不了名的政权
+        // 失去法理后还留着旧名)，地图上就出现两个"荆湖北军"。已有别的政权叫这个名字、而自己又没控制该法理的
+        // 首府时，改用自己首府的城名。
+        if (!alias && !pKingdom.IsEmpire() && IsNameTaken(pKingdom, kingdomName) && !HoldsTitleCapital(pKingdom) &&
+            pKingdom.Capital != null && !pKingdom.Capital.IsGone())
+            kingdomName = OverallHelperFunc.FormatCountryTypeName(pKingdom.Capital.GetCityName(), kingdomBack, cultureName);
+        // 未组建政府的现代势力(某系军阀、工农红军……)：存下的国名与地图铭牌一致，王国窗口和翻页栏才不会显示成"某某直辖市(首都)"。
+        // 直接写显示名，不经 SetKingdomName——那会把"蜀系军阀"记成本国核心名，日后组建政府时国号就成了"蜀系军阀民国"
+        if (WarlordEraSystem.TryGetNonGovernmentKingdomName(pKingdom, out string armedName) &&
+            !string.IsNullOrWhiteSpace(armedName))
+            pKingdom.Name = armedName.UseLocalizedNameSeparator();
+        else
+            pKingdom.SetKingdomName(kingdomName, afterIndependence);
+        // 名字变了：这一帧列好的国名表作废(见 EnsureNameIndex)
+        if (!string.Equals(pKingdom.Name, nameBefore, StringComparison.Ordinal)) _nameIndexFrame = -1;
+        CityType currentCityType = CalcCityType(pKingdom);
+        foreach (var city in pKingdom.Cities)
+        {
+            if (city == null || city.IsGone()) continue;
+            city.RefreshCityDisplayName();
+            city.SetCityType(currentCityType);
+        }
+    }
+
+    // 各国眼下的名字(分隔符规整后) → 叫这个名字的有几国、其中一国。一帧里只列一回(这一帧里有国在这里改了名就作废重列)：
+    // 以前每定一国的类别就把全世界的国名逐个规整、逐个比一遍，四百国的世界里一个月是十六万次字符串处理
+    private static readonly Dictionary<string, (int count, Realm one)> NameIndex = new(StringComparer.Ordinal);
+    private static int _nameIndexFrame = -1;
+    private static object _nameIndexWorld;
+
+    private static void EnsureNameIndex()
+    {
+        int frame = Time.frameCount;
+        if (frame == _nameIndexFrame && ReferenceEquals(_nameIndexWorld, EmpireWorld.Current)) return;
+        _nameIndexFrame = frame;
+        _nameIndexWorld = EmpireWorld.Current;
+        NameIndex.Clear();
+        foreach (Realm other in EmpireWorld.Current.LiveRealms)
+        {
+            if (other == null || other.IsGone()) continue;
+            string name = other.Name?.UseLocalizedNameSeparator();
+            if (name == null) continue;
+            NameIndex[name] = NameIndex.TryGetValue(name, out (int count, Realm one) entry) ? (entry.count + 1, entry.one) : (1, other);
+        }
+    }
+
+    private static bool IsNameTaken(Realm kingdom, string name)
+    {
+        string normalized = name.UseLocalizedNameSeparator();
+        EnsureNameIndex();
+        return NameIndex.TryGetValue(normalized, out (int count, Realm one) entry) && (entry.count > 1 || entry.one != kingdom);
+    }
+
+    // 省名的正主：控制着所用法理(托管的或自持的)首府的那个政权
+    private static bool HoldsTitleCapital(Realm kingdom)
+    {
+        KingdomTitle title = kingdom.GetAdministrativeTitle() ?? kingdom.GetMainTitle();
+        return title?.title_capital != null && !title.title_capital.IsGone() && title.title_capital.Realm == kingdom;
+    }
+
+    public static CityType CalcCityType(Realm kingdom)
+    {
+        Regime regime = kingdom.GetRegime();
+        if (regime == null)
+        {
+            LogService.LogInfo("国家政策为空");
+            return CityType.Feudalism_city;
+        }
+        return GetCityNamingSetting(kingdom)?.city_type ?? CityType.Feudalism_city;
+    }
+
+    public static BureauSetting GetCityNamingSetting(Realm kingdom)
+    {
+        Regime regime = kingdom?.GetRegime();
+        var settings = regime?.bureau_config?.kingdoms;
+        if (settings == null) return null;
+        if (settings.TryGetValue(kingdom.GetKingdomType(), out var selected) && selected != null) return selected;
+        if (settings.TryGetValue(regime.default_kingdom, out var fallback) && fallback != null) return fallback;
+        return settings.TryGetValue(KingdomType.default_country_post, out var generic) ? generic : null;
+    }
+    
+    //依据制度的不同选项动态调整国家后缀
+    public static KingdomType CalcKingdomType(Realm kingdom)
+    {
+        var regime = kingdom.GetRegime();
+        if (regime == null) return KingdomType.LvLing_kingdom;
+        // 战国离开帝国的周诸侯：爵位照旧(见 ZhouEraSystem.Detach)
+        if (ZhouEraSystem.IsDetachedVassal(kingdom)) return kingdom.GetOrCreate().kingdomType;
+        // 部落进宗法分封时按共事年数定下的爵位(侯伯子)：照定下的，不按城数、族属改(见 ZhouEraSystem.SeniorPeerage)
+        if (ZhouEraSystem.SeniorPeerage(kingdom, regime) is KingdomType senior) return senior;
+        // 军府(节度使、都护府)世袭之后仍是藩镇：照旧称"某某军"，不因父死子继改成封国
+        if (IsHereditaryGarrison(kingdom, regime)) return kingdom.GetOrCreate().kingdomType;
+        // 穿越政体：本元老院国家底下的成员是大区(早期叫特区)；元老院自己(帝国核心、伪装成别国属国时)仍是元老院国家
+        if (regime.type == RegimeType.Transmigrant)
+            return TransmigrantSystem.IsRegion(kingdom) ? KingdomType.Transmigrant_region : KingdomType.Transmigrant_senate;
+        // A hereditary landed title is a vassal kingdom, never an administrative
+        // circuit or military governorship left over from an earlier configuration.
+        if (regime.type == RegimeType.LvLing && !kingdom.IsEmpire() && kingdom.HasMainTitle() &&
+            regime.GetLeaderSelectMethod() == LeaderSelectMethod.Succession)
+        {
+            return KingdomType.LvLing_kingdom;
+        }
+        if (kingdom.IsInEmpire()||regime.default_kingdom == KingdomType.default_country_post)
+        {
+            if (regime.bureau_config is { kingdoms: not null })
+            {
+                foreach (var kv in regime.bureau_config.kingdoms)
+                {
+                    var target = kv.Key;
+                    var setting = kv.Value;
+                    if (setting == null) continue;
+                    if (MatchConditions(kingdom, regime, setting.condition))
+                    {
+                        return target;
+                    } 
+                }
+            }
+        }
+        return  regime.default_kingdom;
+    }
+    // 已是军府、节度使改为世袭(仍有外交与兵权)的藩镇。
+    // 读存下的类别，不能用 GetKingdomType：存的类别不在当前政体的配置里时，GetKingdomType 会回头调 CalcKingdomType，
+    // CalcKingdomType 又调到这里，无限递归到栈溢出，游戏原生闪退(10-08 起 ntdll 0x4a612 那批闪退就是这个)
+    public static bool IsHereditaryGarrison(Realm kingdom, Regime regime)
+    {
+        if (kingdom == null || regime == null || regime.type != RegimeType.LvLing || kingdom.IsEmpire() ||
+            !kingdom.IsInEmpire() || regime.GetLeaderSelectMethod() != LeaderSelectMethod.Succession ||
+            !regime.IsAllowDiplomacy()) return false;
+        KingdomType current = kingdom.GetOrCreate().kingdomType;
+        return current == KingdomType.LvLing_jiedushi || current == KingdomType.LvLing_duhufu;
+    }
+
+    private static int GetOption(Regime regime, ConditionType key)
+    {
+        if (regime?.options == null) return 0;
+        if (!regime.options.TryGetValue(key.ToString(), out var arr) || arr == null || arr.Length == 0) return 0;
+        return arr[0];
+    }
+}
+}

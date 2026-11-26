@@ -1,0 +1,277 @@
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/TradeRouteSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
+// see Port/manifest.json and Tools/PortTool.
+using Mathf = EmpireCraft.Core.EcMath;
+using Vector2 = EmpireCraft.Core.EcVector2;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace EmpireCraft.Core
+{
+
+// 海上商路(无小人模式)：建成港口的城市与最近的外国港口城结成商路，每月按双方富庶度产生贸易利得——
+//   双方民间资产各记一笔贸易利润(与生产估值同口径，之后由商业税基征税)，
+//   并按商业税率就地征一笔关税：从民间现金扣，入城市国库(商业税)；没有现金就征不到。
+//   两国交战即断航(禁运)，任一港口被敌方舰队封锁也断航；港口被拆、城市易主重新配对。配对每年重算一次，结算每月一次。
+//   只与同一片海上的港口配对(码头旁的海面属于同一水域；以前按直线距离，隔着陆地的内湖、两洋也配上)；
+//   锁国的(制度特性 closed_country，如日本锁国令)不与外国通商；
+//   被迫开港(和约，见 WarGoalSystem 通商)的二十年里锁国也开，港口优先与胜者的港口配对，两边都得利。
+// 通达层开着时(用户 2026-11-06 同意"先信息类、再贸易迁徙"，见 ConnectivitySystem)：最远配多远看本国航海档
+//   (没有近海引航 24 格、近海引航 64、远洋航海 192、工业化 576、电力或摩托化不限；以前一律直线 160 格)；
+//   利得扣掉运费：直线海程按这一档的上船与航程算成本，运费占比 = 成本 × route_freight × 运输科技系数(至多九成)。
+public static class TradeRouteSystem
+{
+    private const float MaxRouteDistance = 160f;
+    private const float BaseTrade = 2f;
+    private const float WealthTrade = 10f;
+    private static double _lastSettle = -1d;
+    private static double _lastPairing = -1d;
+    // 城市 id → 贸易伙伴城市 id(每年重算)
+    private static readonly Dictionary<long, long> Routes = new();
+    // 城市 id → 这条商路的海程成本、运费占比(配对时算，见 Pair)
+    private static readonly Dictionary<long, (float cost, float freight)> RouteFreight = new();
+    private static readonly HashSet<(long, long)> SettledTreaties = new();
+    private static readonly List<long> StaleRoutes = new();
+    private static EmpireWorld _world;
+
+    public static long PartnerOf(City city) =>
+        city?.Record != null && Routes.TryGetValue(city.Key, out long partner) ? partner : -1L;
+
+    // 这座港口那条商路的海程成本(商品市场按它算运费，见 CommodityMarketSystem)；没有按最远算
+    public static float RouteCost(City city) =>
+        city?.Record != null && RouteFreight.TryGetValue(city.Key, out var route) ? route.cost : ConnectivitySystem.Config.goods_max_cost;
+
+    // 扣掉运费后留下几成利得
+    private static float Keep(City city) =>
+        city?.Record != null && RouteFreight.TryGetValue(city.Key, out var route) ? 1f - route.freight : 1f;
+
+    private static float TradeValue(City a, City b) =>
+        BaseTrade + WealthTrade * (CityConstructionSystem.Wealth(a) + CityConstructionSystem.Wealth(b)) * 0.5f;
+
+    // 城市悬停提示：有商路时给一行"伙伴城市（+N/月）"，交战中标注禁运
+#if EC_PENDING
+    public static string Describe(City city)
+    {
+        City partner = EmpireWorld.Current?.CityByKey(PartnerOf(city));
+        if (partner?.Record == null || partner.IsGone() || city?.Realm == null || partner.Realm == null) return null;
+        if (city.Realm.IsAtWarWith(partner.Realm))
+            return string.Format(LM.Get("trade_route_embargo"), partner.GetCityName());
+        if (NavySystem.IsBlockaded(city) || NavySystem.IsBlockaded(partner))
+            return string.Format(LM.Get("trade_route_blockaded"), partner.GetCityName());
+        return string.Format(LM.Get("trade_route_status"), partner.GetCityName(), (long)(TradeValue(city, partner) * Keep(city)));
+    }
+
+    public static void TryMonthlyScan()
+    {
+        if (EmpireWorld.Current?.Cities == null || ModClass.IS_CLEAR || !CityPopulationSystem.AbstractPopulationEnabled) return;
+        if (!ReferenceEquals(_world, EmpireWorld.Current)) { Routes.Clear(); RouteFreight.Clear(); _lastPairing = -1d; _world = EmpireWorld.Current; }
+        double now = GameClock.Now;
+        if (_lastSettle >= 0d && now >= _lastSettle && GameClock.MonthsSince(_lastSettle) < 1) return;
+        _lastSettle = now;
+        try
+        {
+            if (_lastPairing < 0d || now < _lastPairing || GameClock.YearsSince(_lastPairing) >= 1)
+            {
+                _lastPairing = now;
+                Pair();
+            }
+            Settle();
+        }
+        catch (Exception exception)
+        {
+            LogService.LogWarning($"[EmpireCraft][商路] 结算失败: {exception.Message}");
+        }
+    }
+
+    private static bool Tradeable(City city) =>
+        city?.Record != null && !city.IsGone() && city.Realm != null && !city.Realm.IsWild &&
+        TreasurySystem.Enabled(city) &&
+        city.getBuildingOfType("type_docks", pCountOnlyFinished: true, pRandom: false) != null;
+#endif
+
+    // 每城找最近的外国港口城(直线距离近似海程；每年一次，港口城数量有限)
+#if EC_PENDING
+    private static void Pair()
+    {
+        Routes.Clear();
+        RouteFreight.Clear();
+        bool reach = ConnectivitySystem.Config.enabled;
+        ConnectivityConfig config = ConnectivitySystem.Config;
+        var bands = new Dictionary<long, int>();
+        var ports = new List<City>();
+        var seas = new Dictionary<City, object>();
+        foreach (City city in EmpireWorld.Current.Cities)
+            if (Tradeable(city) && !Closed(city.Realm))
+            {
+                ports.Add(city);
+                seas[city] = SeaOf(city);
+            }
+        foreach (City city in ports)
+        {
+            City best = null;
+            float bestDistance = MaxRouteDistance * MaxRouteDistance;
+            int band = 0;
+            if (reach)
+            {
+                long realm = ConnectivitySystem.RealmOf(city.Realm)?.Key ?? city.Realm.Key;
+                if (!bands.TryGetValue(realm, out band)) bands[realm] = band = ConnectivitySystem.Band(city);
+                float range = ConnectivityRules.RouteRange(band, config);
+                bestDistance = range > 0f ? range * range : float.MaxValue;
+            }
+            Vector2 from = city.Center;
+            object sea = seas[city];
+            // 被迫开港的先与胜者的港口配对
+            Realm partner = TreatyPartner(city.Realm);
+            bool partnerReachable = partner != null && ports.Any(other => other.Realm == partner &&
+                                                                         (sea == null || seas[other] == null || seas[other] == sea));
+            foreach (City other in ports)
+            {
+                if (other == city || other.Realm == city.Realm) continue;
+                if (partnerReachable && other.Realm != partner) continue;
+                if (sea != null && seas[other] != null && seas[other] != sea) continue;
+                Vector2 to = other.Center;
+                float distance = (to - from).sqrMagnitude;
+                if (distance >= bestDistance) continue;
+                bestDistance = distance;
+                best = other;
+            }
+            if (best == null) continue;
+            Routes[city.Key] = best.Key;
+            if (!reach) continue;
+            float cost = ConnectivityRules.SeaLegCost(Mathf.Sqrt(bestDistance), band, config);
+            float freight = Mathf.Clamp(cost * config.route_freight * ConnectivitySystem.FreightFactor(city.Realm), 0f, 0.9f);
+            RouteFreight[city.Key] = (cost, freight);
+        }
+    }
+#endif
+
+    // 港口所在的那片海：码头所在或紧挨着的海面所属的水域；找不到返回 null(那就照旧按距离配)
+#if EC_PENDING
+    private static object SeaOf(City city)
+    {
+        Building docks = city.getBuildingOfType("type_docks", pCountOnlyFinished: true, pRandom: false);
+        Cell tile = docks?.Cell;
+        if (tile == null) return null;
+        if (tile.Type?.Ocean == true && tile.region?.island != null) return tile.region.island;
+        foreach (Cell next in tile.NeighboursAll ?? Array.Empty<Cell>())
+            if (next?.Type?.Ocean == true && next.region?.island != null) return next.region.island;
+        return null;
+    }
+#endif
+
+    private const int TreatyYears = 20;
+
+    // 有能通商的港口(海上商路只在无小人模式开着，见 TryMonthlyScan)
+#if EC_PENDING
+    public static bool HasPort(Realm kingdom) =>
+        CityPopulationSystem.AbstractPopulationEnabled && kingdom?.Cities?.Any(Tradeable) == true;
+#endif
+
+    // 和约逼开港：二十年里与胜者通商(锁国也开)
+#if EC_PENDING
+    public static bool ImposeTreaty(Realm loser, Realm winner)
+    {
+        if (!HasPort(loser) || !HasPort(winner) || loser == winner) return false;
+        var data = loser.GetOrCreate();
+        data.trade_treaty_partner_id = winner.Key;
+        data.trade_treaty_at = GameClock.Now;
+        _lastPairing = -1d;
+        return true;
+    }
+#endif
+
+    public static Realm TreatyPartner(Realm kingdom)
+    {
+        if (kingdom?.Record == null || EmpireWorld.Current == null) return null;
+        var data = kingdom.GetOrCreate();
+        if (data.trade_treaty_partner_id < 0 || data.trade_treaty_at < 0d ||
+            GameClock.YearsSince(data.trade_treaty_at) >= TreatyYears) return null;
+        Realm partner = EmpireWorld.Current.RealmByKey(data.trade_treaty_partner_id);
+        return partner?.Record != null && !partner.IsGone() ? partner : null;
+    }
+
+    private static bool Treaty(Realm a, Realm b) => TreatyPartner(a) == b || TreatyPartner(b) == a;
+
+    // 锁国：不与外国通商(被迫开港的不算)；所在市场定了闭关的也一样(见 CommodityMarketSystem.PolicyOf)
+    public static bool Closed(Realm kingdom)
+    {
+        if (TreatyPartner(kingdom) != null) return false;
+        return ClosedByLaw(kingdom) || CommodityMarketSystem.PolicyOf(CommodityMarketSystem.RootOf(kingdom)) == TradePolicy.Closed;
+    }
+
+    // 制度定了锁国
+    public static bool ClosedByLaw(Realm kingdom)
+    {
+        string culture = CultureService.GetRealmCulture(kingdom);
+        return CultureService.IsValidCulture(culture) && InstitutionSystem.GetFeature(culture, "closed_country") > 0f;
+    }
+
+    // 普通商路：每条有向记录给发起的港口记一笔。和约商路：按两端的城结一次，两边各记一笔——
+    // A→B、B→A 同时在册也只结一次；同一港口的别条商路照常另算。
+    // 结不了的不拖累其他：城没了、失去码头、同国化、锁国了就撤掉这条，下月重新配对；交战、封锁只是这个月断航。
+#if EC_PENDING
+    private static void Settle()
+    {
+        SettledTreaties.Clear();
+        StaleRoutes.Clear();
+        bool logged = false;
+        foreach (KeyValuePair<long, long> route in Routes)
+        {
+            try
+            {
+                City city = EmpireWorld.Current.CityByKey(route.Key);
+                City partner = EmpireWorld.Current.CityByKey(route.Value);
+                if (!Tradeable(city) || !Tradeable(partner) || city.Realm == partner.Realm)
+                {
+                    StaleRoutes.Add(route.Key);
+                    continue;
+                }
+                bool treaty = Treaty(city.Realm, partner.Realm);
+                if (!treaty && (Closed(city.Realm) || Closed(partner.Realm)))
+                {
+                    StaleRoutes.Add(route.Key);
+                    continue;
+                }
+                // 交战禁运；任一港口被敌方舰队封锁也断航(见 NavySystem)
+                if (city.Realm.IsAtWarWith(partner.Realm) || NavySystem.IsBlockaded(city) ||
+                    NavySystem.IsBlockaded(partner)) continue;
+                // 利得扣掉运费(见类头)；和约商路两边按发起港口的运费算
+                float keep = Keep(city);
+                if (!treaty)
+                {
+                    Earn(city, TradeValue(city, partner) * keep);
+                    continue;
+                }
+                if (!SettledTreaties.Add(route.Key < route.Value ? (route.Key, route.Value) : (route.Value, route.Key))) continue;
+                Earn(city, TradeValue(city, partner) * keep);
+                Earn(partner, TradeValue(partner, city) * keep);
+            }
+            catch (Exception exception)
+            {
+                if (logged) continue;
+                logged = true;
+                LogService.LogWarning($"[EmpireCraft][商路] {route.Key}→{route.Value} 结算失败: {exception.Message}");
+            }
+        }
+        if (StaleRoutes.Count == 0) return;
+        foreach (long id in StaleRoutes) Routes.Remove(id);
+        _lastPairing = -1d;
+    }
+#endif
+
+    // 贸易利得记进民间资产(与生产估值同口径)；关税按商业税率从民间现金征，入城市国库
+#if EC_PENDING
+    private static void Earn(City city, float trade)
+    {
+        CityPopulationData data = CityPopulationSystem.Get(city);
+        if (data == null) return;
+        PopulationEconomySystem.AddSavings(city, data, trade);
+        double rate = SectorTaxRules.Rate(city.Realm.GetTaxRate(), TreasuryCategory.CommercialTax);
+        long tariff = Math.Min((long)Math.Floor(trade * rate), EnterpriseSystem.Cash(data));
+        if (tariff <= 0L) return;
+        EnterpriseSystem.TakeCash(data, tariff);
+        TreasurySystem.CollectResidentTax(city, (int)Math.Min(int.MaxValue, tariff), TreasuryCategory.CommercialTax);
+    }
+#endif
+}
+}

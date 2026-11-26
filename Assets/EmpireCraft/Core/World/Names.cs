@@ -1,0 +1,41 @@
+namespace EmpireCraft.Core
+{
+    // Placeholder naming for the skeleton phase. Culture-aware onomastics replace it
+    // when the culture systems are ported. Nothing here names a real dynasty or place.
+    public static class Names
+    {
+        const uint Stream=0x4E414D45;
+        static readonly string[] Surnames={"林","沈","陆","顾","苏","韩","程","叶","许","秦","温","蒋","方","邵","简","江","柳","萧","宁","岑","廖","纪","乔","闻","滕","汪","瞿","贺","骆","晏"};
+        static readonly string[] GivenMale={"承","远","平","安","衡","昭","宁","谦","睿","泽","晖","铭","嘉","祐","恒","穆","策","澄","弘","霆"};
+        static readonly string[] GivenFemale={"婉","清","宜","蘅","芷","若","瑶","姝","锦","岚","绮","素","萱","琳","晴","筠"};
+        static readonly string[] Lead={"青","白","丹","云","石","松","川","泉","霞","金","苍","沧","临","安","平","长","桐","枫","雁","鹿","兰","澜","岚","洛"};
+        static readonly string[] Tail={"川","州","原","阳","陵","泽","津","关","岭","渚","丘","城","野","坪","湾","堰","塘","桥","滩","谷"};
+
+        public static string Surname(EmpireWorld w,int subject)=>Surnames[w.Pick(Stream,subject,Surnames.Length,1)];
+        public static string Given(EmpireWorld w,Sex sex,int subject)
+        {
+            var pool=sex==Sex.Male?GivenMale:GivenFemale;
+            string a=pool[w.Pick(Stream,subject,pool.Length,2)];
+            return w.Chance(Stream,subject,3)<.5?a:a+pool[w.Pick(Stream,subject,pool.Length,4)];
+        }
+        public static string Place(EmpireWorld w,int subject)
+        {
+            for(int attempt=0;attempt<8;attempt++)
+            {
+                string n=Lead[w.Pick(Stream,subject,Lead.Length,10+attempt)]+Tail[w.Pick(Stream,subject,Tail.Length,30+attempt)];
+                if(n[0]!=n[1])return n;
+            }
+            return Lead[0]+Tail[0];
+        }
+        public static string RealmOf(string capital)=>capital+"国";
+        public static uint Color(EmpireWorld w,int subject)
+        {
+            // Mid-saturation hues that stay readable over terrain.
+            double h=w.Chance(Stream,subject,50)*6,s=.45+.25*w.Chance(Stream,subject,51),v=.70+.2*w.Chance(Stream,subject,52);
+            int k=(int)h;double f=h-k,p=v*(1-s),q=v*(1-s*f),t=v*(1-s*(1-f));
+            double r,g,b;
+            switch(k%6){case 0:r=v;g=t;b=p;break;case 1:r=q;g=v;b=p;break;case 2:r=p;g=v;b=t;break;case 3:r=p;g=q;b=v;break;case 4:r=t;g=p;b=v;break;default:r=v;g=p;b=q;break;}
+            return ((uint)(r*255)<<16)|((uint)(g*255)<<8)|(uint)(b*255);
+        }
+    }
+}

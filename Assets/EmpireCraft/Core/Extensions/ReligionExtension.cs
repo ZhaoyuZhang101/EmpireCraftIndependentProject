@@ -1,0 +1,147 @@
+// Generated from the EmpireCraft mod: Scripts/GameClassExtensions/ReligionExtension.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
+// see Port/manifest.json and Tools/PortTool.
+using System.Collections.Generic;
+
+namespace EmpireCraft.Core
+{
+
+public static class ReligionExtension
+{
+    public class ReligionExtraData: ExtraDataBase
+    {
+        //教皇
+        public long LeaderID = -1L;
+        //圣地
+        public long CityID = -1L;
+        // 教权(0~100，见 PapacySystem)与上次结算时间
+        public float PapalAuthority = 60f;
+        public double PapalUpdatedAt = -1d;
+        // 圣战(见 PapacySystem.Crusade)：进行中的圣战、冷却到何时、第几次、失利次数
+        public long CrusadeWarId = -1L;
+        public double CrusadeCooldownUntil = -1d;
+        public int CrusadeCount;
+        public int CrusadeLosses;
+        // 圣战要收复的城(-1 = 就是圣地)：真实地图天主教会记耶路撒冷，圣地仍是罗马(见 PapacySystem.CrusadeCity)
+        public long CrusadeCityId = -1L;
+        // 本宗教的骑士团(含已解散的)
+        public List<KnightOrderData> Orders = new();
+        // 教廷之囚的起始时间(-1 = 没有)、大分裂(对立教宗)
+        public double CaptiveSince = -1d;
+        public bool Schism;
+        // 宗教改革分出来的国教会：母宗教与分出时间；"教随国定"到何时(母宗教此前不再讨伐异端)
+        public long ParentReligionId = -1L;
+        public double SplitAt = -1d;
+        public double ReligiousPeaceUntil = -1d;
+        // 所属天下(创教者文化的天下标识，见 ReligionSphere)；旧档空着，头一次查时补上
+        public string Sphere = "";
+        // 宗教类型(FaithType 的名字，见 ReligionFaith)；旧档空着，头一次查时补上
+        public string Faith = "";
+        // 皇帝兼管教会(东西教会大分裂分出的正教会，见 ReligionSchismSystem)
+        public bool Caesaropapist;
+        // 本宗教已分出过正教会、什叶派(各一次)
+        public bool EasternSplit;
+        public bool ShiaSplit;
+        // 伊斯兰诸分裂(对立哈里发、什叶派与伊斯玛仪派、复古运动，见 IslamicSchismSystem)；旧档与别的宗教为空
+        public IslamicSchismState Islamic;
+        // 西方大分裂(对立教宗与各国的服从，见 PapacySystem.Antipope)：没闹过是 null
+        public PapalSchismData PapalSchism;
+        // 分出的缘由与发端(宗教改革的改革者、诸侯，国教会，对立一线分立，见 PapacySystem.Reformation)：旧档、别的教会是 null
+        public SplitOriginData SplitOrigin;
+        // 教宗(见 PapalElection；LeaderID 记现任教宗)：怎么选立的(0 未记、1 枢机推举、2 世俗强立)、选立时间
+        public int PopeChosenBy;
+        public double PopeChosenAt = -1d;
+        // 大事记(见 ReligionChronicle)：旧的在前，至多 ReligionChronicle.MaxEvents 条
+        public List<ReligionEventData> Chronicle = new();
+        // 并入本教的地方教会(见 ReligionSphere.Absorb)：名字与并入时间，宗教窗口谱系页列出
+        public List<ReligionEventData> Absorbed = new();
+        // 历代教首(见 ReligionHeads)：旧的在前，至多 ReligionHeads.MaxHeads 任
+        public List<ReligionHeadRecord> Heads = new();
+        // 教义融合(用户 2026-11-06 选"按类型分槽位"，见 SyncretismSystem)：融合所得的教义；null = 还没查过
+        // (旧档、新立的都是 null；分出的教会头一次查时照抄母宗教的，见 ReligionTenets.Absorbed)。本有教义按类型、天下现算，不存
+        public List<SyncreticTenetData> Syncretic;
+        // 融合接触度：来源宗教 id → 接触度(0~100)、累计接触年数
+        public Dictionary<long, float> Contact = new();
+        public Dictionary<long, int> ContactYears = new();
+        // 上次融到一条的时间(-1 没有)
+        public double LastSyncretismAt = -1d;
+        // 启示宗教(两段式立教的后一段，见 NativeFaithSystem)：立教时间，-1 不是
+        public double RevealedAt = -1d;
+    }
+
+    // 融来的一条教义：教义 id、来源宗教(及其宗系之首，宗教亡了照样认)、来源名、本地圣徒记来源的天下、时间
+    public class SyncreticTenetData
+    {
+        public string tenet = "";
+        public long from_id = -1L;
+        public long from_root = -1L;
+        public string from_name = "";
+        public string sphere = "";
+        public double at;
+    }
+
+    // 历代教首的一任：人、在位起止(to = -1 在位)、怎么选立(PapalElection.By*，0 = 继位或未记)、怎么结束(文字键)
+    public class ReligionHeadRecord
+    {
+        public long actor_id = -1L;
+        public string name = "";
+        public double from;
+        public double to = -1d;
+        public int chosen_by;
+        public string end = "";
+    }
+
+    // 宗教大事记的一条：时间、类别(ReligionChronicle.Kind*)、已拼好的文字
+    public class ReligionEventData
+    {
+        public double at;
+        public int kind;
+        public string text = "";
+    }
+    public static ReligionExtraData GetOrCreate(this Religion a, bool isSave = false)
+    {
+        var ed = a.GetOrCreate<Religion, ReligionExtraData>(isSave);
+        return ed;
+    }
+    /// <summary>
+    /// 获取教皇
+    /// </summary>
+    /// <param name="r"></param>
+    /// <returns></returns>
+    public static Person GetLeader(this Religion r)
+    {
+        return EmpireWorld.Current.PersonByKey(r.GetOrCreate().LeaderID);
+    }
+    /// <summary>
+    /// 更换教皇人选
+    /// </summary>
+    /// <param name="r"></param>
+    /// <param name="actor"></param>
+    public static void SetLeader(this Religion r, Person actor)
+    {
+        r.GetOrCreate().LeaderID = actor.Key;
+    }
+
+    /// <summary>
+    /// 设置圣地
+    /// </summary>
+    /// <param name="r"></param>
+    /// <param name="city"></param>
+    public static void SetCity(this Religion r, City city)
+    {
+        if (city != null)
+        {
+            r.GetOrCreate().CityID = city.Key;
+        }
+    }
+
+    /// <summary>
+    /// 获取圣地
+    /// </summary>
+    /// <param name="r"></param>
+    /// <returns></returns>
+    public static City GetCity(this Religion r)
+    {
+        return EmpireWorld.Current.CityByKey(r.GetOrCreate().CityID);
+    }
+}
+}

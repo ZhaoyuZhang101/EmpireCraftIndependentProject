@@ -1,0 +1,834 @@
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/CourtSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
+// see Port/manifest.json and Tools/PortTool.
+using Mathf = EmpireCraft.Core.EcMath;
+using Random = EmpireCraft.Core.EcRandom;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+#if EC_PENDING
+using Random = UnityEngine.Random;
+#endif
+
+namespace EmpireCraft.Core
+{
+
+public enum CourtCouncilKind { None, Cabinet, Electors, Senate, ThreeDepartments, Han, Zhou }
+
+// 朝堂博弈：没有议会的帝国，派系诉求不再由最大派系直接推行，而是走奏议五步——
+//   ① 上奏：派系花政治资本，把自己支持的一条议题递上去(独特议题只能本派上奏，公共议题谁都能上)；
+//   ② 票拟：有议事会(内阁/选帝侯/元老院)的，由议程官(首辅/首席选帝侯/首席元老)决定递不递，
+//      议程官所属派系反对时会压下，盟友或花资本疏通才能过；不在议事会又没有盟友的派系只能走言路，未必上达；
+//   ③ 廷议：各派按立场表态，权重 = 派系势力(有议事会时一半看席位)，赞成率不足三成五即否决；
+//   ④ 批红：皇帝按赞成率、圣眷、自己的立场与性格、方略裁决准奏/驳回/留中；幼主、傀儡由权臣或议程官代批；
+//   ⑤ 施行：准奏后照原诉求逐月推进，议事会里支持的越多越快，反对派可以掣肘拖慢。
+// 同一时间只办一件奏议。挑战皇权的诉求(索取皇位)、民间运动(开放党禁)、地方推动不走这条路。
+// 争奏：各派同时各递一条自己最想办的(如武官派请求对外用兵、文官派请求减赋)，占比与最大派系相差不超过 ContestGap 的
+// 都能争这一回上奏，按各派肯花的政治资本、首领肯花的钱(打点)抽签，不再总是大派系、受宠的一派抢到；
+// 这样的派系廷议赞成不足也不当场否决，交皇帝裁决，花得多的更易准奏。
+// 有议会的帝国走议会与政党(ParliamentSystem)，不适用本系统。
+public static partial class CourtSystem
+{
+    public const float ProposalCost = 15f;
+    public const float LobbyCost = 10f;
+    public const float DebateThreshold = 35f;
+    private const float ContestGap = 40f, MaxCapitalBid = 30f, MoneyPerPoint = 20f, MaxMoneyShare = 0.2f;
+    private const int LogSize = 8;
+    public const int HistorySize = 10;
+    private const int StageMonths = 1;
+    private const int ShelveMonths = 6;
+
+    #region 查询
+
+    public static bool Applies(Empire empire)
+    {
+        Regime regime = empire?.CoreKingdom?.GetRegime();
+        return regime != null && empire.data != null && !empire.IsGone() && !empire.IsArchived() &&
+               !ParliamentSystem.HasParliament(empire);
+    }
+
+    public static CourtState State(Empire empire)
+    {
+        if (empire?.data == null) return null;
+        CourtState state = empire.data.court ??= new CourtState();
+        state.factions ??= new Dictionary<string, CourtFactionState>();
+        state.log ??= new List<CourtLogEntry>();
+        state.history ??= new List<CourtMemorialRecord>();
+        state.modern = ModernWording.Applies(empire);
+        return state;
+    }
+
+    public static CourtFactionState FactionState(Empire empire, FixedFaction faction)
+    {
+        CourtState state = State(empire);
+        if (state == null || faction == null) return new CourtFactionState();
+        if (!state.factions.TryGetValue(faction.GetID(), out CourtFactionState data) || data == null)
+            state.factions[faction.GetID()] = data = new CourtFactionState();
+        data.cooldowns ??= new Dictionary<string, double>();
+        data.owed ??= new Dictionary<string, int>();
+        return data;
+    }
+
+    public static List<FixedFaction> Factions(Empire empire) =>
+        empire?.CoreKingdom?.GetRegime()?.GetPlayerFactions()?.Where(faction => faction != null && !faction.Ban)
+            .ToList() ?? new List<FixedFaction>();
+
+    public static FixedFaction FindFaction(Empire empire, string id) =>
+        string.IsNullOrEmpty(id) ? null : Factions(empire).FirstOrDefault(faction => faction.GetID() == id);
+
+    public static CourtCouncilKind CouncilKind(Empire empire)
+    {
+        Regime regime = empire?.CoreKingdom?.GetRegime();
+        if (regime == null) return CourtCouncilKind.None;
+        return regime.type switch
+        {
+            RegimeType.Feudalism => CourtCouncilKind.Electors,
+            RegimeType.ClassicalRepublic => CityStateService.HasSenate(empire) ? CourtCouncilKind.Senate : CourtCouncilKind.None,
+            _ => Stage(empire) switch
+            {
+                HuaxiaCourtStage.Zhou => CourtCouncilKind.Zhou,
+                HuaxiaCourtStage.Han => CourtCouncilKind.Han,
+                HuaxiaCourtStage.Tang => CourtCouncilKind.ThreeDepartments,
+                HuaxiaCourtStage.Ming => CourtCouncilKind.Cabinet,
+                _ => regime.has_cabinet ? CourtCouncilKind.Cabinet : CourtCouncilKind.None
+            }
+        };
+    }
+
+    // 议事会：内阁 / 选帝侯 / 元老；周、汉、唐是中央各官职的长官
+    public static List<Person> Council(Empire empire) => CouncilKind(empire) switch
+    {
+        CourtCouncilKind.None => new List<Person>(),
+        CourtCouncilKind.Zhou or CourtCouncilKind.Han or CourtCouncilKind.ThreeDepartments => CentralHolders(empire),
+        _ => empire.GetCabinetMembers()
+    };
+
+    // 议程官：首辅 / 中书令 / 丞相 / 首席选帝侯 / 首席元老；周天子临朝，诸臣直陈，没有议程官
+    public static Person AgendaSetter(Empire empire) => CouncilKind(empire) switch
+    {
+        CourtCouncilKind.Zhou => null,
+        CourtCouncilKind.Han => DepartmentHead(empire, ChancellorOffice),
+        CourtCouncilKind.ThreeDepartments => DepartmentHead(empire, ZhongshuOffice),
+        _ => Council(empire).FirstOrDefault()
+    };
+
+    public static bool IsBoycotting(CourtFactionState state) => state != null && state.grievance >= 60f;
+
+    // 廷议权重：派系势力；有议事会时一半看议事会席位
+    public static Dictionary<FixedFaction, float> Weights(Empire empire, List<FixedFaction> factions)
+    {
+        List<Person> council = Council(empire);
+        var result = new Dictionary<FixedFaction, float>();
+        foreach (FixedFaction faction in factions)
+        {
+            float ratio = Mathf.Max(0, faction.CentralRatio);
+            if (council.Count == 0) { result[faction] = ratio; continue; }
+            int seats = council.Count(actor => actor.GetFaction() == faction);
+            result[faction] = ratio * 0.5f + 100f * seats / council.Count * 0.5f;
+        }
+        return result;
+    }
+
+    public static TemporaryFaction FindClaim(Empire empire, CourtMemorial memorial)
+    {
+        FixedFaction proposer = FindFaction(empire, memorial?.proposer);
+        if (proposer?.TemporaryFactions == null || !Enum.TryParse(memorial.claim, out TemporaryFactionType type)) return null;
+        return proposer.TemporaryFactions.FirstOrDefault(claim => claim != null && claim.type == type);
+    }
+
+    public static bool IsMemorialClaim(Empire empire, TemporaryFaction claim)
+    {
+        CourtMemorial memorial = State(empire)?.memorial;
+        return memorial != null && claim != null && claim.factionID == memorial.proposer &&
+               claim.type.ToString() == memorial.claim;
+    }
+
+    public static string IssueName(string claim) =>
+        Enum.TryParse(claim, out TemporaryFactionType type) ? IssueName(type) : claim;
+
+    public static string IssueName(TemporaryFactionType type) => TranslateHelper.GetTemporaryFactionClaimText(type);
+
+    // 按帝国的文化线叫(西方不叫推行三省六部……见 CultureDoctrines)
+#if EC_PENDING
+    public static string IssueName(string claim, Empire empire) =>
+        Enum.TryParse(claim, out TemporaryFactionType type) ? IssueName(type, empire) : claim;
+
+    public static string IssueName(TemporaryFactionType type, Empire empire) =>
+        TranslateHelper.GetTemporaryFactionClaimText(type, empire);
+#endif
+
+    // 施行速度：议事会里支持的比例越高越快，反对派掣肘拖慢
+    public static float ProgressMultiplier(Empire empire, TemporaryFaction claim) => ProgressMultiplier(empire, claim, null);
+
+    // factors 不为空时把各项倍数记下来，诉求天平页逐项列出(用户 2026-11-10 "推动诉求也要加天平页面""这样才能知道成功还是没成功")
+    public static float ProgressMultiplier(Empire empire, TemporaryFaction claim, List<CourtScaleFactor> factors)
+    {
+        if (!Applies(empire) || !IsMemorialClaim(empire, claim)) return 1f;
+        CourtState state = State(empire);
+        List<Person> council = Council(empire);
+        float councilSupport = council.Count == 0
+            ? Mathf.Clamp01(state.memorial.support / 100f)
+            : council.Count(actor => Supports(state.memorial, actor.GetFaction())) / (float)council.Count;
+        float obstruction = state.memorial.stances.Where(pair => pair.Value < 0)
+            .Sum(pair => state.factions.TryGetValue(pair.Key, out CourtFactionState data) ? data.obstruction : 0f);
+        float backing = 0.6f + 0.9f * councilSupport, drag = 1f - Mathf.Min(0.6f, obstruction);
+        float multiplier = backing * drag;
+        factors?.Add(new CourtScaleFactor
+        {
+            key = council.Count == 0 ? "claim_rate_debate" : "claim_rate_council", value = backing,
+            arg = Mathf.RoundToInt(councilSupport * 100f).ToString()
+        });
+        if (drag < 1f)
+            factors?.Add(new CourtScaleFactor { key = "claim_rate_obstruction", value = drag, arg = Mathf.RoundToInt(obstruction * 100f).ToString() });
+        // 朝廷兴兵：掣肘最多把一年拖到三年(见 ClaimTuning.WarMonths)
+        if (ClaimTuning.IsCourtWar(claim.type))
+        {
+            float floor = ClaimTuning.WarMonths / ClaimTuning.WarMaxMonths;
+            if (multiplier < floor) factors?.Add(new CourtScaleFactor { key = "claim_rate_war_floor", value = floor });
+            multiplier = Mathf.Max(multiplier, floor);
+        }
+        // 神力定的快慢(见 CourtSystem.Divine)
+        float divine = state.memorial.rate_factor <= 0f ? 1f : state.memorial.rate_factor;
+        if (Mathf.Abs(divine - 1f) > 0.001f)
+        {
+            factors?.Add(new CourtScaleFactor { key = "claim_rate_divine", value = divine });
+            multiplier *= divine;
+        }
+        return multiplier;
+    }
+
+    private static bool Supports(CourtMemorial memorial, FixedFaction faction) =>
+        faction != null && memorial.stances.TryGetValue(faction.GetID(), out int stance) && stance > 0;
+
+    #endregion
+
+    #region 每月推进
+
+#if EC_PENDING
+    public static void Tick(Empire empire)
+    {
+        CourtState state = State(empire);
+        if (state == null || EmpireWorld.Current == null) return;
+        double now = GameClock.Now;
+        EnsureBureau(empire);
+        YearlyIfDue(empire, state, now);
+        RefreshStrategyOnRuleChange(empire, state);
+        state.last_month = now;
+        CourtMemorial memorial = state.memorial;
+        if (memorial == null)
+        {
+            if (empire.RunningTemporaryFaction?.IsStarted() != true) TryPropose(empire, state, now);
+            return;
+        }
+        TemporaryFaction claim = FindClaim(empire, memorial);
+        FixedFaction proposer = FindFaction(empire, memorial.proposer);
+        if (claim == null || proposer == null)
+        {
+            Close(empire, state, "court_log_void", IssueName(memorial.claim, empire));
+            return;
+        }
+        if (memorial.stage == 4)
+        {
+            MonitorExecution(empire, state, memorial, claim, proposer, now);
+            return;
+        }
+        int wait = memorial.stage == 3 ? ShelveMonths : StageMonths;
+        if (memorial.stage_time >= 0d && GameClock.MonthsSince(memorial.stage_time) < wait) return;
+        switch (memorial.stage)
+        {
+            case 0:
+                Draft(empire, state, memorial, claim, proposer, now);
+                break;
+            case 1:
+                Debate(empire, state, memorial, claim, proposer, now);
+                break;
+            case 2:
+                Decide(empire, state, memorial, claim, proposer, now, null);
+                break;
+            case 3:
+                memorial.stage = 2;
+                memorial.stage_time = now;
+                break;
+        }
+    }
+
+    private static void TryPropose(Empire empire, CourtState state, double now)
+    {
+        ClaimAgendaContext context = ClaimAgendaSystem.BuildContext(empire);
+        var candidates = new List<(FixedFaction faction, TemporaryFaction claim, float score)>();
+        foreach (FixedFaction faction in Factions(empire))
+        {
+            CourtFactionState data = FactionState(empire, faction);
+            if (data.capital < ProposalCost || IsBoycotting(data) || faction.TemporaryFactions == null) continue;
+            foreach (TemporaryFaction claim in faction.TemporaryFactions)
+            {
+                if (claim == null || !claim.Active || claim.CountDown > 0 || claim.IsStarted() ||
+                    CourtIssues.IsDirectAction(claim.type) || claim.CanProceedOutsideGovernment) continue;
+                if (data.cooldowns.TryGetValue(claim.type.ToString(), out double until) && now < until) continue;
+                // 国库出不起施行经费的不上奏
+                if (!claim.CanAffordBudget()) continue;
+                float stance = CourtIssues.Stance(faction, claim.type);
+                if (stance < CourtIssues.SupportThreshold) continue;
+                ClaimAgendaView view = ClaimAgendaSystem.Evaluate(context, faction, claim);
+                if (!view.CanPropose) continue;
+                float score = view.Score + stance + faction.CentralRatio * 0.3f + (data.favor - 50f) * 0.2f +
+                              Random.Range(0f, 6f);
+                candidates.Add((faction, claim, score));
+            }
+        }
+        // 每派各出最想办、眼下办得成的一条
+        var picks = new List<(FixedFaction faction, TemporaryFaction claim)>();
+        foreach ((FixedFaction faction, TemporaryFaction claim, float _) in candidates.OrderByDescending(item => item.score))
+        {
+            if (picks.Any(pick => pick.faction == faction)) continue;
+            if (!claim.CheckCondition() || !claim.CheckTarget()) continue;
+            if (CourtIssues.Stance(faction, claim) < CourtIssues.SupportThreshold) continue;
+            picks.Add((faction, claim));
+        }
+        if (picks.Count == 0) return;
+        // 争奏：占比与最大派系相差不超过 ContestGap 的都能争；按肯花的政治资本、首领肯花的钱抽签
+        int top = Factions(empire).Select(faction => faction.CentralRatio).DefaultIfEmpty(0).Max();
+        var entrants = new List<(FixedFaction faction, TemporaryFaction claim, float capital, int money, float weight)>();
+        foreach ((FixedFaction faction, TemporaryFaction claim) in picks)
+        {
+            if (faction.CentralRatio < top - ContestGap) continue;
+            CourtFactionState data = FactionState(empire, faction);
+            float capital = Mathf.Min(MaxCapitalBid, Mathf.Max(0f, data.capital - ProposalCost)) * Random.Range(0.5f, 1f);
+            Person leader = faction.GetLeader();
+            int money = leader?.Record == null || leader.IsGone() ? 0
+                : Mathf.Max(0, Mathf.FloorToInt(leader.Money * MaxMoneyShare * Random.Range(0.3f, 1f)));
+            float weight = 5f + capital + money / MoneyPerPoint + Mathf.Max(0f, data.favor - 50f) / 5f + faction.CentralRatio * 0.2f;
+            entrants.Add((faction, claim, capital, money, weight));
+        }
+        if (entrants.Count == 0)
+        {
+            (FixedFaction faction, TemporaryFaction claim) = picks[0];
+            entrants.Add((faction, claim, 0f, 0, 1f));
+        }
+        float roll = Random.value * entrants.Sum(entry => entry.weight);
+        var winner = entrants[entrants.Count - 1];
+        foreach (var entry in entrants)
+        {
+            roll -= entry.weight;
+            if (roll > 0f) continue;
+            winner = entry;
+            break;
+        }
+        CourtFactionState winnerData = FactionState(empire, winner.faction);
+        winnerData.capital -= ProposalCost + winner.capital;
+        if (winner.money > 0) winner.faction.GetLeader()?.AddMoney(-winner.money);
+        state.memorial = new CourtMemorial
+        {
+            claim = winner.claim.type.ToString(), proposer = winner.faction.GetID(), stage = 0, stage_time = now,
+            bid = winner.capital + winner.money / MoneyPerPoint, proposed = now
+        };
+        var rival = entrants.Where(entry => entry.faction != winner.faction).OrderByDescending(entry => entry.weight).FirstOrDefault();
+        if (rival.faction != null)
+            Log(state, "court_log_outbid", winner.faction.Name, rival.faction.Name, IssueName(winner.claim.type, empire));
+        else
+            Log(state, "court_log_propose", winner.faction.Name, IssueName(winner.claim.type, empire));
+    }
+#endif
+
+    // 上奏一派与最大派系的占比相差不超过 ContestGap：廷议不当场否决，交皇帝裁决
+    private static bool Contender(Empire empire, FixedFaction faction) =>
+        faction != null && faction.CentralRatio >= Factions(empire).Select(other => other.CentralRatio).DefaultIfEmpty(0).Max() - ContestGap;
+
+    // ② 票拟
+#if EC_PENDING
+    private static void Draft(Empire empire, CourtState state, CourtMemorial memorial, TemporaryFaction claim,
+        FixedFaction proposer, double now)
+    {
+        CourtFactionState data = FactionState(empire, proposer);
+        List<Person> council = Council(empire);
+        Person setter = AgendaSetter(empire);
+        if (council.Count > 0 && CouncilKind(empire) != CourtCouncilKind.Zhou)
+        {
+            // 不在议事会又没有盟友坐席：走言路，未必上达
+            bool seated = council.Any(actor => actor.GetFaction() == proposer ||
+                                               (!string.IsNullOrEmpty(data.ally) && actor.GetFaction()?.GetID() == data.ally));
+            if (!seated && Random.value > 0.6f)
+            {
+                Reject(empire, state, memorial, proposer, "court_log_unheard", 4f, 1);
+                return;
+            }
+            FixedFaction setterFaction = setter?.GetFaction();
+            if (setterFaction != null && setterFaction != proposer && setterFaction.GetID() != data.ally &&
+                CourtIssues.StanceLevel(setterFaction, claim) < 0)
+            {
+                // 议程官反对：花资本疏通，半数能过
+                if (data.capital >= LobbyCost && Random.value < 0.5f)
+                {
+                    data.capital -= LobbyCost;
+                    Log(state, "court_log_lobbied", proposer.Name, setter.FullName(), IssueName(claim.type, empire));
+                }
+                else
+                {
+                    Reject(empire, state, memorial, proposer, "court_log_blocked", 6f, 2, setter.FullName());
+                    return;
+                }
+            }
+            memorial.drafted_by_ally = setterFaction != null && setterFaction.GetID() == data.ally;
+        }
+        // 票拟过了、廷议之前：私下串联(收人情、换票，见 CourtSystem.Bargain)
+        Bargain(empire, state, memorial, claim, proposer);
+        memorial.stage = 1;
+        memorial.stage_time = now;
+    }
+#endif
+
+    // 廷议各派表态与权重：上奏一派赞成；盟友、学说朋党的靠山观望时转赞成；罢朝的一律反对；廷议前谈成的交换照换来的表态
+    // (见 CourtSystem.Bargain)。廷议与诉求天平页的预估共用(用户 2026-11-10 "推动诉求也要加天平页面""这样才能知道成功还是没成功")
+    public static List<(FixedFaction faction, int stance, float weight)> DebateStances(Empire empire, TemporaryFaction claim,
+        FixedFaction proposer, CourtMemorial memorial = null)
+    {
+        List<FixedFaction> factions = Factions(empire);
+        Dictionary<FixedFaction, float> weights = Weights(empire, factions);
+        var result = new List<(FixedFaction faction, int stance, float weight)>();
+        foreach (FixedFaction faction in factions)
+        {
+            int stance = BaseStance(empire, claim, proposer, faction);
+            CourtDeal deal = faction == proposer ? null : DealOf(memorial, faction);
+            if (deal != null) stance = Math.Max(stance, deal.after);
+            // 神意改的表态(见 CourtSystem.Divine)
+            if (faction != proposer && memorial?.stance_overrides != null &&
+                memorial.stance_overrides.TryGetValue(faction.GetID(), out int forced)) stance = forced;
+            result.Add((faction, stance, weights[faction]));
+        }
+        return result;
+    }
+
+    // 赞成率：赞成的权重 ÷(赞成 + 反对)，观望的不算；都观望按五成
+    public static float SupportShare(IEnumerable<(FixedFaction faction, int stance, float weight)> stances)
+    {
+        float support = 0f, opposition = 0f;
+        foreach ((FixedFaction _, int stance, float weight) in stances)
+        {
+            if (stance > 0) support += weight;
+            else if (stance < 0) opposition += weight;
+        }
+        return support + opposition <= 0f ? 50f : 100f * support / (support + opposition);
+    }
+
+    // 廷议不足三成五也不当场否决(势均可争奏，交皇帝裁决)
+    public static bool CanContest(Empire empire, FixedFaction proposer) => Contender(empire, proposer);
+
+    // ③ 廷议
+#if EC_PENDING
+    private static void Debate(Empire empire, CourtState state, CourtMemorial memorial, TemporaryFaction claim,
+        FixedFaction proposer, double now)
+    {
+        List<(FixedFaction faction, int stance, float weight)> stances = DebateStances(empire, claim, proposer, memorial);
+        memorial.stances.Clear();
+        memorial.weights.Clear();
+        foreach ((FixedFaction faction, int stance, float weight) in stances)
+        {
+            memorial.stances[faction.GetID()] = stance;
+            memorial.weights[faction.GetID()] = weight;
+        }
+        memorial.support = SupportShare(stances);
+        if (memorial.support < DebateThreshold && !Contender(empire, proposer))
+        {
+            Reject(empire, state, memorial, proposer, "court_log_debate_failed", 5f, 2,
+                memorial.support.ToString("0"));
+            return;
+        }
+        Log(state, "court_log_debated", IssueName(claim.type, empire), memorial.support.ToString("0"));
+        memorial.stage = 2;
+        memorial.stage_time = now;
+    }
+#endif
+
+    // ④ 批红。godDecision 不为空时直接按它办(神力按钮)
+#if EC_PENDING
+    private static void Decide(Empire empire, CourtState state, CourtMemorial memorial, TemporaryFaction claim,
+        FixedFaction proposer, double now, string godDecision)
+    {
+        (Person decider, string role) = Decider(empire);
+        memorial.decider = role;
+        // 已准奏、只是在等别的诉求办完的，不再重新裁决
+        string decision = godDecision ?? (memorial.decision == "approve" ? "approve" : null);
+        if (decision == null)
+        {
+            // 准奏率的各项砝码、掷出的数都记下，诉求天平页据此说明为什么准、为什么驳
+            memorial.factors = ApprovalFactors(empire, memorial, claim.type, proposer);
+            float approve = Chance(memorial.factors);
+            float roll = Random.value;
+            memorial.approval = approve;
+            memorial.roll = roll;
+            memorial.decider_name = decider?.FullName() ?? "";
+            decision = roll < approve ? "approve"
+                : !memorial.shelved_once && Random.value < 0.35f ? "shelve" : "reject";
+        }
+        else if (godDecision != null)
+        {
+            memorial.approval = -1f;
+            memorial.roll = -1f;
+            memorial.decider_name = "";
+        }
+        string who = decider?.FullName() ?? ModernWording.Get(empire, "court_decider_" + role);
+        // 三省六部：皇帝画敕后门下省审核，门下侍中所属派系反对时可能封驳，奏议退回重议(只封驳一次；神力直批不受封驳)
+        if (decision == "approve" && godDecision == null && !memorial.reviewed &&
+            CouncilKind(empire) == CourtCouncilKind.ThreeDepartments)
+        {
+            memorial.reviewed = true;
+            Person reviewer = DepartmentHead(empire, MenxiaOffice);
+            FixedFaction reviewerFaction = reviewer?.GetFaction();
+            CourtFactionState proposerState = FactionState(empire, proposer);
+            if (reviewerFaction != null && reviewerFaction != proposer && reviewerFaction.GetID() != proposerState.ally &&
+                CourtIssues.StanceLevel(reviewerFaction, claim) < 0 && Random.value < 0.6f)
+            {
+                memorial.decision = "";
+                memorial.stage = 2;
+                memorial.stage_time = now;
+                proposerState.grievance = Mathf.Min(100f, proposerState.grievance + 3f);
+                Log(state, "court_log_fengbo", reviewer.FullName(), IssueName(claim.type, empire));
+                return;
+            }
+        }
+        switch (decision)
+        {
+            case "approve":
+                if (empire.RunningTemporaryFaction?.IsStarted() == true)
+                {
+                    memorial.decision = decision;
+                    return;
+                }
+                claim.pusherType = EntityKind.None;
+                // 准奏了但国库拿不出施行经费：先留中待国库充裕，再拿不出就作罢
+                if (!claim.CanAffordBudget())
+                {
+                    if (!memorial.shelved_once)
+                    {
+                        memorial.decision = "approve";
+                        memorial.shelved_once = true;
+                        memorial.stage = 3;
+                        memorial.stage_time = now;
+                        Log(state, "court_log_no_funds", IssueName(claim.type, empire), claim.Budget);
+                    }
+                    else
+                    {
+                        FactionState(empire, proposer).cooldowns[memorial.claim] = now + 12 * 5d;
+                        Close(empire, state, "court_log_no_funds_dropped", IssueName(claim.type, empire));
+                    }
+                    return;
+                }
+                claim.Start();
+                if (!claim.IsStarted())
+                {
+                    Close(empire, state, "court_log_start_failed", IssueName(claim.type, empire));
+                    return;
+                }
+                memorial.decision = decision;
+                memorial.stage = 4;
+                memorial.stage_time = now;
+                AdjustAfterRuling(empire, memorial, proposer, true);
+                Log(state, "court_log_approved", who, proposer.Name, IssueName(claim.type, empire));
+                break;
+            case "shelve":
+                memorial.decision = decision;
+                memorial.shelved_once = true;
+                memorial.stage = 3;
+                memorial.stage_time = now;
+                FactionState(empire, proposer).grievance += 3f;
+                Log(state, "court_log_shelved", who, IssueName(claim.type, empire));
+                break;
+            default:
+                AdjustAfterRuling(empire, memorial, proposer, false);
+                Reject(empire, state, memorial, proposer, "court_log_rejected", 10f, 3, who);
+                break;
+        }
+    }
+#endif
+
+    // 神力：直接替批红者裁决(准奏 / 驳回 / 留中)；上奏、票拟、廷议阶段也可以直接批
+#if EC_PENDING
+    public static bool GodDecide(Empire empire, string decision)
+    {
+        CourtState state = State(empire);
+        CourtMemorial memorial = state?.memorial;
+        if (memorial == null || memorial.stage >= 4) return false;
+        TemporaryFaction claim = FindClaim(empire, memorial);
+        FixedFaction proposer = FindFaction(empire, memorial.proposer);
+        if (claim == null || proposer == null) return false;
+        if (memorial.stances.Count == 0)
+            foreach (FixedFaction faction in Factions(empire))
+                memorial.stances[faction.GetID()] = faction == proposer ? 1 : CourtIssues.StanceLevel(faction, claim);
+        if (decision == "shelve")
+        {
+            memorial.shelved_once = true;
+            memorial.stage = 3;
+            memorial.stage_time = GameClock.Now;
+            Log(state, "court_log_shelved", ModernWording.Get(empire, "court_decider_emperor"), IssueName(claim.type, empire));
+            return true;
+        }
+        Decide(empire, state, memorial, claim, proposer, GameClock.Now, decision);
+        return true;
+    }
+#endif
+
+    // 批红者：成年、未被挟制、不怠政(昏聩，见 RulerQualitySystem)的皇帝亲批；否则权臣代批，再没有就由议程官代批
+    public static (Person decider, string role) Decider(Empire empire)
+    {
+        Person emperor = empire?.Emperor;
+        bool emperorRules = emperor?.Record != null && !emperor.IsGone() && emperor.Alive && !RealisticAgeSystem.IsMinor(emperor) &&
+                            !empire.data.is_been_controlled && !RulerQualitySystem.Neglects(emperor);
+        if (emperorRules) return (emperor, "emperor");
+        Person minister = empire?.GetPowerfulMinister();
+        if (minister != null) return (minister, "minister");
+        Person setter = AgendaSetter(empire);
+        return setter != null ? (setter, "regent") : (null, "regent");
+    }
+
+    public static float ApprovalChance(Empire empire, CourtMemorial memorial, TemporaryFactionType issue,
+        FixedFaction proposer) => Chance(ApprovalFactors(empire, memorial, issue, proposer));
+
+    // 准奏率 = 各项砝码相加，夹在 5%~95%
+    public static float Chance(List<CourtScaleFactor> factors) =>
+        Mathf.Clamp(factors?.Sum(factor => factor.value) ?? 0f, 0.05f, 0.95f);
+
+    // 批红准奏率的各项砝码(诉求天平页逐项列出)(用户 2026-11-10 "推动诉求也要加天平页面""这样才能知道成功还是没成功")：皇帝亲批看廷议(威权越高越不看)、圣眷、
+    // 本人立场、秦汉丞相、方略、党争、打点；代批的看廷议与代批者所属派系的立场
+    public static List<CourtScaleFactor> ApprovalFactors(Empire empire, CourtMemorial memorial, TemporaryFactionType issue,
+        FixedFaction proposer)
+    {
+        var factors = new List<CourtScaleFactor>();
+        void Add(string key, float value, string arg = "", bool always = false)
+        {
+            if (always || value != 0f) factors.Add(new CourtScaleFactor { key = key, value = value, arg = arg ?? "" });
+        }
+        CourtState state = State(empire);
+        CourtFactionState data = FactionState(empire, proposer);
+        float support = Mathf.Clamp(memorial.support < 0f ? 50f : memorial.support, 0f, 100f) / 100f;
+        string supportText = Mathf.RoundToInt(support * 100f).ToString();
+        string bid = Mathf.RoundToInt(Mathf.Max(0f, memorial?.bid ?? 0f)).ToString();
+        (Person decider, string role) = Decider(empire);
+        if (role != "emperor")
+        {
+            FixedFaction deciderFaction = decider?.GetFaction();
+            Add("court_scale_base", 0.2f, always: true);
+            Add("court_scale_support", support * 0.5f, supportText, true);
+            if (deciderFaction == proposer) Add("court_scale_decider_own", 0.35f, deciderFaction?.Name);
+            else if (deciderFaction != null)
+                Add("court_scale_decider_stance", CourtIssues.StanceLevel(deciderFaction, issue) * 0.2f, deciderFaction.Name);
+            Add("court_scale_lobby", Lobbying(memorial), bid);
+            Add("court_scale_malady", -MaladySystem.ApprovalMalus(empire));
+            foreach (CourtScaleFactor divine in memorial?.god_factors ?? new List<CourtScaleFactor>())
+                if (divine != null) Add(divine.key, divine.value, divine.arg);
+            return factors;
+        }
+        float authority = Mathf.Clamp01(empire.Legitimacy / 100f);
+        Add("court_scale_base", 0.1f, always: true);
+        Add("court_scale_support_emperor", (0.75f - 0.35f * authority) * support,
+            supportText + "|" + Mathf.RoundToInt(empire.Legitimacy), true);
+        Add("court_scale_favor", (data.favor - 50f) / 150f, Mathf.RoundToInt(data.favor).ToString());
+        Add("court_scale_emperor_stance", EmperorStance(empire.Emperor, issue) * 0.2f);
+        // 秦汉相权：丞相所属派系的立场牵制皇帝的制可
+        if (CouncilKind(empire) == CourtCouncilKind.Han)
+        {
+            FixedFaction chancellorFaction = DepartmentHead(empire, ChancellorOffice)?.GetFaction();
+            if (chancellorFaction == proposer) Add("court_scale_chancellor", 0.15f, chancellorFaction.Name);
+            else if (chancellorFaction != null)
+                Add("court_scale_chancellor", CourtIssues.StanceLevel(chancellorFaction, issue) * 0.15f, chancellorFaction.Name);
+        }
+        string target = FindFaction(empire, state.strategy_target)?.Name ?? "";
+        switch (state.strategy)
+        {
+            case "balance" when state.strategy_target == proposer.GetID():
+                Add("court_scale_strategy_balance", -0.15f, target);
+                break;
+            case "favorite":
+                if (state.strategy_target == proposer.GetID()) Add("court_scale_strategy_favorite", 0.25f, target);
+                else Add("court_scale_strategy_favorite_other", -0.05f, target);
+                break;
+            case "suppress" when state.strategy_target == proposer.GetID():
+                Add("court_scale_strategy_suppress", -0.35f, target);
+                break;
+        }
+        // 党争(见 MaladySystem)
+        Add("court_scale_malady", -MaladySystem.ApprovalMalus(empire));
+        Add("court_scale_lobby", Lobbying(memorial), bid);
+        AddDivine();
+        return factors;
+
+        // 神意砝码(见 CourtSystem.Divine)
+        void AddDivine()
+        {
+            foreach (CourtScaleFactor divine in memorial?.god_factors ?? new List<CourtScaleFactor>())
+                if (divine != null) Add(divine.key, divine.value, divine.arg);
+        }
+    }
+
+    // 票拟这一步的预估(诉求天平页)：各项是过关的概率，乘起来是上达廷议的把握。不在议事会又没有盟友坐席的只有六成上达；
+    // 议程官所属派系反对的，资本够疏通也只有一半能过，不够就压下
+    public static List<CourtScaleFactor> DraftOutlook(Empire empire, CourtMemorial memorial, TemporaryFaction claim,
+        FixedFaction proposer)
+    {
+        var lines = new List<CourtScaleFactor>();
+        if (memorial == null || claim == null || proposer == null) return lines;
+        CourtFactionState data = FactionState(empire, proposer);
+        List<Person> council = Council(empire);
+        if (council.Count == 0 || CouncilKind(empire) == CourtCouncilKind.Zhou)
+        {
+            lines.Add(new CourtScaleFactor { key = "court_scale_draft_direct", value = 1f });
+            return lines;
+        }
+        bool seated = council.Any(actor => actor.GetFaction() == proposer ||
+                                           (!string.IsNullOrEmpty(data.ally) && actor.GetFaction()?.GetID() == data.ally));
+        lines.Add(new CourtScaleFactor { key = seated ? "court_scale_draft_seated" : "court_scale_draft_unseated", value = seated ? 1f : 0.6f });
+        Person setter = AgendaSetter(empire);
+        FixedFaction setterFaction = setter?.GetFaction();
+        if (setterFaction != null && setterFaction != proposer && setterFaction.GetID() != data.ally &&
+            CourtIssues.StanceLevel(setterFaction, claim) < 0)
+        {
+            bool canLobby = data.capital >= LobbyCost;
+            lines.Add(new CourtScaleFactor
+            {
+                key = canLobby ? "court_scale_draft_setter_lobby" : "court_scale_draft_setter_block", value = canLobby ? 0.5f : 0f,
+                arg = setter.FullName() + "|" + setterFaction.Name
+            });
+        }
+        return lines;
+    }
+
+    // 争奏时投入的影响力与打点：至多加三成
+    private static float Lobbying(CourtMemorial memorial) => Mathf.Min(0.3f, Mathf.Max(0f, memorial?.bid ?? 0f) / 100f);
+
+    // 皇帝本人的立场：所属派系的立场，加上性格(好大喜功、贪财、多疑……)
+    public static float EmperorStance(Person emperor, TemporaryFactionType issue)
+    {
+        if (emperor?.Record == null) return 0f;
+        float stance = emperor.GetFaction() == null ? 0f : CourtIssues.StanceLevel(emperor.GetFaction(), issue);
+        bool expansion = issue is TemporaryFactionType.对外扩张 or TemporaryFactionType.迫使朝贡 or
+            TemporaryFactionType.扩张地盘 or TemporaryFactionType.谋求统一 or TemporaryFactionType.兴兵讨伐 or
+            TemporaryFactionType.整军经武 or TemporaryFactionType.招募新军;
+        bool appeasement = issue is TemporaryFactionType.提供岁币 or TemporaryFactionType.割让城池 or
+            TemporaryFactionType.罢兵议和 or TemporaryFactionType.和亲;
+        bool devolution = issue is TemporaryFactionType.分封 or TemporaryFactionType.确认诸侯特权 or
+            TemporaryFactionType.允许诸侯自由开战 or TemporaryFactionType.颁布金玺诏书;
+        bool centralise = issue is TemporaryFactionType.削藩 or TemporaryFactionType.夺取诸侯开战权 or
+            TemporaryFactionType.恢复世袭皇权 or TemporaryFactionType.颁布帝国治安令;
+        // 好大喜功(见 CorveeSystem)：也更爱封禅、兴修水利这类工程
+        if (emperor.HasTrait("ambitious")) stance += expansion ? 1f : appeasement ? -1f :
+            issue == TemporaryFactionType.封禅 ? 1f : issue == TemporaryFactionType.兴修水利 ? 0.5f : 0f;
+        if (emperor.HasTrait("greedy")) stance += issue == TemporaryFactionType.提高赋税 ? 1f :
+            issue is TemporaryFactionType.降低赋税 ? -1f : issue == TemporaryFactionType.赈济灾荒 ? -0.5f : 0f;
+        if (emperor.HasTrait("content")) stance += appeasement ? 0.5f : expansion ? -0.5f : 0f;
+        if (emperor.HasTrait("paranoid")) stance += devolution ? -1f : centralise ? 0.5f :
+            issue == TemporaryFactionType.整顿吏治 ? 0.5f : 0f;
+        stance += devolution ? -0.5f : centralise ? 0.5f : 0f;
+        // 荒淫、暴虐之君偏好加税，不肯赈济、整顿吏治(见 RulerQualitySystem)
+        stance += RulerQualitySystem.Stance(emperor, issue);
+        return Mathf.Clamp(stance, -1.5f, 1.5f);
+    }
+
+    private static void AdjustAfterRuling(Empire empire, CourtMemorial memorial, FixedFaction proposer, bool approved)
+    {
+        CourtFactionState proposerData = FactionState(empire, proposer);
+        if (approved) proposerData.favor = Mathf.Min(100f, proposerData.favor + 2f);
+        else proposerData.favor = Mathf.Max(0f, proposerData.favor - 2f);
+        foreach (KeyValuePair<string, int> pair in memorial.stances)
+        {
+            if (pair.Key == proposer.GetID() || !FactionExists(empire, pair.Key)) continue;
+            CourtFactionState data = State(empire).factions.TryGetValue(pair.Key, out CourtFactionState found) ? found : null;
+            if (data == null) continue;
+            if (approved && pair.Value < 0) data.grievance = Mathf.Min(100f, data.grievance + 4f);
+            if (approved && pair.Value > 0) data.favor = Mathf.Min(100f, data.favor + 1f);
+        }
+    }
+
+    private static bool FactionExists(Empire empire, string id) => FindFaction(empire, id) != null;
+
+    // ⑤ 施行：诉求结束后结算
+#if EC_PENDING
+    private static void MonitorExecution(Empire empire, CourtState state, CourtMemorial memorial, TemporaryFaction claim,
+        FixedFaction proposer, double now)
+    {
+        if (claim.IsStarted()) return;
+        CourtFactionState data = FactionState(empire, proposer);
+        data.cooldowns[memorial.claim] = now + 2 * 12 * 5d;
+        if (claim.LastRunCompleted)
+        {
+            data.favor = Mathf.Min(100f, data.favor + 3f);
+            empire.CoreKingdom.TryIncreaseFactionRatio(proposer, 2);
+            foreach (KeyValuePair<string, int> pair in memorial.stances.Where(pair => pair.Value < 0))
+                if (state.factions.TryGetValue(pair.Key, out CourtFactionState opposed))
+                    opposed.grievance = Mathf.Min(100f, opposed.grievance + 6f);
+            string outcome = claim.CompletionOutcome ?? ClaimTuning.Outcome(claim.type, empire);
+            if (string.IsNullOrWhiteSpace(outcome))
+                Close(empire, state, "court_log_completed", IssueName(claim.type, empire), proposer.Name);
+            else
+                Close(empire, state, "court_log_completed_outcome", IssueName(claim.type, empire), proposer.Name, outcome);
+        }
+        else
+        {
+            data.grievance = Mathf.Min(100f, data.grievance + 4f);
+            Close(empire, state, "court_log_aborted", IssueName(claim.type, empire));
+        }
+    }
+
+    private static void Reject(Empire empire, CourtState state, CourtMemorial memorial, FixedFaction proposer,
+        string logKey, float grievance, int cooldownYears, params object[] extra)
+    {
+        CourtFactionState data = FactionState(empire, proposer);
+        data.grievance = Mathf.Min(100f, data.grievance + grievance);
+        data.cooldowns[memorial.claim] = GameClock.Now + cooldownYears * 12 * 5d;
+        var args = new List<object> { proposer.Name, IssueName(memorial.claim, empire) };
+        args.AddRange(extra);
+        Close(empire, state, logKey, args.ToArray());
+    }
+#endif
+
+    private static void Close(Empire empire, CourtState state, string logKey, params object[] args)
+    {
+        string text = Log(state, logKey, args);
+        Archive(empire, state, logKey, text);
+        // 奏议没施行就收场：神力指定的目标作废(施行了的在决议结束时清，见 TemporaryFaction.End)
+        TemporaryFaction closing = FindClaim(empire, state.memorial);
+        if (closing != null && !closing.IsStarted()) closing.ClearDesignated();
+        state.memorial = null;
+        ClearDraft(empire);
+    }
+
+    // 奏议收场时记入往期：走到哪一步、怎么收场、廷议与批红的读数(用户 2026-11-10 "推动诉求也要加天平页面""这样才能知道成功还是没成功")
+    private static void Archive(Empire empire, CourtState state, string logKey, string text)
+    {
+        CourtMemorial memorial = state?.memorial;
+        if (memorial == null) return;
+        state.history ??= new List<CourtMemorialRecord>();
+        var record = new CourtMemorialRecord
+        {
+            claim = memorial.claim, proposer = memorial.proposer, proposer_name = FindFaction(empire, memorial.proposer)?.Name ?? "",
+            proposed = memorial.proposed, closed = EmpireWorld.Current?.Now() ?? 0d, stage = memorial.stage,
+            outcome = logKey ?? "", text = text ?? "", support = memorial.support, approval = memorial.approval, roll = memorial.roll,
+            decision = memorial.decision ?? "", decider_name = memorial.decider_name ?? "", bid = memorial.bid,
+            stances = new Dictionary<string, int>(memorial.stances ?? new Dictionary<string, int>()),
+            weights = new Dictionary<string, float>(memorial.weights ?? new Dictionary<string, float>()),
+            factors = memorial.factors?.ToList() ?? new List<CourtScaleFactor>(),
+            deals = memorial.deals?.ToList() ?? new List<CourtDeal>()
+        };
+        foreach (string id in record.stances.Keys) record.names[id] = FindFaction(empire, id)?.Name ?? id;
+        state.history.Insert(0, record);
+        if (state.history.Count > HistorySize) state.history.RemoveRange(HistorySize, state.history.Count - HistorySize);
+    }
+
+    public static string Log(CourtState state, string key, params object[] args)
+    {
+        if (state == null) return null;
+        key = ModernWording.Key(state.modern, key);
+        string text;
+        try
+        {
+            text = args.Length == 0 ? LM.Get(key) : string.Format(LM.Get(key), args);
+        }
+        catch (FormatException)
+        {
+            text = LM.Get(key);
+        }
+        state.log.Insert(0, new CourtLogEntry { time = EmpireWorld.Current?.Now() ?? 0d, text = text });
+        if (state.log.Count > LogSize) state.log.RemoveRange(LogSize, state.log.Count - LogSize);
+        return text;
+    }
+
+    #endregion
+}
+}

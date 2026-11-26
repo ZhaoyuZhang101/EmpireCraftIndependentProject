@@ -1,0 +1,559 @@
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/HarshRuleSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
+// see Port/manifest.json and Tools/PortTool.
+using Mathf = EmpireCraft.Core.EcMath;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace EmpireCraft.Core
+{
+
+// 苛政与民怨。每年按赋税、腐败、国库亏空、战争征兵、饥荒、土地兼并、言论管制、
+// 徭役与大兴土木、好大喜功之君(见 CorveeSystem)算出"苛政"(0~100)，
+// 帝国按整个帝国结算，没有加入帝国的独立王国按本国结算。与阶层怨气合成的民怨指数见 PopularGrievance。
+// 前现代与现代国家的后果不同：
+//
+//   前现代(以及独立王国)——官逼民反：
+//     · 各城忠诚随苛政下降(苛政超过 20 后每点 -0.5，最多 -30)；
+//     · 苛政 ≥ 60 时每年有机会爆发民变：最不忠诚的城市揭竿而起，打起"某城民变"的旗号。
+//       现代政体的独立王国(没有组建政府的地方势力)同样会民变，但要先过现代治理能力的门槛(ModernStability)。
+//       王朝积弊满额后不看苛政：每年必有民变，起事城数随满额年数、民怨增多(用户 2026-10-26，见 DynasticCycleRules.UprisingWaves)。
+//     · 与土地兼并打通(见 LandEconomySystem)：无地农民多的政权苛政更重；苛政越重，农民土地起义的门槛越低；
+//       民变的城市若土地兼并严重，就打出"均田"的旗号，成为农民土地起义(胜利后重分土地)。
+//       现代国家因土地兼并而让步或政府倒台时，在兼并最严重的城市重分土地。
+//
+//   现代——很难演变成叛乱，而是街头抗争逐级升级(每年最多升一级)：
+//     游行示威(苛政 ≥ 30) → 冲突(≥ 50) → 大规模暴乱(≥ 70)。议会与人大吸纳一部分不满(压力 ×0.85)。
+//     · 每一级都拉低宪政合法性并推高民意中的异见；
+//     · 政府回应(每年一次)：玩家可以在制度窗口亲自选择镇压或让步(示威起即可)；玩家一年内没表态的话，
+//       冲突及以上时由 AI 决定——言论严格的国家倾向镇压，威权/法西斯政府有把握时也镇压，
+//       连续镇压两年无效就改为让步，其余国家让步。
+//       镇压：六成把握平息一级，但两年内合法性再降、军方坐大；让步：减税一成、整顿腐败；
+//     · 大规模暴乱持续两年，政局剧变：
+//         合法性跌破 40 或连续镇压三年，且有政党掌握四成以上军队 → 军事政变，该党取缔他党掌权；
+//         否则议会制政府倒台(能组成新的过半联盟就重组内阁，不能就提前大选)；
+//         没有责任内阁的(一党制、总统制)执政党领导人引咎辞职、另立新人。
+//       剧变后新政府减税整顿，抗争回落到示威。
+public static class HarshRuleSystem
+{
+    public const int Calm = 0;
+    public const int Demonstrations = 1;
+    public const int Clashes = 2;
+    public const int Riots = 3;
+
+    private const float UprisingBurden = 60f;
+    private const int UprisingCooldownYears = 10;
+    private const int RiotYearsToCrisis = 2;
+    private const float CoupMilitaryShare = 0.4f;
+    private const int CoupLegitimacy = 40;
+    private const int RepressionYearsToCoup = 3;
+    private const float RepressionSuccess = 0.6f;
+
+    private static ConstitutionalEconomyState State(Empire empire) => empire?.data?.constitutional_economy;
+
+    public static float GetBurden(Empire empire) => State(empire)?.harsh_burden ?? 0f;
+    public static int GetStreetStage(Empire empire) => State(empire)?.street_unrest_stage ?? Calm;
+
+    public static bool RecentlyRepressed(Empire empire)
+    {
+        ConstitutionalEconomyState state = State(empire);
+        return state != null && state.last_repression >= 0d && GameClock.YearsSince(state.last_repression) < 2;
+    }
+
+    // 苛政各项构成：(本地化 key, 数值)，从大到小
+#if EC_PENDING
+    public static List<(string key, int value)> Breakdown(Empire empire)
+    {
+        Realm core = empire?.CoreKingdom;
+        if (core == null || core.IsGone()) return new List<(string key, int value)>();
+        List<Realm> realms = empire.kingdoms_list?.Where(kingdom => kingdom != null && !kingdom.IsGone()).ToList() ??
+                               new List<Realm>();
+        var items = Breakdown(core, realms, State(empire)?.bankrupt_since >= 0d,
+            ModernLegitimacy.Applies(empire) && ConstitutionSystem.GetSpeech(empire) == ConstitutionSpeech.Strict,
+            CorruptionSystem.GetRate(empire));
+        AddDynasticBurden(empire, items);
+        // 阶层怨气过半后也会上街(现代游行)：最多 +25
+        float grievance = InstitutionSystem.GetClassGrievances(empire).Values.DefaultIfEmpty(0f).Max();
+        int classPressure = Mathf.RoundToInt(Mathf.Clamp((grievance - 50f) * 0.5f, 0f, 25f));
+        if (classPressure > 0) items.Add(("harsh_class", classPressure));
+        return items.OrderByDescending(item => item.value).ToList();
+    }
+#endif
+
+    private static void AddDynasticBurden(Empire empire, List<(string key, int value)> items)
+    {
+        items.RemoveAll(item => item.key == DynasticCycleSystem.HarshSource);
+        int strain = DynasticCycleRules.HarshBurden(DynasticCycleSystem.GetPressure(empire));
+        if (strain > 0) items.Add((DynasticCycleSystem.HarshSource, strain));
+    }
+
+    // 独立王国的苛政构成(国库为负算欠饷)
+#if EC_PENDING
+    public static List<(string key, int value)> Breakdown(Realm kingdom) =>
+        kingdom == null || kingdom.IsGone()
+            ? new List<(string key, int value)>()
+            : Breakdown(kingdom, new List<Realm> { kingdom }, kingdom.GetMoney() < 0, false);
+
+    private static List<(string key, int value)> Breakdown(Realm core, List<Realm> realms, bool bankrupt,
+        bool censorship, double? corruptionRate = null)
+    {
+        var items = new List<(string key, int value)>();
+        void Add(string key, float value)
+        {
+            int rounded = Mathf.RoundToInt(value);
+            if (rounded > 0) items.Add((key, rounded));
+        }
+        Add("harsh_tax", Mathf.Clamp(((float)core.GetTaxRate() - 0.25f) * 100f, 0f, 50f));
+        Add("harsh_corruption", (float)(corruptionRate ?? CorruptionSystem.GetRate(core)) * 40f);
+        if (bankrupt) Add("harsh_bankrupt", 15f);
+        // 土地兼并：各城无地农民比例的平均(帝国按全帝国)，无地两成五约 +20，最多 +30
+        Add("harsh_land", Mathf.Min(30f, LandEconomySystem.GetRealmLandlessRatio(core) * 80f));
+        // 按户计(无小人模式下真实人数可达几百万，和士兵数、存粮不是一个量级)
+        int population = realms.Sum(kingdom => CityPopulationSystem.Households(kingdom));
+        if (core.GetWars().Any() && population > 0)
+        {
+            float soldiers = realms.Sum(kingdom => kingdom.Warriors()) / (float)population;
+            Add("harsh_war", Mathf.Clamp(5f + Mathf.Max(0f, soldiers - 0.1f) * 150f, 0f, 25f));
+        }
+        if (population > 0 && realms.Sum(kingdom => kingdom.countTotalFood()) < population * 0.5f)
+            Add("harsh_famine", 15f);
+        if (censorship) Add("harsh_speech", 8f);
+        // 暴虐之君(见 RulerQualitySystem)；苛捐杂税的积弊(见 MaladySystem)
+        Add("harsh_tyranny", RulerQualitySystem.TyrannyBurden(core.Ruler));
+        Add("harsh_levies", MaladySystem.LeviesHarsh(core));
+        // 重徭役(最多 +20)、大兴土木(工程扎堆，最多 +15)、好大喜功之君(+5)，见 CorveeSystem
+        // (用户 2026-10-26"好大喜功类君主、大兴土木、重赋税、重徭役")；战时征兵仍算上面的兵役
+        int cities = realms.Sum(kingdom => kingdom.Cities?.Count ?? 0);
+        Add("harsh_corvee", CorveeSystem.CorveeBurden(core, cities));
+        Add("harsh_construction", CorveeSystem.ConstructionBurden(core, cities));
+        Add("harsh_ambition", CorveeSystem.AmbitionBurden(core.Ruler));
+        return items.OrderByDescending(item => item.value).ToList();
+    }
+#endif
+
+    // 一座城所在政权的苛政：帝国成员按帝国，独立王国按本国
+    public static float GetRealmBurden(Realm kingdom)
+    {
+        if (kingdom == null || kingdom.IsGone()) return 0f;
+        Empire empire = kingdom.IsInEmpire() ? kingdom.GetEmpire() : null;
+        return empire != null ? GetBurden(empire) : GetBurden(kingdom);
+    }
+
+    // 腐败和王朝积弊已经有独立正统来源，不能再通过苛政把同一项重复扣一次。
+    public static float OtherGovernanceBurden(Empire empire)
+    {
+        float settled = State(empire)?.harsh_other_burden ?? -1f;
+        if (settled >= 0f) return Mathf.Clamp(settled, 0f, 100f);
+        int corruption = State(empire)?.harsh_corruption_burden ?? -1;
+        if (corruption < 0) corruption = Mathf.RoundToInt((float)CorruptionSystem.GetRate(empire) * 40f);
+        return Mathf.Max(0f, GetBurden(empire) - corruption -
+            DynasticCycleRules.HarshBurden(DynasticCycleSystem.GetPressure(empire)));
+    }
+
+    // 独立王国的苛政(帝国成员返回 0，按帝国看 GetBurden(Empire))
+    public static float GetBurden(Realm kingdom) =>
+        kingdom != null && !kingdom.IsInEmpire() ? kingdom.GetOrCreate().harsh_burden : 0f;
+
+    #region 年度结算(由 ConstitutionalEconomySystem 年度结算调用)
+
+#if EC_PENDING
+    public static void Update(Empire empire)
+    {
+        ConstitutionalEconomyState state = State(empire);
+        if (state == null || empire.CoreKingdom == null || EmpireWorld.Current == null) return;
+        CorruptionSystem.Update(empire);
+        // 年度治理入口兜底；旧档的国家意志任务缺失时仍可整顿，同一年共用去重标记。
+        CorruptionSystem.TryYearlyCampaign(empire.CoreKingdom);
+        List<(string key, int value)> breakdown = Breakdown(empire);
+        state.harsh_corruption_burden = breakdown.Where(item => item.key == "harsh_corruption").Sum(item => item.value);
+        state.harsh_other_burden = Mathf.Clamp(breakdown.Where(item => item.key != "harsh_corruption" &&
+            item.key != DynasticCycleSystem.HarshSource).Sum(item => item.value), 0f, 100f);
+        float governanceBurden = Mathf.Clamp(breakdown.Where(item => item.key != DynasticCycleSystem.HarshSource)
+            .Sum(item => item.value), 0f, 100f);
+        DynasticCycleSystem.Update(empire, state, governanceBurden);
+        AddDynasticBurden(empire, breakdown);
+        breakdown = breakdown.OrderByDescending(item => item.value).ToList();
+        state.harsh_burden = Mathf.Clamp(breakdown.Sum(item => item.value), 0f, 100f);
+        state.harsh_main_cause = breakdown.Count > 0 ? breakdown[0].key : "";
+        MonarchyLegitimacy.Invalidate(empire);
+        if (ModernLegitimacy.Applies(empire)) UpdateStreetUnrest(empire, state);
+        else
+        {
+            ResetStreet(state);
+            TryUprising(empire.kingdoms_list, state.harsh_burden, state.harsh_main_cause, empire, false);
+        }
+    }
+#endif
+
+    // 独立王国：每年随城市年度更新扫一次(见 CityPatch)
+    private static object _scanWorld;
+    private static double _lastKingdomScan = -1d;
+
+    // 到期后把国家排成队，每次至多用 ScanBudgetMs 毫秒，没算完的下一轮接着算(一次全算完一帧几十毫秒，帧数忽高忽低)
+    private const long ScanBudgetMs = 3;
+    private static readonly Queue<Realm> ScanQueue = new();
+
+#if EC_PENDING
+    public static void TryYearlyKingdomScan()
+    {
+        if (EmpireWorld.Current?.LiveRealms == null || ModClass.IS_CLEAR) return;
+        double now = GameClock.Now;
+        if (!ReferenceEquals(_scanWorld, EmpireWorld.Current) || now < _lastKingdomScan)
+        {
+            _scanWorld = EmpireWorld.Current;
+            _lastKingdomScan = now;
+            ScanQueue.Clear();
+            return;
+        }
+        if (ScanQueue.Count == 0)
+        {
+            if (GameClock.YearsSince(_lastKingdomScan) < 1) return;
+            _lastKingdomScan = now;
+            foreach (Realm kingdom in EmpireWorld.Current.LiveRealms.ToList()) ScanQueue.Enqueue(kingdom);
+        }
+        var budget = global::System.Diagnostics.Stopwatch.StartNew();
+        while (ScanQueue.Count > 0 && budget.ElapsedMilliseconds < ScanBudgetMs)
+        {
+            Realm kingdom = ScanQueue.Dequeue();
+            if (kingdom?.Record == null || kingdom.IsGone() || !kingdom.IsCivilized() || kingdom.IsEmpire() ||
+                kingdom.IsInEmpire() || EmpireCraft.Core.AncientWarfareCompatibility.Owns(kingdom))
+                continue;
+            try
+            {
+                UpdateKingdom(kingdom);
+            }
+            catch (Exception exception)
+            {
+                LogService.LogWarning($"[EmpireCraft] 苛政结算失败({kingdom.Name}): {exception.Message}");
+            }
+        }
+    }
+
+    private static void UpdateKingdom(Realm kingdom)
+    {
+        KingdomExtension.KingdomExtraData data = kingdom.GetOrCreate();
+        List<(string key, int value)> breakdown = Breakdown(kingdom);
+        data.harsh_burden = Mathf.Clamp(breakdown.Sum(item => item.value), 0f, 100f);
+        data.harsh_main_cause = breakdown.Count > 0 ? breakdown[0].key : "";
+        TryUprising(new List<Realm> { kingdom }, data.harsh_burden, data.harsh_main_cause, null,
+            ModernStability.IsModern(kingdom));
+    }
+#endif
+
+    private static void ResetStreet(ConstitutionalEconomyState state)
+    {
+        state.street_unrest_stage = Calm;
+        state.street_unrest_years = 0;
+        state.repression_years = 0;
+    }
+
+    private static string Cause(ConstitutionalEconomyState state) => Cause(state.harsh_main_cause);
+
+    private static string Cause(string key) =>
+        string.IsNullOrEmpty(key) ? LM.Get("harsh_cause_unknown") : LM.Get(key);
+
+    #endregion
+
+    #region 前现代：民变
+
+    // 苛政的城市忠诚惩罚：前现代帝国按帝国，独立王国按本国；现代国家改为街头抗争
+    public static int LoyaltyPenalty(City city)
+    {
+        Realm kingdom = city?.Realm;
+        if (kingdom == null) return 0;
+        float burden;
+        if (kingdom.IsInEmpire())
+        {
+            Empire empire = kingdom.GetEmpire();
+            if (empire == null || ModernLegitimacy.Applies(empire)) return 0;
+            burden = GetBurden(empire);
+        }
+        else burden = GetBurden(kingdom);
+        return burden <= 20f ? 0 : -Mathf.RoundToInt(Mathf.Min(30f, (burden - 20f) * 0.5f));
+    }
+
+#if EC_PENDING
+    private static void TryUprising(IEnumerable<Realm> realms, float burden, string causeKey, Empire empire,
+        bool modern)
+    {
+        // 王朝积弊满额(用户 2026-10-26)：每年必有民变尝试，不看苛政门槛与机会；一次起事的城数随满额年数增多、民怨鼎沸再加
+        // (见 DynasticCycleRules.UprisingWaves)。满额时不再看城的忠诚与稳定度(见 DynasticCycleRules.MayRise)，冷却与京城不起事照旧。
+        // 正统崩坏(用户 2026-11-05，见 DynasticCycleRules.CollapseLegitimacy)同样不看这两项，只是每年按正统掷一次机会
+        bool saturated = !modern && empire != null && DynasticCycleSystem.IsSaturated(empire);
+        bool collapsed = !modern && empire != null && !saturated && DynasticCycleSystem.LegitimacyCollapsed(empire);
+        bool unbound = saturated || collapsed;
+        if (!unbound && burden < UprisingBurden) return;
+        // 王朝积弊入危机，或朝政积弊六条平均七十以上(见 MaladySystem.InCrisis)：打仗时民变照样爆发
+        bool crisis = unbound || !modern && (DynasticCycleSystem.InCrisis(empire) || MaladySystem.InCrisis(empire));
+        if (crisis && State(empire) is ConstitutionalEconomyState state)
+        {
+            double now = GameClock.Now;
+            if (state.last_dynastic_uprising_attempt >= 0d && now >= state.last_dynastic_uprising_attempt &&
+                GameClock.YearsSince(state.last_dynastic_uprising_attempt) < 1) return;
+            state.last_dynastic_uprising_attempt = now;
+        }
+        if (!saturated)
+        {
+            float chance = (burden - 50f) / 100f;
+            if (collapsed) chance = Mathf.Max(chance, DynasticCycleRules.CollapseUprisingChance(empire.Legitimacy));
+            if (EcRandom.value >= chance) return;
+        }
+        // 苛政不重、只是正统崩坏的，史书写朝纲崩坏，不写苛政的主因
+        if (collapsed && burden < UprisingBurden) causeKey = "harsh_cause_legitimacy_collapse";
+        int waves = crisis ? DynasticCycleRules.UprisingWaves(DynasticCycleSystem.GetPressure(empire), burden,
+            DynasticCycleSystem.SaturatedYears(empire), PopularGrievance.Index(empire?.CoreKingdom)) : 1;
+        List<City> cities = (realms ?? Enumerable.Empty<Realm>())
+            .Where(kingdom => RebellionSystem.CanAttempt(kingdom) && (crisis || !kingdom.GetWars().Any()))
+            // 都城不起事；积弊满额、正统崩坏时成员国的都城照样起事(见 DynasticCycleRules.CapitalMayRise)，只护着中央的京城
+            .SelectMany(kingdom => kingdom.Cities.Where(c => c != null && !c.IsGone() &&
+                                                             (c != kingdom.Capital || DynasticCycleRules.CapitalMayRise(unbound,
+                                                                 kingdom == empire?.CoreKingdom, kingdom.Cities.Count))))
+            .Where(c => DynasticCycleRules.MayRise(unbound, crisis, c.getLoyalty(), CityStabilitySystem.CanRise(c), CanRiseAgain(c)))
+            .OrderBy(c => c.getLoyalty()).Take(waves).ToList();
+        int risen = 0;
+        foreach (City city in cities)
+        {
+            // 第一批起事的原版/模组回调可能改动后一座城，逐城重验归属和首都保护。
+            if (city == null || city.IsGone() || city.Realm == null || city.Realm.IsGone() ||
+                city == city.Realm.Capital && !DynasticCycleRules.CapitalMayRise(unbound,
+                    city.Realm == empire?.CoreKingdom, city.Realm.Cities.Count) ||
+                !CanRiseAgain(city) || (empire != null && city.Realm.GetEmpire() != empire)) continue;
+            if (!RebellionSystem.CanAttempt(city.Realm)) continue;
+            // 土地兼并严重的城市：民变打出均田的旗号，成为农民土地起义
+            if (LandEconomySystem.GetLandlessRatio(city) >= LandEconomySystem.EffectiveRebellionThreshold(city) &&
+                LandEconomySystem.TryStartPeasantLandRebellion(city))
+            {
+                city.GetOrCreate().last_harsh_uprising = GameClock.Now;
+                risen++;
+                continue;
+            }
+            if (!ModernStability.PassRebellionGate(city.Realm)) continue;
+            if (StartUprising(empire, city, burden, causeKey)) risen++;
+        }
+        // 满额后的第一场民变：记下时间与本帝国原有的城数(律令制群雄割据的入口，见 ProvincialCollapseSystem)
+        if (saturated && risen > 0) DynasticCycleSystem.OnSaturatedUprising(empire);
+    }
+#endif
+
+    private static bool CanRiseAgain(City city)
+    {
+        double last = city.GetOrCreate().last_harsh_uprising;
+        return last < 0d || GameClock.YearsSince(last) >= UprisingCooldownYears;
+    }
+
+    // 起事成了返回真(满额民变要据此记下第一场的时间)
+#if EC_PENDING
+    private static bool StartUprising(Empire empire, City city, float burden, string causeKey)
+    {
+        Realm origin = city.Realm;
+        Person leader = city.People?.Where(actor => actor != null && !actor.IsGone() && actor.Alive &&
+                                                  actor.IsAdult() && !actor.IsRuler() && actor.CanFoundCivKingdom())
+            .OrderByDescending(actor => actor.Renown).FirstOrDefault();
+        // 无小人模式：民变由百姓带头，不由城里的官员、城主带头
+        if (CityPopulationSystem.AbstractPopulationEnabled)
+            leader = CityPopulationSystem.SpawnRebelLeader(city) ?? leader;
+        if (leader == null) return false;
+        RebellionCauseData cause = RebellionSystem.Capture(origin, city, "rebellion_reason_harsh_rule",
+            string.Format(LM.Get("rebellion_harsh_detail"), Cause(causeKey), Mathf.RoundToInt(burden)));
+        Realm rebel = city.MakeOwnRealm(leader, rebellion: true);
+        if (rebel == null) return false;
+        if (!rebel.StartLocalRebelling(EmpireWarType.地方叛乱))
+        {
+            RebellionStartupService.RollbackCitySplit(city, origin, rebel);
+            return false;
+        }
+        string cityName = city.GetCityName();
+        rebel.Name = string.Format(LM.Get("harsh_uprising_kingdom_name"), cityName);
+        War war = EmpireWorld.Current.StartWar(rebel, origin, WarKinds.Rebellion);
+        if (war == null)
+        {
+            RebellionStartupService.RollbackCitySplit(city, origin, rebel);
+            return false;
+        }
+        war.SetEmpireWarType(EmpireWarType.地方叛乱);
+        RebellionSystem.Record(rebel, war, cause);
+        war.Name = string.Format(LM.Get("harsh_uprising_war_name"), cityName);
+        RebellionStartupService.RaiseUprisingMilitia(rebel, burden / 100f);
+        city.GetOrCreate().last_harsh_uprising = GameClock.Now;
+        string history = string.Format(LM.Get("harsh_uprising_history"), cityName, Cause(causeKey),
+            Mathf.RoundToInt(burden));
+        if (empire != null) EventRecorder.Record(empire, history, leader, origin);
+        else EventRecorder.Record(origin, history, leader);
+        return true;
+    }
+#endif
+
+    #endregion
+
+    #region 现代：街头抗争
+
+    // 宪政合法性的扣减：示威 -5 / 冲突 -10 / 暴乱 -20
+    public static int LegitimacyPenalty(Empire empire) => GetStreetStage(empire) switch
+    {
+        Demonstrations => -5,
+        Clashes => -10,
+        Riots => -20,
+        _ => 0
+    };
+
+    // 民意异见的增加：每级 +0.05
+    public static float DissentBonus(Empire empire) => ModernLegitimacy.Applies(empire) ? 0.05f * GetStreetStage(empire) : 0f;
+
+    public static string GetStageName(int stage) => LM.Get($"street_unrest_stage_{Mathf.Clamp(stage, 0, 3)}");
+
+    private static void UpdateStreetUnrest(Empire empire, ConstitutionalEconomyState state)
+    {
+        // 在野党组织的示威、罢工也加压(见 PartyRelations)(用户 2026-11-10 "政党总感觉是空壳")
+        float pressure = state.harsh_burden * (ParliamentSystem.HasParliament(empire) ? 0.85f : 1f) +
+                         PartyRelations.StreetPressure(empire);
+        int target = pressure >= 70f ? Riots : pressure >= 50f ? Clashes : pressure >= 30f ? Demonstrations : Calm;
+        int previous = state.street_unrest_stage;
+        if (target > previous) state.street_unrest_stage = previous + 1;
+        else if (target < previous) state.street_unrest_stage = previous - 1;
+        string country = empire.GetEmpireFullName();
+        if (state.street_unrest_stage > previous)
+            EventRecorder.Record(empire, string.Format(LM.Get($"street_unrest_log_{state.street_unrest_stage}"),
+                country, Cause(state)));
+        else if (state.street_unrest_stage == Calm && previous > Calm)
+            EventRecorder.Record(empire, string.Format(LM.Get("street_unrest_calm_log"), country));
+
+        // 玩家一年内亲自回应过的不再由 AI 重复回应
+        bool responded = state.last_street_response >= 0d && GameClock.YearsSince(state.last_street_response) < 1;
+        if (state.street_unrest_stage >= Clashes && !responded) Respond(empire, state, AiChoosesRepression(empire, state), false);
+        state.street_unrest_years = state.street_unrest_stage == Riots ? state.street_unrest_years + 1 : 0;
+        if (state.street_unrest_years >= RiotYearsToCrisis) Crisis(empire, state);
+    }
+
+    // AI 的回应：言论严格倾向镇压，威权/法西斯政府在合法性尚可时也镇压；连续镇压两年无效改为让步
+    public static bool AiChoosesRepression(Empire empire, ConstitutionalEconomyState state)
+    {
+        if (state.repression_years >= 2) return false;
+        if (ConstitutionSystem.GetSpeech(empire) == ConstitutionSpeech.Strict) return true;
+        FixedFaction governing = PartySystem.GetGovernmentParty(empire);
+        return governing != null && (governing.Ideology == PartyIdeology.Authoritarianism ||
+                                     governing.Ideology == PartyIdeology.Fascism) && empire.Legitimacy >= 50;
+    }
+
+    // 玩家能否回应：现代国家、出现街头抗争、一年内还没回应过；返回不能的原因(本地化 key)，能则 null
+    public static string CanPlayerRespond(Empire empire)
+    {
+        ConstitutionalEconomyState state = State(empire);
+        if (state == null || !ModernLegitimacy.Applies(empire) || state.street_unrest_stage < Demonstrations)
+            return "street_response_no_unrest";
+        if (state.last_street_response >= 0d && GameClock.YearsSince(state.last_street_response) < 1)
+            return "street_response_cooldown";
+        return null;
+    }
+
+    public static string PlayerRespond(Empire empire, bool repress)
+    {
+        string reason = CanPlayerRespond(empire);
+        if (reason != null) return reason;
+        Respond(empire, State(empire), repress, true);
+        return null;
+    }
+
+    private static void Respond(Empire empire, ConstitutionalEconomyState state, bool repress, bool byPlayer)
+    {
+        string country = empire.GetEmpireFullName();
+        state.last_street_response = GameClock.Now;
+        state.last_street_response_kind = repress ? "repress" : "concede";
+        state.last_street_response_by_player = byPlayer;
+        if (repress)
+        {
+            state.repression_years++;
+            state.last_repression = GameClock.Now;
+            bool quelled = EcRandom.value < RepressionSuccess;
+            if (quelled) state.street_unrest_stage--;
+            EventRecorder.Record(empire, string.Format(LM.Get(quelled ? "street_repression_quelled_log"
+                : "street_repression_failed_log"), country));
+            return;
+        }
+        state.repression_years = 0;
+        Concede(empire, 0.1f, 0.05);
+        EventRecorder.Record(empire, string.Format(LM.Get("street_concession_log"), country, Cause(state)));
+        // 民怨主要来自土地兼并：让步包括在兼并最严重的两座城市重分土地
+        if (state.harsh_main_cause == "harsh_land") RedistributeWorstCities(empire, 2);
+    }
+
+    // 土地改革：无地农民比例达到起义门槛的城市里，按兼并程度从重到轻重分土地，最多 limit 座
+    private static void RedistributeWorstCities(Empire empire, int limit)
+    {
+        List<City> cities = empire.AllCities()
+            .Where(city => city != null && !city.IsGone() && LandEconomySystem.IsLandMarketOpen(city.Realm) &&
+                           LandEconomySystem.GetLandlessRatio(city) >= LandEconomySystem.RebellionLandlessThreshold)
+            .OrderByDescending(LandEconomySystem.GetLandlessRatio).Take(limit).ToList();
+        if (cities.Count == 0) return;
+        foreach (City city in cities) LandEconomySystem.RedistributeLand(city);
+        EventRecorder.Record(empire, string.Format(LM.Get("street_land_reform_log"), empire.GetEmpireFullName(),
+            string.Join("、", cities.Take(5).Select(city => city.GetCityName())) + (cities.Count > 5 ? "…" : "")));
+    }
+
+    // 让步：减税、整顿腐败(街头压力下绕过议会的征税同意权)
+    private static void Concede(Empire empire, float taxCut, double corruptionCut)
+    {
+        empire.data.TaxRate = Mathf.Max(Mathf.Min(empire.data.TaxRate, Empire.MinimumTaxRate),
+            empire.data.TaxRate - taxCut);
+        empire.CoreKingdom.AddCorruptionRate(-corruptionCut);
+    }
+
+    private static void Crisis(Empire empire, ConstitutionalEconomyState state)
+    {
+        string country = empire.GetEmpireFullName();
+        FixedFaction governing = PartySystem.GetGovernmentParty(empire);
+        bool resolved = false;
+        if (empire.Legitimacy < CoupLegitimacy || state.repression_years >= RepressionYearsToCoup)
+        {
+            FixedFaction junta = PartySystem.GetParties(empire)
+                .Where(party => party != null && party != governing && party.IsParty && !party.Ban &&
+                                IdeologyPopulationSystem.GetMilitaryShare(empire, party.Ideology) >= CoupMilitaryShare)
+                .OrderByDescending(party => IdeologyPopulationSystem.GetMilitaryShare(empire, party.Ideology))
+                .FirstOrDefault();
+            if (junta != null)
+            {
+                PartyBanSystem.Close(empire, junta, Enumerable.Empty<FixedFaction>(), "harsh_rule_coup_history");
+                ParliamentSystem.ReelectGovernment(empire);
+                RepublicSystem.UpdateHeadOfState(empire);
+                resolved = true;
+            }
+        }
+        if (!resolved && ParliamentSystem.ForceGovernmentCollapse(empire))
+        {
+            EventRecorder.Record(empire, string.Format(LM.Get("street_government_fell_log"), country));
+            resolved = true;
+        }
+        if (!resolved && governing != null)
+        {
+            Person old = governing.GetLeader();
+            Person successor = governing.AllMembers
+                .Where(actor => actor != null && !actor.IsGone() && actor.Alive && actor.IsAdult() &&
+                                actor != old && actor.Realm?.GetEmpire() == empire)
+                .OrderByDescending(actor => actor.Renown).FirstOrDefault();
+            // 无小人模式：党内实体很少，推举一位本党理念的读书人接任
+            if (successor == null && CityPopulationSystem.AbstractPopulationEnabled)
+            {
+                successor = PartySystem.SpawnFounder(empire, governing.Ideology);
+                if (successor != null) governing.AddMember(successor);
+            }
+            if (successor != null)
+            {
+                governing.SetLeader(successor);
+                RepublicSystem.UpdateHeadOfState(empire);
+                ParliamentSystem.ReelectGovernment(empire);
+                EventRecorder.Record(empire, string.Format(LM.Get("street_leader_resigned_log"), country,
+                    old?.FullName() ?? LM.Get("label_none"), successor.FullName()), successor);
+                resolved = true;
+            }
+        }
+        if (!resolved) return;
+        // 新政府上台先减税整顿(土地兼并严重的城市一并重分土地)，抗争回落到示威
+        Concede(empire, 0.2f, 0.1);
+        RedistributeWorstCities(empire, int.MaxValue);
+        state.street_unrest_stage = Demonstrations;
+        state.street_unrest_years = 0;
+        state.repression_years = 0;
+    }
+
+    #endregion
+}
+}

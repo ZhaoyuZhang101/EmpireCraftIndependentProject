@@ -1,0 +1,332 @@
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/ReligionSphere.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
+// see Port/manifest.json and Tools/PortTool.
+using Mathf = EmpireCraft.Core.EcMath;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace EmpireCraft.Core
+{
+
+// 一个天下一个正教(用户 2026-10-26 报"宗教太散了，罗马和阿拉伯能有好多个圣地和教皇"，选同天下不另创教、小教并入正教、教宗只认正教)。
+// 以前各城各自创教，罗马一系六族、乌玛三族各创各的，每个宗教都有圣地与教宗(哈里发座)：
+//   · 宗教的天下：创教时按创教者所在城的主流文化记下(见 ReligionPatch)；旧档没记的按圣地的主流文化、再按创教之国的文化补上；
+//     从别的宗教分出去的教会(ParentReligionId：宗教改革另立的国教会、诸侯新教会)随母宗教；
+//   · 本土宗教 = 不是从别的宗教分出去的；天下的正教 = 本天下本土宗教里信众(按奉它的城的人口)最多的，现任要被超过两成五才换；
+//   · 同天下已有城奉本土宗教时，本天下的城不再创教(背景人口创教、原版创教谋划都拦)；
+//   · 传教：本天下的无教之城、奉地方教会的城，正教的势能加倍；无教之城不挨着正教的城也有一份正教势能(见 BackgroundReligionSystem.Pressure)；
+//   · 并入(每年)：地方教会(同天下的本土小教)丢了圣地(圣地已不奉它)或只剩 MergeMaxCities 城以下时，整体改奉正教；
+//   · 教廷：地方教会没有教宗/哈里发座(PapacySystem.Papacy 返回空)，奉它的帝国也不算有教廷往来(没有加冕、什一税、天课)。
+//   分出去的教会不算地方教会，这三条都不管它，宗教改革、诸侯新教会照旧；但普世教会、伊斯兰分出的教派也没有教廷，圣地随本宗(见下"教派与圣地")。
+public static class ReligionSphere
+{
+    public const int MergeMaxCities = 3;
+    public const float OrthodoxMissionFactor = 2f;
+    public const float SphereMissionWeight = 0.3f;
+    private const float OrthodoxSwitchMargin = 1.25f;
+
+    // 天下 → 正教 id(不存档，读档后头一次查时重算)
+    private static readonly Dictionary<string, long> Orthodox = new(StringComparer.Ordinal);
+    private static double _refreshedAt = -1d;
+
+    public static void ResetWorldState()
+    {
+        Orthodox.Clear();
+        _refreshedAt = -1d;
+    }
+
+    private static bool Alive(Religion religion) => religion?.data != null && !religion.IsGone();
+
+    public static string SphereOfCulture(string culture) =>
+        CultureService.IsValidCulture(culture) ? culture.GetTianxiaId() : "";
+
+    public static string SphereOfCity(City city) =>
+        city?.Record == null || city.IsGone() ? "" : SphereOfCulture(CultureService.GetMainCulture(city, initialize: false));
+
+    public static string SphereOf(Religion religion) => SphereOf(religion, 0);
+
+    private static string SphereOf(Religion religion, int depth)
+    {
+        if (religion?.data == null) return "";
+        ReligionExtension.ReligionExtraData data = religion.GetOrCreate();
+        if (!string.IsNullOrEmpty(data.Sphere)) return data.Sphere;
+        string sphere = "";
+        if (data.ParentReligionId >= 0 && depth < 8)
+        {
+            Religion parent = EmpireWorld.Current.Religions.Get(data.ParentReligionId);
+            if (parent != null && parent != religion) sphere = SphereOf(parent, depth + 1);
+        }
+        if (sphere.Length == 0) sphere = SphereOfCulture(OriginCulture(religion));
+        if (sphere.Length > 0) data.Sphere = sphere;
+        return sphere;
+    }
+
+    // 旧档补记用：圣地的主流文化，没有就取创教之国的文化
+    public static string OriginCulture(Religion religion)
+    {
+        if (religion?.data == null) return "";
+        City holy = religion.GetCity();
+        string culture = holy?.Record != null && !holy.IsGone() ? CultureService.GetMainCulture(holy, initialize: false) : "";
+        if (CultureService.IsValidCulture(culture)) return culture;
+        return CultureService.GetRealmCulture(EmpireWorld.Current.RealmByKey(religion.data.creator_kingdom_id));
+    }
+
+    // 创教时记下(见 ReligionPatch)
+    public static void Record(Religion religion, string culture)
+    {
+        string sphere = SphereOfCulture(culture);
+        if (religion?.data != null && sphere.Length > 0) religion.GetOrCreate().Sphere = sphere;
+    }
+
+    public static bool IsNative(Religion religion) => religion?.data != null && religion.GetOrCreate().ParentReligionId < 0;
+
+    #region 教派与圣地
+
+    // 一个天下一处圣地(用户 2026-11-08 看路德宗也有圣地马格德堡、自己的教宗："号召力还是在罗马""不能说我分一个宗教就重新创建一个圣地"
+    // "圣地应该一个天下只能有一个""能冠以天下名的教宗就只能有一个")：
+    //   · 教派：从普世教会、伊斯兰分出去的(母宗教还在、类型相同)——东正教会、新教各宗、国教会、什叶派。不另立圣地，没有教宗，
+    //     不号召圣战；圣地随本宗，自己记的那座城(Religion.CityID)只是本宗的中心。伊斯兰的分支例外，自有伊玛目、哈里发座
+    //     (见 PapacySystem.HasSee、IslamicSchismSystem)，圣地照样随本宗；
+    //   · 地方教会(同天下的本土小教)没有圣地，那座城也只是中心；
+    //   · 别的类型(法教、腾格里等)照旧各有圣地，分出的也一样(佛教、萨满本是另一教，只是记了所出)。
+    // 母宗教绝了，教派才自立，自己那座城成圣地。
+    public static Religion BranchParent(Religion religion)
+    {
+        if (!Alive(religion) || !ReligionFaith.HasHierarchy(religion)) return null;
+        long id = religion.GetOrCreate().ParentReligionId;
+        Religion parent = id >= 0 ? EmpireWorld.Current.Religions.Get(id) : null;
+        return Alive(parent) && parent != religion && ReligionFaith.Of(parent) == ReligionFaith.Of(religion) ? parent : null;
+    }
+
+    public static bool IsBranch(Religion religion) => BranchParent(religion) != null;
+
+    // 教派所出的本宗(顺母宗教往上找；不是教派的就是自己)
+    public static Religion Root(Religion religion)
+    {
+        Religion current = religion;
+        for (int depth = 0; depth < 8; depth++)
+        {
+            Religion parent = BranchParent(current);
+            if (parent == null) break;
+            current = parent;
+        }
+        return current;
+    }
+
+    // 圣地：本宗的那座城(教廷所在)；教派随本宗，地方教会没有
+    public static City HolySite(Religion religion)
+    {
+        Religion root = Root(religion);
+        if (!Alive(root) || IsLocalChurch(root)) return null;
+        return PapacySystem.HolyCity(root);
+    }
+
+    // 本宗的中心：教派、地方教会自己记的那座城(不是圣地)；别的返回空
+    public static City Center(Religion religion)
+    {
+        if (!Alive(religion) || !IsBranch(religion) && !IsLocalChurch(religion)) return null;
+        return PapacySystem.HolyCity(religion);
+    }
+
+    #endregion
+
+    // 跨文明传教的阻力(用户 2026-10-27 选"普世 ×0.25、民族 ×0.05")：城的天下与宗教的天下不同时势能打的折
+    public const float CrossUniversalFactor = 0.25f, CrossEthnicFactor = 0.05f;
+
+    public static float CrossFactor(Religion religion, string citySphere)
+    {
+        if (religion?.data == null || string.IsNullOrEmpty(citySphere)) return 1f;
+        string own = SphereOf(religion);
+        if (own.Length == 0 || own == citySphere) return 1f;
+        return ReligionFaith.IsUniversal(religion) ? CrossUniversalFactor : CrossEthnicFactor;
+    }
+
+    // 外来宗教进本天下：本天下已有本土大教(正教)时，改信、改宗的几率再减半
+    public static bool IsForeignToNativeLand(Religion religion, string citySphere) =>
+        religion?.data != null && !string.IsNullOrEmpty(citySphere) && SphereOf(religion) != citySphere &&
+        OrthodoxOf(citySphere) != null;
+
+    public static Religion OrthodoxOf(string sphere)
+    {
+        if (string.IsNullOrEmpty(sphere)) return null;
+        Refresh(false);
+        if (!Orthodox.TryGetValue(sphere, out long id)) return null;
+        Religion religion = EmpireWorld.Current.Religions.Get(id);
+        return Alive(religion) ? religion : null;
+    }
+
+    // 地方教会：同天下的本土宗教，但不是正教。
+    // 两段式立教的启示宗教(用户 2026-11-06 选"两段式"，见 NativeFaithSystem)与古神正教类型不同，立教 grace_years(150)年内不算地方教会：
+    // 不被并入古神、有自己的教阶，靠传教在本天下追上古神后接任正教(现任被超过两成五才换)
+    public static bool IsLocalChurch(Religion religion)
+    {
+        if (!Alive(religion) || !IsNative(religion)) return false;
+        Religion orthodox = OrthodoxOf(SphereOf(religion));
+        if (orthodox == null || orthodox == religion) return false;
+        return !InRevelationGrace(religion, orthodox);
+    }
+
+    public static bool InRevelationGrace(Religion religion, Religion orthodox)
+    {
+        double revealed = religion.GetOrCreate().RevealedAt;
+        if (revealed < 0d || ReligionFaith.Of(religion) == ReligionFaith.Of(orthodox)) return false;
+        double now = GameClock.Now;
+        return now < revealed || GameClock.YearsSince(revealed) < ReligionTenets.Revelation.grace_years;
+    }
+
+    // 有城奉着本土宗教的天下(这些天下的城不再创教)
+    public static HashSet<string> FollowedSpheres(IEnumerable<City> cities)
+    {
+        var spheres = new HashSet<string>(StringComparer.Ordinal);
+        foreach (City city in cities)
+        {
+            if (city?.Record == null || city.IsGone() || !city.HasReligion() || !IsNative(city.Religion)) continue;
+            string sphere = SphereOf(city.Religion);
+            if (sphere.Length > 0) spheres.Add(sphere);
+        }
+        return spheres;
+    }
+
+    // 原版创教谋划：创教者的天下已有城奉本土宗教就不创
+    public static bool BlocksFounding(Person founder)
+    {
+        string culture = CultureService.GetMainCulture(founder?.City, initialize: false);
+        if (!CultureService.IsValidCulture(culture)) culture = CultureService.GetActorCulture(founder);
+        return OrthodoxOf(SphereOfCulture(culture)) != null;
+    }
+
+    private static Dictionary<Religion, float> NativeBelievers()
+    {
+        var believers = new Dictionary<Religion, float>();
+        foreach (City city in EmpireWorld.Current.Cities)
+        {
+            if (city?.Record == null || city.IsGone() || !city.HasReligion() || !IsNative(city.Religion)) continue;
+            believers.TryGetValue(city.Religion, out float people);
+            believers[city.Religion] = people + Mathf.Max(1, city.CountLivingPopulation());
+        }
+        return believers;
+    }
+
+    // 每年重算一次各天下的正教
+    private static void Refresh(bool force)
+    {
+        if (EmpireWorld.Current?.Cities == null || EmpireWorld.Current.Religions == null || GameClock.Loading) return;
+        double now = GameClock.Now;
+        if (!force && _refreshedAt >= 0d && now >= _refreshedAt && GameClock.YearsSince(_refreshedAt) < 1) return;
+        _refreshedAt = now;
+        Dictionary<Religion, float> believers = NativeBelievers();
+        var best = new Dictionary<string, (Religion religion, float people)>(StringComparer.Ordinal);
+        foreach (KeyValuePair<Religion, float> pair in believers)
+        {
+            string sphere = SphereOf(pair.Key);
+            if (sphere.Length == 0) continue;
+            if (!best.TryGetValue(sphere, out var top) || pair.Value > top.people ||
+                pair.Value == top.people && pair.Key.data.id < top.religion.data.id)
+                best[sphere] = (pair.Key, pair.Value);
+        }
+        foreach (string sphere in Orthodox.Keys.ToList())
+            if (!best.ContainsKey(sphere)) Orthodox.Remove(sphere);
+        foreach (KeyValuePair<string, (Religion religion, float people)> pair in best)
+        {
+            // 现任正教还有人奉着、没被超过两成五就留任，免得教宗年年换
+            if (Orthodox.TryGetValue(pair.Key, out long incumbentId) && incumbentId != pair.Value.religion.data.id)
+            {
+                Religion incumbent = EmpireWorld.Current.Religions.Get(incumbentId);
+                if (Alive(incumbent) && believers.TryGetValue(incumbent, out float held) &&
+                    pair.Value.people <= held * OrthodoxSwitchMargin) continue;
+            }
+            Orthodox[pair.Key] = pair.Value.religion.data.id;
+        }
+    }
+
+    // 圣地毁了：迁到奉本教、人口最多的城(excluded 是正在毁掉的那座)
+    public static void RelocateHolyCity(Religion religion, City excluded)
+    {
+        if (!Alive(religion) || religion.Cities == null) return;
+        City best = null;
+        float most = -1f;
+        foreach (City city in religion.Cities.ToList())
+        {
+            if (city?.Record == null || city.IsGone() || city == excluded) continue;
+            float people = city.CountLivingPopulation();
+            if (people <= most) continue;
+            most = people;
+            best = city;
+        }
+        if (best != null) religion.SetCity(best);
+    }
+
+    // 上帝指定圣地(HolyCityPower)：记进本教大事记
+    public static void SetHolyCity(Religion religion, City city)
+    {
+        if (!Alive(religion) || city?.Record == null || city.IsGone()) return;
+        City old = religion.GetCity();
+        religion.SetCity(city);
+        string from = old?.Record != null && !old.IsGone() ? old.GetCityName() : LM.Get("label_none");
+        string text = string.Format(LM.Get("religion_holy_city_moved_log"), religion.Name, from, city.GetCityName());
+        ReligionChronicle.Record(religion, ReligionChronicle.KindPapacy, text);
+        LogService.LogInfo($"[EmpireCraft][宗教] {text}");
+    }
+
+    #region 并入
+
+    // 每年一次(挂在 ReligiousTension 的年度扫描上，有无小人都结算)
+    public static void YearlyPass()
+    {
+        if (EmpireWorld.Current?.Cities == null || ModClass.IS_CLEAR) return;
+        Refresh(true);
+        var cities = new Dictionary<Religion, int>();
+        foreach (City city in EmpireWorld.Current.Cities)
+        {
+            if (city?.Record == null || city.IsGone() || !city.HasReligion()) continue;
+            cities.TryGetValue(city.Religion, out int count);
+            cities[city.Religion] = count + 1;
+        }
+        var candidates = new HashSet<Religion>(cities.Keys);
+        foreach (Realm kingdom in EmpireWorld.Current.LiveRealms)
+            if (kingdom?.Record != null && !kingdom.IsGone() && kingdom.HasReligion()) candidates.Add(kingdom.Religion);
+        foreach (Religion religion in candidates.ToList())
+        {
+            if (!IsLocalChurch(religion)) continue;
+            // 伊斯兰不并进别教的正教：奉它的哈里发国又得改回来(见 CaliphateFaith)
+            if (ReligionFaith.IsCaliphal(religion) && !ReligionFaith.IsCaliphal(OrthodoxOf(SphereOf(religion)))) continue;
+            cities.TryGetValue(religion, out int count);
+            City holy = PapacySystem.HolyCity(religion);
+            bool holyLost = holy == null || holy.Religion != religion;
+            if (!holyLost && count > MergeMaxCities) continue;
+            Absorb(religion, OrthodoxOf(SphereOf(religion)));
+        }
+    }
+
+    // 地方教会整体改奉正教：奉它的城(连城中实体)、以它为国教的国与君主、各处还信它的人
+    private static void Absorb(Religion local, Religion orthodox)
+    {
+        if (!Alive(local) || !Alive(orthodox) || local == orthodox) return;
+        Realm witness = null;
+        foreach (City city in EmpireWorld.Current.Cities.ToList())
+        {
+            if (city?.Record == null || city.IsGone() || city.Religion != local) continue;
+            BackgroundReligionSystem.Convert(city, orthodox, local);
+            witness ??= city.Realm;
+        }
+        foreach (Realm kingdom in EmpireWorld.Current.LiveRealms.ToList())
+        {
+            if (kingdom?.Record == null || kingdom.IsGone() || kingdom.Religion != local) continue;
+            kingdom.SetReligion(orthodox);
+            witness ??= kingdom;
+        }
+        foreach (Person actor in EmpireWorld.Current.Living.ToList())
+            if (actor?.Record != null && !actor.IsGone() && actor.Alive && actor.Religion == local) actor.SetReligion(orthodox);
+        string text = string.Format(LM.Get("religion_merged_log"), local.Name, orthodox.Name);
+        TranslateHelper.LogEventMessage(text, witness);
+        ReligionChronicle.Record(orthodox, local, ReligionChronicle.KindConversion, text);
+        ReligionExtension.ReligionExtraData data = orthodox.GetOrCreate();
+        data.Absorbed ??= new List<ReligionExtension.ReligionEventData>();
+        data.Absorbed.Add(new ReligionExtension.ReligionEventData
+            { at = GameClock.Now, kind = ReligionChronicle.KindConversion, text = local.Name });
+        LogService.LogInfo($"[EmpireCraft][宗教] {local.Name} 并入本天下正教 {orthodox.Name}");
+    }
+
+    #endregion
+}
+}

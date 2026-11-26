@@ -1,0 +1,2487 @@
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/TechnologySystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
+// see Port/manifest.json and Tools/PortTool.
+using Mathf = EmpireCraft.Core.EcMath;
+using Time = EmpireCraft.Core.FrameClock;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.RegularExpressions;
+using Newtonsoft.Json;
+
+namespace EmpireCraft.Core
+{
+
+#region 配置
+
+public sealed class TechResearchConfig
+{
+    public float base_per_city = 1f;
+    public float per_population = 0.04f;
+    public float per_library = 2f;
+    public float per_temple = 0.5f;
+    // 旧字段：已改为按接触扩散计算，保留只为兼容旧配置
+    public float known_elsewhere_cost_multiplier = 0.6f;
+    public float per_university = 3f;
+    public float per_factory = 1f;
+    // 著书立说：本文化的人每写一本书、每有一次读书
+    public float per_book_written = 3f;
+    public float per_book_read = 0.2f;
+    // 战争实践：交战中的城市每名士兵每年
+    public float per_warrior_at_war = 0.02f;
+    // 全局科技费用倍率(调节整体节奏：数值越大，走到工业时代越久)
+    public float cost_multiplier = 1f;
+    // 年产科技点低于这个数就算停滞
+    public float stagnation_threshold = 1f;
+    // 时代名著算几本书的著书科技点
+    public float landmark_book_multiplier = 2f;
+    // 研究经费：每投入 1 点科技点，要从本文化各国国库里花多少钱(0 = 不花钱)
+    public float gold_per_point = 3f;
+    // 处于战争中的城市研究产出打折
+    public float war_penalty = 0.25f;
+    // 文化规模：每多一座城科技费用增加多少，封顶多少
+    public float cost_per_extra_city = 0.02f;
+    public float cost_city_scaling_max = 1f;
+    // 技术扩散：每有一个接触中的文化(接壤/交战/同一帝国)已掌握，费用降低多少，封顶多少；
+    // 通达层算好后每个文化按通达强度折算(隔山隔海的打折，见 RebuildContacts、ConnectivitySystem)
+    public float diffusion_per_contact = 0.2f;
+    public float diffusion_max = 0.5f;
+    // 加速事件一次给多少比例的研究进度
+    public float boost_fraction = 0.4f;
+    // 军队换装：每座城每年最多给多少名士兵换装、持续几年、每人最多由国库补贴多少钱
+    public int modernize_per_city = 8;
+    public int modernize_years = 3;
+    public int modernize_subsidy = 60;
+    // 世界首创：达到这个时代的技术才写入世界日志(开局的原始技术谁都会，不值得记)
+    public int world_first_min_tier = 3;
+    // 先民摸索(用户 2026-10-16 "从部落过渡到周朝这个进度太慢了")：还没到青铜时代(时代档不超过 prehistoric_max_tier)的文化
+    // 没有书、没有学府，以前只靠每城 0.2 点底数，一年一两点，从原始群走到分封要上千年。这段时期每个文化每年另得
+    // prehistoric_flat 点、每座城再得 prehistoric_per_city 点(算在底数里)
+    public float prehistoric_flat = 4f;
+    public float prehistoric_per_city = 0.6f;
+    public int prehistoric_max_tier = 2;
+    // 早期科技(时代档不超过 early_cost_max_tier：石器、铜器、青铜)的费用倍率
+    public int early_cost_max_tier = 3;
+    public float early_cost_multiplier = 0.5f;
+    // 产出随时代涨(用户 2026-10-30 选"产出随时代涨"：费用从铁器起每档约 ×1.5，产出只按城数户数线性，后期一项要几百上千年)：
+    // 已研最高时代档超过 era_output_from_tier 后，每高一档年产科技点多 era_output_per_tier 倍
+    public int era_output_from_tier = 2;
+    public float era_output_per_tier = 0.75f;
+    // 超出时代的科技(用户 2026-11-04 转群友"超出时代的科技，研究需求提高一百倍"，随后改口"数值算错了，超时代科技的花费调整为十倍就行")：
+    // 档次高过本文化时代 beyond_era_margin 档以上的(下一个时代的科技照常——进下一时代要的节点科技就在那一档)，费用乘 beyond_era_cost_multiplier
+    public int beyond_era_margin = 1;
+    public float beyond_era_cost_multiplier = 10f;
+}
+
+// 加速事件(文明六的"尤里卡")：本文化做到了某件事，对应技术立刻获得一部分研究进度
+//   building_type  城里有 amount 座该类型建筑        resource  任一城市储有 amount 个该资源
+//   population     全文化人口达到 amount            cities    城市数达到 amount
+//   material       已发现该材料                      tech      已掌握另一项技术
+//   institution_feature  已推行带该特性的制度(特性值至少为 amount，比如城市生产阶段 ≥ 2)
+//   contact_knows  接触中的文化(接壤/交战/同一帝国)有人掌握这项技术
+//   war_knows      正在交战的文化掌握这项技术(在战场上见识过)
+public sealed class TechBoostConfig
+{
+    public string type = "";
+    public string value = "";
+    public int amount = 1;
+}
+
+public sealed class TechEraConfig
+{
+    public int tier;
+    public string key = "";
+    // 进这个时代的节点科技(研究了其中一项即可；见 TechnologySystem.GetEraTier)
+    public List<string> node = new();
+    // 剧本世界里这一时代的科技从公元几年起才能研究，公元前写负数，不写不限(见 TechCalendarRules)
+    public int? year;
+}
+
+public sealed class TechResourceRequirement
+{
+    public string id = "";
+    public int amount = 1;
+}
+
+public sealed class TechMaterialConfig
+{
+    public string id = "";
+    public int tier = 1;
+    // 满足其中任意一条即可发现
+    public List<TechResourceRequirement> resources = new();
+    public List<string> requires_techs = new();
+}
+
+// 技术需要的文化制度：本文化推行了带该特性的制度(特性值 ≥ min_value)才能研究
+public sealed class TechInstitutionRequirement
+{
+    public string feature = "";
+    public float min_value = 1f;
+}
+
+// 按制度线换的名字与前置(称帝节点：华夏皇帝制度、罗马元首制……，用户 2026-10-27"每个文化都有自己的称帝条件"，
+// 选"一个节点、按文明换前置")：key 是名字与说明的语言键 tech_<key> / tech_<key>_desc
+public sealed class TechLineVariant
+{
+    public string key = "";
+    public List<string> requires_techs = new();
+}
+
+public sealed class TechNodeConfig
+{
+    public List<TechInstitutionRequirement> requires_institutions = new();
+    public string id = "";
+    public string branch = "science";
+    public int tier = 1;
+    public float cost = 10f;
+    public List<string> requires_techs = new();
+    public List<string> requires_materials = new();
+    // 解锁该材质(ItemAsset.material)的所有装备
+    public List<string> unlock_materials = new();
+    // 解锁指定物品 id(用于别的模组的枪械等)
+    public List<string> unlock_items = new();
+    // 解锁建筑，支持 * 通配(如 6house_*_modernmod)
+    public List<string> unlock_buildings = new();
+    // 解锁单位(别的模组的载具：坦克、飞机、炮艇等 PersonKind id)
+    public List<string> unlock_units = new();
+    public float research_bonus;
+    public int research_slots;
+    public List<TechBoostConfig> boosts = new();
+    // 海军科技线(branch = naval，见 NavySystem)：水师辐射 +格数、舰船战力 +比例、舰种(战力倍率 1.5/2.5/4，取已研究的最高)
+    public float naval_reach;
+    public float naval_power;
+    public float naval_hull;
+    // 制度线 → 这条线上的名字与前置(没写的线用 requires_techs 与 tech_<id>，见 TechnologySystem.Requires)
+    public Dictionary<string, TechLineVariant> by_line = new();
+}
+
+// 别的模组里"能不能做某事"的布尔方法：本文化没研究对应技术时直接返回 false。
+// type 是完整类型名(找不到就跳过，没装那个模组也不影响)，文化取自第一个 Person/Realm/City 参数。
+public sealed class TechModGateConfig
+{
+    public string type = "";
+    public string method = "";
+    public string tech = "";
+}
+
+// 别的模组绕过建造系统、直接把建筑换成更高级版本的方法(比如 WarBox 的民居升级器)。
+// 在这些方法执行期间，换成本文化未研究的建筑会被拦下；defer_to_mod_building 对应的建筑存在时
+// (说明装了更完整的建筑模组，如 modernmod)，这个方法里的换建筑全部拦下，把升级链交给那个模组。
+public sealed class TechSwapGuardConfig
+{
+    public string type = "";
+    public string method = "";
+    public string defer_to_mod_building = "";
+}
+
+// 技术 → 文化制度：技术是动力，制度是结果。
+//   requires_techs：提供该特性(且特性值 ≥ min_value)的制度节点，要先有这些技术才能推行；
+//   drivers：每掌握一项技术，这类节点的改革进度加快多少(0.3 = +30%)，AI 也更愿意推它。
+public sealed class TechInstitutionLink
+{
+    public string feature = "";
+    public float min_value;
+    public List<string> requires_techs = new();
+    public Dictionary<string, float> drivers = new();
+}
+
+// 工厂岗位：这些类型的建筑每座给城市提供多少工人岗位(乘以城市生产阶段)
+public sealed class TechIndustryConfig
+{
+    public List<string> factory_types = new();
+    public int jobs_per_factory = 3;
+    // 技术 → 城市可雇工人口比例上限的额外加成
+    public Dictionary<string, float> employment_cap_bonus = new();
+    // 资本主义萌芽需要的技术
+    public List<string> capitalist_budding_techs = new();
+}
+
+public sealed class TechTreeConfig
+{
+    public List<TechContentSourceConfig> content_sources = new();
+    // "禁止近代化"世界规则打开时，技术最多到哪个时代(tier)；更高时代解锁的武器/载具/建筑一律锁死
+    public int premodern_max_tier = 5;
+    // 进下一时代：除节点科技外，此前各时代的科技要研究几成(见 TechnologySystem.GetEraTier)
+    public float era_prior_share = 2f / 3f;
+    // 文明等级(制度树的 1~4 级) → 能研究到的最高技术时代(tier)。制度落后，技术也上不去
+    public Dictionary<string, int> culture_level_max_tier = new();
+    public List<TechInstitutionLink> institution_links = new();
+    public TechIndustryConfig industry = new();
+    public List<TechModGateConfig> mod_gates = new();
+    public List<TechSwapGuardConfig> building_swap_guards = new();
+    public int schema_version = 1;
+    public TechResearchConfig research = new();
+    public List<string> branches = new();
+    public List<TechEraConfig> eras = new();
+    public List<TechMaterialConfig> materials = new();
+    public List<TechNodeConfig> techs = new();
+    // 通达层(距离、地形、交通通信科技定各国各文化之间往来的远近，见 ConnectivityRules、ConnectivitySystem)
+    public ConnectivityConfig connectivity = new();
+}
+
+#endregion
+
+public enum TechNodeStatus
+{
+    Researched,
+    Researching,
+    Available,
+    Locked,
+    MaterialDiscovered,
+    MaterialUndiscovered
+}
+
+// 文明科技树：材料 → 技术 → 武器/建筑。
+//
+// 进度归属文化(跟制度一样)，同文化的所有国家共享。每年结算一次：
+//   1. 本文化城市的仓库里出现了某种资源(且满足前置技术)，就"发现"对应材料；
+//   2. 按城市数、人口、图书馆、神庙算研究点，投到当前研究的技术上；
+//   3. 研究完成后，本文化的工匠才能打造对应材质/型号的装备，城市才能把建筑升到对应等级。
+//
+// 限制只作用于"被某项技术登记过"的物品和建筑；没登记的(原版特殊武器、别的模组的东西)一律放行。
+// 受限清单保留尚未注册的 ID，兼容晚加载的模组；显示可用内容时按当前资产库检查。
+public static partial class TechnologySystem
+{
+    public const string FolderName = "Technology";
+    public const string MaterialBranch = "material";
+    public const string NavalBranch = "naval";
+
+    private static TechTreeConfig _config = new();
+    private static Dictionary<string, TechNodeConfig> _techs = new(StringComparer.Ordinal);
+    private static Dictionary<string, TechMaterialConfig> _materials = new(StringComparer.Ordinal);
+    private static bool _loaded;
+
+    // 受限清单：材质 → 解锁它的技术；物品 id → 技术；建筑匹配规则 → 技术
+    private static readonly Dictionary<string, string> MaterialGate = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, string> ItemGate = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, string> UnitGate = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly List<(Regex pattern, string tech)> BuildingPatterns = new();
+    private static readonly Dictionary<string, string> BuildingGateCache = new(StringComparer.Ordinal);
+
+    private static Dictionary<string, CultureTechState> _states = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, HashSet<string>> ResearchedCache = new(StringComparer.Ordinal);
+    private static double _lastScan = -1d;
+    // 每年重算的文化接触关系(不存档，读档后第一次结算就会重建)
+    private static readonly Dictionary<string, HashSet<string>> Contacts = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, HashSet<string>> WarContacts = new(StringComparer.Ordinal);
+
+    public static TechTreeConfig Config
+    {
+        get
+        {
+            EnsureLoaded();
+            return _config;
+        }
+    }
+
+    public static IEnumerable<TechNodeConfig> Techs => Config.techs;
+    public static IEnumerable<TechMaterialConfig> Materials => Config.materials;
+
+    // "禁止近代化"：不管科技树开没开，都锁死近代以后的技术、制度和兼容模组的现代内容
+    public static bool PremodernLocked =>
+        WorldLaws.Premodern?.IsEnabled() == true;
+
+    public static int PremodernMaxTier => Config.premodern_max_tier;
+
+    // 卡口是否需要工作：科技树开着，或者禁止近代化开着
+    public static bool GatesActive => IsEnabled || PremodernLocked;
+
+    public static bool IsBeyondPremodern(string techId) =>
+        PremodernLocked && TryGetTech(techId, out TechNodeConfig tech) && tech.tier > PremodernMaxTier;
+
+    // 近代制度：政党政治、普选、废除君主制、各理念、机械化生产
+    public static bool IsModernInstitution(InstitutionNodeConfig node) =>
+        node?.features != null && node.features.Any(pair => pair.Value > 0f &&
+            (pair.Key == PartySystem.FeaturePartyPolitics || pair.Key == PartySystem.FeatureUniversalSuffrage ||
+             pair.Key == "abolish_monarchy" || pair.Key.StartsWith("ideology:", StringComparison.Ordinal) ||
+             pair.Key == InstitutionFeatures.UrbanProductionStage && pair.Value >= 3f));
+
+    public static bool IsEnabled =>
+        WorldLaws.TechTree == null ||
+        WorldLaws.TechTree.IsEnabled();
+
+    #region 加载
+
+    public static void EnsureLoaded()
+    {
+        if (_loaded) return;
+        _loaded = true;
+        try
+        {
+            string path = global::System.IO.Path.Combine(GameData.Folder, FolderName, "TechTree.json");
+            if (global::System.IO.File.Exists(path))
+                _config = JsonConvert.DeserializeObject<TechTreeConfig>(global::System.IO.File.ReadAllText(path)) ??
+                          new TechTreeConfig();
+            else
+                LogService.LogWarning($"[EmpireCraft] 没有找到科技树配置: {path}");
+        }
+        catch (Exception exception)
+        {
+            LogService.LogError($"[EmpireCraft] 科技树配置读取失败: {exception}");
+            _config = new TechTreeConfig();
+        }
+        _config.techs ??= new List<TechNodeConfig>();
+        _config.content_sources ??= new List<TechContentSourceConfig>();
+        _config.materials ??= new List<TechMaterialConfig>();
+        _config.branches ??= new List<string>();
+        _config.eras ??= new List<TechEraConfig>();
+        foreach (TechEraConfig era in _config.eras.Where(era => era != null)) era.node ??= new List<string>();
+        _config.eras.RemoveAll(era => era == null);
+        _eraOpenings = null;
+        _priorTechs = null;
+        EraCache.Clear();
+        _config.research ??= new TechResearchConfig();
+        _config.mod_gates ??= new List<TechModGateConfig>();
+        _config.institution_links ??= new List<TechInstitutionLink>();
+        _config.culture_level_max_tier ??= new Dictionary<string, int>();
+        foreach (TechInstitutionLink link in _config.institution_links)
+        {
+            link.requires_techs ??= new List<string>();
+            link.drivers ??= new Dictionary<string, float>();
+        }
+        _config.industry ??= new TechIndustryConfig();
+        _config.industry.factory_types ??= new List<string>();
+        _config.industry.employment_cap_bonus ??= new Dictionary<string, float>();
+        _config.industry.capitalist_budding_techs ??= new List<string>();
+        _config.building_swap_guards ??= new List<TechSwapGuardConfig>();
+        _config.connectivity ??= new ConnectivityConfig();
+        _config.connectivity.Normalize();
+        _techs = new Dictionary<string, TechNodeConfig>(StringComparer.Ordinal);
+        foreach (TechNodeConfig tech in _config.techs.Where(tech => !string.IsNullOrWhiteSpace(tech?.id)))
+        {
+            tech.requires_techs ??= new List<string>();
+            tech.requires_materials ??= new List<string>();
+            tech.unlock_materials ??= new List<string>();
+            tech.unlock_items ??= new List<string>();
+            tech.unlock_buildings ??= new List<string>();
+            tech.unlock_units ??= new List<string>();
+            tech.boosts ??= new List<TechBoostConfig>();
+            tech.requires_institutions ??= new List<TechInstitutionRequirement>();
+            tech.by_line ??= new Dictionary<string, TechLineVariant>();
+            foreach (TechLineVariant variant in tech.by_line.Values)
+                if (variant != null) variant.requires_techs ??= new List<string>();
+            _techs[tech.id] = tech;
+        }
+        _materials = new Dictionary<string, TechMaterialConfig>(StringComparer.Ordinal);
+        foreach (TechMaterialConfig material in _config.materials.Where(m => !string.IsNullOrWhiteSpace(m?.id)))
+        {
+            material.resources ??= new List<TechResourceRequirement>();
+            material.requires_techs ??= new List<string>();
+            _materials[material.id] = material;
+        }
+        RebuildGates();
+    }
+
+    // 受限清单在资产加载完之后才建得准(别的模组的枪、建筑可能比本模组晚注册)，
+    // 所以第一次用到的时候再建，世界加载时再刷新一次。
+    private static void RebuildGates()
+    {
+        MaterialGate.Clear();
+        ItemGate.Clear();
+        UnitGate.Clear();
+        BuildingPatterns.Clear();
+        BuildingGateCache.Clear();
+        foreach (TechNodeConfig tech in _config.techs.OrderBy(tech => tech.tier))
+        {
+            foreach (string material in tech.unlock_materials)
+                if (!MaterialGate.ContainsKey(material)) MaterialGate[material] = tech.id;
+            foreach (string item in tech.unlock_items)
+                if (!ItemGate.ContainsKey(item)) ItemGate[item] = tech.id;
+            foreach (string unit in tech.unlock_units)
+                if (!UnitGate.ContainsKey(unit)) UnitGate[unit] = tech.id;
+            foreach (string pattern in tech.unlock_buildings.Where(p => !string.IsNullOrWhiteSpace(p)))
+                BuildingPatterns.Add((TechnologyContentRules.BuildingPattern(pattern), tech.id));
+        }
+    }
+
+    public static bool TryGetTech(string id, out TechNodeConfig tech)
+    {
+        EnsureLoaded();
+        return _techs.TryGetValue(TechnologyStateRules.Canonical(id) ?? "", out tech);
+    }
+
+    public static bool TryGetMaterial(string id, out TechMaterialConfig material)
+    {
+        EnsureLoaded();
+        return _materials.TryGetValue(id ?? "", out material);
+    }
+
+    #endregion
+
+    #region 存档
+
+    public static void ResetWorldState()
+    {
+        _loadedFromSave = false;
+        _calendar = null;
+        _eraLock = 0;
+        _states = new Dictionary<string, CultureTechState>(StringComparer.Ordinal);
+        ResearchedCache.Clear();
+        Contacts.Clear();
+        WarContacts.Clear();
+        ContactWeights.Clear();
+        _weightedContacts = false;
+        StraitNeighbours.Clear();
+        _lastScan = -1d;
+        TechRollbackSystem.ResetWorldState();
+    }
+
+    // 这个世界是读档读进来的(不是新开的)：读档后各文化按现行政体补记一次制度与科技(见 BackfillRegimes)
+    private static bool _loadedFromSave;
+
+    // 读进来的旧档，这个文化还没按各国现行政体补记过制度(补记在读档后第一次科技扫描里，见 BackfillRegimes)
+    public static bool AwaitingRegimeBackfill(string culture) =>
+        _loadedFromSave && !(_states.TryGetValue(culture ?? "", out CultureTechState state) && state.regime_line);
+
+    public static void ImportStates(Dictionary<string, CultureTechState> states)
+    {
+        ResetWorldState();
+        _loadedFromSave = true;
+        if (states == null) return;
+        foreach (KeyValuePair<string, CultureTechState> pair in states)
+        {
+            if (string.IsNullOrWhiteSpace(pair.Key) || pair.Value == null) continue;
+            pair.Value.discovered_materials ??= new List<string>();
+            pair.Value.researched_techs ??= new List<string>();
+            pair.Value.timestamps ??= new Dictionary<string, double>();
+            pair.Value.current_tech ??= "";
+            pair.Value.player_target ??= "";
+            pair.Value.tech_progress ??= new Dictionary<string, float>();
+            pair.Value.boosted ??= new List<string>();
+            pair.Value.last_income ??= new Dictionary<string, float>();
+            pair.Value.landmark_books ??= new List<string>();
+            pair.Value.known_books ??= new List<string>();
+            TechnologyStateRules.Normalize(pair.Value);
+            _states[pair.Key] = pair.Value;
+        }
+    }
+
+    public static Dictionary<string, CultureTechState> ExportStates() =>
+        _states.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+
+    public static CultureTechState GetState(string culture)
+    {
+        if (string.IsNullOrWhiteSpace(culture)) return new CultureTechState();
+        if (!_states.TryGetValue(culture, out CultureTechState state))
+        {
+            state = new CultureTechState();
+            _states[culture] = state;
+        }
+        return state;
+    }
+
+    private static HashSet<string> Researched(string culture)
+    {
+        if (string.IsNullOrWhiteSpace(culture)) return new HashSet<string>();
+        if (ResearchedCache.TryGetValue(culture, out HashSet<string> cached)) return cached;
+        cached = new HashSet<string>(GetState(culture).researched_techs, StringComparer.Ordinal);
+        ResearchedCache[culture] = cached;
+        return cached;
+    }
+
+    #endregion
+
+    #region 查询
+
+    public static bool HasTech(string culture, string techId) => Researched(culture).Contains(TechnologyStateRules.Canonical(techId));
+
+    public static bool HasMaterial(string culture, string materialId) =>
+        GetState(culture).discovered_materials.Contains(materialId);
+
+    public static string GetCultureOf(City city) =>
+        city?.Realm == null || city.Realm.IsGone() ? "" : CultureService.GetRealmCulture(city.Realm);
+
+    public static string GetCultureOf(Person actor)
+    {
+        if (actor?.Realm != null && !actor.Realm.IsGone() && actor.Realm.IsCivilized())
+            return CultureService.GetRealmCulture(actor.Realm);
+        return GetCultureOf(actor?.City);
+    }
+
+    // 某个物品需要哪项技术；不受限返回 null
+#if EC_PENDING
+    public static string GetRequiredTechForItem(ItemAsset asset)
+    {
+        if (asset == null) return null;
+        EnsureLoaded();
+        if (ItemGate.TryGetValue(asset.id, out string byId)) return byId;
+        if (!string.IsNullOrEmpty(asset.material) && MaterialGate.TryGetValue(asset.material, out string byMaterial))
+            return byMaterial;
+        return null;
+    }
+#endif
+
+    public static string GetRequiredTechForUnit(string actorAssetId)
+    {
+        if (string.IsNullOrEmpty(actorAssetId)) return null;
+        EnsureLoaded();
+        return UnitGate.TryGetValue(actorAssetId, out string tech) ? tech : null;
+    }
+
+    // 本文化是否已经在用科技树(读档后第一次结算前还没按现有装备补齐，这段时间不拦，免得把旧装备扒掉)
+    public static bool IsActiveFor(string culture) =>
+        IsEnabled && CultureService.IsValidCulture(culture) &&
+        _states.TryGetValue(culture, out CultureTechState state) && state.bootstrapped;
+
+    public static bool CanUse(string culture, string techId) =>
+        techId == null || !IsBeyondPremodern(techId) && (!IsActiveFor(culture) || HasTech(culture, techId));
+
+    // ---- 国家采纳 ----
+    // 科技由文化发明(研究进度归文化)，但每个国家(在帝国里按帝国算)要自己采纳才算拥有：
+    // 第一次登记时本文化当时已有的科技都算采纳(旧存档、新立的国家不倒退)；此后本文化新发明的科技，
+    // 各国按本国条件逐年采纳：基础 2 年 + 每层 0.5 年，图书馆、大学、城市多的国家快(最快约三分之一时间)，
+    // 小国、没有藏书的国家慢(最慢两倍)。本国没采纳的科技：建筑、装备、兵种不能用，制度不能推行，
+    // 立宪不能发起，本文化的新体制也过渡不过来
+    public static RealmTechState GetRealmState(Realm kingdom)
+    {
+        if (kingdom?.Record == null || kingdom.IsGone()) return null;
+        Empire empire = kingdom.IsInEmpire() ? kingdom.GetEmpire() : null;
+        RealmTechState state = empire?.data != null
+            ? empire.data.realm_tech ??= new RealmTechState()
+            : kingdom.GetOrCreate().realm_tech ??= new RealmTechState();
+        if (state.progress.TryGetValue("constitutionalism", out float legacyProgress))
+        {
+            state.progress.Remove("constitutionalism");
+            state.progress.TryGetValue(TechnologyStateRules.Enlightenment, out float existing);
+            state.progress[TechnologyStateRules.Enlightenment] = Math.Max(existing, legacyProgress);
+        }
+        if (!state.initialized)
+        {
+            string culture = GetCultureOf(kingdom);
+            if (IsActiveFor(culture))
+            {
+                foreach (string tech in Researched(culture)) state.Adopt(tech);
+                state.initialized = true;
+            }
+        }
+        return state;
+    }
+
+    public static bool RealmHasTech(Realm kingdom, string techId)
+    {
+        string culture = GetCultureOf(kingdom);
+        if (!IsActiveFor(culture)) return true;
+        if (!HasTech(culture, techId)) return false;
+        RealmTechState state = GetRealmState(kingdom);
+        return state == null || !state.initialized || state.Has(techId);
+    }
+
+    // 本国还没采纳的、本文化已发明的科技
+    public static List<string> RealmMissingTechs(Realm kingdom, IEnumerable<string> techIds) =>
+        techIds?.Where(id => !RealmHasTech(kingdom, id)).ToList() ?? new List<string>();
+
+    public static bool CanUseIn(Realm kingdom, string techId) =>
+        techId == null || !IsBeyondPremodern(techId) && RealmHasTech(kingdom, techId);
+
+    // 某国的制度科技前提：本文化要发明，本国要采纳
+    public static bool AreRealmInstitutionTechsMet(Realm kingdom, InstitutionNodeConfig node, out List<string> missing)
+    {
+        missing = new List<string>();
+        string culture = GetCultureOf(kingdom);
+        if (!IsActiveFor(culture)) return true;
+        missing = GetInstitutionRequiredTechs(node).Where(id => !RealmHasInstitutionTech(kingdom, id)).ToList();
+        return missing.Count == 0;
+    }
+
+    // 制度用的科技前提(推制度、政体过渡、立宪)：旧制犹存的国家推的是旧制那棵树(见 LegacyInstitutionSystem)，
+    // 旧制所属文化已发明的科技也算，再加上本国已采纳的——只按落后的新文化算，旧树的高阶节点、政体过渡就卡死了。
+    // 其余国家照旧：本文化发明、本国采纳(RealmHasTech)。科技窗口的显示不走这里
+    public static bool RealmHasInstitutionTech(Realm kingdom, string techId)
+    {
+        if (RealmHasTech(kingdom, techId)) return true;
+        string institution = CultureService.GetInstitutionCulture(kingdom);
+        if (!CultureService.IsValidCulture(institution) ||
+            string.Equals(institution, GetCultureOf(kingdom), StringComparison.Ordinal)) return false;
+        if (IsActiveFor(institution) && HasTech(institution, techId)) return true;
+        RealmTechState state = GetRealmState(kingdom);
+        return state != null && state.Has(techId);
+    }
+
+    public static List<string> RealmMissingInstitutionTechs(Realm kingdom, IEnumerable<string> techIds) =>
+        techIds?.Where(id => !RealmHasInstitutionTech(kingdom, id)).ToList() ?? new List<string>();
+
+    // 采纳进度条显示用：某国采纳某项科技的进度(0~1，已采纳为 1)
+    public static float GetRealmAdoption(Realm kingdom, string techId)
+    {
+        RealmTechState state = GetRealmState(kingdom);
+        if (state == null || !state.initialized || state.Has(techId)) return 1f;
+        return state.progress.TryGetValue(techId, out float value) ? value : 0f;
+    }
+
+#if EC_PENDING
+    private static void AdoptRealms(string culture, List<City> cities)
+    {
+        var realms = new Dictionary<RealmTechState, List<City>>();
+        foreach (City city in cities)
+        {
+            if (city?.Realm == null || city.Realm.IsGone()) continue;
+            RealmTechState state = GetRealmState(city.Realm);
+            if (state == null || !state.initialized) continue;
+            if (!realms.TryGetValue(state, out List<City> list)) realms[state] = list = new List<City>();
+            list.Add(city);
+        }
+        HashSet<string> known = Researched(culture);
+        foreach (KeyValuePair<RealmTechState, List<City>> realm in realms)
+        {
+            int libraries = 0, universities = 0;
+            foreach (City city in realm.Value)
+            {
+                libraries += city.countBuildingsType("type_library");
+                universities += city.countBuildingsType("type_university");
+            }
+            float speed = Mathf.Clamp(0.6f + 0.15f * libraries + 0.3f * universities + 0.02f * realm.Value.Count, 0.5f, 3f);
+            foreach (string techId in known)
+            {
+                if (realm.Key.Has(techId) || !_techs.TryGetValue(techId, out TechNodeConfig tech)) continue;
+                float years = 2f + 0.5f * tech.tier;
+                float progress = (realm.Key.progress.TryGetValue(techId, out float value) ? value : 0f) + speed / years;
+                if (progress >= 1f) realm.Key.Adopt(techId);
+                else realm.Key.progress[techId] = progress;
+            }
+        }
+    }
+#endif
+
+    public static string GetCultureOf(Realm kingdom) =>
+        kingdom == null || kingdom.IsGone() || !kingdom.IsCivilized() ? "" : CultureService.GetRealmCulture(kingdom);
+
+    public static string GetRequiredTechForBuilding(string buildingId)
+    {
+        if (string.IsNullOrEmpty(buildingId)) return null;
+        EnsureLoaded();
+        if (BuildingGateCache.TryGetValue(buildingId, out string cached)) return cached;
+        string result = null;
+        foreach ((Regex pattern, string tech) in BuildingPatterns)
+        {
+            if (!pattern.IsMatch(buildingId)) continue;
+            result = tech;
+            break;
+        }
+        BuildingGateCache[buildingId] = result;
+        return result;
+    }
+
+#if EC_PENDING
+    public static bool CanCraft(string culture, ItemAsset asset) => CanUse(culture, GetRequiredTechForItem(asset));
+#endif
+
+    // 建筑、装备、兵种看本国是否采纳了对应科技(本文化发明了、本国还没采纳也不行)
+    public static bool CanBuild(City city, string buildingId)
+    {
+        if (city == null) return true;
+        string tech = GetRequiredTechForBuilding(buildingId);
+        return tech == null || (city.Realm != null && !city.Realm.IsGone()
+            ? CanUseIn(city.Realm, tech) : CanUse(GetCultureOf(city), tech));
+    }
+
+#if EC_PENDING
+    public static bool CanEquip(Person actor, ItemAsset asset)
+    {
+        string tech = GetRequiredTechForItem(asset);
+        if (tech == null) return true;
+        Realm kingdom = actor?.Realm != null && !actor.Realm.IsGone() && actor.Realm.IsCivilized() ? actor.Realm : actor?.City?.Realm;
+        return kingdom != null && !kingdom.IsGone() ? CanUseIn(kingdom, tech) : CanUse(GetCultureOf(actor), tech);
+    }
+#endif
+
+    public static bool CanSpawnUnit(string actorAssetId, City city)
+    {
+        string tech = GetRequiredTechForUnit(actorAssetId);
+        return tech == null || city == null || (city.Realm != null && !city.Realm.IsGone()
+            ? CanUseIn(city.Realm, tech) : CanUse(GetCultureOf(city), tech));
+    }
+
+    public static bool ArePrerequisitesMet(string culture, TechNodeConfig tech) =>
+        Requires(tech, culture).All(id => HasTech(culture, id)) &&
+        tech.requires_materials.All(id => HasMaterial(culture, id)) &&
+        AreCultureRequirementsMet(culture, tech);
+
+    // 文化制度对技术的约束(科技树关闭时不限制)
+    public static bool AreCultureRequirementsMet(string culture, TechNodeConfig tech) =>
+        !(PremodernLocked && tech.tier > PremodernMaxTier) &&
+        // 时代锁定(见 TechnologySystem.EraLock)：锁定时代以后的不再研究
+        !BeyondEraLock(tech) &&
+        !BeyondCalendar(culture, tech) &&
+        // 本文化的主体被迫弃核：停止核研究(见 NuclearDoctrineSystem)
+        !EmpireCraft.Core.NuclearDoctrineSystem.IsResearchBanned(culture, tech.id) &&
+        (!IsEnabled || tech.tier <= GetMaxTierForCulture(culture)) &&
+        (!IsEnabled || tech.requires_institutions.All(requirement => IsInstitutionRequirementMet(culture, requirement)));
+
+    public static bool IsInstitutionRequirementMet(string culture, TechInstitutionRequirement requirement) =>
+        InstitutionSystem.GetFeature(culture, requirement.feature) >= requirement.min_value;
+
+    public static int GetCultureLevel(string culture)
+    {
+        // 排行里的文明等级要把各分支发展度加一遍，AI 挑研究目标时会连续问很多次，按帧缓存
+        int frame = Time.frameCount;
+        if (CultureLevelCache.TryGetValue(culture ?? "", out (int frame, int level) cached) && cached.frame == frame)
+            return cached.level;
+        int level = CultureService.IsValidCulture(culture) ? InstitutionSystem.GetCultureRanking(culture).Level : 1;
+        CultureLevelCache[culture ?? ""] = (frame, level);
+        return level;
+    }
+
+    private static readonly Dictionary<string, (int frame, int level)> CultureLevelCache = new(StringComparer.Ordinal);
+
+    public static int GetMaxTierForCulture(string culture)
+    {
+        Dictionary<string, int> caps = Config.culture_level_max_tier;
+        if (caps.Count == 0) return int.MaxValue;
+        int level = GetCultureLevel(culture);
+        return caps.TryGetValue(level.ToString(), out int tier)
+            ? tier
+            : caps.Where(pair => int.TryParse(pair.Key, out int key) && key <= level)
+                .Select(pair => pair.Value).DefaultIfEmpty(int.MaxValue).Max();
+    }
+
+    // 最低需要几级文明才能研究这个时代的技术(窗口提示用)
+    public static int GetRequiredCultureLevel(int tier) =>
+        Config.culture_level_max_tier.Where(pair => pair.Value >= tier && int.TryParse(pair.Key, out _))
+            .Select(pair => int.Parse(pair.Key)).DefaultIfEmpty(1).Min();
+
+    public static TechNodeStatus GetTechStatus(string culture, TechNodeConfig tech)
+    {
+        if (HasTech(culture, tech.id)) return TechNodeStatus.Researched;
+        if (!ArePrerequisitesMet(culture, tech)) return TechNodeStatus.Locked;
+        return GetState(culture).current_techs.Contains(tech.id) ? TechNodeStatus.Researching : TechNodeStatus.Available;
+    }
+
+    public static TechNodeStatus GetMaterialStatus(string culture, TechMaterialConfig material) =>
+        HasMaterial(culture, material.id) ? TechNodeStatus.MaterialDiscovered : TechNodeStatus.MaterialUndiscovered;
+
+    public static int CountContactsKnowing(string culture, string techId) =>
+        Contacts.TryGetValue(culture ?? "", out HashSet<string> contacts)
+            ? contacts.Count(other => _states.TryGetValue(other, out CultureTechState state) &&
+                                      state.researched_techs.Contains(techId))
+            : 0;
+
+    public static IEnumerable<string> GetContacts(string culture) =>
+        Contacts.TryGetValue(culture ?? "", out HashSet<string> contacts) ? contacts : Enumerable.Empty<string>();
+
+    public static float GetSizeCostFactor(string culture)
+    {
+        TechResearchConfig research = Config.research;
+        int cities = GetState(culture).city_count;
+        return 1f + Math.Min(research.cost_city_scaling_max, research.cost_per_extra_city * Math.Max(0, cities - 1));
+    }
+
+    public static float GetDiffusionDiscount(string culture, string techId)
+    {
+        TechResearchConfig research = Config.research;
+        // 通达层算好后：每个已掌握的接触文化按通达强度折算(见 RebuildContacts)
+        if (_weightedContacts && ContactWeights.TryGetValue(culture ?? "", out Dictionary<string, float> weights))
+        {
+            float sum = 0f;
+            foreach (KeyValuePair<string, float> pair in weights)
+                if (_states.TryGetValue(pair.Key, out CultureTechState state) && state.researched_techs.Contains(techId)) sum += pair.Value;
+            return Math.Min(research.diffusion_max, sum * research.diffusion_per_contact);
+        }
+        return Math.Min(research.diffusion_max, CountContactsKnowing(culture, techId) * research.diffusion_per_contact);
+    }
+
+    public static float GetProgress(string culture, string techId) =>
+        GetState(culture).tech_progress.TryGetValue(TechnologyStateRules.Canonical(techId) ?? "", out float value) ? value : 0f;
+
+    public static bool IsKnownElsewhere(string culture, string techId) => CountContactsKnowing(culture, techId) > 0;
+
+    public static float GetCost(string culture, TechNodeConfig tech)
+    {
+        float cost = Math.Max(1f, tech.cost) * Math.Max(0.01f, Config.research.cost_multiplier) *
+                     GetSizeCostFactor(culture) *
+                     (tech.tier <= Config.research.early_cost_max_tier ? Math.Max(0.05f, Config.research.early_cost_multiplier) : 1f);
+        if (BeyondEra(culture, tech)) cost *= Math.Max(1f, Config.research.beyond_era_cost_multiplier);
+        return cost * (1f - GetDiffusionDiscount(culture, tech.id));
+    }
+
+    // 超出时代的科技(见 TechResearchConfig.beyond_era_cost_multiplier)：档次高过本文化时代 beyond_era_margin 档以上
+    public static bool BeyondEra(string culture, TechNodeConfig tech) =>
+        tech != null && tech.tier > GetEraTier(culture) + Math.Max(0, Config.research.beyond_era_margin);
+
+    public static float GetResearchBonus(string culture) =>
+        Researched(culture).Select(id => _techs.TryGetValue(id, out TechNodeConfig tech) ? tech.research_bonus : 0f)
+            .Sum();
+
+    // 时代产出倍率(见 ResearchConfig.era_output_per_tier)：青铜 ×1.75、火药 ×4、电气 ×5.5、原子 ×7
+    public static float GetEraOutputMultiplier(string culture) =>
+        1f + Math.Max(0f, Config.research.era_output_per_tier) *
+        Math.Max(0, GetEraTier(culture) - Config.research.era_output_from_tier);
+
+    #region 剧本按年代封顶(见 TechCalendarRules)
+
+    // 年代未到时储备最多留几年的年产，免得年代一到一口气研究完整个时代
+    private const float CalendarBankYears = 10f;
+
+    private static TechCalendarSave _calendar;
+    private static List<(int tier, int? opens)> _eraOpenings;
+
+    public static bool CalendarActive => _calendar != null && IsEnabled &&
+                                         WorldLaws.TechCalendar?.IsEnabled() != false;
+
+    public static TechCalendarSave ExportCalendar() => _calendar;
+
+    public static void ImportCalendar(TechCalendarSave saved) => _calendar = saved;
+
+    // 剧本开局：记下开局年份和剧本本身开局的最高档
+    public static void BeginCalendar(int year, int floor) => _calendar = new TechCalendarSave
+    {
+        year = year, started = EmpireWorld.Current?.Now() ?? 0d, floor = floor
+    };
+
+    private static List<(int tier, int? opens)> EraOpenings()
+    {
+        EnsureLoaded();
+        return _eraOpenings ??= Config.eras.OrderBy(era => era.tier).Select(era => (era.tier, era.year)).ToList();
+    }
+
+    public static int CalendarYear() => _calendar == null ? 0
+        : TechCalendarRules.YearAfter(_calendar.year, GameClock.YearsSince(_calendar.started));
+
+    public static int CalendarMaxTier() => !CalendarActive ? TechCalendarRules.NoLimit
+        : TechCalendarRules.MaxTier(CalendarYear(), _calendar.floor, EraOpenings());
+
+    // 年代未到的科技：穿越者自带的知识不受限；接触到的文化已经掌握的可以学过来，年代只拦自己发明
+    public static bool BeyondCalendar(string culture, TechNodeConfig tech) =>
+        tech != null && tech.tier > CalendarMaxTier() && culture != TransmigrantSystem.Culture &&
+        CountContactsKnowing(culture, tech.id) == 0;
+
+    // 这一档开放的年份(科技窗口写明)：往下数到第一个写了年份的时代
+    public static int? CalendarOpenYear(int tier)
+    {
+        int? opens = null;
+        foreach ((int eraTier, int? year) in EraOpenings())
+        {
+            if (eraTier > tier) break;
+            if (year.HasValue) opens = year;
+        }
+        return opens;
+    }
+
+    public static string CalendarYearText(int year) => year < 0
+        ? string.Format(LM.Get("world_map_year_bc"), -year)
+        : string.Format(LM.Get("world_map_year_ad"), year);
+
+    #endregion
+
+    // 文化所处的时代(用户 2026-11-03 转群友建议："现在时代变迁太快了，导致科技也跟着快，600年就从原始部落发展到近代了"
+    // "文化进时代的条件要修改，建议修改为【研究一定数量的科技+研究了某个节点科技】之后才能进入下一个时代。这个前置科技的数量
+    // 可以设定为【节点科技之前三分之二的科技】")：以前研究过的最高一档就是时代，研究出一项火药就进火药时代，时代产出倍率当场
+    // 跳到 ×4，越研越快。现在一档档往上走：研究过任一科技为石器时代；往后各时代要研究了它的节点科技(eras[].node，其中一项即可)，
+    // 并且此前各时代(档次低于它)的科技研究了 era_prior_share(三分之二)以上，前一个时代也得先进了。
+    // 时代与科研的挂钩照旧(时代产出倍率、各处按时代的门槛都按这个时代算)。按已研究的科技数缓存
+    private static readonly Dictionary<string, (int count, HashSet<string> set, int tier)> EraCache = new(StringComparer.Ordinal);
+    // 档次 → 档次低于它的科技总数(按配置算一次)
+    private static int[] _priorTechs;
+
+    public static int GetEraTier(string culture)
+    {
+        HashSet<string> researched = Researched(culture);
+        if (researched.Count == 0) return 0;
+        string key = culture ?? "";
+        if (EraCache.TryGetValue(key, out var cached) && cached.count == researched.Count && ReferenceEquals(cached.set, researched))
+            return cached.tier;
+        int tier = ComputeEraTier(researched, out _, out _, out _);
+        EraCache[key] = (researched.Count, researched, tier);
+        return tier;
+    }
+
+    // 下一时代的进度(科技窗口用)：next 为下一时代(已到最后为 null)，have/need 为此前各时代的科技研究了几项、要几项，nodeDone 节点科技研究了没有
+    public static TechEraConfig GetNextEra(string culture, out int have, out int need, out bool nodeDone)
+    {
+        HashSet<string> researched = Researched(culture);
+        int tier = researched.Count == 0 ? 0 : ComputeEraTier(researched, out _, out _, out _);
+        TechEraConfig next = Config.eras.Where(era => era.tier > tier).OrderBy(era => era.tier).FirstOrDefault();
+        have = need = 0;
+        nodeDone = false;
+        if (next == null) return null;
+        int[] byTier = CountByTier(researched);
+        PriorNeed(next.tier, byTier, out have, out need);
+        nodeDone = NodeDone(next, researched);
+        return next;
+    }
+
+    private static int ComputeEraTier(HashSet<string> researched, out int have, out int need, out bool nodeDone)
+    {
+        have = need = 0;
+        nodeDone = false;
+        if (researched.Count == 0) return 0;
+        int[] byTier = CountByTier(researched);
+        int tier = 1;
+        foreach (TechEraConfig era in Config.eras.Where(era => era.tier > 1).OrderBy(era => era.tier))
+        {
+            nodeDone = NodeDone(era, researched);
+            PriorNeed(era.tier, byTier, out have, out need);
+            if (!nodeDone || have < need) break;
+            tier = era.tier;
+        }
+        return tier;
+    }
+
+    private static bool NodeDone(TechEraConfig era, HashSet<string> researched) =>
+        era.node == null || era.node.Count == 0 || era.node.Any(id => researched.Contains(TechnologyStateRules.Canonical(id)));
+
+    // 已研究的科技按档次数一遍
+    private static int[] CountByTier(HashSet<string> researched)
+    {
+        int max = Math.Max(Config.techs.Count == 0 ? 0 : Config.techs.Max(tech => tech.tier), Config.eras.Count == 0 ? 0 : Config.eras.Max(era => era.tier));
+        var counts = new int[max + 2];
+        foreach (string id in researched)
+            if (_techs.TryGetValue(id, out TechNodeConfig tech) && tech.tier >= 0 && tech.tier < counts.Length) counts[tech.tier]++;
+        return counts;
+    }
+
+    // 档次低于 tier 的科技：研究了几项、要几项(总数的 era_prior_share，向上取整)
+    private static void PriorNeed(int tier, int[] byTier, out int have, out int need)
+    {
+        if (_priorTechs == null)
+        {
+            int max = Math.Max(Config.techs.Count == 0 ? 0 : Config.techs.Max(tech => tech.tier), Config.eras.Count == 0 ? 0 : Config.eras.Max(era => era.tier));
+            _priorTechs = new int[max + 2];
+            foreach (TechNodeConfig tech in Config.techs)
+                for (int t = tech.tier + 1; t < _priorTechs.Length; t++) _priorTechs[t]++;
+        }
+        int at = Math.Min(Math.Max(tier, 0), _priorTechs.Length - 1);
+        need = (int)Math.Ceiling(_priorTechs[at] * Mathf.Clamp01(Config.era_prior_share) - 1e-4);
+        have = 0;
+        for (int t = 0; t < tier && t < byTier.Length; t++) have += byTier[t];
+    }
+
+    public static string GetEraName(string culture)
+    {
+        int tier = GetEraTier(culture);
+        TechEraConfig era = Config.eras.Where(e => e.tier <= tier).OrderByDescending(e => e.tier).FirstOrDefault();
+        return era == null ? LM.Get("tech_era_primitive") : LM.Get(era.key);
+    }
+
+    public static string GetTechName(string id) => LM.Get($"tech_{TechnologyStateRules.Canonical(id)}");
+    public static string GetTechDescription(string id) => LM.Get($"tech_{TechnologyStateRules.Canonical(id)}_desc");
+
+    // 本文化这条制度线上的写法(见 TechNodeConfig.by_line)；没有为空
+    private static TechLineVariant Variant(TechNodeConfig tech, string culture)
+    {
+        if (tech?.by_line == null || tech.by_line.Count == 0 || !CultureService.IsValidCulture(culture)) return null;
+        return tech.by_line.TryGetValue(culture.GetInstitutionLine(), out TechLineVariant variant) ? variant : null;
+    }
+
+    // 本文化研究这项科技要的前置
+    public static List<string> Requires(TechNodeConfig tech, string culture) =>
+        Variant(tech, culture)?.requires_techs ?? tech?.requires_techs ?? new List<string>();
+
+    public static string GetTechName(string id, string culture) =>
+        _techs != null && _techs.TryGetValue(TechnologyStateRules.Canonical(id), out TechNodeConfig tech) &&
+        Variant(tech, culture) is TechLineVariant variant && !string.IsNullOrEmpty(variant.key)
+            ? LM.Get($"tech_{variant.key}")
+            : GetTechName(id);
+
+    public static string GetTechDescription(string id, string culture) =>
+        _techs != null && _techs.TryGetValue(TechnologyStateRules.Canonical(id), out TechNodeConfig tech) &&
+        Variant(tech, culture) is TechLineVariant variant && !string.IsNullOrEmpty(variant.key)
+            ? LM.Get($"tech_{variant.key}_desc")
+            : GetTechDescription(id);
+
+    // 海军科技线(用户 2026-10-15："可以加海军科技线""通过海军军事科技的升级提高这个半径")
+    public static float NavalReach(string culture) => SumNaval(culture, tech => tech.naval_reach);
+
+    public static float NavalPower(string culture) => SumNaval(culture, tech => tech.naval_power);
+
+    // 舰种：已研究的海军科技里最高的(没有就是楼船 1)
+    public static float NavalHull(string culture)
+    {
+        float hull = 1f;
+        if (string.IsNullOrEmpty(culture)) return hull;
+        foreach (string id in Researched(culture))
+            if (_techs.TryGetValue(id, out TechNodeConfig tech) && tech.naval_hull > hull) hull = tech.naval_hull;
+        return hull;
+    }
+
+    private static float SumNaval(string culture, Func<TechNodeConfig, float> field)
+    {
+        if (string.IsNullOrEmpty(culture)) return 0f;
+        float total = 0f;
+        foreach (string id in Researched(culture))
+            if (_techs.TryGetValue(id, out TechNodeConfig tech)) total += field(tech);
+        return total;
+    }
+
+    // 科技卡上的海军效果
+    public static IEnumerable<string> DescribeNaval(TechNodeConfig tech)
+    {
+        if (tech.naval_hull > 0f)
+            yield return string.Format(LM.Get("tech_naval_hull"), LM.Get(tech.naval_hull >= 4f ? "navy_tier_3"
+                : tech.naval_hull >= 2.5f ? "navy_tier_2" : tech.naval_hull >= 1.5f ? "navy_tier_1" : "navy_tier_0"));
+        if (tech.naval_reach > 0f) yield return string.Format(LM.Get("tech_naval_reach"), tech.naval_reach.ToString("0"));
+        if (tech.naval_power > 0f) yield return string.Format(LM.Get("tech_naval_power"), (tech.naval_power * 100f).ToString("0"));
+    }
+
+    // 旧存档：海军科技线是后加的，已经走到后面时代的文化把早该有的海军科技补上——前置都有，且本文化已经走过这一时代
+    // (或已有对应的旧技术：蒸汽铁甲 ← 工业化，现代舰艇 ← 电力/机动化)；不补的就照常研究
+    private static readonly Dictionary<string, string[]> NavalLegacy = new()
+    {
+        ["steam_ironclads"] = new[] { "industrialization" },
+        ["modern_warships"] = new[] { "electricity", "motorization" }
+    };
+
+    // 制度后来加了专门的科技前提(典章线)：已经推行的制度说明这些科技早就有了，直接补上，不把旧档打回原形
+    private static void BackfillCivicsLine(string culture)
+    {
+        CultureInstitutionState institutions = InstitutionSystem.GetOrCreateCultureState(culture);
+        if (institutions?.enacted_node_ids == null) return;
+        foreach (string nodeId in institutions.enacted_node_ids.ToList())
+        {
+            InstitutionNodeConfig node = InstitutionDefinitionRegistry.Get(nodeId);
+            if (node?.requires_techs == null) continue;
+            foreach (string tech in node.requires_techs) ForceResearch(culture, tech);
+        }
+    }
+
+    // 旧存档(没有科技、或制度还没跟政体挂钩的版本)读进来(用户 2026-10-16："旧版本有国家是律令，就默认那个文化
+    // 已经解锁了对应的科技，自动匹配解锁")：本文化各国现行的政体，在这条文化线上声明了该政体的制度连同前置链补记成
+    // 已施行，再把已施行的制度需要的科技(连同前置科技、材料)补上。以前旧档的律令制国家科技为零，制度树和政体对不上
+    private static void BackfillRegimes(string culture)
+    {
+        var regimes = new HashSet<EmpireCraft.Core.RegimeType>();
+        foreach (Realm kingdom in EmpireWorld.Current.LiveRealms)
+        {
+            // 政体按制度文化归：旧制犹存的国家用的是旧制所属文化的政体，不能补记到新文化的制度树上(见 LegacyInstitutionSystem)
+            if (kingdom?.Record == null || kingdom.IsGone() ||
+                !string.Equals(CultureService.GetInstitutionCulture(kingdom), culture, StringComparison.Ordinal)) continue;
+            EmpireCraft.Core.Regime regime = kingdom.GetRegime();
+            if (regime != null) regimes.Add(regime.type);
+        }
+        int nodes = InstitutionSystem.EnactRegimeNodes(culture, regimes);
+        int before = Researched(culture).Count;
+        CultureInstitutionState institutions = InstitutionSystem.GetOrCreateCultureState(culture);
+        if (institutions?.enacted_node_ids != null)
+            foreach (string nodeId in institutions.enacted_node_ids.ToList())
+                foreach (string tech in GetInstitutionRequiredTechs(InstitutionDefinitionRegistry.Get(nodeId)))
+                    ForceResearch(culture, tech);
+        int techs = Researched(culture).Count - before;
+        // 各国的采纳记录可能在补记之前就建好了(只记了当时的科技)：旧档里这些国家本来就在用，直接算采纳
+        foreach (Realm kingdom in EmpireWorld.Current.LiveRealms)
+        {
+            if (kingdom?.Record == null || kingdom.IsGone() ||
+                !string.Equals(CultureService.GetRealmCulture(kingdom), culture, StringComparison.Ordinal)) continue;
+            RealmTechState realm = GetRealmState(kingdom);
+            if (realm == null) continue;
+            foreach (string tech in Researched(culture).ToList()) realm.Adopt(tech);
+        }
+        if (nodes > 0 || techs > 0)
+            LogService.LogInfo($"[EmpireCraft][科技] 旧档 {culture} 按现行政体({string.Join("、", regimes)})补记制度 {nodes} 项、科技 {techs} 项");
+    }
+
+    // 传播媒介科技是后加的：旧档里已经有后续科技(或时代已过)的文化直接补上，不让书报一下子退回手抄
+    private static readonly (string tech, string legacy)[] MediaLegacy =
+    {
+        ("paper", "printing"), ("movable_type", "scientific_method"), ("steam_press", "industrialization"),
+        ("telegraph", "electricity"), ("radio", "computing"), ("internet", "computing")
+    };
+
+    private static void BackfillMediaLine(string culture)
+    {
+        int era = GetEraTier(culture);
+        foreach ((string techId, string legacy) in MediaLegacy)
+        {
+            if (HasTech(culture, techId) || !_techs.TryGetValue(techId, out TechNodeConfig tech)) continue;
+            if (!tech.requires_techs.All(id => HasTech(culture, id))) continue;
+            if (era > tech.tier || HasTech(culture, legacy) && tech.tier <= era) CompleteTech(culture, techId);
+        }
+    }
+
+    private static void BackfillNavalLine(string culture)
+    {
+        int era = GetEraTier(culture);
+        foreach (TechNodeConfig tech in Config.techs.Where(tech => tech.branch == NavalBranch).OrderBy(tech => tech.tier))
+        {
+            if (HasTech(culture, tech.id) || !tech.requires_techs.All(id => HasTech(culture, id))) continue;
+            bool legacy = NavalLegacy.TryGetValue(tech.id, out string[] old) && old.Any(id => HasTech(culture, id));
+            if (era > tech.tier || legacy) CompleteTech(culture, tech.id);
+        }
+    }
+    public static string GetMaterialName(string id) => LM.Get($"tech_mat_{id}");
+
+    public static string GetBranchName(string branch)
+    {
+        string key = $"tech_branch_{branch}";
+        string value = LM.Get(key);
+        return string.IsNullOrWhiteSpace(value) || value == key ? branch : value;
+    }
+
+    // 材料的发现条件，窗口里显示用
+#if EC_PENDING
+    public static string DescribeMaterialCondition(TechMaterialConfig material)
+    {
+        string resources = string.Join(LM.Get("tech_or"), material.resources.Select(r =>
+        {
+            ResourceAsset asset = AssetManager.resources.get(r.id);
+            string name = asset != null ? asset.getTranslatedName() : r.id;
+            return $"{name}×{r.amount}";
+        }));
+        string techs = string.Join("、", material.requires_techs.Select(GetTechName));
+        return string.IsNullOrEmpty(techs)
+            ? string.Format(LM.Get("tech_material_condition"), resources)
+            : string.Format(LM.Get("tech_material_condition_tech"), resources, techs);
+    }
+#endif
+
+    // 从当前资产库读取，不缓存未找到的资源，以兼容其他模组较晚注册内容。
+#if EC_PENDING
+    public static IEnumerable<(string label, bool present, string source)> DescribeUnlockDetails(TechNodeConfig tech)
+    {
+        if (tech.id == SettlementSeaSearch.OceanNavigationTech)
+            yield return (LM.Get("tech_unlock_ocean_settlement"), true, "EmpireCraft");
+        // 本模组的兵种(见 CorpsArmSystem)
+        foreach (CorpsArmSystem.Arm arm in CorpsArmSystem.UnlockedBy(tech.id))
+            yield return (string.Format(LM.Get("tech_unlock_arm"), CorpsArmSystem.Name(arm)), true, "EmpireCraft");
+        // 纯净地图模式：没装模组的工厂、核武器都虚拟结算，缺了模组的枪械、载具、建筑也不再列为缺失
+        bool virtualContent = PureMapMode.Enabled;
+        int factories = VirtualIndustrySystem.VirtualUnlocks(tech);
+        if (factories > 0) yield return (string.Format(LM.Get("tech_unlock_virtual_factory"), factories), true, "EmpireCraft");
+        if (virtualContent && tech.id == "nuclear_fission")
+            yield return (LM.Get("tech_unlock_virtual_nuke"), true, "EmpireCraft");
+        foreach (string material in tech.unlock_materials)
+            yield return (string.Format(LM.Get("tech_unlock_material"), LM.Get($"tech_material_{material}")), true,
+                GetContentSource(material, "material"));
+        var seenItems = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string item in tech.unlock_items)
+        {
+            ItemAsset asset = TechnologyContentRules.FindAsset(item,
+                id => AssetManager.items?.get(id), AssetManager.items?.list, asset => asset.id);
+            if (asset != null && !seenItems.Add(asset.id)) continue;
+            if (asset == null && virtualContent) continue;
+            yield return (asset != null ? asset.getTranslatedName() : item, asset != null,
+                GetContentSource(asset?.id ?? item, "item"));
+        }
+        var seenUnits = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string unit in tech.unlock_units)
+        {
+            PersonKind asset = TechnologyContentRules.FindAsset(unit,
+                id => AssetManager.actor_library?.get(id), AssetManager.actor_library?.list, asset => asset.id);
+            if (asset != null && !seenUnits.Add(asset.Id)) continue;
+            if (asset == null && virtualContent) continue;
+            yield return (asset != null ? string.Format(LM.Get("tech_unlock_unit"), asset.getTranslatedName()) : unit,
+                asset != null, GetContentSource(asset?.Id ?? unit, "unit"));
+        }
+        var seenBuildings = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string pattern in tech.unlock_buildings)
+        {
+            Regex regex = TechnologyContentRules.BuildingPattern(pattern);
+            BuildingKind sample = BuildingKinds.Table?.list.FirstOrDefault(asset =>
+                asset != null && !string.IsNullOrEmpty(asset.Id) && regex.IsMatch(asset.Id));
+            if (sample != null && !seenBuildings.Add(sample.Id)) continue;
+            if (sample == null && virtualContent) continue;
+            string label = sample != null
+                ? string.Format(LM.Get("tech_unlock_building"), DescribeBuilding(sample))
+                : pattern;
+            yield return (label, sample != null, GetContentSource(sample?.Id ?? pattern, "building"));
+        }
+    }
+#endif
+
+    private static string GetContentSource(string id, string kind)
+    {
+        string sourceId = TechnologyContentRules.FindSource(id, kind, Config.content_sources);
+        TechContentSourceConfig source = Config.content_sources.FirstOrDefault(entry => entry?.id == sourceId);
+        return !string.IsNullOrEmpty(source?.name_key) ? LM.Get(source.name_key)
+            : sourceId == "unknown" ? LM.Get("tech_source_unknown") : sourceId;
+    }
+
+#if EC_PENDING
+    public static IEnumerable<(string label, bool present)> DescribeUnlocks(TechNodeConfig tech)
+    {
+        foreach (var unlock in DescribeUnlockDetails(tech))
+            yield return ($"{unlock.label}【{unlock.source}】", unlock.present);
+    }
+
+    public static List<string> DescribeAvailableUnlocks(TechNodeConfig tech)
+    {
+        var result = new List<string>();
+        var missing = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        foreach (var unlock in DescribeUnlockDetails(tech))
+        {
+            if (unlock.present) result.Add($"{unlock.label}【{unlock.source}】");
+            else
+            {
+                if (!missing.TryGetValue(unlock.source, out List<string> labels))
+                    missing[unlock.source] = labels = new List<string>();
+                if (!labels.Contains(unlock.label)) labels.Add(unlock.label);
+            }
+        }
+        foreach (var group in missing)
+            result.Add(string.Format(LM.Get("tech_optional_source_unavailable"), group.Key, group.Value.Count,
+                string.Join("、", group.Value)));
+        return result;
+    }
+#endif
+
+    private static string DescribeBuilding(BuildingKind asset)
+    {
+        // 别的模组的独立建筑(工厂、碉堡、大学)一般以 id 做本地化 key，有就直接用
+        string ownName = LM.Get(asset.Id);
+        if (!string.IsNullOrWhiteSpace(ownName) && ownName != asset.Id && !asset.Id.EndsWith("_modernmod") &&
+            !asset.Id.StartsWith("house_"))
+            return ownName;
+        string type = asset.Type?.Replace("type_", "") ?? "";
+        string typeKey = $"tech_building_type_{type}";
+        string typeName = LM.Get(typeKey);
+        if (string.IsNullOrWhiteSpace(typeName) || typeName == typeKey) typeName = type;
+        return string.Format(LM.Get("tech_building_level"), typeName, asset.UpgradeLevel);
+    }
+
+    #region 技术 → 制度
+
+    private static IEnumerable<TechInstitutionLink> LinksFor(InstitutionNodeConfig node)
+    {
+        if (node?.features == null) yield break;
+        foreach (TechInstitutionLink link in Config.institution_links)
+            if (node.features.TryGetValue(link.feature, out float value) && value > 0f && value >= link.min_value)
+                yield return link;
+    }
+
+    // 制度要求的科技：节点自己写的专门科技(requires_techs) + 按特性挂的科技(institution_links)
+    public static List<string> GetInstitutionRequiredTechs(InstitutionNodeConfig node) =>
+        (node?.requires_techs ?? Enumerable.Empty<string>())
+        .Concat(LinksFor(node).SelectMany(link => link.requires_techs)).Distinct().ToList();
+
+    // 以这项科技为专门前提的制度节点(科技窗口里列出"可研究制度：某某")
+    public static IEnumerable<InstitutionNodeConfig> InstitutionsRequiring(string techId) =>
+        InstitutionDefinitionRegistry.All.Where(node => node.requires_techs != null && node.requires_techs.Contains(techId));
+
+    public static bool AreInstitutionTechsMet(string culture, InstitutionNodeConfig node, out List<string> missing)
+    {
+        missing = new List<string>();
+        if (!IsActiveFor(culture)) return true;
+        missing = GetInstitutionRequiredTechs(node).Where(id => !HasTech(culture, id)).ToList();
+        return missing.Count == 0;
+    }
+
+    // 按特性(不经过具体节点)判断技术基础是否具备，比如外来理念能否在本文化落地
+    public static bool AreFeatureTechsMet(string culture, string feature, float value = 1f) =>
+        !IsActiveFor(culture) || Config.institution_links
+            .Where(link => link.feature == feature && value >= link.min_value)
+            .SelectMany(link => link.requires_techs).All(id => HasTech(culture, id));
+
+    // 已掌握的技术对这个制度的推动力(改革进度倍率 - 1)
+    public static float GetInstitutionPush(string culture, InstitutionNodeConfig node)
+    {
+        if (!IsEnabled || !CultureService.IsValidCulture(culture)) return 0f;
+        float push = 0f;
+        foreach (TechInstitutionLink link in LinksFor(node))
+        foreach (KeyValuePair<string, float> driver in link.drivers)
+            if (HasTech(culture, driver.Key)) push += driver.Value;
+        return push + LandmarkBookSystem.GetInstitutionPush(node, GetState(culture));
+    }
+
+    // 某项技术会推动/解锁哪些制度特性(科技窗口里显示)
+    public static IEnumerable<(TechInstitutionLink link, bool gate, float push)> GetInstitutionEffects(string techId)
+    {
+        foreach (TechInstitutionLink link in Config.institution_links)
+        {
+            bool gate = link.requires_techs.Contains(techId);
+            float push = link.drivers.TryGetValue(techId, out float value) ? value : 0f;
+            if (gate || push > 0f) yield return (link, gate, push);
+        }
+    }
+
+    public static string DescribeFeature(TechInstitutionLink link) => DescribeFeature(link, null);
+
+    // culture：看的是哪个文化(古代理念按文化线叫，西方"促成经院正统"……见 CultureDoctrines)
+    public static string DescribeFeature(TechInstitutionLink link, string culture)
+    {
+        string key = $"tech_feature_{link.feature.Replace(':', '_')}";
+        if (link.min_value > 1f) key += $"_{link.min_value:0}";
+        string text = LM.Get(key);
+        if (!string.IsNullOrWhiteSpace(text) && text != key) return text;
+        if (IdeologySpreadSystem.TryParseFeature(link.feature, out PartyIdeology ideology))
+            return string.Format(LM.Get("tech_feature_ideology"), PartySystem.GetIdeologyName(ideology, culture));
+        return link.feature;
+    }
+
+    // 制度节点提示里的一行："技术基础：✔印刷术 ✘工业化 · 技术推动 +30%"；跟技术无关的节点返回 null
+    public static string DescribeInstitutionTechLine(string culture, InstitutionNodeConfig node)
+    {
+        if (!IsEnabled || node == null) return null;
+        List<string> required = GetInstitutionRequiredTechs(node);
+        float push = GetInstitutionPush(culture, node);
+        if (required.Count == 0 && push <= 0f) return null;
+        var parts = new List<string>();
+        if (required.Count > 0)
+            parts.Add(LM.Get("tech_institution_basis") + string.Join(" ", required.Select(id =>
+                (HasTech(culture, id) ? "✔" : "✘") + GetTechName(id))));
+        if (push > 0f) parts.Add(string.Format(LM.Get("tech_institution_push"), (push * 100f).ToString("0")));
+        return string.Join("  ·  ", parts);
+    }
+
+    public static bool CanCapitalistBud(string culture) =>
+        !IsActiveFor(culture) || Config.industry.capitalist_budding_techs.All(id => HasTech(culture, id));
+
+    public static bool IsFactory(BuildingKind asset) =>
+        asset != null && Config.industry.factory_types.Contains(asset.Type);
+
+    public static float GetEmploymentCapBonus(string culture)
+    {
+        if (!IsEnabled || !CultureService.IsValidCulture(culture)) return 0f;
+        return Config.industry.employment_cap_bonus.Where(pair => HasTech(culture, pair.Key)).Sum(pair => pair.Value);
+    }
+
+    #endregion
+
+#if EC_PENDING
+    public static bool ModernModDetected => AccessTools.TypeByName("ModernMod.Code.Main") != null ||
+        BuildingKinds.Table?.list.Any(asset => asset?.Id?.EndsWith("_modernmod",
+            StringComparison.OrdinalIgnoreCase) == true) == true;
+    public static bool WarBoxDetected => AccessTools.TypeByName("WarBox.WarBox") != null ||
+        BuildingKinds.Table?.Get("heavy_factory") != null ||
+        AssetManager.actor_library?.get("warbox_tank") != null;
+    public static bool ModernBoxDetected => Config.content_sources
+        .Where(source => source?.id == "ModernBox")
+        .SelectMany(source => source.items ?? new List<string>())
+        .Any(id => AssetManager.items?.get(id) != null);
+#endif
+
+    #endregion
+
+    #region 年度结算
+
+    // 挂在城市更新上，自己限流成一年一次
+#if EC_PENDING
+    public static void TryYearlyScan()
+    {
+        if (EmpireWorld.Current == null || ModClass.IS_CLEAR) return;
+        TechnologyPatch.EnsureModPatches();
+        if (!IsEnabled) return;
+        double now = GameClock.Now;
+        bool firstPass = _lastScan < 0d || now < _lastScan;
+        if (!firstPass && GameClock.YearsSince(_lastScan) < 1) return;
+        _lastScan = now;
+        try
+        {
+            // 读档/开局后的第一次：只补齐和发现材料，不发研究点
+            YearlyUpdate(!firstPass);
+            ImperialPrecedent();
+        }
+        catch (Exception exception)
+        {
+            LogService.LogError($"[EmpireCraft] 科技年度结算失败: {exception}");
+        }
+    }
+#endif
+
+    // 称帝要先推行本文明的称帝制度(见 EmpireFormationService.HasImperialRule)，可前代有过帝国的文化不必从头再推一遍
+    // (用户 2026-10-27 截图楚国占了大半个华夏却不称帝)：本文化有过帝国(现存的、亡了留下记录的)、制度前置都齐的，承袭前代，直接施行
+    private static void ImperialPrecedent()
+    {
+        var cultures = new HashSet<string>(StringComparer.Ordinal);
+        foreach (FallenEmpireRecord record in FallenEmpireRecords.Records ?? new List<FallenEmpireRecord>())
+            if (!string.IsNullOrEmpty(record?.culture)) cultures.Add(record.culture);
+        if (ModClass.EMPIRE_MANAGER != null)
+            foreach (Empire empire in ModClass.EMPIRE_MANAGER)
+                if (empire?.CoreKingdom != null && !empire.IsGone() && !empire.IsArchived())
+                    cultures.Add(GetCultureOf(empire.CoreKingdom));
+        foreach (string culture in cultures)
+        {
+            if (!CultureService.IsValidCulture(culture) || InstitutionSystem.HasFeature(culture, EmpireFormationService.ImperialFeature)) continue;
+            InstitutionNodeConfig node = EmpireFormationService.ImperialNode(culture);
+            if (node == null || !InstitutionDefinitionRegistry.ArePrerequisitesMet(node, id => InstitutionSystem.IsPrerequisiteHeld(culture, id)))
+                continue;
+            // 用神力退回过科技的文化(见 TechRollbackSystem)：先得有这套帝制要的科技，不能凭前代帝国把撤下的帝制直接承袭回来
+            if (_states.TryGetValue(culture, out CultureTechState rolled) && rolled.rolled_back && !AreInstitutionTechsMet(culture, node, out _))
+                continue;
+            if (InstitutionSystem.ForceEnactNode(culture, node.id) > 0)
+                LogService.LogInfo($"[EmpireCraft][制度] {culture} 前代有过帝国，「{InstitutionSystem.GetNodeName(node)}」承袭前代，直接施行");
+        }
+    }
+
+#if EC_PENDING
+    private static void YearlyUpdate(bool addResearch)
+    {
+        EnsureLoaded();
+        TechResearchConfig research = Config.research;
+        var citiesByCulture = new Dictionary<string, List<City>>(StringComparer.Ordinal);
+        foreach (City city in EmpireWorld.Current.Cities)
+        {
+            if (city == null || city.IsGone()) continue;
+            if (AncientWarfareCompatibility.OwnsObject(city)) continue;
+            string culture = GetCultureOf(city);
+            if (!CultureService.IsValidCulture(culture)) continue;
+            if (!citiesByCulture.TryGetValue(culture, out List<City> list))
+                citiesByCulture[culture] = list = new List<City>();
+            list.Add(city);
+        }
+        using (FrameProfiler.Measure("科技·文化接触")) RebuildContacts(citiesByCulture);
+
+        foreach (KeyValuePair<string, List<City>> pair in citiesByCulture)
+        {
+            string culture = pair.Key;
+            CultureTechState state = GetState(culture);
+            state.city_count = pair.Value.Count;
+            if (!state.bootstrapped)
+            {
+                state.bootstrapped = true;
+                Bootstrap(culture, pair.Value);
+                LandmarkBookSystem.MarkExisting(culture, state);
+            }
+            // 读档后第一次：城里已有的建筑说明对应技术早就有了(后来新加的门槛，如住房科技，不把旧档打回原形)；
+            // 用神力退回过科技的文化不补(见 TechRollbackSystem：降级没赶上的、打下来的别国建筑不该把科技又补回去)
+            else if (!addResearch && !state.rolled_back) BackfillBuildings(culture, pair.Value);
+            // 读进来的旧档：各国现行政体说明对应的制度、科技早就有了(新开的世界只记一下，照常从头研究)
+            if (!state.regime_line)
+            {
+                state.regime_line = true;
+                if (_loadedFromSave) BackfillRegimes(culture);
+            }
+            if (!state.naval_line)
+            {
+                state.naval_line = true;
+                BackfillNavalLine(culture);
+            }
+            if (!state.civics_line)
+            {
+                state.civics_line = true;
+                BackfillCivicsLine(culture);
+            }
+            if (!state.media_line)
+            {
+                state.media_line = true;
+                BackfillMediaLine(culture);
+            }
+            using (FrameProfiler.Measure("科技·发现材料")) DiscoverMaterials(culture, pair.Value);
+            if (state.last_era_tier < 0) state.last_era_tier = GetEraTier(culture);
+            if (!addResearch) continue;
+
+            Dictionary<string, float> income;
+            using (FrameProfiler.Measure("科技·研究点")) income = CollectIncome(culture, pair.Value);
+            // 国民教育：各国教育档按城数加权(见 ModernPolicySystem)
+            float points = income.Values.Sum() * (1f + GetResearchBonus(culture) + ModernPolicySystem.ResearchBonus(pair.Value) +
+                                                  // 末代的学术精进
+                                                  RepeatPerLevel * RepeatLevel(culture, "science")) *
+                           GetEraOutputMultiplier(culture);
+            state.last_income = income;
+            state.last_yearly_points = points;
+            state.research_bank += points;
+            using (FrameProfiler.Measure("科技·加速事件")) CheckBoosts(culture, pair.Value);
+            state.last_unfunded = 0f;
+            using (FrameProfiler.Measure("科技·自动研究")) if (state.auto_research) SpendBank(culture, pair.Value, null);
+            float bankCap = points * CalendarBankYears;
+            if (state.research_bank > bankCap && CalendarActive && GetResearchTargets(culture).Count == 0) state.research_bank = bankCap;
+            using (FrameProfiler.Measure("科技·时代")) CheckEra(culture, pair.Value);
+            using (FrameProfiler.Measure("科技·名著")) LandmarkBookSystem.YearlyCheck(culture, pair.Value, state);
+            using (FrameProfiler.Measure("科技·国家采纳")) AdoptRealms(culture, pair.Value);
+            PrehistoricClanSystem.YearlyCheck(culture);
+            if (state.modernize_years > 0)
+            {
+                state.modernize_years--;
+                Modernize(culture, pair.Value, research.modernize_per_city);
+            }
+        }
+    }
+#endif
+
+    // 文化之间的接触：城市接壤、正在交战、同属一个帝国(含朝贡国)。技术只沿着接触扩散。
+    // 通达层算好后(用户 2026-11-06 选"标准"，见 ConnectivitySystem)不再只分有无，按强度给权重——
+    //   · 地理：学的一方从教的一方学得到的通达强度(两边谁走得过去都算，列岛视距渡海只算列岛那一边，同 D2"日本能出岛")，
+    //     隔着雪山大漠、没有航海隔着海的低，电报以后远处也连得上；以前接壤就算、翻不过的山脊也算，隔着无人区的邻城反倒不算；
+    //   · 政治：同一帝国至少 0.8、朝贡国与宗主至少 0.6，正在交战的至少 0.5(战场上见识过)；
+    //   · 折扣 = 每个已掌握的接触文化 diffusion_per_contact × 权重，封顶 diffusion_max；
+    //     权重不低于 tech_contact_min(0.3)的才算"接触中"(加速事件、年代限制、缺材料靠贸易兜底、科技窗口的计数)。
+    //   通达层还没算好(读档后几秒)时照旧：接壤、教化一成五、列岛隔海、同帝国，二值。
+    private static readonly Dictionary<string, Dictionary<string, float>> ContactWeights = new(StringComparer.Ordinal);
+    private static bool _weightedContacts;
+
+    private static void RebuildContacts(Dictionary<string, List<City>> citiesByCulture)
+    {
+        Contacts.Clear();
+        WarContacts.Clear();
+        ContactWeights.Clear();
+        _weightedContacts = ConnectivitySystem.Ready;
+        var empireCultures = new Dictionary<long, HashSet<string>>();
+        var tributaryCultures = new Dictionary<long, HashSet<string>>();
+        foreach (KeyValuePair<string, List<City>> pair in citiesByCulture)
+        foreach (City city in pair.Value)
+        {
+            foreach (City neighbour in (IEnumerable<City>)city.NeighbourCities ?? Array.Empty<City>())
+            {
+                if (neighbour == null || neighbour.IsGone()) continue;
+                string other = GetCultureOf(neighbour);
+                if (!CultureService.IsValidCulture(other)) continue;
+                Link(Contacts, pair.Key, other);
+                Link(Contacts, other, pair.Key);
+                if (city.Realm != null && neighbour.Realm != null && city.Realm.IsEnemy(neighbour.Realm))
+                {
+                    Link(WarContacts, pair.Key, other);
+                    Link(WarContacts, other, pair.Key);
+                }
+            }
+            // 教化：四方文化教化到本城一成五以上，也算接触过(见 CultureRadiation)；通达层算好后由它统一按强度给
+            IReadOnlyDictionary<string, float> radiance = _weightedContacts ? null : CultureRadiation.SharesOf(city);
+            if (radiance != null)
+                foreach (KeyValuePair<string, float> influence in radiance)
+                {
+                    if (influence.Value < CultureRadiation.ContactShare || !CultureService.IsValidCulture(influence.Key)) continue;
+                    Link(Contacts, pair.Key, influence.Key);
+                    Link(Contacts, influence.Key, pair.Key);
+                }
+            // 列岛文化：隔海相望的外国也算接触(见 CitiesAcrossStrait)。只记列岛这一边，对岸的文化不因此多出接触
+            if (!_weightedContacts && TianxiaSystem.IsArchipelago(pair.Key))
+                foreach (City across in CitiesAcrossStrait(city))
+                {
+                    if (across.IsGone() || across.Realm == city.Realm) continue;
+                    string other = GetCultureOf(across);
+                    if (CultureService.IsValidCulture(other)) Link(Contacts, pair.Key, other);
+                }
+            long empireId = city.Realm?.GetEmpireID() ?? -1L;
+            // 朝贡国与宗主也算一家(以前注释说含朝贡国，代码只看帝国成员；见 TributaryRelations)
+            bool tributary = false;
+            if (empireId < 0 && city.Realm?.GetTakenAllianceEmpire() is { } suzerain)
+            {
+                empireId = suzerain.Key;
+                tributary = true;
+            }
+            if (empireId < 0) continue;
+            if (!empireCultures.TryGetValue(empireId, out HashSet<string> cultures))
+                empireCultures[empireId] = cultures = new HashSet<string>(StringComparer.Ordinal);
+            cultures.Add(pair.Key);
+            if (!tributary) continue;
+            if (!tributaryCultures.TryGetValue(empireId, out HashSet<string> tributaries))
+                tributaryCultures[empireId] = tributaries = new HashSet<string>(StringComparer.Ordinal);
+            tributaries.Add(pair.Key);
+        }
+        foreach (HashSet<string> cultures in empireCultures.Values)
+        foreach (string a in cultures)
+        foreach (string b in cultures)
+            Link(Contacts, a, b);
+        if (_weightedContacts) WeighContacts(citiesByCulture, empireCultures, tributaryCultures);
+    }
+
+    // 按通达强度给接触权重(见 RebuildContacts)，再按权重重排"接触中"的文化
+    private static void WeighContacts(Dictionary<string, List<City>> citiesByCulture, Dictionary<long, HashSet<string>> empireCultures,
+        Dictionary<long, HashSet<string>> tributaryCultures)
+    {
+        ConnectivityConfig config = ConnectivitySystem.Config;
+        var political = new Dictionary<(string, string), float>();
+        foreach (KeyValuePair<long, HashSet<string>> empire in empireCultures)
+        {
+            tributaryCultures.TryGetValue(empire.Key, out HashSet<string> tributaries);
+            foreach (string a in empire.Value)
+            foreach (string b in empire.Value)
+            {
+                if (a == b) continue;
+                bool members = tributaries == null || !tributaries.Contains(a) && !tributaries.Contains(b);
+                float floor = members ? config.tech_empire_floor : config.tech_tributary_floor;
+                if (!political.TryGetValue((a, b), out float old) || floor > old) political[(a, b)] = floor;
+            }
+        }
+        var cultures = new List<string>();
+        foreach (string culture in citiesByCulture.Keys)
+            if (CultureService.IsValidCulture(culture)) cultures.Add(culture);
+        var contacts = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+        foreach (string learner in cultures)
+        {
+            Contacts.TryGetValue(learner, out HashSet<string> binary);
+            WarContacts.TryGetValue(learner, out HashSet<string> enemies);
+            var weights = new Dictionary<string, float>(StringComparer.Ordinal);
+            var touching = new HashSet<string>(StringComparer.Ordinal);
+            foreach (string source in cultures)
+            {
+                if (source == learner) continue;
+                float weight = ConnectivitySystem.CultureLearn(learner, source);
+                // 这一轮通达层里还没有这个文化(新起的)：照旧按有无接触
+                if (weight < 0f) weight = binary != null && binary.Contains(source) ? 1f : 0f;
+                bool strong = weight >= config.tech_contact_min;
+                if (enemies != null && enemies.Contains(source))
+                {
+                    weight = Math.Max(weight, config.tech_war_floor);
+                    strong = true;
+                }
+                if (political.TryGetValue((learner, source), out float floor))
+                {
+                    weight = Math.Max(weight, floor);
+                    strong = true;
+                }
+                if (weight <= 0f) continue;
+                weights[source] = Math.Min(1f, weight);
+                if (strong) touching.Add(source);
+            }
+            ContactWeights[learner] = weights;
+            contacts[learner] = touching;
+        }
+        Contacts.Clear();
+        foreach (KeyValuePair<string, HashSet<string>> pair in contacts)
+            if (pair.Value.Count > 0) Contacts[pair.Key] = pair.Value;
+    }
+
+    // 列岛文化(CultureRule 标了 archipelago 的，见 TianxiaSystem.IsArchipelago)隔海相望的近邻(用户 2026-10-21 选文明平衡 D2"日本能出岛")：
+    // 岛上没有接壤的外国，以前既没有技术扩散，也拿不到"接壤更先进的异文化"的改革加速(见 InstitutionSystem.CountAdvancedBorderEmpires)。
+    // 照 StraitReach 的近海判定——两城临海的海岸落在同一片水域(隔着大陆的另一片海不算)、相距不过 ArchipelagoStraitRadius 格——
+    // 但不要水师：不看有没有到水师时代、有没有码头和战舰(渔船、商船也渡得过窄海)。半径同水师起步的最远辐射(NavySystem.ReachBase)。
+    // 按城缓存一年；对岸的城任何文化、任何国家都列出来，调用方自己挑外国
+    public const float ArchipelagoStraitRadius = 48f;
+    private static readonly Dictionary<long, (double at, List<City> cities)> StraitNeighbours = new();
+
+    public static IReadOnlyList<City> CitiesAcrossStrait(City city)
+    {
+        if (city?.Record == null || city.IsGone() || EmpireWorld.Current?.Cities == null) return Array.Empty<City>();
+        double now = GameClock.Now;
+        if (StraitNeighbours.TryGetValue(city.Key, out var hit) && now >= hit.at && GameClock.YearsSince(hit.at) < 1)
+            return hit.cities;
+        var result = new List<City>();
+        SeaRegionSystem.Shore own = SeaRegionSystem.ShoreOf(city);
+        if (own.Points.Count > 0)
+        {
+            float limit = ArchipelagoStraitRadius * ArchipelagoStraitRadius;
+            foreach (City other in EmpireWorld.Current.Cities)
+            {
+                if (other?.Record == null || other == city || other.IsGone()) continue;
+                SeaRegionSystem.Shore shore = SeaRegionSystem.ShoreOf(other);
+                if (shore.Points.Count == 0) continue;
+                // 先按城心粗筛(两边海岸离各自城心最远的那一处加上半径)，再逐处量海岸
+                float rough = ArchipelagoStraitRadius + own.Offset + shore.Offset;
+                if ((other.Center - city.Center).sqrMagnitude > rough * rough) continue;
+                if (ShoresFacing(own, shore, limit)) result.Add(other);
+            }
+        }
+        if (StraitNeighbours.Count > 4096) StraitNeighbours.Clear();
+        StraitNeighbours[city.Key] = (now, result);
+        return result;
+    }
+
+    // 两城的海岸有一处同在一片水域、相距不过 sqrt(limit) 格
+    private static bool ShoresFacing(SeaRegionSystem.Shore a, SeaRegionSystem.Shore b, float limit)
+    {
+        foreach (var (at, basin) in a.Points)
+        foreach (var (other, otherBasin) in b.Points)
+            if (basin == otherBasin && (at - other).sqrMagnitude <= limit) return true;
+        return false;
+    }
+
+    private static void Link(Dictionary<string, HashSet<string>> map, string a, string b)
+    {
+        if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b) || a == b) return;
+        if (!map.TryGetValue(a, out HashSet<string> set)) map[a] = set = new HashSet<string>(StringComparer.Ordinal);
+        set.Add(b);
+    }
+
+    #region 加速事件
+
+#if EC_PENDING
+    public static bool IsBoostMet(string culture, TechNodeConfig tech, TechBoostConfig boost, List<City> cities)
+    {
+        cities ??= CitiesOf(culture);
+        int amount = Math.Max(1, boost.amount);
+        switch (boost.type)
+        {
+            case "building_type":
+                // 纯净地图：矿场、伐木场、牧场、屠宰场按村镇折算(见 LivelihoodSystem.BuildingEquivalent)
+                return cities.Sum(city => city.countBuildingsType(boost.value) + LivelihoodSystem.BuildingEquivalent(city, boost.value)) >= amount;
+            case "resource":
+                return cities.Any(city => city.getResourcesAmount(boost.value) >= amount);
+            case "population":
+                return cities.Sum(CityPopulationSystem.Households) >= amount;
+            case "cities":
+                return cities.Count >= amount;
+            case "material":
+                return HasMaterial(culture, boost.value);
+            case "tech":
+                return HasTech(culture, boost.value);
+            case "institution_feature":
+                return InstitutionSystem.GetFeature(culture, boost.value) >= amount; // amount 当作特性的最低值
+            case "contact_knows":
+                return CountContactsKnowing(culture, tech.id) > 0;
+            case "war_knows":
+                return WarContacts.TryGetValue(culture, out HashSet<string> enemies) && enemies.Any(other =>
+                    _states.TryGetValue(other, out CultureTechState state) && state.researched_techs.Contains(tech.id));
+            default:
+                return false;
+        }
+    }
+
+    public static string DescribeBoost(TechBoostConfig boost)
+    {
+        string value = boost.type switch
+        {
+            "building_type" => DescribeBuildingType(boost.value),
+            "resource" => AssetManager.resources.get(boost.value)?.getTranslatedName() ?? boost.value,
+            "material" => GetMaterialName(boost.value),
+            "tech" => GetTechName(boost.value),
+            "institution_feature" => DescribeFeature(new TechInstitutionLink { feature = boost.value, min_value = boost.amount }),
+            _ => boost.value
+        };
+        return string.Format(LM.Get($"tech_boost_{boost.type}"), value, boost.amount);
+    }
+#endif
+
+    private static string DescribeBuildingType(string type)
+    {
+        string key = $"tech_building_type_{type?.Replace("type_", "")}";
+        string name = LM.Get(key);
+        return string.IsNullOrWhiteSpace(name) || name == key ? type : name;
+    }
+
+    private static List<City> CitiesOf(string culture) =>
+        EmpireWorld.Current?.Cities?.Where(city => city != null && !city.IsGone() && GetCultureOf(city) == culture)
+            .ToList() ?? new List<City>();
+
+#if EC_PENDING
+    private static void CheckBoosts(string culture, List<City> cities)
+    {
+        CultureTechState state = GetState(culture);
+        float fraction = Config.research.boost_fraction;
+        foreach (TechNodeConfig tech in Config.techs)
+        {
+            if (tech.boosts.Count == 0 || state.boosted.Contains(tech.id) || HasTech(culture, tech.id)) continue;
+            if (!tech.boosts.Any(boost => IsBoostMet(culture, tech, boost, cities))) continue;
+            state.boosted.Add(tech.id);
+            float cost = GetCost(culture, tech);
+            state.tech_progress[tech.id] = Math.Min(cost, GetProgress(culture, tech.id) + cost * fraction);
+        }
+    }
+#endif
+
+    #endregion
+
+    // 本文化的人已经拿在手里的装备、城里已经立着的建筑，说明这门手艺早就会了：直接记为已掌握(连同前置)
+    private static void BackfillBuildings(string culture, List<City> cities)
+    {
+        var needed = new HashSet<string>(StringComparer.Ordinal);
+        foreach (City city in cities)
+        {
+            foreach (Building building in city.Buildings)
+            {
+                string tech = GetRequiredTechForBuilding(building?.Asset?.Id);
+                if (tech != null && !HasTech(culture, tech)) needed.Add(tech);
+            }
+            // 记在建筑台账里的(见 CityLedger)一样算
+            foreach (EmpireCraft.Core.WorkLot lot in CityLedger.Lots(city))
+            {
+                string tech = lot == null || lot.n <= 0 ? null : GetRequiredTechForBuilding(lot.id);
+                if (tech != null && !HasTech(culture, tech)) needed.Add(tech);
+            }
+        }
+        foreach (string tech in needed) ForceResearch(culture, tech);
+    }
+
+    // 开局补科技：只看城里的建筑与已推行的制度。人物身上的装备、兵种不算——打来的、捡来的精金兵器、
+    // 别处来的坦克不说明这个文明会造(以前有人带着精金装备，就顺着前置把整个文化补到了电气、计算机时代，
+    // 井田制还没废就有了立宪思想、工业化决议与共和革命)
+    private static void Bootstrap(string culture, List<City> cities)
+    {
+        var needed = new HashSet<string>(StringComparer.Ordinal);
+        foreach (City city in cities)
+        {
+            foreach (Building building in city.Buildings)
+            {
+                string tech = GetRequiredTechForBuilding(building?.Asset?.Id);
+                if (tech != null) needed.Add(tech);
+            }
+            foreach (EmpireCraft.Core.WorkLot lot in CityLedger.Lots(city))
+            {
+                string tech = lot == null || lot.n <= 0 ? null : GetRequiredTechForBuilding(lot.id);
+                if (tech != null) needed.Add(tech);
+            }
+        }
+        // 已经推行的制度说明对应的技术基础早就有了(旧存档里已经工业化的文化不会被打回原形)
+        CultureInstitutionState institutions = InstitutionSystem.GetOrCreateCultureState(culture);
+        if (institutions?.enacted_node_ids != null)
+            foreach (string nodeId in institutions.enacted_node_ids)
+                foreach (string tech in GetInstitutionRequiredTechs(InstitutionDefinitionRegistry.Get(nodeId)))
+                    needed.Add(tech);
+        foreach (string tech in needed) ForceResearch(culture, tech);
+    }
+
+#if EC_PENDING
+    private static void DiscoverMaterials(string culture, List<City> cities)
+    {
+        CultureTechState state = GetState(culture);
+        foreach (TechMaterialConfig material in Config.materials)
+        {
+            if (state.discovered_materials.Contains(material.id)) continue;
+            if (!material.requires_techs.All(id => HasTech(culture, id))) continue;
+            bool found = material.resources.Count == 0 || material.resources.Any(requirement =>
+                cities.Any(city => city.getResourcesAmount(requirement.id) >= requirement.amount));
+            // 本地没有这种资源(没有金矿、煤矿……)：有往来的文化已经掌握，就能经贸易得到，不让整条科技链永远卡死
+            if (!found && Contacts.TryGetValue(culture, out HashSet<string> contacts))
+                found = contacts.Any(other => _states.TryGetValue(other, out CultureTechState known) &&
+                                              known.discovered_materials.Contains(material.id));
+            if (!found) continue;
+            state.discovered_materials.Add(material.id);
+            state.timestamps[$"mat:{material.id}"] = GameClock.Now;
+        }
+    }
+#endif
+
+    // 把 points 投进研究，返回没花掉的(没有可研究的技术时留在储备里)
+#if EC_PENDING
+    private static float AddResearch(string culture, float points, List<City> cities)
+    {
+        // 并行的每一项都拿到本轮全额(用户 2026-10-30："并行研究不是让你把科技点分摊，而是每条线都享有一样的"；
+        // 以前按项数平分，数学、科学方法以后每项只得一半、三分之一)；科技点和研究经费只按用得最多的那一项扣一次。
+        // 只有各项都完成、还有余款时才进下一轮，这时上一轮的都已研成，不会重复拿
+        for (int guard = 0; guard < 8 && points > 0f; guard++)
+        {
+            List<TechNodeConfig> targets = GetResearchTargets(culture);
+            // 到了末代、再没有可研究的技术：投进可重复研究
+            if (targets.Count == 0) return Repeat(culture, points);
+            float spent = 0f;
+            foreach (TechNodeConfig target in targets)
+                spent = Math.Max(spent, Advance(culture, target, points, cities));
+            points = Math.Max(0f, points - spent);
+        }
+        GetResearchTargets(culture);
+        return points;
+    }
+#endif
+
+    #region 可重复研究
+
+    // 可重复研究(用户 2026-11-24 第五批)：以前研究完最后一个时代的技术，研究点就再没有去处。到了最后一个时代、
+    // 再没有可研究的技术时，点数投进四条"精进"——军事(陆军火力)、工业(工厂产值)、学术(研究点)、民生(各阶层怨气)，
+    // 哪条级数最低投哪条；每级 +2%(民生每级怨气目标 −0.5，至多 −10)，一级比一级贵两成五，各至多二十级
+    public static readonly string[] RepeatLines = { "military", "industry", "science", "welfare" };
+    public const int RepeatMaxLevel = 20;
+    private const float RepeatBaseCost = 3000f, RepeatCostGrowth = 0.25f, RepeatPerLevel = 0.02f;
+
+    public static int RepeatLevel(string culture, string line) =>
+        !string.IsNullOrEmpty(culture) && _states.TryGetValue(culture, out CultureTechState state) && state.repeat_levels != null &&
+        state.repeat_levels.TryGetValue(line, out int level) ? level : 0;
+
+    public static float RepeatFactor(string culture, string line) => 1f + RepeatPerLevel * RepeatLevel(culture, line);
+
+    public static float RepeatCost(int level) =>
+        RepeatBaseCost * Math.Max(0.1f, Config.research.cost_multiplier) * (1f + level * RepeatCostGrowth);
+
+    private static int LastTier() => Config.eras.Count == 0 ? 0 : Config.eras.Max(era => era.tier);
+
+    private static float Repeat(string culture, float points)
+    {
+        if (points <= 0f || GetEraTier(culture) < LastTier()) return points;
+        CultureTechState state = GetState(culture);
+        state.repeat_levels ??= new Dictionary<string, int>();
+        state.repeat_progress ??= new Dictionary<string, float>();
+        for (int guard = 0; guard < 4 && points > 0f; guard++)
+        {
+            string line = RepeatLines.Where(item => RepeatLevel(culture, item) < RepeatMaxLevel)
+                .OrderBy(item => RepeatLevel(culture, item)).FirstOrDefault();
+            if (line == null) return points;
+            int level = RepeatLevel(culture, line);
+            state.repeat_progress.TryGetValue(line, out float progress);
+            float needed = Math.Max(0f, RepeatCost(level) - progress);
+            if (points < needed)
+            {
+                state.repeat_progress[line] = progress + points;
+                return 0f;
+            }
+            points -= needed;
+            state.repeat_progress[line] = 0f;
+            state.repeat_levels[line] = level + 1;
+            IndustryCache.Remove(culture);
+            LogService.LogInfo($"[EmpireCraft][科技] {culture} 可重复研究 {line} 升到 {level + 1} 级");
+        }
+        return points;
+    }
+
+    // 工厂产值(见 FactorySystem.Produce)：核电 +8%、自动化 +10%、末代的工业精进；每年每个文化算一回
+    private static readonly Dictionary<string, (int year, float value)> IndustryCache = new();
+
+    public static float IndustryFactor(City city)
+    {
+        string culture = GetCultureOf(city);
+        if (string.IsNullOrEmpty(culture)) return 1f;
+        int year = GameClock.Year;
+        if (IndustryCache.TryGetValue(culture, out var cached) && cached.year == year) return cached.value;
+        float value = (HasTech(culture, "nuclear_power") ? 1.08f : 1f) * (HasTech(culture, "automation") ? 1.1f : 1f) *
+                      RepeatFactor(culture, "industry");
+        IndustryCache[culture] = (year, value);
+        return value;
+    }
+
+    #endregion
+
+    // 给一项技术投至多 budget 点，返回用掉的。离不开的物资本国市场缺，研究进度打折(点数照扣，见 CommodityMarketSystem.ResearchFactor)：
+    // 先按折扣算还要投多少点才研成——以前按"用掉的 × 折扣"去逼近费用，折扣不到一就永远差一点，
+    // 存档里三条线卡在差 0.001 处，储备花不出去
+    private static float Advance(string culture, TechNodeConfig tech, float budget, List<City> cities)
+    {
+        // 锁定时代以前就开始研的：停在那里，点数不花(见 TechnologySystem.EraLock)
+        if (BeyondEraLock(tech)) return 0f;
+        CultureTechState state = GetState(culture);
+        float cost = GetCost(culture, tech);
+        float progress = GetProgress(culture, tech.id);
+        float factor = Math.Max(0.01f, CommodityMarketSystem.ResearchFactor(culture, tech.id));
+        float needed = Math.Max(0f, cost - progress) / factor;
+        if (budget < needed)
+        {
+            state.tech_progress[tech.id] = progress + budget * factor;
+            return budget;
+        }
+        bool worldFirst = !_states.Any(pair => pair.Key != culture && pair.Value.researched_techs.Contains(tech.id));
+        CompleteTech(culture, tech.id);
+        OnResearched(culture, tech, worldFirst, cities);
+        return needed;
+    }
+
+    // 各来源的科技点(未乘学术加成)。人口和城市只给很少的底数，主要靠著书、读书、战争实践和学府
+#if EC_PENDING
+    private static Dictionary<string, float> CollectIncome(string culture, List<City> cities)
+    {
+        TechResearchConfig research = Config.research;
+        float basis = 0f, schools = 0f, war = 0f;
+        foreach (City city in cities)
+        {
+            float cityBasis = research.base_per_city + CityPopulationSystem.Households(city) * research.per_population;
+            // 文化城池自带藏书阁和庙宇(合并民居后原版的图书馆、神庙都建不起来了)，每级按一座图书馆加一座神庙算
+            int cityLevels = city.Buildings.Where(b => b?.Asset != null && b.Asset.Id.StartsWith("city_", StringComparison.Ordinal))
+                .Sum(b => b.Asset.UpgradeLevel);
+            // 庙宇科研按本城之教的教义(僧团寺院 +50%，见 ReligionTenets.TempleResearchFactor，用户 2026-11-06)
+            float perTemple = research.per_temple * ReligionTenets.TempleResearchFactor(city.HasReligion() ? city.Religion : null);
+            float citySchools = city.countBuildingsType("type_library") * research.per_library +
+                                cityLevels * (research.per_library + perTemple) +
+                                city.countBuildingsType("type_temple") * perTemple +
+                                city.countBuildingsType("type_university") * research.per_university +
+                                city.Buildings.Count(b => b != null && IsFactory(b.Asset)) * research.per_factory;
+            if (city.Realm != null && city.Realm.HasEnemies())
+            {
+                // 兵荒马乱读书少，但打仗本身逼出新技术
+                cityBasis *= 1f - research.war_penalty;
+                citySchools *= 1f - research.war_penalty;
+                war += city.PopulationCount()(actor => actor != null && actor.Alive && actor.isWarrior()) *
+                       research.per_warrior_at_war;
+            }
+            basis += cityBasis;
+            schools += citySchools;
+        }
+        // 先民摸索：青铜时代以前另给一份底数(见 TechResearchConfig.prehistoric_flat)
+        if (cities.Count > 0 && GetEraTier(culture) <= research.prehistoric_max_tier)
+            basis += research.prehistoric_flat + research.prehistoric_per_city * cities.Count;
+        BooksWritten.TryGetValue(culture, out float written);
+        BooksRead.TryGetValue(culture, out float read);
+        BooksWritten.Remove(culture);
+        BooksRead.Remove(culture);
+        return new Dictionary<string, float>
+        {
+            ["basis"] = basis,
+            ["schools"] = schools,
+            ["books_written"] = written * research.per_book_written,
+            ["books_read"] = read * research.per_book_read,
+            ["war"] = war
+        };
+    }
+#endif
+
+    // 书籍补丁调用(见 TechnologyPatch)：当年累计，年度结算时折成科技点
+    private static readonly Dictionary<string, float> BooksWritten = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, float> BooksRead = new(StringComparer.Ordinal);
+
+    public static void OnBookWritten(string culture)
+    {
+        if (!CultureService.IsValidCulture(culture)) return;
+        BooksWritten.TryGetValue(culture, out float value);
+        BooksWritten[culture] = value + 1f;
+    }
+
+    public static void OnBookRead(string culture)
+    {
+        if (!CultureService.IsValidCulture(culture)) return;
+        BooksRead.TryGetValue(culture, out float value);
+        BooksRead[culture] = value + 1f;
+    }
+
+    // 名著写成：按 landmark_book_multiplier 算几本书的著书科技点(普通写书补丁已经算了 1 本，这里补差额)
+    public static void AddLandmarkBookPoints(string culture)
+    {
+        if (!CultureService.IsValidCulture(culture)) return;
+        BooksWritten.TryGetValue(culture, out float written);
+        BooksWritten[culture] = written + Math.Max(0f, Config.research.landmark_book_multiplier - 1f);
+    }
+
+    // 名著推动技术：进度立刻增加 fraction × 费用(已掌握的不管)
+    public static void AddTechProgressFraction(string culture, string techId, float fraction)
+    {
+        if (!CultureService.IsValidCulture(culture) || fraction <= 0f ||
+            !_techs.TryGetValue(techId ?? "", out TechNodeConfig tech) || HasTech(culture, techId)) return;
+        float cost = GetCost(culture, tech);
+        GetState(culture).tech_progress[techId] = Math.Min(cost, GetProgress(culture, techId) + cost * fraction);
+    }
+
+    public static bool IsStagnant(string culture) =>
+        GetState(culture).last_yearly_points < Config.research.stagnation_threshold;
+
+    #region 研究经费
+
+    private static List<Realm> KingdomsOf(List<City> cities) =>
+        cities.Select(city => city.Realm).Where(kingdom => kingdom != null && !kingdom.IsGone() &&
+            !EmpireCraft.Core.AncientWarfareCompatibility.Owns(kingdom)).Distinct().ToList();
+
+    public static int GetCultureTreasury(string culture) =>
+        (int)Math.Min(int.MaxValue, KingdomsOf(CitiesOf(culture)).Sum(kingdom => (long)Math.Max(0, kingdom.GetMoney())));
+
+    // 国库买得起多少科技点
+    private static int ResearchBudget(Realm kingdom, bool automatic) => automatic || TreasurySystem.Enabled(kingdom)
+        ? StateSettlementSystem.DiscretionaryFunds(kingdom) : Math.Max(0, kingdom.GetMoney());
+
+    private static float Affordable(List<City> cities, bool automatic)
+    {
+        float price = Config.research.gold_per_point;
+        if (price <= 0f) return float.MaxValue;
+        long available = KingdomsOf(cities).Sum(kingdom => (long)ResearchBudget(kingdom, automatic));
+        return (float)(Math.Min(int.MaxValue, available) / (double)price);
+    }
+
+    // 按实际投入的科技点扣钱，各国按国库多少分摊
+    private static void PayFor(List<City> cities, float points, bool automatic)
+    {
+        float price = Config.research.gold_per_point;
+        if (price <= 0f || points <= 0f) return;
+        List<Realm> kingdoms = KingdomsOf(cities);
+        int[] budgets = kingdoms.Select(kingdom => ResearchBudget(kingdom, automatic)).ToArray();
+        int bill = (int)Math.Min(int.MaxValue, Math.Ceiling(points * price));
+        int[] shares = TreasuryRules.Allocate(bill, budgets);
+        for (int i = 0; i < kingdoms.Count; i++)
+            if (shares[i] > 0) TreasurySystem.TrySpend(kingdoms[i], shares[i], TreasuryCategory.Research,
+                automatic || TreasurySystem.Enabled(kingdoms[i]));
+    }
+
+    // 把储备投进研究：只投国库买得起的部分；techId 为空时按 AI/玩家目标自动挑
+#if EC_PENDING
+    private static float SpendBank(string culture, List<City> cities, string techId)
+    {
+        CultureTechState state = GetState(culture);
+        bool automatic = string.IsNullOrEmpty(techId);
+        float affordable = Affordable(cities, automatic);
+        float budget = Math.Min(state.research_bank, affordable);
+        state.last_unfunded = Math.Max(0f, state.research_bank - affordable);
+        if (budget <= 0f) return 0f;
+        float used;
+        if (string.IsNullOrEmpty(techId))
+        {
+            used = budget - AddResearch(culture, budget, cities);
+        }
+        else used = Advance(culture, _techs[techId], budget, cities);
+        state.research_bank -= used;
+        PayFor(cities, used, automatic);
+        return used;
+    }
+#endif
+
+    #endregion
+
+    // 玩家手动把储备投进某项技术(前置要满足，国库要付得起)
+#if EC_PENDING
+    public static bool Invest(string culture, string techId)
+    {
+        techId = TechnologyStateRules.Canonical(techId);
+        if (!CultureService.IsValidCulture(culture) || !_techs.TryGetValue(techId ?? "", out TechNodeConfig tech) ||
+            HasTech(culture, techId) || !ArePrerequisitesMet(culture, tech)) return false;
+        CultureTechState state = GetState(culture);
+        if (state.research_bank <= 0f) return false;
+        return SpendBank(culture, CitiesOf(culture), techId) > 0f;
+    }
+#endif
+
+    public static void SetAutoResearch(string culture, bool value)
+    {
+        if (CultureService.IsValidCulture(culture)) GetState(culture).auto_research = value;
+    }
+
+    // 研究出来之后：世界首创写日志；新武器 → 军队接下来几年陆续换装
+    private static void OnResearched(string culture, TechNodeConfig tech, bool worldFirst, List<City> cities)
+    {
+        if (worldFirst && tech.tier >= Config.research.world_first_min_tier)
+            Announce(culture, cities, string.Format(LM.Get("tech_world_first_log"),
+                culture.GetCultureTranslate(), GetTechName(tech.id)));
+        if (tech.unlock_items.Count > 0 || tech.unlock_materials.Count > 0)
+        {
+            CultureTechState state = GetState(culture);
+            state.modernize_years = Math.Max(state.modernize_years, Config.research.modernize_years);
+        }
+    }
+
+    private static void CheckEra(string culture, List<City> cities)
+    {
+        CultureTechState state = GetState(culture);
+        int tier = GetEraTier(culture);
+        if (tier <= state.last_era_tier) return;
+        int previous = state.last_era_tier;
+        state.last_era_tier = tier;
+        if (Config.eras.Any(era => era.tier > previous && era.tier <= tier))
+            Announce(culture, cities, string.Format(LM.Get("tech_new_era_log"),
+                culture.GetCultureTranslate(), GetEraName(culture)));
+    }
+
+    // 世界日志一条 + 本文化各帝国的国史各记一条
+    private static void Announce(string culture, List<City> cities, string text)
+    {
+        Realm kingdom = cities?.Select(city => city.Realm).Where(k => k != null && !k.IsGone())
+            .GroupBy(k => k).OrderByDescending(group => group.Count()).FirstOrDefault()?.Key;
+        TranslateHelper.LogEventMessage(text, kingdom);
+        foreach (Empire empire in ModClass.EMPIRE_MANAGER?.ToList() ?? new List<Empire>())
+        {
+            if (empire?.data == null || empire.IsGone() || empire.IsArchived()) continue;
+            // 科技由国家文化发明：照风俗文化通告(见 InstitutionSystem.GetCustomsCulture)
+            if (InstitutionSystem.GetCustomsCulture(empire) != culture) continue;
+            EmpireCraft.Core.HistoryRecordSystem.RecordHistory(empire, directContent: text,
+                kingdomId: empire.CoreKingdom?.Key ?? -1L);
+        }
+    }
+
+    #region 军队换装
+
+    // 让士兵用城市的材料重新打造装备(走原版打造流程，自然会挑本文化能造的最好的一件)；
+    // 国库给每人补贴一点钱，没花完的退回国库
+#if EC_PENDING
+    public static int Modernize(string culture, List<City> cities, int perCity)
+    {
+        int upgraded = 0;
+        int subsidy = Config.research.modernize_subsidy;
+        foreach (City city in cities ?? CitiesOf(culture))
+        {
+            if (city == null || city.IsGone()) continue;
+            Realm kingdom = city.Realm;
+            if (kingdom == null || kingdom.IsGone()) continue;
+            int done = 0;
+            foreach (Person actor in city.People.ToList())
+            {
+                if (done >= perCity) break;
+                if (actor == null || !actor.Alive || !actor.IsWarrior() || actor.equipment == null ||
+                    actor.IsWarMachine()) continue;
+                int grant = Math.Max(0, Math.Min(subsidy, TreasurySystem.Enabled(kingdom)
+                    ? StateSettlementSystem.DiscretionaryFunds(kingdom) : kingdom.GetMoney()));
+                int own = actor.Money;
+                int debited = 0;
+                int credited = 0;
+                bool weapon = false;
+                bool armor = false;
+                try
+                {
+                    if (grant > 0)
+                    {
+                        kingdom.SubMoney(grant, TreasuryCategory.Military);
+                        debited = grant;
+                        credited = ActorMoneyTransfers.CreditNonIncome(actor, grant);
+                    }
+                    weapon = ItemCrafting.tryToCraftRandomWeapon(actor, city);
+                    armor = ItemCrafting.tryToCraftRandomArmor(actor, city);
+                }
+                finally
+                {
+                    // 钱包达到原版上限时，未到账部分也退回；打造失败仍结清预付款。
+                    int returnToTreasury = debited - credited;
+                    try
+                    {
+                        if (actor.Record != null)
+                        {
+                            int beforeRefund = actor.Money;
+                            int refund = ActorMoneyTransfers.Received(own, beforeRefund, credited);
+                            if (refund > 0)
+                            {
+                                try { actor.spendMoney(refund); }
+                                finally
+                                {
+                                    // 原版扣款后的显示效果可能抛异常，以实际扣回的钱退款。
+                                    returnToTreasury += ActorMoneyTransfers.Received(actor.Money, beforeRefund, refund);
+                                }
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        if (returnToTreasury > 0)
+                            kingdom.AddMoney(returnToTreasury, TreasuryCategory.Military);
+                    }
+                }
+                done++;
+                if (weapon || armor) upgraded++;
+            }
+        }
+        return upgraded;
+    }
+
+    public static int ModernizeNow(string culture) =>
+        CultureService.IsValidCulture(culture) ? Modernize(culture, CitiesOf(culture), 20) : 0;
+#endif
+
+    #endregion
+
+    // 玩家指定的目标优先(目标还没满足前置时，先研究它缺的那一项可研究前置)；否则 AI 选最便宜的
+    public static int GetResearchSlots(string culture) => Math.Max(1,
+        Researched(culture).Select(id => TryGetTech(id, out TechNodeConfig tech) ? tech.research_slots : 0)
+            .DefaultIfEmpty(1).Max());
+
+#if EC_PENDING
+    public static List<TechNodeConfig> GetResearchTargets(string culture)
+    {
+        CultureTechState state = GetState(culture);
+        int slots = GetResearchSlots(culture);
+        var selected = new List<TechNodeConfig>();
+        void Add(TechNodeConfig tech)
+        {
+            if (tech != null && selected.Count < slots && !selected.Any(item => item.id == tech.id) &&
+                !HasTech(culture, tech.id) && ArePrerequisitesMet(culture, tech)) selected.Add(tech);
+        }
+        state.player_targets.RemoveAll(id => HasTech(culture, id) || !_techs.ContainsKey(id));
+        foreach (string target in state.player_targets.Take(slots))
+            Add(FindNextStepToward(culture, target, new HashSet<string>()));
+        // 本文化各帝国在办的科技革新先占研究位(用户 2026-11-11 "还有派系会支持的科技革新""也可以并行"，见 TechDriveSystem)
+        foreach (string target in TechDriveSystem.DriveTargets(culture))
+            Add(FindNextStepToward(culture, target, new HashSet<string>()));
+        // 手上在研的照旧接着研；超出时代的(费用乘十倍，见 BeyondEra)让出研究位，先研本时代的
+        foreach (string id in state.current_techs)
+            if (_techs.TryGetValue(id, out TechNodeConfig current) && !BeyondEra(culture, current)) Add(current);
+        List<TechNodeConfig> open = Config.techs.Where(tech => !HasTech(culture, tech.id) && ArePrerequisitesMet(culture, tech)).ToList();
+        // 没有港口的文化不研究海军科技(别的都研究完了才轮到)
+        if (open.Any(tech => tech.branch == NavalBranch) && open.Any(tech => tech.branch != NavalBranch) &&
+            !CitiesOf(culture).Any(city => city.countBuildingsType("type_docks") > 0))
+            open = open.Where(tech => tech.branch != NavalBranch).ToList();
+        foreach (TechNodeConfig tech in open
+                     .OrderBy(tech => GetCost(culture, tech) / (tech.research_bonus > 0f || tech.research_slots > slots ? 1.3f : 1f))
+                     .ThenBy(tech => tech.id, StringComparer.Ordinal)) Add(tech);
+        state.current_techs = selected.Select(tech => tech.id).ToList();
+        TechnologyStateRules.SyncLegacy(state);
+        return selected;
+    }
+#endif
+
+    // 通往某项技术的下一步(本项前置已齐就是本项)；科技革新拨款推这一步(见 TechDriveSystem)
+    public static TechNodeConfig NextStepToward(string culture, string techId) =>
+        string.IsNullOrEmpty(techId) ? null : FindNextStepToward(culture, TechnologyStateRules.Canonical(techId), new HashSet<string>());
+
+    private static TechNodeConfig FindNextStepToward(string culture, string techId, HashSet<string> visited)
+    {
+        if (!visited.Add(techId) || !_techs.TryGetValue(techId, out TechNodeConfig tech) || HasTech(culture, techId))
+            return null;
+        if (ArePrerequisitesMet(culture, tech)) return tech;
+        foreach (string required in Requires(tech, culture))
+        {
+            TechNodeConfig step = FindNextStepToward(culture, required, visited);
+            if (step != null) return step;
+        }
+        return null;
+    }
+
+    private static void CompleteTech(string culture, string techId)
+    {
+        CultureTechState state = GetState(culture);
+        if (!state.researched_techs.Contains(techId)) state.researched_techs.Add(techId);
+        state.timestamps[$"tech:{techId}"] = EmpireWorld.Current?.Now() ?? 0d;
+        state.current_techs.Remove(techId);
+        state.tech_progress.Remove(techId);
+        state.player_targets.Remove(techId);
+        TechnologyStateRules.SyncLegacy(state);
+        ResearchedCache.Remove(culture);
+    }
+
+    #endregion
+
+    #region 玩家操作
+
+#if EC_PENDING
+    public static void SetPlayerTarget(string culture, string techId)
+    {
+        if (!CultureService.IsValidCulture(culture)) return;
+        CultureTechState state = GetState(culture);
+        techId = TechnologyStateRules.Canonical(techId);
+        if (string.IsNullOrEmpty(techId)) state.player_targets.Clear();
+        else if (_techs.ContainsKey(techId) && !HasTech(culture, techId))
+        {
+            if (!state.player_targets.Remove(techId))
+            {
+                int slots = GetResearchSlots(culture);
+                while (state.player_targets.Count >= slots) state.player_targets.RemoveAt(0);
+                state.player_targets.Add(techId);
+            }
+        }
+        GetResearchTargets(culture);
+    }
+#endif
+
+    // 上帝模式：直接完成(连同缺的前置技术和材料)
+    public static void ForceResearch(string culture, string techId)
+    {
+        techId = TechnologyStateRules.Canonical(techId);
+        if (!CultureService.IsValidCulture(culture) || !_techs.TryGetValue(techId ?? "", out TechNodeConfig tech)) return;
+        ForceResearchRecursive(culture, tech, new HashSet<string>());
+    }
+
+    private static void ForceResearchRecursive(string culture, TechNodeConfig tech, HashSet<string> visited)
+    {
+        if (!visited.Add(tech.id) || HasTech(culture, tech.id)) return;
+        foreach (string required in Requires(tech, culture))
+            if (_techs.TryGetValue(required, out TechNodeConfig parent)) ForceResearchRecursive(culture, parent, visited);
+        foreach (string material in tech.requires_materials) ForceDiscover(culture, material);
+        CompleteTech(culture, tech.id);
+    }
+
+    public static void ForceDiscover(string culture, string materialId)
+    {
+        if (!CultureService.IsValidCulture(culture) || !_materials.ContainsKey(materialId ?? "")) return;
+        CultureTechState state = GetState(culture);
+        if (state.discovered_materials.Contains(materialId)) return;
+        state.discovered_materials.Add(materialId);
+        state.timestamps[$"mat:{materialId}"] = EmpireWorld.Current?.Now() ?? 0d;
+    }
+
+    public static void ForceResearchAll(string culture)
+    {
+        if (!CultureService.IsValidCulture(culture)) return;
+        foreach (TechMaterialConfig material in Config.materials) ForceDiscover(culture, material.id);
+        foreach (TechNodeConfig tech in Config.techs.OrderBy(tech => tech.tier)) ForceResearch(culture, tech.id);
+    }
+
+    // 上帝模式：回退一项已研究的技术，连同所有以它为前置(直接或间接)的已研究技术。
+    // 已投入的研究点保留，重新研究时不必从头再来。返回回退的技术数
+#if EC_PENDING
+    public static int ForceRevoke(string culture, string techId)
+    {
+        techId = TechnologyStateRules.Canonical(techId);
+        if (!CultureService.IsValidCulture(culture) || !HasTech(culture, techId ?? "")) return 0;
+        return RevokeWithDependents(culture, new[] { techId });
+    }
+#endif
+
+    // 上帝模式：遗忘一种已发现的材料，连同需要它的已研究技术及其后续技术
+#if EC_PENDING
+    public static int ForceForget(string culture, string materialId)
+    {
+        if (!CultureService.IsValidCulture(culture) || !_materials.ContainsKey(materialId ?? "")) return 0;
+        CultureTechState state = GetState(culture);
+        if (!state.discovered_materials.Remove(materialId)) return 0;
+        state.timestamps.Remove($"mat:{materialId}");
+        List<string> direct = Config.techs.Where(tech => tech.requires_materials.Contains(materialId) &&
+                                                         state.researched_techs.Contains(tech.id))
+            .Select(tech => tech.id).ToList();
+        return 1 + RevokeWithDependents(culture, direct);
+    }
+
+    private static int RevokeWithDependents(string culture, IEnumerable<string> roots)
+    {
+        CultureTechState state = GetState(culture);
+        var revoked = new HashSet<string>(StringComparer.Ordinal);
+        var queue = new Queue<string>(roots);
+        while (queue.Count > 0)
+        {
+            string id = queue.Dequeue();
+            if (!state.researched_techs.Contains(id) || !revoked.Add(id)) continue;
+            foreach (TechNodeConfig tech in Config.techs)
+                if (Requires(tech, culture).Contains(id) && state.researched_techs.Contains(tech.id))
+                    queue.Enqueue(tech.id);
+        }
+        foreach (string id in revoked)
+        {
+            state.researched_techs.Remove(id);
+            state.timestamps.Remove($"tech:{id}");
+        }
+        state.current_techs.RemoveAll(revoked.Contains);
+        ResearchedCache.Remove(culture);
+        GetResearchTargets(culture);
+        return revoked.Count;
+    }
+#endif
+
+    // 重置本文化的科技：退回原始时代，同科技回退神力(见 TechRollbackSystem.ToPrimitive；缺科技的制度撤下、超出科技的建筑降级、
+    // 读档不按建筑与制度补回)。用户 2026-11-07 "重置科技按钮也改成同一套"——以前是把科技存档整个删掉，下一年开局补齐又全补回来
+    public static TechRollbackResult ResetCulture(string culture, Realm kingdom = null) =>
+        TechRollbackSystem.ToPrimitive(culture, kingdom);
+
+    #endregion
+
+    #region 科技回退(上帝之力，见 TechRollbackSystem)
+
+    // 某一时代档的名字(档次以下没有时代的是原始时代，同 GetEraName)
+    public static string EraName(int tier)
+    {
+        TechEraConfig era = Config.eras.Where(e => e.tier <= tier).OrderByDescending(e => e.tier).FirstOrDefault();
+        return era == null ? LM.Get("tech_era_primitive") : LM.Get(era.key);
+    }
+
+    // 本文化退回 keepTier 档(含)：档次高于 keepTier 的已研究科技连同以它为前置的(直接或间接)一并删掉；keepTier < 1 时什么都不留
+    // (时代按"研究过任一科技为石器时代"算，原始时代就是一项不剩)。绑在科技上的材料(requires_techs，见 DiscoverMaterials)
+    // 前置不全了就遗忘，要这些材料的科技也删掉；只靠资源发现的木、石、铜等不动(明年照样从城里的资源再发现)。
+    // 删掉的科技视同从未研究：已投入的进度、在研、玩家目标、加速事件记录、获得时间都清掉；退回时代以上的在研进度也清掉；
+    // 科技点储备清零(否则下一年一口气又买回来)；士兵换装停下。各国(在帝国里按帝国)的采纳记录同样去掉。
+    // 开局补齐(Bootstrap)和读档补记(政体、典章、海军、传播媒介)一律标成已做过，再记下 rolled_back(读档不按建筑补科技、
+    // 承袭帝制要先有科技)——以前在科技窗口逐项回退、或"重置科技"，读档或下一年就按城里的建筑、已推行的制度、各国政体全补回来了
+    public static TechRollbackResult RollBack(string culture, int keepTier)
+    {
+        var result = new TechRollbackResult { culture = culture ?? "" };
+        if (!CultureService.IsValidCulture(culture)) return result;
+        EnsureLoaded();
+        CultureTechState state = GetState(culture);
+        result.from_era = GetEraTier(culture);
+        var kept = new HashSet<string>(state.researched_techs.Select(TechnologyStateRules.Canonical), StringComparer.Ordinal);
+        var removed = new HashSet<string>(StringComparer.Ordinal);
+        var dropped = new HashSet<string>(StringComparer.Ordinal);
+        bool Above(string id) => _techs.TryGetValue(id ?? "", out TechNodeConfig tech) ? tech.tier > keepTier : keepTier < 1;
+        // 前置 → 以它为前置的科技(按本文化的制度线，见 Requires)
+        var dependents = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        foreach (TechNodeConfig tech in Config.techs)
+        foreach (string required in Requires(tech, culture))
+        {
+            string key = TechnologyStateRules.Canonical(required) ?? "";
+            if (!dependents.TryGetValue(key, out List<string> list)) dependents[key] = list = new List<string>();
+            list.Add(tech.id);
+        }
+        var queue = new Queue<string>(kept.Where(Above));
+        for (int guard = 0; guard < 64; guard++)
+        {
+            while (queue.Count > 0)
+            {
+                string id = queue.Dequeue();
+                if (!kept.Remove(id)) continue;
+                removed.Add(id);
+                if (dependents.TryGetValue(id, out List<string> next))
+                    foreach (string other in next)
+                        if (kept.Contains(other)) queue.Enqueue(other);
+            }
+            foreach (TechMaterialConfig material in Config.materials)
+            {
+                if (dropped.Contains(material.id) || !state.discovered_materials.Contains(material.id) ||
+                    material.requires_techs.All(id => kept.Contains(TechnologyStateRules.Canonical(id)))) continue;
+                dropped.Add(material.id);
+                foreach (TechNodeConfig other in Config.techs)
+                    if (kept.Contains(other.id) && other.requires_materials.Contains(material.id)) queue.Enqueue(other.id);
+            }
+            if (queue.Count == 0) break;
+        }
+        state.researched_techs.RemoveAll(id => removed.Contains(TechnologyStateRules.Canonical(id)));
+        foreach (string id in removed) state.timestamps.Remove("tech:" + id);
+        state.discovered_materials.RemoveAll(dropped.Contains);
+        foreach (string id in dropped) state.timestamps.Remove("mat:" + id);
+        bool Forget(string id) => removed.Contains(TechnologyStateRules.Canonical(id)) || Above(TechnologyStateRules.Canonical(id));
+        foreach (string id in state.tech_progress.Keys.Where(Forget).ToList()) state.tech_progress.Remove(id);
+        state.current_techs.RemoveAll(Forget);
+        state.player_targets.RemoveAll(Forget);
+        state.boosted.RemoveAll(Forget);
+        state.progress = 0f;
+        state.research_bank = 0f;
+        state.last_unfunded = 0f;
+        state.modernize_years = 0;
+        state.bootstrapped = state.regime_line = state.naval_line = state.civics_line = state.media_line = true;
+        state.rolled_back = true;
+        TechnologyStateRules.SyncLegacy(state);
+        ResearchedCache.Remove(culture);
+        EraCache.Remove(culture);
+        result.to_era = GetEraTier(culture);
+        state.last_era_tier = result.to_era;
+        result.techs = removed.Count;
+        result.materials = dropped.Count;
+        ForgetRealmAdoption(culture, removed);
+        return result;
+    }
+
+    // 退掉的科技从各国的采纳记录里去掉：独立国家看本国文化，帝国(成员共用一份)看核心国的文化
+    private static void ForgetRealmAdoption(string culture, HashSet<string> removed)
+    {
+        if (removed.Count == 0 || EmpireWorld.Current?.LiveRealms == null) return;
+        var seen = new HashSet<RealmTechState>();
+        foreach (Realm kingdom in EmpireWorld.Current.LiveRealms)
+        {
+            if (kingdom?.Record == null || kingdom.IsGone() || !kingdom.IsCivilized()) continue;
+            Empire empire = kingdom.IsInEmpire() ? kingdom.GetEmpire() : null;
+            Realm owner = empire?.CoreKingdom ?? kingdom;
+            if (!string.Equals(GetCultureOf(owner), culture, StringComparison.Ordinal)) continue;
+            RealmTechState realm = GetRealmState(kingdom);
+            if (realm == null || !seen.Add(realm)) continue;
+            realm.adopted.RemoveAll(id => removed.Contains(TechnologyStateRules.Canonical(id)));
+            foreach (string id in removed) realm.progress.Remove(id);
+        }
+    }
+
+    #endregion
+}
+}

@@ -1,0 +1,568 @@
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/ShuiTuSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
+// see Port/manifest.json and Tools/PortTool.
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace EmpireCraft.Core
+{
+
+// 水土(用户 2026-10-20 问答定："游牧离开草原、定居政权占着旱地，迟迟不适应就逐档变弱，各有出路")：
+//   · 地：游戏里没有专门的草原(biome_grass 是最普通的温带地，也能耕)，旱地 = LandKinds.Dry(荒漠、稀树草原、荒原；海滩沙地不算；
+//     高寒高原格也算——牧地，用户 2026-11-10 要"平原政权占高原、高原政权下平原逐档变弱"，就是这里的定居入草、游牧离草)，
+//     与毡帐村镇同一口径(RuralSettlementSystem.YurtGround)。一座城领土里的陆地(不含水、岩浆)过半是旱地算"旱地城"，其余算"农地城"；
+//     地块的格子构成随战线地形一起缓存(TerrainSystem.DryCounts，格子改了当场作废)，城按 CityDryYears 年缓存(领土地块数变了两成以上提前重算)；
+//   · 生活方式(按"政权"：帝国核心连同它直辖的成员；间接统治的成员、定居帝国里的游牧成员自成一体)：
+//     游牧文化的游牧/原始政体适应旱地；本族故地多在旱地的定居文化(游牧文化改行定居、文化带 dry_native，
+//     或以它为主流的城里旱地城过半)两种地都适应；其余定居政权只适应农地。原始政体的定居文化(部落)、近代政体、羁縻地区不论水土；
+//   · 游牧离草(政权级)：直辖城(羁縻、附庸不算，口径同 AdministrativeControlSystem.IsIndirect)里旱地城不到 SteppeShare(六成)起算，
+//     回到六成以上、或改了政体(不再是游牧)就清零；
+//   · 定居入草(按城)：只适应农地的政权直辖的每座旱地城，记下占有起始时间与政权(易主按新主人重新计时)；
+//     本朝帝国法理(核心，连同兼属)里的城是故土，不论水土(用户 2026-10-22 见中原画成稀树草原、开封都司被设成羁縻：
+//     "为什么一个帝国法理核心里面的城市会变成羁縻"，问答选"本朝法理核心的城不论水土"，见 Homeland)；
+//   · 分档：满 FirstTierYears(20)年第一档，之后每满 TierStepYears(10)年加一档，最多 MaxTier(3)档。
+//     旧档读进来没有这些时间的从第一次结算起算，不会一读档就到档；
+//   · 逐步适应(用户 2026-10-21 选文明平衡 A3)：定居入草的旱地城，城里主流文化已是统治者文化的，占满 AdaptYears(60)年起
+//     每 AdaptStepYears(10)年退一档，到 80 年不再罚(计时仍是占城起算的那一个，见 UnfitTierOf)；游牧离草不变；
+//   · 每个政权每年结算一次(分帧，每帧至多一个)：走档、离草结束记入史书；Player.log 诊断行 [水土](到档的每国每年一行，状态变了也记一行)；
+//   · 效果见"效果"一节，出路见 ShuiTuSystem.Outlets。
+public static partial class ShuiTuSystem
+{
+    public enum Fit { None, Nomad, Both, Farm }
+
+    // 旱地城：领土陆地里旱地过半
+    private const float DryCityShare = 0.5f;
+    private const int CityDryYears = 2;
+    // 游牧离草：直辖城里旱地城不到六成
+    public const float SteppeShare = 0.6f;
+    // 分档
+    private const int FirstTierYears = 20, TierStepYears = 10;
+    public const int MaxTier = 3;
+    // 定居入草逐步适应(用户 2026-10-21 选文明平衡 A3"水土收窄")：城里主流文化已是统治者文化的旱地城，
+    // 占满 AdaptYears 年起每 AdaptStepYears 年退一档(60 年第二档、70 年第一档、80 年不罚)
+    private const int AdaptYears = 60, AdaptStepYears = 10;
+    // 本族故地在旱地：文化带 dry_native，或以该文化为主流的城里旱地城占 DryNativeShare 以上
+    private const float DryNativeShare = 0.5f;
+    // 一年约 60 秒世界时间(5 秒一个月)
+    private const double SecondsPerYear = 60d;
+
+    private sealed class UnitInfo
+    {
+        public Fit Fit;
+        public int Direct, Dry;
+        public bool OffGrass;
+        public int OffYears, OffTier;
+        // 不服水土的旱地城：座数、最久的年数、最高档、各档座数；Adapted 是其中逐步适应、已往回退了档的座数
+        public int Unfit, UnfitYears, UnfitTop, Adapted;
+        public readonly int[] TierCounts = new int[MaxTier + 1];
+        public double At = -1d;
+        public string Logged = "";
+        public List<long> CityIds = new(), KingdomIds = new();
+    }
+
+    private struct CityInfo
+    {
+        public long Realm, Unit;
+        public bool Dry;
+        public int Tier, Years;
+        public string Culture;
+    }
+
+    private struct DryEntry
+    {
+        public double At;
+        public int Zones;
+        public float Share;
+        public bool Dry;
+    }
+
+    private static readonly Dictionary<long, UnitInfo> Units = new();
+    private static readonly Dictionary<long, long> KingdomUnits = new();
+    private static readonly Dictionary<long, CityInfo> CityInfos = new();
+    private static readonly Dictionary<long, DryEntry> DryCache = new();
+    private static readonly Dictionary<string, bool> DryNativeCultures = new(StringComparer.Ordinal);
+    private static double _culturesAt = -1d;
+    private static readonly Queue<long> Pending = new();
+    private static int _cursor;
+
+    public static void ResetWorldState()
+    {
+        RevertChecked.Clear();
+        Units.Clear();
+        KingdomUnits.Clear();
+        CityInfos.Clear();
+        DryCache.Clear();
+        DryNativeCultures.Clear();
+        _culturesAt = -1d;
+        Pending.Clear();
+        _cursor = 0;
+    }
+
+    private static bool Valid(Realm kingdom) => kingdom?.Record != null && !kingdom.IsGone() && !kingdom.IsWild &&
+                                                  !AncientWarfareCompatibility.Owns(kingdom);
+
+    private static bool Valid(City city) => city?.Record != null && !city.IsGone() && city.Zones != null && Valid(city.Realm) &&
+                                            !AncientWarfareCompatibility.OwnsObject(city);
+
+    private static int YearsSince(double at) =>
+        at < 0d || EmpireWorld.Current == null || GameClock.Now < at ? 0 : GameClock.YearsSince(at);
+
+    public static int TierOf(int years) =>
+        years < FirstTierYears ? 0 : Math.Min(MaxTier, 1 + (years - FirstTierYears) / TierStepYears);
+
+    // 城里主流文化就是统治者文化
+    private static bool RulersCulture(string cityCulture, string rulingCulture) =>
+        CultureService.IsValidCulture(rulingCulture) && string.Equals(cityCulture, rulingCulture, StringComparison.Ordinal);
+
+    // 这座不服水土的旱地城在逐步适应：城里主流文化就是统治者文化，且已占满 AdaptYears 年
+    private static bool Adapting(int years, string cityCulture, string rulingCulture) =>
+        years >= AdaptYears && RulersCulture(cityCulture, rulingCulture);
+
+    // 不服水土的旱地城的档位：按占了多少年走档(TierOf)，在适应的按年退档；出路(交出城)、屯田都照这个档
+    private static int UnfitTierOf(int years, string cityCulture, string rulingCulture)
+    {
+        int tier = TierOf(years);
+        if (!Adapting(years, cityCulture, rulingCulture)) return tier;
+        return Math.Max(0, tier - 1 - (years - AdaptYears) / AdaptStepYears);
+    }
+
+    #region 档位系数
+
+    // 游牧离草：农地城的征兵比例按档往 BaseLevyShare(一般的一成)回落，第三档回落到底；
+    //   在非旱地的地块上交战攻守都打折；农地城自然稳定度扣
+    private const float BaseLevyShare = 0.1f;
+    private static readonly float[] NomadCombat = { 1f, 0.93f, 0.86f, 0.80f };
+    private static readonly float[] StabilityByTier = { 0f, 4f, 8f, 12f };
+    // 定居入草：旱地城兵源、赋税按档打折，自然稳定度同上；在旱地地块上交战按不服水土的旱地城里最高的档打折。
+    // 兵源 ×0.8/0.6/0.4 → ×0.8/0.7/0.6(用户 2026-10-21 选文明平衡 A3"水土收窄"：只豁免阿拉伯三族，别人守不住它们的旱地老家)；
+    // 税、稳定、交战系数不变
+    private static readonly float[] SettledLevy = { 1f, 0.8f, 0.7f, 0.6f };
+    private static readonly float[] SettledTax = { 1f, 0.9f, 0.8f, 0.7f };
+    private static readonly float[] SettledCombat = { 1f, 0.92f, 0.85f, 0.78f };
+
+    private static int Clamp(int tier) => Math.Max(0, Math.Min(MaxTier, tier));
+    public static float StabilityFor(int tier) => StabilityByTier[Clamp(tier)];
+    public static float NomadCombatFor(int tier) => NomadCombat[Clamp(tier)];
+    public static float SettledLevyFor(int tier) => SettledLevy[Clamp(tier)];
+    public static float SettledTaxFor(int tier) => SettledTax[Clamp(tier)];
+    public static float SettledCombatFor(int tier) => SettledCombat[Clamp(tier)];
+
+    // 离草游牧的农地城征兵打几折：军制的征兵比例(十户制 army_mobilization 一成五)按档往一成回落；本就不过一成的不折
+    public static float NomadLevy(Realm kingdom, int tier)
+    {
+        if (tier <= 0 || kingdom == null) return 1f;
+        float share = CityPopulationSystem.DoctrineOf(kingdom).LevyShare;
+        return share > BaseLevyShare ? (share - (share - BaseLevyShare) * Clamp(tier) / MaxTier) / share : 1f;
+    }
+
+    #endregion
+
+    #region 效果
+
+    // 这座城眼下所属政权的结算(换了主人、新主人还没结算的不算)
+    private static bool Lookup(City city, out CityInfo info, out UnitInfo unit)
+    {
+        info = default;
+        unit = null;
+        return city?.Record != null && city.Realm != null && CityInfos.TryGetValue(city.Key, out info) &&
+               info.Realm == city.Realm.Key && Units.TryGetValue(info.Unit, out unit);
+    }
+
+    private static UnitInfo UnitInfoOf(Realm kingdom) =>
+        kingdom?.Record != null && KingdomUnits.TryGetValue(kingdom.Key, out long id) && Units.TryGetValue(id, out UnitInfo info)
+            ? info : null;
+
+    // 离草游牧治下的农地城：离草档位；别的城 0
+    public static int OffGrassTier(City city) =>
+        !CompositeEmpireService.FixedCourt(city?.Realm) && Lookup(city, out CityInfo info, out UnitInfo unit) && unit.Fit == Fit.Nomad && unit.OffGrass && !info.Dry ? unit.OffTier : 0;
+
+    // 政权(按所属政权)的离草档位；不在离草 0
+    public static int OffGrassTier(Realm kingdom)
+    {
+        // 开局定下朝廷的(大清、大金)本来就不是逐水草的部族，不算离草
+        if (CompositeEmpireService.FixedCourt(kingdom)) return 0;
+        UnitInfo unit = UnitInfoOf(kingdom);
+        return unit?.Fit == Fit.Nomad && unit.OffGrass ? unit.OffTier : 0;
+    }
+
+    // 只宜农地的政权直辖的旱地城：不服水土的档位；别的城 0
+    public static int UnfitTier(City city) =>
+        Lookup(city, out CityInfo info, out UnitInfo unit) && unit.Fit == Fit.Farm && info.Dry ? info.Tier : 0;
+
+    // 政权不服水土的旱地城里最高的档(旱地交战按它打折)
+    public static int UnfitTop(Realm kingdom)
+    {
+        UnitInfo unit = UnitInfoOf(kingdom);
+        return unit?.Fit == Fit.Farm ? unit.UnfitTop : 0;
+    }
+
+    // 兵源打几折(见 CorpsSystem.Mobilize 逐城累加兵源)：离草游牧的农地城征兵比例回落；不服水土的旱地城兵源打折
+    public static float LevyFactor(City city)
+    {
+        int off = OffGrassTier(city);
+        return off > 0 ? NomadLevy(city.Realm, off) : SettledLevyFor(UnfitTier(city));
+    }
+
+    // 自然稳定度扣多少(见 CityStabilitySystem.LocalPressures)：离草游牧的农地城、不服水土的旱地城
+    public static float StabilityLoss(City city) => StabilityFor(Math.Max(OffGrassTier(city), UnfitTier(city)));
+
+    public static string DescribeStability(City city) => string.Format(LM.Get("shuitu_stability_detail"), StabilityLoss(city));
+
+    // 赋税收几成(见 TreasurySystem.CollectResidentTax，与鞭长莫及的系数相乘)：不服水土的旱地城少收
+    public static float TaxFactor(City city) => SettledTaxFor(UnfitTier(city));
+
+    // 交战攻守打几折(见 FrontSystem.ResolveCity)：dryGround 是交战的那块地是不是旱地(TerrainSystem.IsDry)；
+    // 离草的游牧在非旱地上打折，不服水土的定居政权在旱地上按它最高的档打折
+    public static float CombatFactor(Realm kingdom, bool dryGround)
+    {
+        UnitInfo unit = UnitInfoOf(kingdom);
+        if (unit == null) return 1f;
+        if (unit.Fit == Fit.Nomad && unit.OffGrass && !dryGround) return NomadCombatFor(unit.OffTier);
+        if (unit.Fit == Fit.Farm && dryGround) return SettledCombatFor(unit.UnfitTop);
+        return 1f;
+    }
+
+    #endregion
+
+    #region 地
+
+    // 旱地城(按城缓存)
+    public static bool IsDryCity(City city) => Dry(city).Dry;
+
+    // 本朝故土：城在统治它的帝国自己的帝国法理里(本来的或兼属的，见 DeJureShareSystem.CoresOf)
+    public static bool Homeland(Realm unit, City city)
+    {
+        Empire empire = unit?.GetEmpire() ?? city?.Realm?.GetEmpire();
+        EmpireCore core = empire == null || empire.IsGone() || empire.IsArchived() ? null : EmpireCoreManager.Get(empire);
+        return core != null && city?.Record != null && DeJureShareSystem.CoresOf(city).Contains(core);
+    }
+
+    // 读档时一次(按国家记 jimi_homeland_checked)：以前不服水土交出去的羁縻地区，城都在宗主帝国自己的法理里、
+    // 按文化种族本该直辖的，改回直辖的州郡(不准外交、科举任命)。神力指定的、后来新设的羁縻不动(见 JimiSystem.Cycle、
+    // AdministrativeControlSystem.Subordinate 设羁縻时一并记上)
+    public static void RestoreHomelandJimi()
+    {
+        if (EmpireWorld.Current?.LiveRealms == null) return;
+        int restored = 0;
+        foreach (Realm kingdom in EmpireWorld.Current.LiveRealms.ToList())
+        {
+            if (kingdom?.Record == null || kingdom.IsGone()) continue;
+            var data = kingdom.GetOrCreate();
+            if (data.jimi_homeland_checked) continue;
+            data.jimi_homeland_checked = true;
+            if (data.jimi_mode != (int)JimiMode.Jimi || !JimiSystem.IsJimiAdministration(kingdom)) continue;
+            Empire empire = kingdom.GetEmpire();
+            if (empire == null || kingdom.IsEmpire() || kingdom.Cities.Count == 0 ||
+                !kingdom.Cities.All(city => Homeland(empire.CoreKingdom, city))) continue;
+            data.jimi_mode = (int)JimiMode.Auto;
+            if (JimiSystem.IsJimiRegion(kingdom, empire))
+            {
+                data.jimi_mode = (int)JimiMode.Jimi;
+                continue;
+            }
+            Regime regime = kingdom.GetRegime();
+            if (regime != null)
+            {
+                regime.SetAllowDiplomacy(false);
+                regime.SetLeaderSelectMethod(LeaderSelectMethod.Exam);
+            }
+            data.last_kingdom_status_ts = -1d;
+            EmpireCraft.Core.EmpireCraftKingdomBehCheckKingdomType.SyncKingdomStatus(kingdom);
+            restored++;
+        }
+        if (restored > 0) LogService.LogInfo($"[EmpireCraft][水土] 本朝法理里的羁縻地区改回直辖 {restored} 处");
+    }
+
+    // 城领土陆地里旱地占几成(显示用)
+    public static float DryShare(City city) => Dry(city).Share;
+
+    private static DryEntry Dry(City city)
+    {
+        if (city?.Record == null || city.Zones == null || EmpireWorld.Current == null) return default;
+        double now = GameClock.Now;
+        int zones = city.Zones.Count;
+        if (DryCache.TryGetValue(city.Key, out DryEntry hit) && now >= hit.At && GameClock.YearsSince(hit.At) < CityDryYears &&
+            Math.Abs(zones - hit.Zones) * 5 <= hit.Zones) return hit;
+        int land = 0, dry = 0;
+        foreach (Cell zone in city.Zones)
+        {
+            (int l, int d) = TerrainSystem.DryCounts(zone);
+            land += l;
+            dry += d;
+        }
+        float share = land > 0 ? dry / (float)land : 0f;
+        var entry = new DryEntry { At = now, Zones = zones, Share = share, Dry = land > 0 && share > DryCityShare };
+        DryCache[city.Key] = entry;
+        return entry;
+    }
+
+    #endregion
+
+    #region 生活方式
+
+    // 政权：帝国核心连同它直辖的成员；间接统治的成员(羁縻、兀鲁思、封建诸侯……)、定居帝国里的游牧成员自成一体
+    public static Realm UnitOf(Realm kingdom)
+    {
+        if (!Valid(kingdom)) return null;
+        Realm core = kingdom.GetEmpire()?.CoreKingdom;
+        if (core?.Record == null || core.IsGone() || core == kingdom) return kingdom;
+        if (AdministrativeControlSystem.IsIndirect(kingdom) || kingdom.GetOrCreate().shuitu_nomadized_at >= 0d) return kingdom;
+        if (kingdom.GetRegime()?.type == RegimeType.YouMu && core.GetRegime()?.type != RegimeType.YouMu) return kingdom;
+        return core;
+    }
+
+    public static Fit FitOf(Realm unit)
+    {
+        if (!Valid(unit) || JimiSystem.IsJimiAdministration(unit)) return Fit.None;
+        Empire empire = unit.GetEmpire();
+        if (empire != null && empire.CoreKingdom != unit && JimiSystem.IsJimiRegion(unit, empire)) return Fit.None;
+        RegimeType? regime = unit.GetRegime()?.type;
+        if (regime == null || regime is RegimeType.Modern or RegimeType.Republic) return Fit.None;
+        string culture = CultureService.GetRealmCulture(unit);
+        // 阿兹特克、林地部族也能采用同线的游牧政体，但不逐水草而居；
+        // 定居政权走"整国游牧化"出路改行的游牧政体(shuitu_regime 记着)照样算游牧，否则改了政体还按只宜农地扣
+        if (regime == RegimeType.YouMu &&
+            (culture.IsNomadCulture() || unit.GetOrCreate().shuitu_regime == (int)RegimeType.YouMu)) return Fit.Nomad;
+        if (RegimeManager.IsPrimitive(regime)) return CompositeEmpireService.IsNomadicCulture(culture) ? Fit.Nomad : Fit.None;
+        return DryNative(culture) ? Fit.Both : Fit.Farm;
+    }
+
+    // 本族故地多在旱地的文化：游牧文化(改行定居的)、带 dry_native 的，或以它为主流的城里旱地城过半
+    public static bool DryNative(string culture)
+    {
+        if (!CultureService.IsValidCulture(culture)) return false;
+        if (culture.IsNomadCulture() || culture.HasPoliticalTrait(OnomasticsRule.DryNativeTrait)) return true;
+        return DryNativeCultures.TryGetValue(culture, out bool dry) && dry;
+    }
+
+    // 各文化为主流的城里旱地城占几成：按各政权结算记下的城汇总，至多一月一次
+    private static void UpdateCultures()
+    {
+        double now = GameClock.Now;
+        if (_culturesAt >= 0d && now >= _culturesAt && GameClock.MonthsSince(_culturesAt) < 1 || CityInfos.Count == 0) return;
+        _culturesAt = now;
+        var totals = new Dictionary<string, (int dry, int all)>(StringComparer.Ordinal);
+        foreach (CityInfo city in CityInfos.Values)
+        {
+            if (string.IsNullOrEmpty(city.Culture)) continue;
+            totals.TryGetValue(city.Culture, out var count);
+            totals[city.Culture] = (count.dry + (city.Dry ? 1 : 0), count.all + 1);
+        }
+        DryNativeCultures.Clear();
+        foreach (var pair in totals)
+            DryNativeCultures[pair.Key] = pair.Value.all > 0 && pair.Value.dry >= pair.Value.all * DryNativeShare;
+    }
+
+    #endregion
+
+    #region 结算
+
+    // 每帧至多结算一个政权；同一政权一年一次
+#if EC_PENDING
+    public static void Tick()
+    {
+        if (EmpireWorld.Current?.LiveRealms == null || ModClass.IS_CLEAR || !GameClock.Running || GameClock.Loading) return;
+        if (!SimulationFrameBudget.HasTime) return;
+        if (Pending.Count == 0) Refill();
+        if (Pending.Count == 0) return;
+        Realm unit = EmpireWorld.Current.RealmByKey(Pending.Dequeue());
+        if (!Valid(unit) || UnitOf(unit) != unit || !Due(unit)) return;
+        try
+        {
+            using (FrameProfiler.Measure("水土")) Pass(unit);
+        }
+        catch (Exception error)
+        {
+            LogService.LogWarning($"[EmpireCraft][水土] {unit.Key}: {error.Message}");
+        }
+    }
+#endif
+
+    private static bool Due(Realm unit) =>
+        !Units.TryGetValue(unit.Key, out UnitInfo info) || info.At < 0d || GameClock.Now < info.At ||
+        GameClock.YearsSince(info.At) >= 1;
+
+    // 一次排进最多 16 个政权，轮着来
+    private static void Refill()
+    {
+        UpdateCultures();
+        var list = EmpireWorld.Current.LiveRealms;
+        if (list == null || list.Count == 0) return;
+        if (_cursor >= list.Count) _cursor = 0;
+        for (int scanned = 0; scanned < list.Count && Pending.Count < 16; scanned++)
+        {
+            Realm kingdom = list[_cursor];
+            _cursor = (_cursor + 1) % list.Count;
+            if (Valid(kingdom) && kingdom.HasCities() && UnitOf(kingdom) == kingdom && Due(kingdom)) Pending.Enqueue(kingdom.Key);
+        }
+    }
+
+    // 政权直辖的城(连同记下直辖的成员国)
+    private static List<City> DirectCities(Realm unit, List<Realm> kingdoms)
+    {
+        kingdoms.Add(unit);
+        Empire empire = unit.GetEmpire();
+        if (empire?.CoreKingdom == unit && empire.kingdoms_list != null)
+            foreach (Realm member in empire.kingdoms_list)
+                if (member != unit && Valid(member) && UnitOf(member) == unit) kingdoms.Add(member);
+        var cities = new List<City>();
+        foreach (Realm kingdom in kingdoms)
+            if (kingdom.Cities != null)
+                cities.AddRange(kingdom.Cities.Where(Valid));
+        return cities;
+    }
+
+#if EC_PENDING
+    private static void Pass(Realm unit)
+    {
+        double now = GameClock.Now;
+        var kingdoms = new List<Realm>();
+        List<City> cities = DirectCities(unit, kingdoms);
+        RevertUnfounded(unit, kingdoms, cities);
+        Fit fit = FitOf(unit);
+        if (!Units.TryGetValue(unit.Key, out UnitInfo info)) Units[unit.Key] = info = new UnitInfo();
+        // 上一趟记下、这一趟不在本政权的城与国除去(还记在本政权名下的)
+        var cityIds = new HashSet<long>(cities.Select(city => city.Key));
+        foreach (long id in info.CityIds)
+            if (!cityIds.Contains(id) && CityInfos.TryGetValue(id, out CityInfo stale) && stale.Unit == unit.Key) CityInfos.Remove(id);
+        var kingdomIds = new HashSet<long>(kingdoms.Select(kingdom => kingdom.Key));
+        foreach (long id in info.KingdomIds)
+            if (!kingdomIds.Contains(id) && KingdomUnits.TryGetValue(id, out long owner) && owner == unit.Key) KingdomUnits.Remove(id);
+        info.CityIds = cityIds.ToList();
+        info.KingdomIds = kingdomIds.ToList();
+        foreach (long id in kingdomIds) KingdomUnits[id] = unit.Key;
+
+        info.Fit = fit;
+        info.At = now;
+        info.Direct = cities.Count;
+        info.Dry = info.Unfit = info.UnfitYears = info.UnfitTop = info.Adapted = 0;
+        Array.Clear(info.TierCounts, 0, info.TierCounts.Length);
+        string ruling = CultureService.GetRealmCulture(unit);
+        foreach (City city in cities)
+        {
+            bool dry = IsDryCity(city);
+            if (dry) info.Dry++;
+            var data = city.GetOrCreate();
+            string culture = CultureService.GetMainCulture(city, initialize: false);
+            int years = 0, tier = 0;
+            if (fit == Fit.Farm && dry && !Homeland(unit, city))
+            {
+                // 新占的、易主的(按新主人)、旧档没记的，从现在起算
+                if (data.shuitu_owner != unit.Key || data.shuitu_since < 0d || data.shuitu_since > now)
+                {
+                    data.shuitu_owner = unit.Key;
+                    data.shuitu_since = now;
+                }
+                years = YearsSince(data.shuitu_since);
+                // 计时照旧从占城起算(易主重计)，城里主流文化成了本族、满 60 年后逐年退档
+                tier = UnfitTierOf(years, culture, ruling);
+                if (tier < TierOf(years)) info.Adapted++;
+                info.Unfit++;
+                info.TierCounts[tier]++;
+                info.UnfitYears = Math.Max(info.UnfitYears, years);
+                info.UnfitTop = Math.Max(info.UnfitTop, tier);
+            }
+            else if (data.shuitu_owner >= 0L || data.shuitu_since >= 0d)
+            {
+                data.shuitu_owner = -1L;
+                data.shuitu_since = -1d;
+            }
+            CityInfos[city.Key] = new CityInfo
+            {
+                Realm = city.Realm.Key, Unit = unit.Key, Dry = dry, Tier = tier, Years = years,
+                Culture = culture
+            };
+        }
+
+        var extra = unit.GetOrCreate();
+        info.OffGrass = false;
+        info.OffYears = info.OffTier = 0;
+        if (fit == Fit.Nomad && cities.Count > 0 && info.Dry < cities.Count * SteppeShare)
+        {
+            if (extra.shuitu_offgrass_since < 0d || extra.shuitu_offgrass_since > now) extra.shuitu_offgrass_since = now;
+            info.OffGrass = true;
+            info.OffYears = YearsSince(extra.shuitu_offgrass_since);
+            info.OffTier = TierOf(info.OffYears);
+        }
+        else if (extra.shuitu_offgrass_since >= 0d)
+            EndOffGrass(unit, extra, fit == Fit.Nomad);
+        RecordTiers(unit, info, extra);
+        Diagnose(unit, info);
+        // 到档后按局势走出路(见 ShuiTuSystem.Outlets)
+        TryOutlet(unit, info, kingdoms, cities);
+    }
+#endif
+
+    // 离草结束(回到旱地，或改了政体)：到过档的记入史书
+    private static void EndOffGrass(Realm unit, KingdomExtension.KingdomExtraData extra, bool steppe)
+    {
+        if (extra.shuitu_offgrass_tier > 0)
+        {
+            string text = steppe
+                ? string.Format(LM.Get("shuitu_offgrass_end_steppe_history"), unit.GetKingdomName())
+                : string.Format(LM.Get("shuitu_offgrass_end_regime_history"), unit.GetKingdomName(),
+                    CompositeEmpireService.GetRegimeName(unit.GetRegime()?.type ?? RegimeType.Feudalism));
+            EventRecorder.Record(unit, text);
+            LogService.LogInfo($"[EmpireCraft][水土] {unit.GetKingdomName()} 离草结束({(steppe ? "回到旱地" : "改了政体")})，" +
+                               $"离草 {YearsSince(extra.shuitu_offgrass_since)} 年、第 {extra.shuitu_offgrass_tier} 档");
+        }
+        extra.shuitu_offgrass_since = -1d;
+        extra.shuitu_offgrass_tier = 0;
+    }
+
+    // 走档记入史书(只记加深)
+    private static void RecordTiers(Realm unit, UnitInfo info, KingdomExtension.KingdomExtraData extra)
+    {
+        if (info.OffTier > extra.shuitu_offgrass_tier)
+            EventRecorder.Record(unit, string.Format(LM.Get("shuitu_offgrass_tier_history"), unit.GetKingdomName(),
+                info.OffYears, info.OffTier));
+        extra.shuitu_offgrass_tier = info.OffTier;
+        if (info.UnfitTop > extra.shuitu_unfit_tier)
+            EventRecorder.Record(unit, string.Format(LM.Get("shuitu_unfit_tier_history"), unit.GetKingdomName(),
+                info.UnfitYears, info.Unfit, info.UnfitTop));
+        extra.shuitu_unfit_tier = info.UnfitTop;
+    }
+
+    #endregion
+
+    #region 诊断
+
+    // [水土]：到档的政权每年一行(每个政权一年只结算一次)，没到档的只在状态变了时记一行
+    private static void Diagnose(Realm unit, UnitInfo info)
+    {
+        bool offGrass = info.Fit == Fit.Nomad && info.OffGrass;
+        bool unfit = info.Fit == Fit.Farm && info.Unfit > 0;
+        string state = $"{info.Fit}/{offGrass}/{info.OffTier}/{info.Unfit}/{info.UnfitTop}";
+        bool changed = state != info.Logged;
+        info.Logged = state;
+        if (!offGrass && !unfit)
+        {
+            if (changed && info.Direct > 0 && (info.Fit is Fit.Nomad or Fit.Farm))
+                LogService.LogInfo($"[EmpireCraft][水土] {unit.GetKingdomName()} {FitName(info.Fit)} 直辖{info.Direct}城 旱地{info.Dry}城，水土相宜");
+            return;
+        }
+        if (!changed && info.OffTier == 0 && info.UnfitTop == 0) return;
+        float share = info.Direct > 0 ? info.Dry / (float)info.Direct : 0f;
+        if (offGrass)
+            LogService.LogInfo($"[EmpireCraft][水土] {unit.GetKingdomName()} 游牧离草 直辖{info.Direct}城 旱地{info.Dry}城({share:P0}) " +
+                               $"离草{info.OffYears}年 第{info.OffTier}档 农地城征兵×{NomadLevy(unit, info.OffTier):0.00} " +
+                               $"稳定−{StabilityFor(info.OffTier):0} 非旱地交战×{NomadCombatFor(info.OffTier):0.00}");
+        else
+            LogService.LogInfo($"[EmpireCraft][水土] {unit.GetKingdomName()} 定居入草 直辖{info.Direct}城 不服水土旱地{info.Unfit}城" +
+                               $"(未到档{info.TierCounts[0]}/一档{info.TierCounts[1]}/二档{info.TierCounts[2]}/三档{info.TierCounts[3]}，" +
+                               $"适应退档{info.Adapted}) " +
+                               $"最久{info.UnfitYears}年 最高第{info.UnfitTop}档 旱地城兵源×{SettledLevyFor(info.UnfitTop):0.0} " +
+                               $"赋税×{SettledTaxFor(info.UnfitTop):0.0} 旱地交战×{SettledCombatFor(info.UnfitTop):0.00}");
+    }
+
+    private static string FitName(Fit fit) => fit switch
+    {
+        Fit.Nomad => "游牧",
+        Fit.Both => "两宜",
+        Fit.Farm => "定居",
+        _ => "不论"
+    };
+
+    #endregion
+}
+}

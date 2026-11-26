@@ -1,0 +1,837 @@
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/PopulationEconomySystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
+// see Port/manifest.json and Tools/PortTool.
+using Mathf = EmpireCraft.Core.EcMath;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+
+namespace EmpireCraft.Core
+{
+
+// 人口经济(无小人模式，参考维多利亚 3)：背景人口没有实体单位，不会自己去种地、干活、吃饭，
+// 这里按人口数据替他们结算——每个游戏月随"并入普通人"一起结算一次。
+//
+//   劳动力 = 背景人口 × 劳动年龄占比
+//   岗位   = 城里每座建成的非民居建筑提供若干岗位 + 每个地块提供若干农田岗位
+//   就业率 = min(1, 岗位 / 劳动力)；没有岗位的人只有一小部分产出
+//   产出   = 农田收割、原版岗位、矿场伐木场、畜牧等真实产出，存进城市仓库
+//   产值   = 产出按市场价估值(自给口粮不算)，旧生产税按估值结算(见 PayTaxes)
+//   消耗   = 背景人口按经济户每年吃一份粮食，从城市仓库里扣；扣不够的部分记为缺粮
+// 当前是抽象估值财政，不是企业销售/工资的现金闭环；不能再并行叠加新模型所得税。
+//
+// 产出直接存进城市仓库，原版和本模组读仓库的地方(存粮、国库、建造)都能看到；
+// 粮食不够时仓库见底，CityPopulationSystem 的生育死亡模型就会进入饥荒。
+// 施工进度交给工人阶层：城里有在建的建筑时，按工人数推进，相当于背景人口去工地干活。
+public static class PopulationEconomySystem
+{
+    private const float WorkingAgeShare = 0.6f;
+    private const int JobsPerBuilding = 12;
+    private const int FarmJobsPerZone = 4;
+    // 没有岗位的劳动力仍有这一比例的产出(零工、自给自足)
+    private const float UnemployedOutputShare = 0.25f;
+    // 劳动力的市场收入：每 100 个劳动力(一财政户)每年的产值，有岗位全额、没岗位按 UnemployedOutputShare
+    private const float LaborIncomePerHouseholdYear = 20f;
+    // 每人每年的产出
+    private const float PeasantFoodPerYear = 2f;
+    private const float LabourConstructionPerYear = 6f;
+    // 其他阶层也出工盖房(农闲、徭役)，按这个比例折算；否则没有工人的新城永远盖不起民居，人口也就涨不上去
+    private const float OtherConstructionPerYear = 2f;
+    // 非农民阶层的自给口粮(菜园、渔猎)
+    private const float OtherFoodPerYear = 0.5f;
+    // 原料(每户每年)：工人伐木采石，城里有矿场时还能冶出金属；其他阶层农闲时砍柴，零星出一点。
+    // 原版建房要木石、打造装备要木头和金属，没有实体居民去采集后由这里补上
+    private const float LabourWoodPerYear = 1.5f;
+    private const float LabourStonePerYear = 0.8f;
+    private const float LabourMetalPerYearWithMine = 0.5f;
+    private const float LabourMetalPerYear = 0.1f;
+    private const float OtherWoodPerYear = 0.3f;
+    // 每人每年吃掉的粮食
+    private const float FoodPerPersonYear = 1f;
+    // 每次结算最多扣多少份粮食(防止超大城市一次调用过多)
+    private const int MaxFoodCallsPerSettle = 400;
+
+    private static readonly string[] FoodCandidates = { "bread", "wheat", "berries", "meat", "fish" };
+    private static string _foodId;
+    private static bool _reflectionResolved;
+    private static MethodInfo _getFoodItem;
+    private static MethodInfo _eatFoodItem;
+    private static MethodInfo _updateBuild;
+
+    // 每个游戏月对一座城结算一次(由 CityPopulationSystem 的并入流程调用)
+#if EC_PENDING
+    public static void Settle(City city, CityPopulationData data, double now, float? farmHarvest = null)
+    {
+        if (city?.Record == null || data?.groups == null) return;
+        using IDisposable timing = CityPopulationSystem.AbstractPopulationEnabled ? FrameProfiler.Measure("多核经济·主线程结算") : null;
+        if (data.last_economy < 0d || now < data.last_economy)
+        {
+            if (now < data.last_economy) data.economy_periods?.Clear();
+            data.last_economy = now;
+            return;
+        }
+        int months = Mathf.Clamp(GameClock.MonthsSince(data.last_economy), 0, 24);
+        if (months <= 0) return;
+        data.last_economy = now;
+        GoodsLedger.Roll(data);
+        EmpireCraft.Core.EmpireCraftActorCheckTax.SettleVirtualCity(city);
+        float years = months / 12f;
+        ResolveReflection();
+
+        var workforceByClass = new Dictionary<SocialClass, float>();
+        float background = 0f;
+        // 产出、吃粮、施工都按"户"结算(一户 = 一个住房位的人)，仓库装得下、数值和原版居民一个量级
+        float perSlot = CityPopulationSystem.PeoplePerSlot(city);
+        ProductionSnapshot plan = CityPopulationSystem.AbstractPopulationEnabled && data.groups.Any(group => group?.Background > 0f)
+            ? CaptureProductionSnapshot(city, years) : null;
+        var numeric = PopulationParallelSystem.GetWorkforce(city, data, perSlot, plan?.Input);
+        background = numeric.BackgroundHouseholds;
+        foreach (var pair in numeric.Workforce) workforceByClass[(SocialClass)pair.Key] = pair.Value;
+        // 农田自动耕作(开田、播种、收割)，粮食来自实际收割的麦子(见 FarmlandSystem)
+        // 收成按粮食征收政策一部分交国家粮仓(见 GranarySystem)，其余留在本城
+        float harvested = farmHarvest ?? DepositFarmHarvest(city, data, FarmlandSystem.Settle(city, data));
+        // 这次结算以来的收成折成每年(按余粮征粮赋用，见 GranarySystem.Collect)
+        if (years > 0f)
+        {
+            data.last_harvest_gross = data.harvest_gross_pending / years;
+            data.harvest_gross_pending = 0f;
+        }
+        if (background <= 0f) return;
+        // 耕牛：犁田的役畜老了宰掉，皮子做衣履鞍具，按收成折算(见 DraftHidesPerHarvest)
+        if (harvested > 0f && AssetManager.resources?.get("leather") != null)
+            Deposit(city, data, "leather", harvested * DraftHidesPerHarvest);
+
+        float workforce = numeric.Production?.Workforce ?? background * WorkingAgeShare;
+        float jobs = plan?.Input.Jobs ?? CountJobs(city);
+        float employment = workforce <= 0f ? 0f : Mathf.Clamp01(jobs / workforce);
+        float productivity = employment + (1f - employment) * UnemployedOutputShare;
+
+        // 生产不看工人：原版按城里的建筑与周围地形给每座城算好了岗位(有风车才有农田岗位、有矿场才有矿工、
+        // 树木灌木矿脉的多少决定樵夫采集采矿的岗位)，每个岗位按种类自动产出。另有自给口粮与商业收入
+        float food = background * SubsistenceFoodPerYear * years + harvested;
+        // 城外镇村毁于兵火，那几份不产粮(见 RuralSettlementSystem)
+        float rural = RuralSettlementSystem.OutputFactor(city);
+        if (plan != null)
+        {
+            for (int i=0;i<plan.JobCount;i++)
+            {
+                float produced=numeric.Production.Outputs[i];
+                if(plan.Input.Outputs[i].Food){produced*=rural;food+=produced;}
+                Deposit(city,data,plan.Resources[i],produced);
+            }
+        }
+        else foreach ((JobKind job, (string resource, float amount)[] outputs) in JobOutputs())
+        {
+            if (job == null) continue;
+            int slots = city.jobs.countCurrentJobs(job);
+            if (slots <= 0) continue;
+            foreach ((string resource, float amount) in OutputsFor(city, job, outputs))
+            {
+                float produced = slots * amount * years;
+                if (IsFood(resource))
+                {
+                    produced *= rural;
+                    food += produced;
+                }
+                Deposit(city, data, resource, produced);
+            }
+        }
+        // 自给口粮自己吃掉，不是收入
+        Deposit(city, data, _foodId ?? "berries", numeric.Production?.Subsistence ?? background * SubsistenceFoodPerYear * years, income: false);
+        // 矿场、伐木场固定产出：每座建成的每年产出固定数量，按等级倍增、本城有工厂再加成，不看岗位和人口
+        // (见 IndustryBuildingSystem；纯净地图按矿村、林场村折算，见 LivelihoodSystem)
+        float mines = plan == null ? IndustryBuildingSystem.MineOutputFactor(city) : 0f;
+        if(plan != null)
+            for(int i=plan.JobCount;i<plan.Resources.Length;i++)Deposit(city,data,plan.Resources[i],numeric.Production.Outputs[i]);
+        else if (mines > 0f)
+            foreach ((string resource, float amount) in MineOutput)
+                if (AssetManager.resources?.get(resource) != null) Deposit(city, data, resource, mines * amount * years);
+        // 战略矿产(铜、煤、硝石……)按矿场等级和本城矿藏开采，见 MineralResourceSystem
+        MineralResourceSystem.Produce(city, data, years);
+        // 工厂区里的厂按门类、等级出产值(见 FactorySystem)
+        FactorySystem.Produce(city, data, years);
+        // 渔村打的鱼(见 LivelihoodSystem)
+        LivelihoodSystem.Produce(city, data, years);
+        // 伐木场砍本城领地里的树出木头(见 IndustryBuildingSystem.HarvestTrees)
+        float wood = IndustryBuildingSystem.HarvestTrees(city, years) / Mathf.Max(0.0001f, years);
+        if (wood > 0f && AssetManager.resources?.get("wood") != null) Deposit(city, data, "wood", wood * years);
+        Glean(city, data, background / Mathf.Max(1f, perSlot), years);
+        // 劳动力的市场收入(佃作、手工、零工)：按劳动力人数计，只计产值(进税基与民间资产估值)，不生成实物。
+        // 以前产出只按原版岗位数算、跟人口多少无关(上面算出的就业效率 productivity 也没用上)，
+        // 本地存档里 6.6 万人的京城一年产值才一百来金，全国背景人口的税连各城治理费都付不起
+        float laborIncome = workforce * perSlot / CityPopulationSystem.FiscalPeoplePerHousehold * productivity *
+                            LaborIncomePerHouseholdYear * years;
+        // 奴隶劳作(见 SlaverySystem)：奴隶那一份按一倍半算，归奴隶主、不计税
+        float slaveShare = SlaverySystem.WorkforceShare(workforceByClass);
+        float slaveIncome = laborIncome * slaveShare * SlaverySystem.OutputFactor;
+        laborIncome *= 1f - slaveShare;
+        if (laborIncome > 0f && !float.IsNaN(laborIncome) && !float.IsInfinity(laborIncome))
+            data.produced_value += laborIncome;
+        PayTaxes(city, data, years);
+        if (slaveIncome > 0f && !float.IsNaN(slaveIncome) && !float.IsInfinity(slaveIncome)) AddSavings(city, data, slaveIncome);
+        float settledIncome = data.last_income * years;
+        float settledTax = data.last_tax_income * years + data.other_background_tax;
+        data.other_background_tax = 0f;
+        // 施工改由城市建设力推进(见 CityConstructionSystem)，不再按工人数
+        float eaten = EatFood(city, data, numeric.Production?.FoodNeed ?? background * FoodPerPersonYear * years, out float shortage);
+        ConsumeGoods(city, data, background, years, numeric.Production?.LeatherNeed);
+        // 吃掉的粮食、用掉的皮革是民间的消费，按价值从民间存款里扣(赈灾粮是国家给的，不扣)
+        float consumption = eaten * UnitValue(city, _foodId ?? "wheat") + data.last_leather_used * UnitValue(city, "leather");
+        AddSavings(city, data, -consumption);
+        data.last_consumption = years > 0f ? consumption / years : 0f;
+        // 饥荒：国家粮仓开仓赈灾，调来的粮食直接补上缺口(不再先存进仓库再吃：没有仓库的城存不进去，粮就丢了)
+        if (shortage > 0f)
+        {
+            float relief = GranarySystem.Relieve(city, shortage);
+            if (relief > 0f)
+            {
+                float served = Mathf.Min(shortage, relief);
+                eaten += served;
+                shortage = Mathf.Max(0f, shortage - served);
+                GoodsLedger.Used(city, _foodId ?? "wheat", served);
+            }
+        }
+
+        GoodsLedger.Short(city, GoodsLedger.FoodKey, shortage);
+        data.last_jobs = jobs;
+        data.last_workforce = workforce;
+        data.last_food_output = years > 0f ? food / years : 0f;
+        // 小城每月要吃的不到一份时本期没有整份可扣(eaten、shortage 都是 0)：沿用上次的吃饱记录，
+        // 不清零——否则吃饱率变成“未知”，又按存粮(粮食一入库就被吃掉，常年是 0)误判饥荒，小城只会越来越小
+        // 粮食按整份入库、按整份扣，小城单月会在“吃 1 份”“吃 2 份只有 1 份”之间跳，单看一个月会误判饥荒；
+        // 吃饱记录按月平滑(每月新数据占 30%)，反映最近几个月的实际情况
+        if (eaten + shortage > 0f && years > 0f)
+        {
+            bool first = data.last_food_eaten + data.last_food_shortage <= 0f;
+            float weight = first ? 1f : 1f - Mathf.Pow(0.7f, Mathf.Max(1f, years * 12f));
+            data.last_food_eaten += (eaten / years - data.last_food_eaten) * weight;
+            data.last_food_shortage += (shortage / years - data.last_food_shortage) * weight;
+        }
+        PopulationEconomyAccounts.Record(data, years, settledIncome, settledTax, consumption);
+    }
+#endif
+
+    private sealed class ProductionSnapshot
+    {
+        public PopulationProductionInput Input;
+        public string[] Resources;
+        public int JobCount;
+    }
+
+    // 主线程只复制原版岗位和建筑产能，乘算及需求计算交由数值工作线程。
+#if EC_PENDING
+    private static ProductionSnapshot CaptureProductionSnapshot(City city,float years)
+    {
+        using var timing = FrameProfiler.Measure("多核经济·取得快照");
+        var resources=new List<string>();var outputs=new List<ProductionOutput>();
+        foreach(var pair in JobOutputs())
+        {
+            if(pair.Item1==null)continue;
+            int slots=city.jobs.countCurrentJobs(pair.Item1);if(slots<=0)continue;
+            foreach(var output in OutputsFor(city,pair.Item1,pair.Item2))
+            {resources.Add(output.Item1);outputs.Add(new ProductionOutput(slots,output.Item2,IsFood(output.Item1)));}
+        }
+        int jobs=outputs.Count;float mines=IndustryBuildingSystem.MineOutputFactor(city);
+        if(mines>0f)foreach(var output in MineOutput)
+            if(AssetManager.resources?.get(output.Item1)!=null)
+            {resources.Add(output.Item1);outputs.Add(new ProductionOutput(mines,output.Item2,false));}
+        return new ProductionSnapshot{Resources=resources.ToArray(),JobCount=jobs,
+            Input=new PopulationProductionInput(outputs.ToArray(),years,CountJobs(city),ModernStability.IsModern(city.Realm),resources.ToArray())};
+    }
+
+    public static PopulationProductionInput CaptureProduction(City city,double now)
+    {
+        if(!CityPopulationSystem.AbstractPopulationEnabled||city?.Record==null)return null;
+        CityPopulationData data=CityPopulationSystem.Get(city);
+        if(data.last_economy<0d||now<data.last_economy)return null;
+        if(!data.groups.Any(group=>group?.Background>0f))return null;
+        int months=Mathf.Clamp(GameClock.MonthsSince(data.last_economy),0,24);
+        return months>0?CaptureProductionSnapshot(city,months/12f).Input:null;
+    }
+#endif
+
+    // 分帧收割后立即入库，避免两步骤之间保存/占城导致已经收下的粮食丢失。
+#if EC_PENDING
+    public static float DepositFarmHarvest(City city, CityPopulationData data, float rawHarvest)
+    {
+        if (rawHarvest <= 0f) return 0f;
+        ResolveReflection();
+        data.harvest_gross_pending += rawHarvest;
+        float harvested = GranarySystem.Collect(city, rawHarvest, data);
+        // 产出：交国家粮仓的那份(也是本城种出来的)，加上实际存进本城的(见 Deposit)
+        GoodsLedger.Made(city, _foodId ?? "wheat", rawHarvest - harvested);
+        if (harvested > 0f) Deposit(city, data, _foodId ?? "wheat", harvested);
+        return harvested;
+    }
+#endif
+
+    // 没有农田时每户每年的自给口粮(不够吃饱：一户一年吃 1 份)
+    private const float SubsistenceFoodPerYear = 0.5f;
+    private static List<(JobKind, (string, float)[])> _jobOutputs;
+
+    // 每个原版岗位每年的产出
+#if EC_PENDING
+    private static List<(JobKind, (string, float)[])> JobOutputs()
+    {
+        if (_jobOutputs != null) return _jobOutputs;
+        _jobOutputs = new List<(JobKind, (string, float)[])>
+        {
+            (CitizenJobLibrary.gatherer_bushes, new[] { ("berries", 2f) }),
+            (CitizenJobLibrary.gatherer_herbs, new[] { ("herbs", 1f) }),
+            (CitizenJobLibrary.gatherer_honey, new[] { ("honey", 1f) }),
+            (CitizenJobLibrary.hunter, new[] { ("meat", 2f) }),
+            (CitizenJobLibrary.woodcutter, new[] { ("wood", 4f) }),
+            (CitizenJobLibrary.miner_deposit, new[] { ("stone", 1.5f), ("common_metals", 0.5f) })
+        };
+        // 这个版本没有的资源不产
+        foreach ((JobKind job, (string, float)[] outputs) in _jobOutputs.ToArray())
+        {
+            (string, float)[] valid = outputs.Where(output => AssetManager.resources?.get(output.Item1) != null).ToArray();
+            _jobOutputs[_jobOutputs.FindIndex(item => item.Item1 == job)] = (job, valid);
+        }
+        return _jobOutputs;
+    }
+#endif
+
+    // 采矿岗位的产出按本城领地里实际有的原版矿石(石头、金属、银、金、宝石、秘银……，各按原版矿石的资源表)：
+    // 每个岗位每年采 OreExtractionsPerSlotYear 次，每次得到本城矿石"平均一块"的资源。以前一律只出石头和普通金属，
+    // 无小人模式没有矿工实体，银矿、金矿、宝石矿挖不出东西(用户转述"整个地图都没有黄金和白银")。
+    // 本城一块矿石都没有时照旧表。每座城一年重算一次
+    private const float OreExtractionsPerSlotYear = 0.6f;
+    private static readonly Dictionary<City, (double at, (string, float)[] outputs)> OreOutputs = new();
+    private static object _oreWorld;
+
+#if EC_PENDING
+    private static (string, float)[] OutputsFor(City city, JobKind job, (string, float)[] outputs)
+    {
+        if (job != CitizenJobLibrary.miner_deposit || city?.Zones == null) return outputs;
+        if (!ReferenceEquals(_oreWorld, EmpireWorld.Current))
+        {
+            _oreWorld = EmpireWorld.Current;
+            OreOutputs.Clear();
+        }
+        double now = GameClock.Now;
+        if (OreOutputs.TryGetValue(city, out var cached) && now >= cached.at && GameClock.YearsSince(cached.at) < 1)
+            return cached.outputs;
+        var sums = new Dictionary<string, float>();
+        int ores = 0;
+        foreach (Cell zone in city.Zones)
+        {
+            HashSet<Building> minerals = zone?.getHashset(BuildingList.Minerals);
+            if (minerals == null) continue;
+            foreach (Building building in minerals)
+            {
+                List<ResourceContainer> given = building?.Asset?.resources_given;
+                if (given == null || given.Count == 0 || building.IsGone()) continue;
+                ores++;
+                foreach (ResourceContainer resource in given)
+                {
+                    if (string.IsNullOrEmpty(resource.id) || AssetManager.resources?.get(resource.id) == null) continue;
+                    sums.TryGetValue(resource.id, out float sum);
+                    sums[resource.id] = sum + resource.amount;
+                }
+            }
+        }
+        (string, float)[] result = ores == 0 || sums.Count == 0 ? outputs
+            : sums.Select(pair => (pair.Key, pair.Value / ores * OreExtractionsPerSlotYear)).ToArray();
+        OreOutputs[city] = (now, result);
+        return result;
+    }
+#endif
+
+    // 拾柴采石(用户 2026-10-28 转群友："面积差不多，三个农田村的城市只有个位数人口，只有一个农田其他都是采矿伐木村的城市人口破千了")：
+    // 纯净地图没有树，盖房、升民居的木头石头只能靠伐木村、采矿村，平原上全是农田村的城盖不起房，人口卡在住房上涨不上去。
+    // 百姓农闲自己拾柴、取土采石：每户每年木 GleanWoodPerHousehold、石 GleanStonePerHousehold，仓库里存到 GleanWoodCap / GleanStoneCap
+    // 为止(只够自家盖房，不成产业、不计产值)；有伐木村、采矿村的城仓库早过这条线，不多给
+    private const float GleanWoodPerHousehold = 1f, GleanStonePerHousehold = 0.5f;
+    private const int GleanWoodCap = 40, GleanStoneCap = 30;
+
+#if EC_PENDING
+    private static void Glean(City city, CityPopulationData data, float households, float years)
+    {
+        if (households <= 0f || years <= 0f) return;
+        foreach ((string resource, float perHousehold, int cap) in new[]
+                 { ("wood", GleanWoodPerHousehold, GleanWoodCap), ("stone", GleanStonePerHousehold, GleanStoneCap) })
+        {
+            if (AssetManager.resources?.get(resource) == null) continue;
+            int room = cap - city.getResourcesAmount(resource);
+            if (room <= 0) continue;
+            Deposit(city, data, resource, Mathf.Min(room, households * perHousehold * years), income: false);
+        }
+    }
+#endif
+
+    // 每座矿场每年的固定产出
+    private static readonly (string, float)[] MineOutput = { ("stone", 6f), ("common_metals", 4f), ("gold", 1f) };
+
+#if EC_PENDING
+    public static bool IsFood(string resource) => AssetManager.resources?.get(resource)?.type == ResType.Food;
+#endif
+
+    // 背景人口纳税：原版和模组的财政是"实体单位交税给城市国库 → 城市交给国家"，无小人模式下纳税的实体几乎没有，
+    // 国库会枯竭。旧模型按生产估值(不是实际销售现金，见 Deposit)生成抽象生产税，
+    // 再由城市上交国家；完整现金财政接入时须替换这个税基，不能同时再征新销售所得税。
+#if EC_PENDING
+    private static void PayTaxes(City city, CityPopulationData data, float years)
+    {
+        // 本国市场缺工具：各城产出打折(见 CommodityMarketSystem.OutputFactor)
+        float income = Mathf.Max(0f, data.produced_value) * CommodityMarketSystem.OutputFactor(city);
+        data.produced_value = 0f;
+        // 官营产业的利润归国库，不进民间收入、不再征工业税(见 EnterpriseSystem)
+        if (city.Realm != null && !city.Realm.IsWild)
+            income = Mathf.Max(0f, income - EnterpriseSystem.TakePublicProfit(city, data));
+        data.last_income = years > 0f ? income / years : 0f;
+        data.last_tax_income = 0f;
+        if (city.Realm == null || city.Realm.IsWild) return;
+        data.produced_sector_values ??= new();
+        data.sector_tax_carry ??= new();
+        // 国野之制：国中赋税轻、野人重(见 GuoyeSystem)
+        // 世家荫户少收(见 GentrySystem)；城外镇村毁于兵火，那几份不交税(见 RuralSettlementSystem)
+        // 奢侈品买得到，手头活络，税多收一点(±5%，见 CommodityMarketSystem)
+        // 旗人不纳粮、旗地不交田赋(见 BannerSystem)
+        double baseRate = city.Realm.GetTaxRate() * GuoyeSystem.TaxFactor(city) * BannerSystem.TaxFactor(city) * EthnicRankSystem.TaxFactor(city) * GentrySystem.TaxFactor(city) *
+                          RuralSettlementSystem.OutputFactor(city) * CommodityMarketSystem.LuxuryTaxFactor(city) *
+                          // 市面兴衰：繁荣多收一点，恐慌、萧条少收(见 EconomicCycleSystem)
+                          EconomicCycleSystem.TaxFactor(city);
+        float remaining = income, due = 0f;
+        long wholeTotal = 0;
+        // 税先从民间现金里交(每月最多现金盈余的一半)，不够的部分才按产值估值折算(旧模型)；
+        // 用现金交的部分不再从民间资产估值里扣，总家底变化不变
+        long taxCash = EnterpriseSystem.TaxableCash(city, data), paidFromCash = 0L;
+        foreach (TreasuryCategory category in new[] { TreasuryCategory.LandTax, TreasuryCategory.IndustrialTax, TreasuryCategory.ResidentTax })
+        {
+            string key = category.ToString();
+            data.produced_sector_values.TryGetValue(key, out float value);
+            float basis = category == TreasuryCategory.ResidentTax ? remaining : Mathf.Min(remaining, Mathf.Max(0f, value));
+            remaining -= basis;
+            due += basis * (float)SectorTaxRules.Rate(baseRate, category);
+            data.sector_tax_carry.TryGetValue(key, out double carry);
+            if (category == TreasuryCategory.ResidentTax) { carry += data.tax_carry; data.tax_carry = 0f; }
+            int whole = SectorTaxRules.Assess(basis, baseRate, category, ref carry);
+            data.sector_tax_carry[key] = carry;
+            if (whole > 0)
+            {
+                long fromCash = EnterpriseSystem.TakeCash(data, Math.Min(whole, taxCash - paidFromCash));
+                paidFromCash += fromCash;
+                TreasurySystem.CollectResidentTax(city, whole, category);
+            }
+            wholeTotal += whole;
+        }
+        data.produced_sector_values.Clear();
+        data.last_tax_income = years > 0f ? wholeTotal / years : 0f;
+        // 税后收入进民间存款(用现金交的税不再从估值里扣)；超过储备的部分转入民间投资池
+        AddSavings(city, data, income - due + paidFromCash);
+        EnterpriseSystem.AccrueInvestment(city, data, years);
+        EnterpriseSystem.RollPeriod(data, years);
+    }
+#endif
+
+    // ---- 民间存款(无小人模式) ----
+    // 背景人口没有各自的钱包，全城合记一个民间存款(连同仓库里属于百姓的存货，算作民间的家底)：
+    //   进：税后收入(产出的价值减去税)；卖地的钱(税后)
+    //   出：吃掉的粮食、用掉的皮革(按价值)；商人地主攒去买地的钱
+    //   城与城之间买粮由民间存款付账：付出的钱换来同样价值的粮食，家底不变，所以只看存款够不够；
+    //   卖给外城的货也是百姓的：按九成价卖掉，家底少一成(这一成是商人的利润)
+    //   买木头、石头、金属是公家盖房、打造装备用的，由城市国库出钱
+    // 旧存档第一次建账时，把仓库里现有粮食的价值记作民间存款
+#if EC_PENDING
+    public static float Savings(City city, CityPopulationData data)
+    {
+        if (data == null) return 0f;
+        if (data.private_savings < 0f)
+        {
+            float price = 1f;
+            try
+            {
+                price = MarketSystem.Price(city, MarketSystem.Good.Food);
+            }
+            catch
+            {
+                // 按基础价
+            }
+            data.private_savings = city == null ? 0f : MarketSystem.Stock(city, MarketSystem.Good.Food) * price;
+        }
+        return data.private_savings;
+    }
+#endif
+
+    // ---- 公家用百姓的东西要付钱(无小人模式) ----
+    // 仓库里的东西默认是百姓的(产出时已经算进民间收入)。盖房、造船、打造装备等公家用途从仓库里拿非粮食的东西时，
+    // 先用公家自己从市场买的(public_stock，不用付钱)，不够的部分由城市国库按价付给百姓：钱换货，民间家底不变；
+    // 国库钱不够，没付上的部分算征用，民间家底少了这些货的价值。
+    // 市场搬货、炼钢、百姓自己用的皮革等不是公家用途，期间不算(见 PrivateUse)
+    [global::System.ThreadStatic] private static int _privateUse;
+
+    public static bool InPrivateUse => _privateUse > 0;
+
+    public readonly struct PrivateUseScope : global::System.IDisposable
+    {
+        public void Dispose() => _privateUse--;
+    }
+
+    public static PrivateUseScope PrivateUse()
+    {
+        _privateUse++;
+        return new PrivateUseScope();
+    }
+
+#if EC_PENDING
+    public static void AddPublicStock(City city, string resource, int amount)
+    {
+        CityPopulationData data = CityPopulationSystem.Get(city);
+        if (data == null || amount <= 0 || string.IsNullOrEmpty(resource)) return;
+        data.public_stock ??= new Dictionary<string, int>();
+        data.public_stock.TryGetValue(resource, out int have);
+        // Ownership cannot exceed physically available inventory. Use long for
+        // intermediate addition so large old counters cannot wrap negative.
+        int owned = (int)Math.Min(Math.Max(0, city.getResourcesAmount(resource)),
+            (long)Math.Max(0, have) + amount);
+        if (owned > 0) data.public_stock[resource] = owned;
+        else data.public_stock.Remove(resource);
+    }
+#endif
+
+    // 从公家存货里扣掉 amount(不超过公家有的)，返回扣掉的数量
+#if EC_PENDING
+    public static int TakePublicStock(City city, string resource, int amount)
+    {
+        CityPopulationData data = CityPopulationSystem.Get(city);
+        if (data?.public_stock == null || amount <= 0 || !data.public_stock.TryGetValue(resource, out int have)) return 0;
+        // 仓库里实际没这么多(被抢、被烧)，公家存货也跟着少
+        have = (int)Math.Min(Math.Max(0, have),
+            (long)amount + Math.Max(0, city.getResourcesAmount(resource)));
+        int take = Mathf.Min(have, amount);
+        if (have - take > 0) data.public_stock[resource] = have - take;
+        else data.public_stock.Remove(resource);
+        return take;
+    }
+#endif
+
+    // 公家从仓库里用掉了 amount 份 resource
+#if EC_PENDING
+    public static void ChargePublicUse(City city, string resource, int amount)
+    {
+        if (!CityPopulationSystem.AbstractPopulationEnabled || city == null || amount <= 0 || InPrivateUse) return;
+        if (string.IsNullOrEmpty(resource) || IsFood(resource)) return;
+        // 物资账：公家用料(原版造建筑、造船、打造装备等)记作消耗(见 GoodsLedger)
+        GoodsLedger.Used(city, resource, amount);
+        CityPopulationData data = CityPopulationSystem.Get(city);
+        if (data == null) return;
+        int fromPeople = amount - TakePublicStock(city, resource, amount);
+        if (fromPeople <= 0) return;
+        float value = fromPeople * UnitValue(city, resource);
+        int pay = Mathf.Min(Mathf.CeilToInt(value), Mathf.Max(0, city.GetMoney()));
+        if (pay > 0)
+        {
+            city.SubMoney(pay, TreasuryCategory.Construction);
+            // 付给百姓的是真钱：进民间现金，货物的估值从民间资产里转出(见 EnterpriseSystem)
+            EnterpriseSystem.PublicPurchase(city, data, pay);
+        }
+        data.public_paid += pay;
+        float unpaid = Mathf.Max(0f, value - pay);
+        if (unpaid > 0f)
+        {
+            data.public_unpaid += unpaid;
+            AddSavings(city, data, -unpaid);
+        }
+    }
+
+    public static void AddSavings(City city, CityPopulationData data, float amount)
+    {
+        if (data == null) return;
+        data.private_savings = Mathf.Max(0f, Savings(city, data) + amount);
+    }
+#endif
+
+    // 一份资源值多少钱：粮食、木头、石头、金属按国内市场价(见 MarketSystem.Price)，其它按固定价
+    private static readonly Dictionary<string, float> FixedValue = new()
+    {
+        ["gold"] = 3f, ["leather"] = 1f, ["bones"] = 0.3f, ["herbs"] = 1f, ["honey"] = 1f
+    };
+    private const float StrategicMineralValue = 2f;
+
+#if EC_PENDING
+    public static float UnitValue(City city, string resource)
+    {
+        if (string.IsNullOrEmpty(resource)) return 0f;
+        MarketSystem.Good? good = resource switch
+        {
+            "wood" => MarketSystem.Good.Wood,
+            "stone" => MarketSystem.Good.Stone,
+            "common_metals" => MarketSystem.Good.Metal,
+            _ => IsFood(resource) ? (MarketSystem.Good?)MarketSystem.Good.Food : null
+        };
+        if (good.HasValue && city?.Realm != null)
+        {
+            try
+            {
+                return MarketSystem.Price(city, good.Value);
+            }
+            catch
+            {
+                // 算不出市场价按基础价
+            }
+        }
+        if (good.HasValue) return good.Value == MarketSystem.Good.Metal ? 3f : good.Value == MarketSystem.Good.Stone ? 1.5f : 1f;
+        // 粮木石金属以外的物资(皮革、茶、香料、宝石、煤、硝石……)照所在商品市场的市价指数计产值：缺货涨价、产地多收
+        float baseValue = FixedValue.TryGetValue(resource, out float value) ? value : StrategicMineralValue;
+        return baseValue * CommodityMarketSystem.ResourcePriceIndex(city, resource);
+    }
+#endif
+
+    // 加工用掉的原料：从收入里扣掉原料的价值，只算加工增加的那部分
+#if EC_PENDING
+    public static void ConsumeInputs(City city, CityPopulationData data, string resource, float amount)
+    {
+        if (data == null || amount <= 0f) return;
+        float value = amount * UnitValue(city, resource);
+        data.produced_value -= value;
+        // 加工成品记在工业税基里，原料价值也从工业税基扣，否则工业税按毛产出征收
+        var sectors = data.produced_sector_values ??= new();
+        string key = TreasuryCategory.IndustrialTax.ToString();
+        sectors.TryGetValue(key, out float previous);
+        sectors[key] = Mathf.Max(0f, previous - value);
+    }
+#endif
+
+    private static float Get(Dictionary<SocialClass, float> values, SocialClass key) =>
+        values.TryGetValue(key, out float value) ? value : 0f;
+
+    // 岗位：每座建成的非民居建筑 + 每个地块的农田岗位
+#if EC_PENDING
+    public static float CountJobs(City city)
+    {
+        if (CityPopulationSystem.AbstractPopulationEnabled)
+        {
+            float productive = 0f;
+            foreach (var pair in JobOutputs())
+                if (pair.Item1 != null && pair.Item2.Length > 0)
+                    productive += Math.Max(0, city.jobs.countCurrentJobs(pair.Item1));
+            // 纯净地图：矿、林、牧的岗位在村镇里(见 LivelihoodSystem.Jobs)，田是农村的田，不看风车
+            if (LivelihoodSystem.Active)
+                return productive + LivelihoodSystem.Jobs(city) + (CityPopulationSystem.Get(city)?.farm_jobs ?? 0f);
+            foreach (Building building in city.Buildings)
+                if (building?.Asset != null && !building.IsUnderConstruction() &&
+                    (IndustryBuildingSystem.IsMine(building.Asset) || IndustryBuildingSystem.IsLumber(building.Asset)))
+                    productive += JobsPerBuilding;
+            if (city.getBuildingOfType("type_windmill", pCountOnlyFinished: true, pRandom: false) != null)
+                productive += CityPopulationSystem.Get(city)?.farm_jobs ?? 0f;
+            return productive;
+        }
+        int buildings = 0;
+        if (city.Buildings != null)
+            foreach (Building building in city.Buildings)
+            {
+                if (building?.Asset == null || building.IsUnderConstruction()) continue;
+                if (building.Asset.Type == "type_house") continue;
+                buildings++;
+            }
+        int zones = city.Zones?.Count ?? 0;
+        return buildings * JobsPerBuilding + zones * FarmJobsPerZone;
+    }
+#endif
+
+    // 产出攒满整数再入库；旧生产税只估值实际收到的应税产出。
+    // 仓库满或入库失败的整份产出没有实现，不能产生财政收入。
+    // made：是不是本城的产出(记入物资账，见 GoodsLedger)；赈灾调粮这类调拨传 false
+#if EC_PENDING
+    public static void Deposit(City city, CityPopulationData data, string resource, float amount, bool income = true, bool made = true)
+    {
+        if (city?.Record == null || data == null || string.IsNullOrEmpty(resource) ||
+            amount <= 0f || float.IsNaN(amount) || float.IsInfinity(amount)) return;
+        data.output_carry ??= new Dictionary<string, float>();
+        data.output_carry.TryGetValue(resource, out float carry);
+        if (float.IsNaN(carry) || float.IsInfinity(carry) || carry < 0f) carry = 0f;
+        double total = (double)carry + amount;
+        // 原版库存仍是 int；不可测量的超限请求不修改存货或税基。
+        if (total > int.MaxValue) return;
+        float taxableCarry = 0f;
+        data.output_income_carry?.TryGetValue(resource, out taxableCarry);
+        if (float.IsNaN(taxableCarry) || float.IsInfinity(taxableCarry)) taxableCarry = 0f;
+        double taxableShare = (Math.Max(0d, Math.Min(carry, taxableCarry)) + (income ? amount : 0d)) / total;
+        int whole = (int)Math.Floor(total);
+        float remainder = (float)(total - whole);
+        data.output_carry[resource] = remainder;
+        float pending = (float)(remainder * taxableShare);
+        if (pending > 0f)
+            (data.output_income_carry ??= new Dictionary<string, float>())[resource] = pending;
+        else data.output_income_carry?.Remove(resource);
+        if (whole <= 0) return;
+        int before = city.getResourcesAmount(resource);
+        if (before < 0 || before == int.MaxValue) return;
+        int requested = Math.Min(whole, int.MaxValue - before);
+        try
+        {
+            // 原版返回仓库余额，不是本次入库数量。
+            city.addResourcesToRandomStockpile(resource, requested);
+        }
+        catch (Exception exception)
+        {
+            LogService.LogWarning($"[EmpireCraft][人口经济] 存入 {resource} 失败: {exception.Message}");
+        }
+        int delivered = ResourceDelta(before, city.getResourcesAmount(resource), requested);
+        // 物资账只记真正存进去的(仓库满了存不进的不算产出)
+        if (made) GoodsLedger.Made(city, resource, delivered);
+        if (delivered <= 0 || taxableShare <= 0d) return;
+        float value = (float)(delivered * taxableShare) * UnitValue(city, resource);
+        data.produced_value += value;
+        var sectors = data.produced_sector_values ??= new();
+        string key = (IsFood(resource) ? TreasuryCategory.LandTax : TreasuryCategory.IndustrialTax).ToString();
+        sectors.TryGetValue(key, out float previous);
+        sectors[key] = previous + value;
+    }
+#endif
+
+    private static int ResourceDelta(int before, int after, int requested) =>
+        (int)Math.Max(0L, Math.Min(Math.Max(0, requested), (long)after - before));
+
+    // 消费按实际出库计量；异常发生在扣货之后时也必须结算已消耗的部分。
+#if EC_PENDING
+    private static int ConsumeStoredResource(City city, string resource, int requested)
+    {
+        if (requested <= 0) return 0;
+        int before = city.getResourcesAmount(resource);
+        if (before <= 0 || before == int.MaxValue) return 0;
+        int take = Math.Min(before, requested);
+        try
+        {
+            using (PrivateUse()) city.takeResource(resource, take);
+        }
+        catch (Exception exception)
+        {
+            LogService.LogWarning($"[EmpireCraft][人口经济] 扣 {resource} 失败: {exception.Message}");
+        }
+        int taken = ResourceDelta(city.getResourcesAmount(resource), before, take);
+        GoodsLedger.Used(city, resource, taken);
+        return taken;
+    }
+#endif
+
+    // 军粮(见 LogisticsSystem)：从城市仓库按粮食种类整批取走 portions 份，返回实际取到的
+#if EC_PENDING
+    public static int TakeFood(City city, int portions)
+    {
+        if (city?.Record == null || city.IsGone() || portions <= 0) return 0;
+        int taken = 0;
+        foreach (ResourceAsset food in FoodAssets())
+        {
+            if (taken >= portions) break;
+            taken += ConsumeStoredResource(city, food.id, portions - taken);
+        }
+        return taken;
+    }
+#endif
+
+    // 按种类整批扣粮；未实际出库的部分记为缺粮。
+#if EC_PENDING
+    private static float EatFood(City city, CityPopulationData data, float need, out float shortage)
+    {
+        shortage = 0f;
+        float total = data.food_need_carry + need;
+        int portions = Mathf.FloorToInt(total);
+        data.food_need_carry = total - portions;
+        if (portions <= 0) return 0f;
+        // 按粮食种类整批扣(以前一份一份地反射调用原版吃饭方法，大城一次几百次，结算那一帧会卡)
+        int eaten = 0;
+        foreach (ResourceAsset food in FoodAssets())
+        {
+            if (eaten >= portions) break;
+            eaten += ConsumeStoredResource(city, food.id, portions - eaten);
+        }
+        shortage = portions - eaten;
+        return eaten;
+    }
+#endif
+
+    // 日用消耗(按户数)：皮革做衣履、鞍具。肉类已经和粮食一起按户吃掉(见 EatFood)。
+    // 现代翻倍；库存不够只记缺口
+    private const float LeatherPerHouseholdYear = 0.01f;
+    // 耕牛出的皮：每收一百份粮出一张半。农耕城一年收成约是户数的一半，自产的皮够日用的七成多，
+    // 不再只因为没有牧场就缺皮革(繁荣度最多打七折，见 IdeologyPopulationSystem.GoodsShortage)；
+    // 皮革仍以牧场为主(一座牧场一年十几张)
+    private const float DraftHidesPerHarvest = 0.015f;
+
+#if EC_PENDING
+    private static void ConsumeGoods(City city, CityPopulationData data, float households, float years, float? calculatedNeed = null)
+    {
+        // 本次没扣到整份时用量是 0(民间消费按这个算)
+        data.last_leather_used = 0f;
+        data.last_leather_shortage = 0f;
+        float need = (calculatedNeed ?? households * LeatherPerHouseholdYear * years *
+                     (ModernStability.IsModern(city.Realm) ? 2f : 1f)) + data.leather_need_carry;
+        int whole = Mathf.FloorToInt(need);
+        data.leather_need_carry = need - whole;
+        if (whole <= 0) return;
+        int take = ConsumeStoredResource(city, "leather", whole);
+        data.last_leather_used = take;
+        data.last_leather_shortage = whole - take;
+        GoodsLedger.Short(city, "leather", whole - take);
+    }
+#endif
+
+    // 工人去工地：按攒下的施工点数推进城里在建的建筑
+    private static void AdvanceConstruction(City city, CityPopulationData data, float points)
+    {
+        data.construction_carry += points;
+        int whole = Mathf.FloorToInt(data.construction_carry);
+        if (whole <= 0 || _updateBuild == null || city.Buildings == null) return;
+        int used = 0;
+        try
+        {
+            foreach (Building building in city.Buildings)
+            {
+                if (used >= whole) break;
+                if (building?.Asset == null || !building.IsUnderConstruction()) continue;
+                int share = Mathf.Max(1, (whole - used) / 2);
+                _updateBuild.Invoke(building, new object[] { share });
+                used += share;
+            }
+        }
+        catch (Exception exception)
+        {
+            LogService.LogWarning($"[EmpireCraft][人口经济] 推进施工失败，停用自动施工: {exception.Message}");
+            _updateBuild = null;
+        }
+        // 没有在建的建筑时点数不留存(工人闲着)
+        data.construction_carry = used > 0 ? data.construction_carry - used : 0f;
+    }
+
+#if EC_PENDING
+    private static List<ResourceAsset> _foodAssets;
+
+    private static List<ResourceAsset> FoodAssets()
+    {
+        if (_foodAssets != null) return _foodAssets;
+        _foodAssets = new List<ResourceAsset>();
+        if (AssetManager.resources?.list != null)
+            foreach (ResourceAsset asset in AssetManager.resources.list)
+                if (asset != null && asset.type == ResType.Food) _foodAssets.Add(asset);
+        return _foodAssets;
+    }
+#endif
+
+    // 原版的吃粮、施工方法名在不同游戏版本里可能不同，用反射查找；找不到就跳过那一部分，并在日志里说明
+#if EC_PENDING
+    private static void ResolveReflection()
+    {
+        if (_reflectionResolved) return;
+        _reflectionResolved = true;
+        foreach (string id in FoodCandidates)
+            if (AssetManager.resources?.get(id) != null)
+            {
+                _foodId = id;
+                break;
+            }
+        _getFoodItem = AccessTools.Method(typeof(City), "getFoodItem");
+        _eatFoodItem = AccessTools.Method(typeof(City), "eatFoodItem", new[] { typeof(string) });
+        MethodInfo updateBuild = AccessTools.Method(typeof(Building), "updateBuild");
+        if (updateBuild != null)
+        {
+            ParameterInfo[] parameters = updateBuild.GetParameters();
+            if (parameters.Length == 1 && parameters[0].ParameterType == typeof(int)) _updateBuild = updateBuild;
+        }
+        LogService.LogInfo($"[EmpireCraft][人口经济] 产粮={_foodId ?? "无"} 扣粮={(_getFoodItem != null && _eatFoodItem != null ? "可用" : "不可用")} 自动施工={(_updateBuild != null ? "可用" : "不可用")}");
+    }
+#endif
+}
+}

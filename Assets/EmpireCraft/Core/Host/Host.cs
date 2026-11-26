@@ -1,0 +1,350 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using Newtonsoft.Json.Linq;
+
+namespace EmpireCraft.Core
+{
+    // The host layer: the handful of services the ported rules expect from
+    // whatever runs them (frame clock, log, text table, data folder, profiler).
+    // The Unity client and the dotnet validation programs each drive it; nothing
+    // here references an engine. Ported files reach FrameClock and EcMath through
+    // `using Time = ...` / `using Mathf = ...` aliases written by Tools/PortTool,
+    // which is why those two keep engine-style member names.
+
+    // Advanced once per rendered frame (or once per step by a headless host).
+    public static class FrameClock
+    {
+        public static int frameCount { get; private set; }
+        public static float realtimeSinceStartup { get; private set; }
+        public static float unscaledDeltaTime { get; private set; }
+        public static float unscaledTime => realtimeSinceStartup;
+        public static float smoothDeltaTime => unscaledDeltaTime;
+        // Game-speed multiplier the player picked; background budgets may widen with it.
+        public static float SpeedFactor = 1f;
+
+        public static void Advance(float deltaSeconds)
+        {
+            if (float.IsNaN(deltaSeconds) || deltaSeconds < 0f) deltaSeconds = 0f;
+            frameCount++;
+            unscaledDeltaTime = deltaSeconds;
+            realtimeSinceStartup += deltaSeconds;
+        }
+
+        public static void Reset()
+        {
+            frameCount = 0;
+            realtimeSinceStartup = unscaledDeltaTime = 0f;
+            SpeedFactor = 1f;
+        }
+    }
+
+    public static class EcMath
+    {
+        public const float PI = (float)Math.PI;
+        public const float Deg2Rad = PI / 180f, Rad2Deg = 180f / PI;
+        public static float Sin(float value) => (float)Math.Sin(value);
+        public static float Cos(float value) => (float)Math.Cos(value);
+        public static float Tan(float value) => (float)Math.Tan(value);
+        public static float Atan2(float y, float x) => (float)Math.Atan2(y, x);
+        public static float Log10(float value) => (float)Math.Log10(value);
+        public static float Clamp(float value, float min, float max) => value < min ? min : value > max ? max : value;
+        public static int Clamp(int value, int min, int max) => value < min ? min : value > max ? max : value;
+        public static float Clamp01(float value) => value < 0f ? 0f : value > 1f ? 1f : value;
+        public static float Min(float a, float b) => a < b ? a : b;
+        public static float Max(float a, float b) => a > b ? a : b;
+        public static int Min(int a, int b) => a < b ? a : b;
+        public static int Max(int a, int b) => a > b ? a : b;
+        public static float Abs(float value) => Math.Abs(value);
+        public static int Abs(int value) => Math.Abs(value);
+        public static float Sign(float value) => value < 0f ? -1f : 1f;
+        public static float Sqrt(float value) => (float)Math.Sqrt(value);
+        public static float Pow(float value, float power) => (float)Math.Pow(value, power);
+        public static float Exp(float value) => (float)Math.Exp(value);
+        public static float Log(float value) => (float)Math.Log(value);
+        public static float Log(float value, float newBase) => (float)Math.Log(value, newBase);
+        public static float Floor(float value) => (float)Math.Floor(value);
+        public static float Ceil(float value) => (float)Math.Ceiling(value);
+        public static float Round(float value) => (float)Math.Round(value);
+        public static int FloorToInt(float value) => (int)Math.Floor(value);
+        public static int CeilToInt(float value) => (int)Math.Ceiling(value);
+        public static int RoundToInt(float value) => (int)Math.Round(value);
+        public static float Lerp(float a, float b, float t) => a + (b - a) * Clamp01(t);
+        public static float LerpUnclamped(float a, float b, float t) => a + (b - a) * t;
+        public static float InverseLerp(float a, float b, float value) => a == b ? 0f : Clamp01((value - a) / (b - a));
+        public static float MoveTowards(float current, float target, float maxDelta) =>
+            Math.Abs(target - current) <= maxDelta ? target : current + Sign(target - current) * maxDelta;
+        public static bool Approximately(float a, float b) => Math.Abs(a - b) < 1e-6f * Math.Max(1f, Math.Max(Math.Abs(a), Math.Abs(b)));
+    }
+
+    // Grid and plane coordinates as the ported code writes them.
+    public struct EcVector2Int : IEquatable<EcVector2Int>
+    {
+        public int x, y;
+        public EcVector2Int(int x, int y) { this.x = x; this.y = y; }
+        public static EcVector2Int zero => new EcVector2Int(0, 0);
+        public static EcVector2Int operator +(EcVector2Int a, EcVector2Int b) => new EcVector2Int(a.x + b.x, a.y + b.y);
+        public static EcVector2Int operator -(EcVector2Int a, EcVector2Int b) => new EcVector2Int(a.x - b.x, a.y - b.y);
+        public static bool operator ==(EcVector2Int a, EcVector2Int b) => a.x == b.x && a.y == b.y;
+        public static bool operator !=(EcVector2Int a, EcVector2Int b) => !(a == b);
+        public static implicit operator EcVector2(EcVector2Int v) => new EcVector2(v.x, v.y);
+        public bool Equals(EcVector2Int other) => this == other;
+        public override bool Equals(object other) => other is EcVector2Int v && this == v;
+        public override int GetHashCode() => unchecked(x * 73856093 ^ y * 19349663);
+        public override string ToString() => "(" + x + ", " + y + ")";
+    }
+
+    // A point with a height. The ported code keeps a few of these; a 2-vector turns into one and back freely.
+    public struct EcVector3
+    {
+        public float x, y, z;
+        public EcVector3(float x, float y, float z = 0f) { this.x = x; this.y = y; this.z = z; }
+        public static EcVector3 zero => new EcVector3(0f, 0f, 0f);
+        public static implicit operator EcVector3(EcVector2 v) => new EcVector3(v.x, v.y, 0f);
+        public static implicit operator EcVector2(EcVector3 v) => new EcVector2(v.x, v.y);
+        public static float Distance(EcVector3 a, EcVector3 b) { float dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z; return (float)Math.Sqrt(dx * dx + dy * dy + dz * dz); }
+    }
+
+    public struct EcVector2 : IEquatable<EcVector2>
+    {
+        public float x, y;
+        public EcVector2(float x, float y) { this.x = x; this.y = y; }
+        public static EcVector2 zero => new EcVector2(0f, 0f);
+        public float sqrMagnitude => x * x + y * y;
+        public float magnitude => (float)Math.Sqrt(x * x + y * y);
+        public EcVector2 normalized { get { float m = magnitude; return m > 1e-6f ? new EcVector2(x / m, y / m) : zero; } }
+        public static float Distance(EcVector2 a, EcVector2 b) => (a - b).magnitude;
+        public static EcVector2 operator +(EcVector2 a, EcVector2 b) => new EcVector2(a.x + b.x, a.y + b.y);
+        public static EcVector2 operator -(EcVector2 a, EcVector2 b) => new EcVector2(a.x - b.x, a.y - b.y);
+        public static EcVector2 operator *(EcVector2 a, float k) => new EcVector2(a.x * k, a.y * k);
+        public static EcVector2 operator /(EcVector2 a, float k) => new EcVector2(a.x / k, a.y / k);
+        public static bool operator ==(EcVector2 a, EcVector2 b) => a.x == b.x && a.y == b.y;
+        public static bool operator !=(EcVector2 a, EcVector2 b) => !(a == b);
+        public bool Equals(EcVector2 other) => this == other;
+        public override bool Equals(object other) => other is EcVector2 v && this == v;
+        public override int GetHashCode() => (x, y).GetHashCode();
+        public override string ToString() => "(" + x + ", " + y + ")";
+    }
+
+    // Colour as four floats in 0..1, the shape the ported rules compute with.
+    public struct EcColor : IEquatable<EcColor>
+    {
+        public float r, g, b, a;
+        public EcColor(float r, float g, float b, float a = 1f) { this.r = r; this.g = g; this.b = b; this.a = a; }
+        public static EcColor white => new EcColor(1f, 1f, 1f);
+        public static EcColor black => new EcColor(0f, 0f, 0f);
+        public static EcColor clear => new EcColor(0f, 0f, 0f, 0f);
+        public uint Rgb => ((uint)Channel(r) << 16) | ((uint)Channel(g) << 8) | (uint)Channel(b);
+        static int Channel(float value) => (int)Math.Round(EcMath.Clamp01(value) * 255f);
+        public static EcColor FromRgb(uint rgb) => new EcColor(((rgb >> 16) & 255) / 255f, ((rgb >> 8) & 255) / 255f, (rgb & 255) / 255f);
+        public static EcColor Lerp(EcColor from, EcColor to, float t)
+        {
+            t = EcMath.Clamp01(t);
+            return new EcColor(from.r + (to.r - from.r) * t, from.g + (to.g - from.g) * t, from.b + (to.b - from.b) * t, from.a + (to.a - from.a) * t);
+        }
+
+        // Hue, saturation and value in 0..1.
+        public static EcColor HSVToRGB(float hue, float saturation, float value)
+        {
+            hue = (hue % 1f + 1f) % 1f * 6f;
+            int sector = (int)hue;
+            float fraction = hue - sector, low = value * (1f - saturation);
+            float falling = value * (1f - saturation * fraction), rising = value * (1f - saturation * (1f - fraction));
+            switch (sector % 6)
+            {
+                case 0: return new EcColor(value, rising, low);
+                case 1: return new EcColor(falling, value, low);
+                case 2: return new EcColor(low, value, rising);
+                case 3: return new EcColor(low, falling, value);
+                case 4: return new EcColor(rising, low, value);
+                default: return new EcColor(value, low, falling);
+            }
+        }
+
+        public bool Equals(EcColor other) => r == other.r && g == other.g && b == other.b && a == other.a;
+        public override bool Equals(object other) => other is EcColor color && Equals(color);
+        public override int GetHashCode() => (r, g, b, a).GetHashCode();
+        public static bool operator ==(EcColor left, EcColor right) => left.Equals(right);
+        public static bool operator !=(EcColor left, EcColor right) => !left.Equals(right);
+    }
+
+    public static class EcColorUtility
+    {
+        // "#RGB", "#RRGGBB" or "#RRGGBBAA"; the leading '#' is optional.
+        public static bool TryParseHtmlString(string text, out EcColor color)
+        {
+            color = default;
+            if (string.IsNullOrEmpty(text)) return false;
+            string hex = text.Trim().TrimStart('#');
+            if (hex.Length == 3) hex = "" + hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+            if (hex.Length != 6 && hex.Length != 8) return false;
+            if (!uint.TryParse(hex, System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out uint value)) return false;
+            if (hex.Length == 6) value = (value << 8) | 255u;
+            color = new EcColor(((value >> 24) & 255) / 255f, ((value >> 16) & 255) / 255f, ((value >> 8) & 255) / 255f, (value & 255) / 255f);
+            return true;
+        }
+
+        public static string ToHtmlStringRGB(EcColor color) => color.Rgb.ToString("X6");
+        public static string ToHtmlStringRGBA(EcColor color) => color.Rgb.ToString("X6") + ((int)Math.Round(EcMath.Clamp01(color.a) * 255f)).ToString("X2");
+    }
+
+    // The random stream of the ported systems. It is reseeded from the world seed and month before
+    // every simulation step, so a world replays the same draws whether it ran through or was loaded.
+    public static class EcRandom
+    {
+        static ulong _state = 0x9E3779B97F4A7C15UL;
+        public static void Seed(ulong seed, int step)
+        {
+            unchecked { _state = seed ^ ((ulong)(uint)step * 0xBF58476D1CE4E5B9UL) ^ 0x94D049BB133111EBUL; }
+            if (_state == 0) _state = 0x9E3779B97F4A7C15UL;
+        }
+        static ulong Next()
+        {
+            unchecked { _state ^= _state << 13; _state ^= _state >> 7; _state ^= _state << 17; return _state * 0x2545F4914F6CDD1DUL; }
+        }
+        // Uniform in [0, 1).
+        public static float value => (Next() >> 40) * (1f / 16777216f);
+        // Integers in [min, max); floats in [min, max).
+        public static int Range(int min, int max) => max <= min ? min : min + (int)(Next() % (ulong)(max - min));
+        public static float Range(float min, float max) => min + (max - min) * value;
+        // True with the given probability (0 never, 1 always).
+        public static bool Chance(float probability) => value < probability;
+    }
+
+    // The mod asks here whether a realm or person belongs to another mod it coexists with.
+    // There is no other mod in this game, so nothing ever does.
+    public static class AncientWarfareCompatibility
+    {
+        public static bool Loaded => false;
+        public static void Refresh() { }
+        public static bool Owns(Realm realm) => false;
+        public static bool Owns(Person person) => false;
+        public static bool OwnsObject(object value) => false;
+        public static bool OwnsAny(object[] values) => false;
+        public static bool BlocksEmpireFormation(Realm realm) => false;
+    }
+
+    // The mod probes its call depth here to catch runaway recursion; a host may hook it.
+    public static class StackGuard
+    {
+        public static System.Action Hook;
+        public static void Probe() { Hook?.Invoke(); }
+    }
+
+    public enum LogLevel : byte { Info, Warning, Error }
+
+    public static class LogService
+    {
+        // Set by the host (Debug.Log in Unity, the console in validation). Null drops the line.
+        public static Action<LogLevel, string> Sink;
+        public static int Warnings, Errors;
+        public static void LogInfo(string message) => Sink?.Invoke(LogLevel.Info, message);
+        public static void LogWarning(string message) { Warnings++; Sink?.Invoke(LogLevel.Warning, message); }
+        public static void LogError(string message) { Errors++; Sink?.Invoke(LogLevel.Error, message); }
+    }
+
+    // Text table. A missing key reads back as the key itself, so a rule never
+    // fails on text that has not been brought over yet.
+    public static class LM
+    {
+        static readonly Dictionary<string, string> Table = new Dictionary<string, string>(StringComparer.Ordinal);
+        // Language code of the loaded table: "ch", "en" or "cz", as the mod's Locales files are named.
+        public static string Language = "ch";
+        public static int Count => Table.Count;
+        public static bool Has(string key) => key != null && Table.ContainsKey(key);
+        public static string Get(string key) => key != null && Table.TryGetValue(key, out string text) ? text : key;
+        public static void Set(string key, string text) { if (key != null) Table[key] = text ?? ""; }
+        public static void Clear() => Table.Clear();
+
+        // A flat json object of key -> text, the layout of the mod's Locales files.
+        public static int LoadJson(string json)
+        {
+            int added = 0;
+            foreach (var pair in JObject.Parse(json))
+                if (pair.Value != null && pair.Value.Type == JTokenType.String) { Table[pair.Key] = (string)pair.Value; added++; }
+            return added;
+        }
+        public static int LoadFile(string path) => LoadJson(File.ReadAllText(path));
+
+        // A CSV of texts as the mod keeps them: a header "key,<language>,<language>...", then one key per line.
+        // The column of the loaded language is taken; a missing file or column adds nothing. Fields may be quoted.
+        public static int LoadLocales(string path)
+        {
+            if (string.IsNullOrEmpty(path) || !File.Exists(path)) return 0;
+            var lines = File.ReadAllLines(path);
+            if (lines.Length == 0) return 0;
+            var header = SplitCsv(lines[0].TrimStart('\uFEFF'));
+            int column = header.FindIndex(h => string.Equals(h.Trim(), Language, StringComparison.OrdinalIgnoreCase));
+            if (column <= 0) return 0;
+            int added = 0;
+            for (int i = 1; i < lines.Length; i++)
+            {
+                if (lines[i].Length == 0) continue;
+                var fields = SplitCsv(lines[i]);
+                if (fields.Count <= column || string.IsNullOrWhiteSpace(fields[0])) continue;
+                Table[fields[0].Trim()] = fields[column]; added++;
+            }
+            return added;
+        }
+
+        static List<string> SplitCsv(string line)
+        {
+            var fields = new List<string>(); var current = new System.Text.StringBuilder(); bool quoted = false;
+            for (int i = 0; i < line.Length; i++)
+            {
+                char c = line[i];
+                if (quoted)
+                {
+                    if (c == '"' && i + 1 < line.Length && line[i + 1] == '"') { current.Append('"'); i++; }
+                    else if (c == '"') quoted = false;
+                    else current.Append(c);
+                }
+                else if (c == '"') quoted = true;
+                else if (c == ',') { fields.Add(current.ToString()); current.Clear(); }
+                else current.Append(c);
+            }
+            fields.Add(current.ToString());
+            return fields;
+        }
+    }
+
+    // Where the rule data (Assets/EmpireCraft/Data, or its shipped copy) is read from.
+    public static class GameData
+    {
+        public static string Folder = "";
+        public static string PathOf(params string[] parts)
+        {
+            string path = Folder ?? "";
+            foreach (string part in parts) path = Path.Combine(path, part);
+            return path;
+        }
+    }
+
+    // Per-key time accounting for the simulation steps. Off unless a host turns it on.
+    public static class FrameProfiler
+    {
+        public static bool Enabled;
+        sealed class Entry { public long Ticks; public int Calls; }
+        static readonly Dictionary<string, Entry> Entries = new Dictionary<string, Entry>(StringComparer.Ordinal);
+
+        public static Scope Measure(string key) => Enabled && key != null ? new Scope(key, Stopwatch.GetTimestamp()) : default;
+
+        public readonly struct Scope : IDisposable
+        {
+            readonly string _key; readonly long _started;
+            internal Scope(string key, long started) { _key = key; _started = started; }
+            public void Dispose()
+            {
+                if (_key == null) return;
+                if (!Entries.TryGetValue(_key, out Entry entry)) Entries[_key] = entry = new Entry();
+                entry.Ticks += Stopwatch.GetTimestamp() - _started; entry.Calls++;
+            }
+        }
+
+        public static double Milliseconds(string key) => Entries.TryGetValue(key, out Entry entry) ? entry.Ticks * 1000d / Stopwatch.Frequency : 0d;
+        public static int Calls(string key) => Entries.TryGetValue(key, out Entry entry) ? entry.Calls : 0;
+        public static IEnumerable<string> Keys => Entries.Keys;
+        public static void Reset() => Entries.Clear();
+    }
+}

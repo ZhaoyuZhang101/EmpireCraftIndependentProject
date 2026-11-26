@@ -1,0 +1,1120 @@
+// Generated from the EmpireCraft mod: Scripts/AI/ActorAI/EmpireCraftActorCheckWarrior.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
+// see Port/manifest.json and Tools/PortTool.
+using Time = EmpireCraft.Core.FrameClock;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace EmpireCraft.Core
+{
+
+public class EmpireCraftActorCheckWarrior : GameAIActorBase
+{
+    public override Type OriginalBeh => GetType();
+
+    // ============================================================
+    // V3：人口保护 / 战时紧急征召记录
+    // ============================================================
+
+    // 只记录“开战补满时额外征出来”的 Warrior。
+    // 原本的职业军人不会被记录，因此和平后不会被自动复员。
+    private static readonly HashSet<Person> _emergencyConscripts = new();
+
+    // 战争结束后不要在 endWar 同一帧立刻复员，
+    // 延迟少量帧，让 WorldBox 的战争关系先稳定下来。
+    private static bool _demobilizationCheckRequested = false;
+    private static int _demobilizationCheckFrame = -1;
+    private const int DemobilizationDelayFrames = 30;
+
+    // ============================================================
+    // V3：独立 Warrior 生育维护
+    //
+    // 不再放在 WarriorMove.execute() 里。
+    // ArmyManager.update 无论和平/战争都会调用这里。
+    // ============================================================
+
+    private const int FertilityActorsPerFrame = 24;
+    private const int FertilityMinIntervalFrames = 450;
+    private const int FertilityMaxIntervalFrames = 750;
+    private const int FertilityInitialMinDelayFrames = 120;
+    private const int FertilityInitialMaxDelayFrames = 600;
+
+    private static readonly Dictionary<long, int> _nextFertilityCheckFrame = new();
+    private static readonly List<long> _staleFertilityActorIds = new();
+    private const int FertilitySchedulePruneFrames = 1800;
+    private static int _nextFertilitySchedulePruneFrame = -1;
+
+    // 只 snapshot Army 列表；不 snapshot 全世界人口。
+    private static List<Army> _fertilityArmySnapshot = new();
+    private static int _fertilityArmyIndex = 0;
+    private static int _fertilityUnitIndex = 0;
+    private static int _fertilitySnapshotRefreshFrame = -1;
+    private const int FertilityArmySnapshotRefreshFrames = 300;
+
+    // ============================================================
+    // 分帧战争征兵
+    // ============================================================
+
+    // 每帧最多检查多少个开战紧急征兵候选。
+    // 多国同时开战时也不会在一帧扫描完几万人口。
+    private const int EmergencyRecruitCandidatesPerFrame = 40;
+
+    private static int _lastRecruitQueueProcessFrame = -1;
+
+    private sealed class CityRecruitState
+    {
+        public City city;
+        public Realm kingdom;
+
+        public int need;
+
+        // 已按人口保护顺序排好：
+        // 1. 男性
+        // 2. 没有 lover 的女性
+        // 3. 有 lover 的女性（最后才动）
+        //
+        // pregnant 女性完全排除，不参与紧急征召。
+        public List<Person> candidates;
+        public int normalIndex;
+
+        // 第一轮 checkCanMakeWarrior 不通过的人，
+        // 第二轮才作为紧急征召候选。
+        public List<Person> fallbackCandidates = new();
+        public int fallbackIndex;
+
+        public bool initialized;
+        public bool normalPassFinished;
+    }
+
+    private sealed class KingdomRecruitJob
+    {
+        public Realm kingdom;
+        public List<City> cities;
+        public int cityIndex;
+        public CityRecruitState currentCity;
+    }
+
+    private static readonly Queue<KingdomRecruitJob> _recruitJobs = new();
+    private static readonly HashSet<long> _queuedRecruitKingdomIds = new();
+
+    public static void ClearRuntimeState()
+    {
+        _emergencyConscripts.Clear();
+        _demobilizationCheckRequested = false;
+        _demobilizationCheckFrame = -1;
+        _nextFertilityCheckFrame.Clear();
+        _staleFertilityActorIds.Clear();
+        _nextFertilitySchedulePruneFrame = -1;
+        _fertilityArmySnapshot = new List<Army>();
+        _fertilityArmyIndex = 0;
+        _fertilityUnitIndex = 0;
+        _fertilitySnapshotRefreshFrame = -1;
+        _lastRecruitQueueProcessFrame = -1;
+        _recruitJobs.Clear();
+        _queuedRecruitKingdomIds.Clear();
+    }
+
+#if EC_PENDING
+    public override BehResult Execute(Person pActor)
+    {
+        if (pActor == null || pActor.IsGone())
+            return BehResult.Continue;
+
+        if (pActor.IsRuler())
+        {
+            pActor.stopBeingWarrior();
+        }
+
+        if (EmpireCraftWorldLawLibrary
+            .empirecraft_law_prevent_building_destroy
+            .isEnabled())
+        {
+            pActor.Asset.can_attack_buildings = false;
+        }
+
+        if (!pActor.IsFitToRule()) return BehResult.Continue;
+        if (!pActor.HasRealm()) return BehResult.Continue;
+        if (pActor.IsRuler()) return BehResult.Continue;
+        if (pActor.IsCityLeader()) return BehResult.Continue;
+        if (!pActor.IsAdult()) return BehResult.Continue;
+        if (!pActor.HasCity()) return BehResult.Continue;
+        if (pActor.IsWarrior()) return BehResult.Continue;
+
+        Realm pKingdom = pActor.Realm;
+
+        if (pKingdom.GetRegime() == null) return BehResult.Continue;
+        if (!pKingdom.GetRegime().IsAllowArmy()) return BehResult.Continue;
+        if (!WorldLaws.CivArmy.IsEnabled()) return BehResult.Continue;
+
+        // 平时征兵：保留原逻辑，不改成高频强征。
+        TryNormalRecruit(pActor);
+
+        return BehResult.Continue;
+    }
+#endif
+
+    // ============================================================
+    // WarPatch 只负责“排队一次”
+    // ============================================================
+
+#if EC_PENDING
+    public static void QueueWarStartFill(Realm kingdom)
+    {
+        if (!CanEmergencyMobilizeKingdom(kingdom))
+            return;
+
+        long id = kingdom.Key;
+
+        if (!_queuedRecruitKingdomIds.Add(id))
+            return;
+
+        var cities = kingdom.Cities?.ToList();
+
+        if (cities == null || cities.Count == 0)
+        {
+            _queuedRecruitKingdomIds.Remove(id);
+            return;
+        }
+
+        _recruitJobs.Enqueue(new KingdomRecruitJob
+        {
+            kingdom = kingdom,
+            cities = cities,
+            cityIndex = 0,
+            currentCity = null
+        });
+    }
+#endif
+
+    // 由 WarPatch.update 每帧调用；内部只跑一次。
+#if EC_PENDING
+    public static void ProcessEmergencyRecruitmentJobs()
+    {
+        // 无小人模式：士兵由军制从背景人口征召，城里只剩官员、城主等名人，不再紧急征召实体单位
+        if (EmpireCraft.Core.CityPopulationSystem.AbstractPopulationEnabled) return;
+        int frame = Time.frameCount;
+
+        if (_lastRecruitQueueProcessFrame == frame)
+            return;
+
+        _lastRecruitQueueProcessFrame = frame;
+
+        int budget = EmergencyRecruitCandidatesPerFrame;
+
+        // Round-robin：
+        // 每次从队头拿一个国家，用掉一部分预算后放回队尾。
+        // 多国同时开战时不会一直卡在第一个大国。
+        int jobsThisFrame = _recruitJobs.Count;
+
+        while (budget > 0 &&
+               jobsThisFrame > 0 &&
+               _recruitJobs.Count > 0)
+        {
+            KingdomRecruitJob job = _recruitJobs.Dequeue();
+            jobsThisFrame--;
+
+            if (!IsRecruitJobStillValid(job))
+            {
+                FinishRecruitJob(job);
+                continue;
+            }
+
+            int slice = Math.Min(10, budget);
+            int used = ProcessRecruitJobSlice(job, slice);
+
+            // 至少消耗 1 个预算，避免某个异常 job 空转。
+            budget -= Math.Max(1, used);
+
+            if (IsRecruitJobFinished(job))
+            {
+                FinishRecruitJob(job);
+            }
+            else
+            {
+                _recruitJobs.Enqueue(job);
+            }
+        }
+    }
+
+    private static bool IsRecruitJobStillValid(KingdomRecruitJob job)
+    {
+        if (job == null ||
+            job.kingdom == null ||
+            job.kingdom.IsGone() ||
+            !job.kingdom.HasEnemies())
+        {
+            return false;
+        }
+
+        return CanEmergencyMobilizeKingdom(job.kingdom);
+    }
+#endif
+
+    private static bool IsRecruitJobFinished(KingdomRecruitJob job)
+    {
+        if (job == null)
+            return true;
+
+        return job.currentCity == null &&
+               job.cityIndex >= job.cities.Count;
+    }
+
+    private static void FinishRecruitJob(KingdomRecruitJob job)
+    {
+        if (job?.kingdom != null)
+        {
+            _queuedRecruitKingdomIds.Remove(job.kingdom.Key);
+        }
+    }
+
+#if EC_PENDING
+    private static int ProcessRecruitJobSlice(
+        KingdomRecruitJob job,
+        int budget)
+    {
+        int used = 0;
+
+        while (used < budget)
+        {
+            if (job.currentCity == null)
+            {
+                if (job.cityIndex >= job.cities.Count)
+                    break;
+
+                City city = job.cities[job.cityIndex++];
+                job.currentCity = CreateCityRecruitState(
+                    city,
+                    job.kingdom);
+
+                if (job.currentCity == null)
+                {
+                    continue;
+                }
+            }
+
+            CityRecruitState state = job.currentCity;
+
+            if (!state.initialized)
+            {
+                InitializeCityRecruitState(state);
+
+                if (state.need <= 0 ||
+                    state.candidates == null ||
+                    state.candidates.Count == 0)
+                {
+                    job.currentCity = null;
+                    continue;
+                }
+            }
+
+            // 第一轮：只征正常 checkCanMakeWarrior 允许的人。
+            if (!state.normalPassFinished)
+            {
+                if (state.normalIndex >= state.candidates.Count ||
+                    state.need <= 0)
+                {
+                    state.normalPassFinished = true;
+
+                    if (state.need <= 0)
+                    {
+                        job.currentCity = null;
+                        continue;
+                    }
+                }
+                else
+                {
+                    Person actor = state.candidates[state.normalIndex++];
+                    used++;
+
+                    if (!CanEmergencyRecruitActor(
+                            actor,
+                            state.city,
+                            state.kingdom))
+                    {
+                        continue;
+                    }
+
+                    bool normalAllowed = false;
+
+                    try
+                    {
+                        normalAllowed =
+                            state.city.checkCanMakeWarrior(actor);
+                    }
+                    catch
+                    {
+                    }
+
+                    if (normalAllowed)
+                    {
+                        if (TryMakeWarrior(
+                                state.city,
+                                actor,
+                                state.kingdom))
+                        {
+                            state.need--;
+                        }
+                    }
+                    else
+                    {
+                        // 只记录一次，不再重新扫描 city.units。
+                        state.fallbackCandidates.Add(actor);
+                    }
+
+                    continue;
+                }
+            }
+
+            // 第二轮：正常候选不足时，才使用紧急征召名单。
+            if (state.need > 0)
+            {
+                if (state.fallbackIndex >= state.fallbackCandidates.Count)
+                {
+                    LogService.LogInfo(
+                        $"战争动员未完全补满：{state.city.Name}，仍缺 {state.need} 名合格成年市民");
+
+                    job.currentCity = null;
+                    continue;
+                }
+
+                Person actor =
+                    state.fallbackCandidates[state.fallbackIndex++];
+
+                used++;
+
+                if (!CanEmergencyRecruitActor(
+                        actor,
+                        state.city,
+                        state.kingdom))
+                {
+                    continue;
+                }
+
+                if (TryMakeWarrior(
+                        state.city,
+                        actor,
+                        state.kingdom))
+                {
+                    state.need--;
+                }
+
+                continue;
+            }
+
+            job.currentCity = null;
+        }
+
+        return used;
+    }
+#endif
+
+    private static CityRecruitState CreateCityRecruitState(
+        City city,
+        Realm kingdom)
+    {
+        if (city == null ||
+            kingdom == null ||
+            city.Realm != kingdom)
+        {
+            return null;
+        }
+
+        return new CityRecruitState
+        {
+            city = city,
+            kingdom = kingdom
+        };
+    }
+
+#if EC_PENDING
+    private static void InitializeCityRecruitState(
+        CityRecruitState state)
+    {
+        state.initialized = true;
+
+        try
+        {
+            int current = state.city.Warriors();
+            int maximum = state.city.getMaxWarriors();
+            state.need = Math.Max(0, maximum - current);
+        }
+        catch
+        {
+            state.need = 0;
+            return;
+        }
+
+        // 只在轮到这座城市时才 snapshot，
+        // 不在宣战那一帧把全国所有 city.units 一口气 ToList。
+        var source =
+            state.city.People?.ToList() ?? new List<Person>();
+
+        // 人口保护：
+        // pregnant 永远不参与这次紧急征召。
+        //
+        // 优先男性；其次没有 lover 的女性；
+        // 有 lover 的女性只有真的不够补满时才会被征。
+        var males = new List<Person>();
+        var femalesWithoutLover = new List<Person>();
+        var femalesWithLover = new List<Person>();
+
+        foreach (Person actor in source)
+        {
+            if (!CanEmergencyRecruitActor(
+                    actor,
+                    state.city,
+                    state.kingdom))
+            {
+                continue;
+            }
+
+            if (actor.hasStatus("pregnant"))
+                continue;
+
+            if (!actor.IsFemale())
+            {
+                males.Add(actor);
+                continue;
+            }
+
+            if (actor.Spouse == null ||
+                !actor.Spouse.Alive)
+            {
+                femalesWithoutLover.Add(actor);
+            }
+            else
+            {
+                femalesWithLover.Add(actor);
+            }
+        }
+
+        state.candidates = new List<Person>(
+            males.Count +
+            femalesWithoutLover.Count +
+            femalesWithLover.Count);
+
+        state.candidates.AddRange(males);
+        state.candidates.AddRange(femalesWithoutLover);
+        state.candidates.AddRange(femalesWithLover);
+    }
+
+    private static bool TryMakeWarrior(
+        City city,
+        Person actor,
+        Realm kingdom)
+    {
+        if (city == null ||
+            actor == null ||
+            actor.IsWarrior())
+        {
+            return false;
+        }
+
+        try
+        {
+            city.makeWarrior(actor);
+
+            if (!actor.IsWarrior())
+                return false;
+
+            // 记录为“本次战争额外紧急征召”。
+            // 和平后只复员这些人，不碰原职业军人。
+            _emergencyConscripts.Add(actor);
+
+            // 新征出的 Warrior 不同步开始复杂寻路。
+            // 只丢进移动分帧队列。
+            EmpireCraftActorCheckWarriorMove
+                .QueueActorForWarMobilization(
+                    actor,
+                    kingdom);
+
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool CanEmergencyMobilizeKingdom(
+        Realm kingdom)
+    {
+        if (kingdom == null ||
+            kingdom.IsGone() ||
+            kingdom.IsNeutral())
+        {
+            return false;
+        }
+
+        if (kingdom.GetRegime() == null)
+            return false;
+
+        if (!kingdom.GetRegime().IsAllowArmy())
+            return false;
+
+        return WorldLawLibrary
+            .world_law_civ_army
+            .isEnabled();
+    }
+#endif
+
+    private static bool CanEmergencyRecruitActor(
+        Person actor,
+        City city,
+        Realm kingdom)
+    {
+        if (actor == null ||
+            !actor.Alive ||
+            actor.IsGone())
+        {
+            return false;
+        }
+
+        if (actor.City != city ||
+            actor.Realm != kingdom)
+        {
+            return false;
+        }
+
+        if (actor.IsWarrior() ||
+            actor.IsRuler() ||
+            actor.IsCityLeader() ||
+            !actor.IsAdult() ||
+            !actor.IsFitToRule())
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    // ============================================================
+    // V3：ArmyManager.update 每帧调用一次
+    //
+    // 这里负责：
+    // 1. 分帧紧急征兵；
+    // 2. Warrior 生育；
+    // 3. 战争结束后的紧急征召兵复员。
+    // ============================================================
+
+#if EC_PENDING
+    public static void ProcessArmyPopulationMaintenance()
+    {
+        ProcessEmergencyRecruitmentJobs();
+        ProcessSoldierFertilityBudget();
+        ProcessPendingDemobilization();
+    }
+#endif
+
+    // ============================================================
+    // Warrior 生育
+    // ============================================================
+
+#if EC_PENDING
+    private static void ProcessSoldierFertilityBudget()
+    {
+        PruneFertilityScheduleIfNeeded();
+        RefreshFertilityArmySnapshotIfNeeded();
+
+        if (_fertilityArmySnapshot == null ||
+            _fertilityArmySnapshot.Count == 0)
+        {
+            return;
+        }
+
+        int budget = FertilityActorsPerFrame;
+        int safety = 0;
+
+        while (budget > 0 &&
+               _fertilityArmySnapshot.Count > 0 &&
+               safety < 512)
+        {
+            safety++;
+
+            if (_fertilityArmyIndex >= _fertilityArmySnapshot.Count)
+            {
+                _fertilityArmyIndex = 0;
+                _fertilityUnitIndex = 0;
+            }
+
+            Army army = _fertilityArmySnapshot[_fertilityArmyIndex];
+
+            if (army == null ||
+                army.IsGone() ||
+                army.People == null ||
+                army.People.Count == 0)
+            {
+                _fertilityArmyIndex++;
+                _fertilityUnitIndex = 0;
+                continue;
+            }
+
+            if (_fertilityUnitIndex >= army.People.Count)
+            {
+                _fertilityArmyIndex++;
+                _fertilityUnitIndex = 0;
+                continue;
+            }
+
+            Person actor = army.People[_fertilityUnitIndex++];
+            budget--;
+
+            TrySoldierPregnancyIndependent(actor);
+        }
+    }
+#endif
+
+    private static void PruneFertilityScheduleIfNeeded()
+    {
+        int frame = Time.frameCount;
+        if (_nextFertilitySchedulePruneFrame >= 0 && frame < _nextFertilitySchedulePruneFrame)
+        {
+            return;
+        }
+
+        _nextFertilitySchedulePruneFrame = frame + FertilitySchedulePruneFrames;
+        _staleFertilityActorIds.Clear();
+        foreach (var pair in _nextFertilityCheckFrame)
+        {
+            Person actor = null;
+            try
+            {
+                actor = EmpireWorld.Current?.PersonByKey(pair.Key);
+            }
+            catch
+            {
+                actor = null;
+            }
+
+            if (actor == null || !actor.Alive || actor.IsGone() || !actor.IsWarrior())
+            {
+                _staleFertilityActorIds.Add(pair.Key);
+            }
+        }
+
+        for (int i = 0; i < _staleFertilityActorIds.Count; i++)
+        {
+            _nextFertilityCheckFrame.Remove(_staleFertilityActorIds[i]);
+        }
+        _staleFertilityActorIds.Clear();
+
+        foreach (Person actor in _emergencyConscripts.ToList())
+        {
+            if (actor == null || !actor.Alive || actor.IsGone())
+            {
+                _emergencyConscripts.Remove(actor);
+            }
+        }
+    }
+
+#if EC_PENDING
+    private static void RefreshFertilityArmySnapshotIfNeeded()
+    {
+        int frame = Time.frameCount;
+
+        bool needsRefresh =
+            _fertilityArmySnapshot == null ||
+            _fertilityArmySnapshot.Count == 0 ||
+            _fertilitySnapshotRefreshFrame < 0 ||
+            frame - _fertilitySnapshotRefreshFrame >=
+                FertilityArmySnapshotRefreshFrames;
+
+        if (!needsRefresh)
+            return;
+
+        _fertilitySnapshotRefreshFrame = frame;
+
+        try
+        {
+            _fertilityArmySnapshot =
+                EmpireWorld.Current.armies?
+                    .Where(a => a != null && !a.IsGone())
+                    .ToList()
+                ?? new List<Army>();
+        }
+        catch
+        {
+            _fertilityArmySnapshot = new List<Army>();
+        }
+
+        if (_fertilityArmyIndex >= _fertilityArmySnapshot.Count)
+            _fertilityArmyIndex = 0;
+
+        _fertilityUnitIndex = 0;
+    }
+
+    private static void TrySoldierPregnancyIndependent(Person actor)
+    {
+        if (actor == null ||
+            !actor.Alive ||
+            actor.IsGone() ||
+            !actor.IsWarrior())
+        {
+            return;
+        }
+
+        long actorId = actor.Key;
+        int frame = Time.frameCount;
+
+        // 第一次只安排未来检查时间，避免一批新兵在同一帧集体检查。
+        if (!_nextFertilityCheckFrame.TryGetValue(
+                actorId,
+                out int nextFrame))
+        {
+            _nextFertilityCheckFrame[actorId] =
+                frame + EcRandom.Range(
+                    FertilityInitialMinDelayFrames,
+                    FertilityInitialMaxDelayFrames + 1);
+
+            return;
+        }
+
+        if (frame < nextFrame)
+            return;
+
+        _nextFertilityCheckFrame[actorId] =
+            frame + EcRandom.Range(
+                FertilityMinIntervalFrames,
+                FertilityMaxIntervalFrames + 1);
+
+        if (!actor.IsFemale())
+            return;
+
+        Person lover = actor.Spouse;
+
+        if (lover == null ||
+            lover == actor ||
+            !lover.Alive ||
+            lover.IsGone())
+        {
+            return;
+        }
+
+        if (!actor.canBreed() ||
+            !lover.canBreed() ||
+            !actor.IsAdult() ||
+            !lover.IsAdult())
+        {
+            return;
+        }
+
+        if (actor.hasReachedOffspringLimit())
+            return;
+
+        if (actor.hasStatus("pregnant") ||
+            actor.hasStatus("afterglow") ||
+            lover.hasStatus("afterglow"))
+        {
+            return;
+        }
+
+        if (actor.City == null)
+            return;
+
+        try
+        {
+            float maturationTime =
+                actor.getMaturationTimeSeconds();
+
+            actor.addStatusEffect(
+                "pregnant",
+                maturationTime,
+                true);
+
+            float afterglowTime =
+                maturationTime + 30f;
+
+            actor.addStatusEffect(
+                "afterglow",
+                afterglowTime,
+                true);
+
+            lover.addStatusEffect(
+                "afterglow",
+                afterglowTime,
+                true);
+        }
+        catch
+        {
+            // 生育失败绝不影响军事 AI。
+        }
+    }
+#endif
+
+    // ============================================================
+    // 战后复员
+    // ============================================================
+
+    public static void RequestDemobilizationCheck()
+    {
+        _demobilizationCheckRequested = true;
+        _demobilizationCheckFrame =
+            Time.frameCount + DemobilizationDelayFrames;
+    }
+
+#if EC_PENDING
+    private static void ProcessPendingDemobilization()
+    {
+        if (!_demobilizationCheckRequested)
+            return;
+
+        if (Time.frameCount < _demobilizationCheckFrame)
+            return;
+
+        _demobilizationCheckRequested = false;
+
+        var snapshot = _emergencyConscripts.ToList();
+
+        foreach (Person actor in snapshot)
+        {
+            if (actor == null ||
+                !actor.Alive ||
+                actor.IsGone())
+            {
+                _emergencyConscripts.Remove(actor);
+                continue;
+            }
+
+            Realm kingdom = actor.Realm;
+
+            if (kingdom == null ||
+                kingdom.IsGone())
+            {
+                _emergencyConscripts.Remove(actor);
+                continue;
+            }
+
+            // 如果本人所在国家/帝国仍在任何活跃战争中，不复员。
+            if (IsKingdomOrEmpireStillAtWar(kingdom))
+                continue;
+
+            try
+            {
+                if (actor.IsWarrior() &&
+                    !actor.IsRuler() &&
+                    !actor.IsCityLeader())
+                {
+                    actor.ClearFrontLineMoveTarget();
+                    actor.stopBeingWarrior();
+
+                    // 只在复员瞬间 reset 一次，
+                    // 让其重新进入普通市民工作/社交/生育 AI。
+                    actor.cancelAllBeh();
+                }
+            }
+            catch
+            {
+            }
+
+            _emergencyConscripts.Remove(actor);
+        }
+
+        // 如果还有因为其它战争没能复员的人，
+        // 后续某场战争结束时 WarPatch 会再次 Request。
+    }
+#endif
+
+    private static bool IsKingdomOrEmpireStillAtWar(Realm kingdom)
+    {
+        if (kingdom == null || kingdom.IsGone())
+            return false;
+
+        if (IsKingdomDirectlyInActiveWar(kingdom))
+            return true;
+
+        Empire empire = kingdom.GetEmpire();
+        Realm core = empire?.CoreKingdom;
+
+        if (core == null && kingdom.IsEmpire())
+            core = kingdom;
+
+        if (core != null &&
+            core != kingdom &&
+            IsKingdomDirectlyInActiveWar(core))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsKingdomDirectlyInActiveWar(Realm kingdom)
+    {
+        if (kingdom == null)
+            return false;
+
+        try
+        {
+            if (kingdom.HasEnemies())
+                return true;
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            foreach (War war in EmpireWorld.Current.WarsOf(kingdom))
+            {
+                if (war != null &&
+                    war.Alive &&
+                    !war.HasEnded())
+                {
+                    return true;
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return false;
+    }
+
+    // ============================================================
+    // 原平时征兵逻辑
+    // ============================================================
+
+#if EC_PENDING
+    private static void TryNormalRecruit(Person pActor)
+    {
+        Realm pKingdom = pActor.Realm;
+
+        if (!pKingdom.IsInEmpire())
+        {
+            if (pActor.City.checkCanMakeWarrior(pActor))
+            {
+                try
+                {
+                    pActor.City.makeWarrior(pActor);
+                }
+                catch
+                {
+                }
+            }
+
+            return;
+        }
+
+        Empire empire = pKingdom.GetEmpire();
+
+        if (empire == null || empire.IsGone())
+            return;
+
+        if (CountAllCenterArmy(empire) <
+                empire.data.MilitaryExpenditure * 25 &&
+            pKingdom.GetMoney() > 0)
+        {
+            if (pActor.City?.checkCanMakeWarrior(pActor) ?? false)
+            {
+                try
+                {
+                    pActor.City.makeWarrior(pActor);
+                }
+                catch
+                {
+                }
+            }
+
+            if (pKingdom.GetRegime().IsAllowSupportCenterArmy())
+            {
+                var armies = GetAllCenterArmy(empire);
+
+                foreach (var a in armies)
+                {
+                    if (a == null ||
+                        !a.hasCaptain() ||
+                        a.Captain == null)
+                    {
+                        continue;
+                    }
+
+                    if (a.People.Count < a.Captain.Warfare)
+                    {
+                        var city = a.Captain.City;
+
+                        try
+                        {
+                            pActor.setArmy(a);
+
+                            if (city != null)
+                                pActor.setCity(city);
+
+                            if (empire.CoreKingdom != null)
+                            {
+                                pActor.SetRealm(
+                                    empire.CoreKingdom);
+                            }
+                        }
+                        catch
+                        {
+                        }
+
+                        break;
+                    }
+                }
+            }
+        }
+        else
+        {
+            City city = pActor.City;
+
+            if (city != null &&
+                city.checkCanMakeWarrior(pActor))
+            {
+                try
+                {
+                    city.makeWarrior(pActor);
+                }
+                catch
+                {
+                }
+            }
+        }
+    }
+
+    public static List<Army> GetAllCenterArmy(Empire empire)
+    {
+        List<Army> res = new List<Army>();
+
+        if (empire == null ||
+            empire.kingdoms_list == null)
+        {
+            return res;
+        }
+
+        var ks = empire.kingdoms_list;
+
+        for (int i = 0; i < ks.Count; i++)
+        {
+            var k = ks[i];
+
+            if (k == null)
+                continue;
+
+            var a = k.GetCenterArmy();
+
+            if (a != null && !a.IsGone())
+            {
+                res.Add(a);
+            }
+        }
+
+        return res;
+    }
+
+    public static int CountAllCenterArmy(Empire empire)
+    {
+        var armies = GetAllCenterArmy(empire);
+        int total = 0;
+
+        for (int i = 0; i < armies.Count; i++)
+        {
+            total += armies[i].People.Count;
+        }
+
+        return total;
+    }
+#endif
+}
+}

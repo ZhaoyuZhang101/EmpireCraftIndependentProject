@@ -1,0 +1,285 @@
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/MaladySystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
+// see Port/manifest.json and Tools/PortTool.
+using Mathf = EmpireCraft.Core.EcMath;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace EmpireCraft.Core
+{
+
+// 朝政积弊(用户 2026-10-14："皇帝昏庸不理朝政导致积病越来越多")：
+//   王朝积弊不再只是一个数，拆成六条具体弊病，各 0~100——吏治败坏、土地兼并、冗官冗费、武备废弛、党争、苛捐杂税。
+//   · 滋生(每年)：按君主资质——昏聩 +6、荒淫 +5、庸弱 +3、暴虐 +2、中主 +1、明君 -4、中兴之主 -6；
+//     权臣外戚挟制 +1.5、开国气象 -2；各条另看实情：
+//       吏治 +中央腐败×8(荒淫 +1)；兼并 +无地农民比例×10(荒淫 +1)；冗费 +王朝年岁/100×2(最多 3，庸弱昏聩 +1)；
+//       武备 +禁军空饷×6(昏聩荒淫 +1)；党争 +各派最大怨望/25(庸弱 +2、被挟制 +1)；苛捐 暴虐 +4、荒淫 +2、国库亏空 +3；
+//   · 历史周期律(用户 2026-10-14)：积弊随王朝年岁慢慢沉积——立国头 80 年只按二成的速度滋生，80~160 年四成五，
+//     一百六十年后才全速；开国气象(统一战争期间、统一后 30 年，见 Empire.InFoundingGrace)里不滋生；消退照常；
+//   · 革除：明君、中兴之主在位逐年消退(被权臣、外戚挟制的不算，见 Governance)；整顿吏治告成 吏治 -15；改朝换代旧弊一扫而空(各留两成)——
+//     权臣篡位、外戚代立是朝廷里的易代，积弊原样留下(玩家建议"如司马故事")；兵变禅让、宗室另立或复国减半
+//     (用户 2026-10-26 改朝换代三档，见 DynasticCycleSystem.OnDynastyChanged)。六弊照旧可治可降，王朝积弊却只能延缓；
+//   · 效果(轻重 s = 积弊/100)：
+//       吏治——帝国各城、各成员国腐败每年 +1.2%×s；兼并——有地农民卖地的速度 ×(1+s)；
+//       冗费——每年多支 12%×s 年度经常收入(行政开支)；武备——本帝国各军战力 ×(1−0.25s)，禁军空饷再多两成×s，
+//         兵源(可征之兵)×(1−0.3s)，组织度上限 100−20s、休整恢复 ×(1−0.3s)(用户 2026-10-20 选"积弊动真格")；
+//       党争——奏议准奏率 -15%×s，各派怨望每年 +8×s；苛捐——苛政 +15×s；
+//   · 与王朝积弊互为表里(用户 2026-10-27："但是这俩个也应该是有关联的才对"——以前只有六弊推高王朝积弊，国祚近两百年、
+//     王朝积弊 11.8，六弊却能全被明君治到零)：王朝积弊越深，六弊滋生越快(×(1 + 积弊/100))，也治不干净——每条至多降到
+//     王朝积弊的 StrainFloorShare(积弊 60 的危局里各条至少 30)，年底低于这条线的浮上来(见 Floor)；
+//       合计——王朝积弊(周期压力)每年多涨 六条平均×1.0；正统 −(平均−30)×0.1；平均过五十推高土崩瓦解的内忧，
+//         平均七十以上算危局，苛政民变打仗时也会爆发(见 MonarchyLegitimacy、ProvincialCollapseSystem、HarshRuleSystem)。
+// 只有传统君主制有(同王朝周期，见 DynasticCycleSystem.Applies)。
+public static class MaladySystem
+{
+    public const string Graft = "graft", Annexation = "annexation", Bloat = "bloat", Military = "military",
+        Factionalism = "factionalism", Levies = "levies";
+
+    public static readonly string[] All = { Graft, Annexation, Bloat, Military, Factionalism, Levies };
+
+    private const float GraftCorruption = 0.012f, BloatCost = 0.12f, MilitaryPenalty = 0.25f, PhantomShare = 0.2f;
+    // 党争给各派怨望的年增：不超过每年自然回落的 4(见 CourtSystem.Income)，否则党争与怨望互相推高、各派永远罢朝
+    // (用户 2026-10-17 "全罢朝了是什么意思"，选"拆掉，党争只推怨望不超过每年回落")
+    // StrainShare：积弊推高王朝积弊的系数，1.5 → 1.0(用户 2026-10-21 选"放慢衰落")
+    private const float ApprovalPenalty = 0.15f, FactionGrievance = 3f, LeviesBurden = 15f, StrainShare = 1.0f;
+    // 武备废弛：兵源、组织度上限、休整恢复(用户 2026-10-20 选"积弊动真格"：以前只打战力七五折，积弊满格的游牧照样打赢)
+    private const float LevyPenalty = 0.3f, OrgCapPenalty = 20f, RecoveryPenalty = 0.3f;
+    // 合计：正统 −(平均−LegitimacyFloor)×LegitimacyRate；平均过 CollapseFloor 推高土崩瓦解的内忧；平均 CrisisAverage 以上算危局。
+    // 积弊已经经王朝积弊(StrainShare)压正统，这里再直接扣是第二份：LegitimacyRate 0.25 → 0.1(用户 2026-10-21 选"积弊不再双扣正统")
+    private const float LegitimacyFloor = 30f, LegitimacyRate = 0.1f, CollapseFloor = 50f, CollapseSpan = 40f, CrisisAverage = 70f;
+
+    public static bool Applies(Empire empire) => empire?.data != null && DynasticCycleSystem.Applies(empire);
+
+    public static float Get(Empire empire, string key) =>
+        empire?.data?.maladies != null && empire.data.maladies.TryGetValue(key, out float value) ? value : 0f;
+
+    public static float Severity(Empire empire, string key) => Applies(empire) ? Mathf.Clamp01(Get(empire, key) / 100f) : 0f;
+
+    public static float Average(Empire empire) => Applies(empire) ? All.Average(key => Get(empire, key)) : 0f;
+
+    // 王朝积弊托着的底：六弊治不到这条线以下(见类头)
+    private const float StrainFloorShare = 0.5f;
+
+    public static float Floor(Empire empire) => FloorOf(DynasticCycleSystem.GetPressure(empire));
+
+    // 某个王朝积弊托着的底(剧本编辑器显示六弊默认值用，见 WorldMapScenario.StartingStrain)
+    public static float FloorOf(float strain) => strain * StrainFloorShare;
+
+    // 减的时候至多减到王朝积弊托着的底(本来就在底下的不再往下减)
+    private static void Add(Empire empire, string key, float delta)
+    {
+        empire.data.maladies ??= new Dictionary<string, float>();
+        float current = Get(empire, key);
+        float min = delta < 0f ? Mathf.Min(current, Floor(empire)) : 0f;
+        empire.data.maladies[key] = Mathf.Clamp(current + delta, min, 100f);
+    }
+
+    public static void Relieve(Empire empire, string key, float amount)
+    {
+        if (Applies(empire)) Add(empire, key, -Mathf.Abs(amount));
+    }
+
+    // 别的系统加重某条积弊(如派系失衡，见 FactionBalanceSystem)
+    public static void Aggravate(Empire empire, string key, float amount)
+    {
+        if (Applies(empire)) Add(empire, key, Mathf.Abs(amount));
+    }
+
+    // 改朝换代：旧弊一扫而空，各留两成；兵变禅让、宗室复国减半(keep 0.5，用户 2026-10-26，见 DynasticCycleSystem.OnDynastyChanged)
+    public static void OnDynastyChanged(Empire empire, float keep = 0.2f)
+    {
+        if (empire?.data?.maladies == null) return;
+        foreach (string key in All) empire.data.maladies[key] = Get(empire, key) * Mathf.Clamp01(keep);
+    }
+
+    #region 每年
+
+    public static void Yearly(Empire empire)
+    {
+        try
+        {
+            if (!Applies(empire) || EmpireWorld.Current == null) return;
+            double now = GameClock.Now;
+            if (empire.data.last_malady_update >= 0d && now >= empire.data.last_malady_update &&
+                GameClock.YearsSince(empire.data.last_malady_update) < 1) return;
+            empire.data.last_malady_update = now;
+            Grow(empire);
+            Apply(empire);
+        }
+        catch (Exception exception)
+        {
+            LogService.LogWarning($"[EmpireCraft][积弊] 年度结算失败: {exception.Message}");
+        }
+    }
+
+    // 积弊看实际理政的人：
+    //   · 幕府：天皇是傀儡，朝政由将军掌着，看将军的资质(用户 2026-10-21 选"幕府会倒、应仁之乱"：以前按傀儡天皇算)；
+    //   · 傀儡管不了(用户 2026-11-06 选)：被权臣、外戚(或苏丹)挟制的君主想管也管不了，明君、中兴之主给王朝积弊的折扣
+    //     和六弊的逐年消退都不算，按中主算；庸弱、昏聩、荒淫、暴虐照算(以前挟制下的明君照样打六折、六弊每年降 2.5)。
+    // 王朝积弊(见 DynasticCycleSystem.Update)与六弊同用这里
+    public static (RulerQualitySystem.Grade grade, bool restorer, bool shogunate) Governance(Empire empire)
+    {
+        bool shogunate = MilitaryRegency.KindOf(empire) == MilitaryRegency.Shogun;
+        Person regent = shogunate ? MilitaryRegency.Regent(empire) : null;
+        Person ruler = regent ?? empire.Emperor;
+        RulerQualitySystem.Grade grade = RulerQualitySystem.Of(ruler);
+        bool restorer = regent != null ? RulerTraitSystem.HasActiveTrait(ruler, RulerTraitSystem.Restorer) :
+            RulerTraitSystem.ReignedBy(empire.CoreKingdom, RulerTraitSystem.Restorer);
+        if (empire.data.is_been_controlled && regent == null)
+        {
+            restorer = false;
+            if (grade == RulerQualitySystem.Grade.Wise) grade = RulerQualitySystem.Grade.Average;
+        }
+        return (grade, restorer, shogunate);
+    }
+
+    private static void Grow(Empire empire)
+    {
+        (RulerQualitySystem.Grade grade, bool restorer, bool shogunate) = Governance(empire);
+        float common = restorer ? -6f : grade switch
+        {
+            RulerQualitySystem.Grade.Fatuous => 6f,
+            RulerQualitySystem.Grade.Dissolute => 5f,
+            RulerQualitySystem.Grade.Weak => 3f,
+            RulerQualitySystem.Grade.Tyrant => 2f,
+            RulerQualitySystem.Grade.Wise => -4f,
+            _ => 1f
+        };
+        bool controlled = empire.data.is_been_controlled;
+        // 幕府的天皇永远"受挟制"，那是常态而非权臣乱政：只加 0.5
+        if (controlled) common += shogunate ? 0.5f : 1.5f;
+        if (empire.InFoundingGrace) common -= 2f;
+        bool dissolute = grade == RulerQualitySystem.Grade.Dissolute;
+        bool neglect = grade is RulerQualitySystem.Grade.Fatuous or RulerQualitySystem.Grade.Dissolute;
+        bool weak = grade is RulerQualitySystem.Grade.Weak or RulerQualitySystem.Grade.Fatuous;
+        Realm core = empire.CoreKingdom;
+        float grievance = CourtSystem.State(empire).factions?.Values.Select(item => item?.grievance ?? 0f).DefaultIfEmpty(0f).Max() ?? 0f;
+        float phantom = PalaceArmySystem.Palace(core).Select(corps => corps.phantom).DefaultIfEmpty(0f).Max();
+        // 盛世(明君、中兴)时各条按同一速度消退，实情只在滋生时加码
+        float Extra(float value) => common > 0f ? value : 0f;
+        // 滋生的快慢按王朝年岁(见 Pace)，王朝积弊越深越快；消退不打折
+        float pace = Pace(empire) * (1f + DynasticCycleSystem.GetPressure(empire) / 100f);
+        void Grow1(string key, float delta) => Add(empire, key, delta > 0f ? delta * pace : delta);
+        Grow1(Graft, common + Extra((float)CorruptionSystem.GetRate(empire) * 8f + (dissolute ? 1f : 0f)));
+        Grow1(Annexation, common + Extra(LandEconomySystem.GetRealmLandlessRatio(core) * 10f + (dissolute ? 1f : 0f)));
+        Grow1(Bloat, common + Extra(Mathf.Min(3f, DynasticCycleSystem.GetAge(empire) / 100f * 2f) + (weak ? 1f : 0f)));
+        Grow1(Military, common + Extra(phantom * 6f + (neglect ? 1f : 0f)));
+        Grow1(Factionalism, common + Extra(grievance / 25f + (grade == RulerQualitySystem.Grade.Weak ? 2f : 0f) +
+                                           (controlled ? 1f : 0f)));
+        Grow1(Levies, common + Extra((grade == RulerQualitySystem.Grade.Tyrant ? 4f : 0f) + (dissolute ? 2f : 0f) +
+                                     (EmpireBankruptcySystem.IsBankrupt(empire) ? 3f : 0f)));
+        // 王朝积弊托着的底：低于这条线的浮上来(旧档、改朝换代后各弊先减了、王朝积弊留着的)
+        float floor = Floor(empire);
+        foreach (string key in All)
+            if (Get(empire, key) < floor) empire.data.maladies[key] = floor;
+    }
+
+    // 积弊滋生的快慢(历史周期律)：开国气象里不滋生；立国头 80 年二成，80~160 年四成五，之后全速
+    // (用户 2026-10-21 选"放慢衰落"：以前 50/100 年、0.25/0.6，百年时几项同时加速，平庸之君的王朝 110 年正统就跌破 40)
+    private const int EarlyYears = 80, MiddleYears = 160;
+    private const float EarlyPace = 0.2f, MiddlePace = 0.45f;
+
+    // 王朝年岁的快慢(不含开国气象与天命动荡)；王朝积弊的同岁数补底也照它算(见 DynasticCycleRules.AgeFloor)
+    public static float PaceAt(int age) => age < EarlyYears ? EarlyPace : age < MiddleYears ? MiddlePace : 1f;
+
+    public static float Pace(Empire empire)
+    {
+        if (empire.InFoundingGrace) return 0f;
+        float pace = PaceAt(DynasticCycleSystem.GetAge(empire));
+        // 天命动荡时积弊长得快一半(用户 2026-10-19 选"以天命为准")
+        return TianxiaSystem.PhaseOf(empire.CoreKingdom) == TianxiaSystem.Unrest ? pace * 1.5f : pace;
+    }
+
+    // 每年才结算的效果：吏治(各城腐败)、冗费(行政开支)、党争(各派怨望)
+    private static void Apply(Empire empire)
+    {
+        float graft = Severity(empire, Graft);
+        if (graft > 0f)
+            foreach (Realm member in empire.kingdoms_list.ToList())
+            {
+                if (member?.Record == null || member.IsGone() || member.GetEmpire() != empire) continue;
+                if (member != empire.CoreKingdom) member.AddCorruptionRate(GraftCorruption * graft);
+                foreach (City city in member.Cities.ToList())
+                    if (city?.Record != null && !city.IsGone()) city.AddCorruptionRate(GraftCorruption * graft);
+            }
+        float bloat = Severity(empire, Bloat);
+        Realm core = empire.CoreKingdom;
+        if (bloat > 0f)
+        {
+            int cost = (int)Math.Min(Math.Max(0L, core.GetMoney()), (long)(StateDebtSystem.AnnualStableIncome(core) * BloatCost * bloat));
+            if (cost > 0) core.SubMoney(cost, TreasuryCategory.Administration);
+        }
+        float faction = Severity(empire, Factionalism);
+        if (faction > 0f && CourtSystem.State(empire).factions != null)
+            foreach (CourtFactionState state in CourtSystem.State(empire).factions.Values)
+                if (state != null) state.grievance = Mathf.Min(100f, state.grievance + FactionGrievance * faction);
+    }
+
+    #endregion
+
+    #region 各处调用的效果
+
+    private static Empire EmpireOf(Realm kingdom) => kingdom?.GetEmpire();
+
+    // 土地兼并：有地农民卖地的速度
+    public static float AnnexationFactor(Realm kingdom) => 1f + Severity(EmpireOf(kingdom), Annexation);
+
+    // 武备废弛：本帝国各军战力
+    public static float MilitaryFactor(CorpsData corps)
+    {
+        if (corps == null || EmpireWorld.Current == null) return 1f;
+        return 1f - MilitaryPenalty * Severity(EmpireOf(EmpireWorld.Current.RealmByKey(corps.kingdom_id)), Military);
+    }
+
+    // 武备废弛：兵籍虚冒、军户逃亡，可征之兵(兵源)打折(见 CorpsSystem.Mobilize、CityPopulationSystem.WarPotential)
+    public static float LevyFactor(Realm kingdom) => 1f - LevyPenalty * Severity(EmpireOf(kingdom), Military);
+
+    // 武备废弛：操练荒疏，组织度上限压低、休整恢复变慢(见 CorpsSystem.Recover)
+    public static float OrgCeiling(Realm kingdom) => 100f - OrgCapPenalty * Severity(EmpireOf(kingdom), Military);
+
+    public static float RecoveryFactor(Realm kingdom) => 1f - RecoveryPenalty * Severity(EmpireOf(kingdom), Military);
+
+    // 武备废弛：禁军空饷再多
+    public static float PhantomExtra(Empire empire) => PhantomShare * Severity(empire, Military);
+
+    // 合计：积弊深重损正统(见 MonarchyLegitimacy)，平均不到三十不损
+    public static int LegitimacyPenalty(Empire empire) =>
+        -Mathf.RoundToInt(Mathf.Max(0f, Average(empire) - LegitimacyFloor) * LegitimacyRate);
+
+    // 合计：土崩瓦解的内忧(0~1，见 ProvincialCollapseSystem.Crisis)
+    public static float CollapseFactor(Empire empire) => Mathf.Clamp01((Average(empire) - CollapseFloor) / CollapseSpan);
+
+    // 合计：积弊危局——苛政民变打仗时也会爆发(见 HarshRuleSystem)
+    public static bool InCrisis(Empire empire) => Average(empire) >= CrisisAverage;
+
+    // 党争：奏议准奏率
+    public static float ApprovalMalus(Empire empire) => ApprovalPenalty * Severity(empire, Factionalism);
+
+    // 苛捐杂税：苛政
+    public static float LeviesHarsh(Realm core) => LeviesBurden * Severity(EmpireOf(core), Levies);
+
+    // 合计：王朝积弊(周期压力)每年多涨
+    public static float StrainDelta(Empire empire) => Average(empire) / 100f * StrainShare;
+
+    // 界面上每条积弊的后果(本地化参数)
+    public static string EffectText(Empire empire, string key)
+    {
+        float s = Severity(empire, key);
+        // 武备废弛：兵源、战力、组织度上限三项
+        if (key == Military)
+            return string.Format(LM.Get("malady_effect_" + key), Mathf.RoundToInt(MilitaryPenalty * s * 100f),
+                Mathf.RoundToInt(LevyPenalty * s * 100f), Mathf.RoundToInt(OrgCapPenalty * s));
+        return string.Format(LM.Get("malady_effect_" + key), key switch
+        {
+            Graft => (GraftCorruption * s * 100f).ToString("0.0"),
+            Annexation => Mathf.RoundToInt(s * 100f).ToString(),
+            Bloat => Mathf.RoundToInt(BloatCost * s * 100f).ToString(),
+            Military => Mathf.RoundToInt(MilitaryPenalty * s * 100f).ToString(),
+            Factionalism => Mathf.RoundToInt(ApprovalPenalty * s * 100f).ToString(),
+            _ => Mathf.RoundToInt(LeviesBurden * s).ToString()
+        });
+    }
+
+    #endregion
+}
+}

@@ -1,0 +1,71 @@
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/WarGate.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
+// see Port/manifest.json and Tools/PortTool.
+
+namespace EmpireCraft.Core
+{
+
+// 诉求开战的统一闸门(复查 2026-10-17：对外扩张、游牧扩张、劫掠、迫使朝贡、扩张地盘以前直接 newWar/startWar，
+// 不看停战年限、岁币、朝贡、同盟——收岁币的帝国能立刻打送岁币的、劫掠能打到自己的朝贡国与盟友)：
+//   · 民族统一战线、分治的兄弟之国、共主与共事部落互不征伐(同计划里的 IsValidModWarTarget)；
+//   · 停战未满年限不打；
+//   · 岁币、朝贡两头都不打(送的不打收的，收的也不打送的)——只有天下共主平定天下里自己的朝贡国例外(用户 2026-11-07 选
+//     「共主可以打朝贡国」，只由 UnificationSystem.Pacify 传 ownTributary；别家、原版谋划、朝堂照旧不打)；
+//   · 同一同盟不打；
+//   · 最后看封建附庸能否对外开战(FeudalVassalService.CanDeclareExternalWar)。
+// 独立王国走原版挑宣战对象(见 WarTargetPatch)，兵力自有比较，只用 Forbidden 避开这些不该打的关系。
+public static class WarGate
+{
+#if EC_PENDING
+    public static bool CanDeclare(Realm attacker, Realm target, bool ownTributary = false)
+    {
+        if (attacker?.Record == null || target?.Record == null || attacker == target || attacker.IsGone() || !target.Alive)
+            return false;
+        // 世界法则「禁止AI宣战」(见 DiplomacyLaws)：玩家强制的不经这里，不受此限
+        if (DiplomacyLaws.WarBlocked) return false;
+        // 核恐怖平衡：冷战双方的盟主都有核，彼此不直接开战(见 WorldOrderSystem)
+        if (WorldOrderSystem.MutuallyDeterred(attacker, target)) return false;
+        // 关键行业有三成以上操在对方资本手里：受制于人，不向它开战(见 CompanySystem)
+        if (CompanySystem.Beholden(attacker, target)) return false;
+        // 傀儡不自行宣战，随主国参战(见 PuppetStateSystem)；流亡政府没有城，不开新仗；保护国、托管地、租借地外交归宗主(见 ColonySystem)
+        if (PuppetStateSystem.IsPuppet(attacker) || ExileGovernmentSystem.IsExiled(attacker) ||
+            ColonySystem.ForeignAffairsByMetropole(attacker)) return false;
+        if (Forbidden(attacker, target, ownTributary)) return false;
+        double lastWarEnded = EmpireWorld.Current?.Diplomacy?.GetRelation(attacker, target)?.Record?.LastWarEnded ?? -1d;
+        if (lastWarEnded >= 0d && GameClock.YearsSince(lastWarEnded) < SimGlobals.m.minimum_years_between_wars) return false;
+        return FeudalVassalService.CanDeclareExternalWar(attacker, target, includeImperialMembers: attacker.IsEmpire());
+    }
+#endif
+
+    // 不论强弱都不打的关系：统一战线、兄弟之国、共主与共事部落、跨文明通好、扶立、同一帝国、岁币与朝贡、同盟、
+    // 姻亲、封建上下级、保护约、同一位君主。ownTributary：攻方打自己帝国的朝贡国不算"朝贡两头都不打"(只给共主平定，见类头)
+    public static bool Forbidden(Realm attacker, Realm target, bool ownTributary = false)
+    {
+        if (attacker == null || target == null || attacker == target) return true;
+        if (NationalSentimentSystem.InSameUnitedFront(attacker, target)) return true;
+        if (EmpirePartitionSystem.InAmity(attacker, target)) return true;
+        if (TribalFissionService.Bound(attacker, target)) return true;
+        // 跨文明通好之国互不侵犯(见 GreatPowerDiplomacy)；扶立之君与扶立者二十年互不开战(见 WarGoalSystem)
+        if (GreatPowerDiplomacy.Bound(attacker, target) || WarGoalSystem.Installed(attacker, target)) return true;
+        if (attacker.IsInSameEmpire(target)) return true;
+        // 同一阵营的国互不开战(见 WorldOrderSystem)
+        if (WorldOrderSystem.SameBloc(attacker, target)) return true;
+        Empire own = attacker.GetEmpire(), theirs = target.GetEmpire();
+        if (own != null && (target.GetGivenAllianceEmpire() == own || target.GetTakenAllianceEmpire() == own && !ownTributary)) return true;
+        if (theirs != null && (attacker.GetGivenAllianceEmpire() == theirs || attacker.GetTakenAllianceEmpire() == theirs)) return true;
+        if (attacker.HasAlliance() && target.HasAlliance() && attacker.GetAlliance() == target.GetAlliance()) return true;
+        if (RoyalMarriageSystem.Allied(attacker, target)) return true;
+        if (FeudalVassalService.IsInChain(attacker, target) || FeudalVassalService.IsInChain(target, attacker)) return true;
+        // 宗主与殖民地、同一宗主的殖民地(见 ColonySystem)
+        if (ColonySystem.Bound(attacker, target)) return true;
+        // 主国与傀儡、同一主国的傀儡(见 PuppetStateSystem)
+        if (PuppetStateSystem.Bound(attacker, target)) return true;
+        // 穿越政权伪装成属国期间：朝廷与各省不来开战，穿越政权也不碰朝廷本部(见 TransmigrantSystem.DisguiseForbids)
+        if (TransmigrantSystem.DisguiseForbids(attacker, target)) return true;
+        // 保护约三十年：保护人与被保护者互不攻伐(见 HolyRomanSystem.Decline)
+        if (HolyRomanSystem.ProtectedBy(attacker, target) || HolyRomanSystem.ProtectedBy(target, attacker)) return true;
+        // 神力放出的国十年内原帝国、原宗主不打它(它去打原主不拦，见 MembershipCooldown.TruceForbids)
+        if (MembershipCooldown.TruceForbids(attacker, target)) return true;
+        return attacker.Ruler != null && attacker.Ruler == target.Ruler;
+    }
+}
+}

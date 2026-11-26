@@ -1,0 +1,744 @@
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/FeudalVassalService.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
+// see Port/manifest.json and Tools/PortTool.
+using Mathf = EmpireCraft.Core.EcMath;
+using Time = EmpireCraft.Core.FrameClock;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace EmpireCraft.Core
+{
+
+// Direct fealty is separate from both imperial membership and a personal-union alliance.
+public static class FeudalVassalService
+{
+    // 宗主每年加强控制花的名望(以前 300，封君、皇帝年入只有五十到一百，付不起；名望开销按身份年入的新名望重定(用户 2026-11-10 "名望开销也可以调整"；稳态皇帝八九百、一品大员五百上下、封君五百、五品一两百))
+    public const int AnnualControlCost = 100;
+    public const int ProgressPerLevel = 5;
+
+    private static bool IsFeudal(Realm kingdom) => kingdom != null && !kingdom.IsGone() &&
+        kingdom.GetRegime()?.type == RegimeType.Feudalism;
+
+    // 废除君主制之后(共和国或现代政体)，任何文化的国家都可以拥有附庸国，不再需要西方封建化制度
+    // 只有国家本身(帝国核心王国或独立王国)能收附庸，共和国内部的成员国不能
+    public static bool IsPostMonarchy(Realm kingdom) => kingdom != null && !kingdom.IsGone() &&
+        (!kingdom.IsInEmpire() || kingdom.IsEmpire()) &&
+        (kingdom.GetRegime()?.type == RegimeType.Modern || RepublicSystem.IsRepublic(kingdom.GetEmpire()));
+
+    private static bool CanHoldVassals(Realm kingdom) => RealmDiplomacySystem.CanChooseOverlord(kingdom) &&
+        (IsFeudal(kingdom) || IsPostMonarchy(kingdom));
+
+    public static Realm GetOverlord(Realm subject)
+    {
+        if (subject == null || subject.IsGone() || EmpireWorld.Current?.LiveRealms == null) return null;
+        long id = subject.GetOrCreate().feudal_overlord_kingdom_id;
+        Realm lord = id < 0 ? null : EmpireWorld.Current.RealmByKey(id);
+        return lord != subject && lord != null && !lord.IsGone() ? lord : null;
+    }
+
+    public static IEnumerable<Realm> GetDirectVassals(Realm lord)
+    {
+        if (lord == null || EmpireWorld.Current?.LiveRealms == null) return Enumerable.Empty<Realm>();
+        return EmpireWorld.Current.LiveRealms.Where(candidate => candidate != null && !candidate.IsGone() &&
+            candidate.GetOrCreate().feudal_overlord_kingdom_id == lord.Key);
+    }
+
+    public static bool IsInChain(Realm kingdom, Realm possibleAncestor)
+    {
+        var visited = new HashSet<long>();
+        for (Realm current = kingdom; current != null && visited.Add(current.Key); current = GetOverlord(current))
+            if (current == possibleAncestor) return true;
+        return false;
+    }
+
+    private const int MaxDepth = 3;
+
+    // 上面还有几层宗主
+    public static int Depth(Realm kingdom)
+    {
+        var visited = new HashSet<long>();
+        int depth = 0;
+        for (Realm current = GetOverlord(kingdom); current != null && visited.Add(current.Key); current = GetOverlord(current))
+            depth++;
+        return depth;
+    }
+
+    private static Realm GetFeudalRoot(Realm kingdom)
+    {
+        var visited = new HashSet<long>();
+        while (kingdom != null && visited.Add(kingdom.Key) && GetOverlord(kingdom) is Realm lord)
+            kingdom = lord;
+        return kingdom;
+    }
+
+#if EC_PENDING
+    public static bool CanBind(Realm lord, Realm subject)
+    {
+        if (!CanHoldVassals(lord) || subject == null || subject.IsGone() || lord == subject ||
+            !RealmDiplomacySystem.CanChooseOverlord(subject) ||
+            AncientWarfareCompatibility.Owns(lord) || AncientWarfareCompatibility.Owns(subject) ||
+            (subject.IsEmpire() && subject.GetRegime()?.type != RegimeType.Modern) ||
+            (subject.Ruler != null && subject.Ruler == lord.Ruler) ||
+            (lord.GetOrCreate().feudal_vassal_level >= 3 && GetOverlord(lord) != null) ||
+            // 附庸层级最多三层(宗主 → 附庸 → 陪臣)：陪臣不能再收附庸
+            Depth(lord) >= MaxDepth - 1 ||
+            // 和平途径不能抢走别人的附庸(征服与上帝工具除外)：附庸不再被邻国排队挖走
+            GetOverlord(subject) != null && GetOverlord(subject) != lord ||
+            // 不收自己的上家作附庸：封建这条链之外，朝贡、属地、傀儡、帝国中央也算(见 SubjectChain)
+            IsInChain(lord, subject) || SubjectChain.Under(lord, subject)) return false;
+        // 神力放出的保护期内原宗主收不得(见 MembershipCooldown)；这里是挑对象，不记日志
+        if (MembershipCooldown.BlocksVassal(subject, lord, log: false)) return false;
+        return UsesFeudalVassals(lord) && !TooFar(lord, subject);
+    }
+#endif
+
+    // 封建附庸鞭长莫及(用户 2026-10-27 截图乌拉尔斯克汗国挂着都城在斯德哥尔摩的神圣罗马帝国的附庸："在封建体制下，
+    // 离罗马中央很远的附庸应当不成立")：附庸的都城远在宗主(帝国按中央，连同成员)控制范围之外——封臣要亲身效忠、随征、
+    // 赴宫廷，隔着大半个大陆这层关系有名无实。行封建附庸的宗主收不得(开战改求赔款、和约不立附庸、和平称臣不受)，
+    // 已有的每年结算时一律当场脱离(见 ReleaseDistantVassals；以前每年三成，截图里的乌拉尔斯克要等好几年才走，用户问"这个附庸为什么不解除")。
+    // 朝贡体系(远方来朝)不在此列；神力强制附庸不拦。
+    // 不接壤也一样(同日截图佛利斯公国是陶瓦夫公国的附庸："这个也是，与宗主国都不接壤")：附庸的地陆上不挨着宗主一系
+    // (宗主本国连同所在帝国的成员、同一宗主名下别的附庸；它自己的陪臣不算)，就算路程不远也不成立。跨海的(都城与宗主一系
+    // 之首不在同一片陆地)只看路程
+
+#if EC_PENDING
+    public static bool TooFar(Realm lord, Realm subject) =>
+        UsesFeudalVassals(lord) && subject?.Capital != null &&
+        (Detached(lord, subject) || AdministrativeControlSystem.OutOfReach(lord, subject.Capital));
+#endif
+
+    // 陆上不挨着宗主一系(见 TooFar)
+#if EC_PENDING
+    public static bool Detached(Realm lord, Realm subject)
+    {
+        if (lord?.Record == null || subject?.Cities == null || subject.Cities.Count == 0) return false;
+        Realm top = EmpireCoreControl.Sovereign(lord) ?? lord;
+        if (subject.Capital?.SeatCell() is Cell at && top.Capital?.SeatCell() is Cell seat && !at.IsSameIsland(seat)) return false;
+        foreach (City city in subject.Cities)
+            foreach (Cell zone in city?.border_zones ?? new HashSet<Cell>())
+                foreach (Cell next in zone?.Neighbours ?? Array.Empty<Cell>())
+                {
+                    Realm other = next?.City?.Realm;
+                    if (other?.Record == null || other == subject || other.IsGone() || IsInChain(other, subject)) continue;
+                    if (other == lord || EmpireCoreControl.Sovereign(other) == top) return false;
+                }
+        return true;
+    }
+#endif
+
+    // 行西方式附庸的：封建化了的文化，或废了君主制的(朝贡体系随之废除，改用附庸国)
+    public static bool UsesFeudalVassals(Realm lord)
+    {
+        if (lord?.Record == null || lord.IsGone()) return false;
+        if (IsPostMonarchy(lord)) return true;
+        // 制度照制度文化(旧制犹存的照旧制，见 LegacyInstitutionSystem)
+        string culture = CultureService.GetInstitutionCulture(lord);
+        return InstitutionSystem.IsEnacted(culture, "western_feudalization");
+    }
+
+#if EC_PENDING
+    public static bool Bind(Realm lord, Realm subject)
+    {
+        if (!CanBind(lord, subject) || !subject.HasRuler()) return false;
+        return BindCore(lord, subject);
+    }
+#endif
+
+    // 强制附庸(上帝工具)：无视外交条件、制度与国力门槛，只保留最基本的安全检查
+#if EC_PENDING
+    public static bool ForceBind(Realm lord, Realm subject)
+    {
+        if (lord?.Record == null || subject?.Record == null || lord.IsGone() || subject.IsGone() || lord == subject ||
+            AncientWarfareCompatibility.Owns(lord) || AncientWarfareCompatibility.Owns(subject) ||
+            (subject.Ruler != null && subject.Ruler == lord.Ruler) ||
+            // 强来的：自己正从属于对方的先翻身(见 SubjectChain.Overturn)，解不开就不立
+            !SubjectChain.Overturn(lord, subject) || IsInChain(lord, subject)) return false;
+        return BindCore(lord, subject);
+    }
+
+    private static bool BindCore(Realm lord, Realm subject)
+    {
+        if (GetOverlord(subject) == lord)
+        {
+            if (subject.HasTakenAlliance())
+            {
+                subject.RemoveTakenAlliance();
+                VassalColorService.Apply(subject, lord);
+                SyncColors(subject);
+            }
+            return true;
+        }
+        // 神力放出的国保护期内原宗主、原帝国的核心收不得附庸，强制的也不行；打下来的、危急的照旧(见 MembershipCooldown)
+        if (MembershipCooldown.BlocksVassal(subject, lord)) return false;
+        if (GetOverlord(subject) != null) Break(subject);
+        Empire formerEmpire = subject.GetEmpire();
+        // 现代正常国家可以作为附庸保留自己的政府；只有原本作为别国成员时才退出旧帝国。
+        if (formerEmpire != null && formerEmpire.CoreKingdom != subject) formerEmpire.leave(subject);
+        if (subject.HasTakenAlliance()) subject.RemoveTakenAlliance();
+        var data = subject.GetOrCreate();
+        data.feudal_independent_color_id = subject.Record.color_id;
+        data.feudal_overlord_kingdom_id = lord.Key;
+        data.feudal_vassal_level = 1;
+        data.feudal_vassal_progress = 0;
+        data.feudal_last_control_timestamp = -1d;
+        data.feudal_vassal_since = GameClock.Now;
+        data.feudal_annex_failed_at = -1d;
+        if (subject.HasAlliance() && lord.HasAlliance() && subject.GetAlliance() == lord.GetAlliance())
+            subject.GetAlliance().Leave(subject);
+        VassalColorService.Apply(subject, lord);
+        SyncColors(subject);
+        return true;
+    }
+
+    public static void Break(Realm subject, bool restoreOriginalColor = true)
+    {
+        if (subject?.Record == null || subject.IsGone()) return;
+        var data = subject.GetOrCreate();
+        if (data.feudal_overlord_kingdom_id < 0) return;
+        Realm formerOverlord = GetOverlord(subject);
+        Tint formerColor = formerOverlord?.GetColor() ?? subject.GetColor();
+        int independentColorId = data.feudal_independent_color_id;
+        data.feudal_overlord_kingdom_id = -1L;
+        data.feudal_vassal_level = 0;
+        data.feudal_vassal_progress = 0;
+        data.feudal_last_control_timestamp = -1d;
+        data.feudal_vassal_since = -1d;
+        data.feudal_annex_failed_at = -1d;
+        VassalColorService.Clear(subject);
+        // 旧版把附庸整个染成宗主色的，独立时要换一个颜色；新版附庸本来就是自己的底色，原样保留
+        bool legacyRecolored = formerOverlord != null && subject.Record.color_id == formerOverlord.Record.color_id;
+        if (restoreOriginalColor || legacyRecolored)
+            KingdomColorService.Restore(subject, restoreOriginalColor ? independentColorId : -1, formerColor,
+                useOriginalColor: restoreOriginalColor);
+        data.feudal_independent_color_id = -1;
+        SyncColors(subject);
+        Empire ownEmpire = subject.GetEmpire();
+        if (ownEmpire?.CoreKingdom == subject && !ownEmpire.IsGone())
+            EmpireCraft.Core.EmpireColorPatch.SyncFromCore(ownEmpire);
+    }
+
+    public static void Sync(Realm subject)
+    {
+        if (subject?.Record == null || subject.IsGone()) return;
+        if (subject.GetOrCreate().feudal_overlord_kingdom_id < 0)
+        {
+            Realm suzerain = subject.HasTakenAlliance() ? subject.GetTakenAllianceEmpire()?.CoreKingdom
+                : ColonySystem.MetropoleOf(subject) ?? PuppetStateSystem.Master(subject);
+            // 傀儡也套宗主色：以前这里只认朝贡、殖民，傀儡的宗主色被月度同步抹掉、两秒后又套上，伪满颜色一直在跳(用户 2026-11-10)
+            if (suzerain != null) VassalColorService.Apply(subject, suzerain);
+            else VassalColorService.Clear(subject);
+            return;
+        }
+        Realm lord = GetOverlord(subject);
+        if (!CanHoldVassals(lord) ||
+            !RealmDiplomacySystem.CanChooseOverlord(subject) ||
+            (subject.IsEmpire() && subject.GetRegime()?.type != RegimeType.Modern) ||
+            (subject.Ruler != null && subject.Ruler == lord.Ruler) ||
+            AncientWarfareCompatibility.Owns(lord) || AncientWarfareCompatibility.Owns(subject) ||
+            IsInChain(lord, subject))
+        {
+            Break(subject);
+            if (subject.Ruler != null && subject.Ruler == lord?.Ruler)
+                PersonalUnionService.OnKingCrowned(subject, subject.Ruler);
+            return;
+        }
+        if (subject.HasTakenAlliance()) subject.RemoveTakenAlliance();
+        VassalColorService.Apply(subject, lord);
+        if (subject.GetOrCreate().feudal_vassal_level >= 3 && subject.HasAlliance())
+            subject.GetAlliance().Leave(subject);
+    }
+#endif
+
+    private static void SyncColors(Realm lord)
+    {
+        SyncColors(lord, new HashSet<long>());
+    }
+
+    private static void SyncColors(Realm lord, HashSet<long> visited)
+    {
+        if (lord == null || !visited.Add(lord.Key)) return;
+        foreach (Realm child in GetDirectVassals(lord).ToList())
+        {
+            VassalColorService.Apply(child, lord);
+            SyncColors(child, visited);
+        }
+    }
+
+    public static Realm FindControlTarget(Realm lord) => GetDirectVassals(lord)
+        .Where(subject => CanIncreaseControl(lord, subject))
+        .OrderByDescending(subject => subject.GetNationalPower()).FirstOrDefault();
+
+    public static Realm FindAnnexTarget(Realm lord) => GetDirectVassals(lord)
+        .FirstOrDefault(subject => CanAnnex(lord, subject));
+
+#if EC_PENDING
+    public static Realm FindPeacefulSubmissionTarget(Realm lord)
+    {
+        if (lord == null || EmpireWorld.Current?.LiveRealms == null) return null;
+        // 先用便宜的条件筛(接壤、好感)，国力等真有好感够的邻国才算，CanBind 里的路程与接壤判定放最后；取好感最高的
+        double lordPower = double.NaN;
+        Realm best = null;
+        int bestOpinion = int.MinValue;
+        foreach (Realm subject in EmpireWorld.Current.LiveRealms)
+        {
+            if (subject == null || subject == lord || !subject.HasRuler() || GetOverlord(subject) != null || !lord.IsNeighbourWith(subject)) continue;
+            int opinion = EmpireWorld.Current.Diplomacy?.GetOpinion(subject, lord)?.Total ?? 0;
+            if (opinion < 50 || opinion <= bestOpinion) continue;
+            if (double.IsNaN(lordPower)) lordPower = GetWarPower(lord, false);
+            if (lordPower <= GetWarPower(subject, true) || !CanBind(lord, subject)) continue;
+            best = subject;
+            bestOpinion = opinion;
+        }
+        return best;
+    }
+#endif
+
+    public static bool CanJoinAlliance(Realm subject, Alliance alliance)
+    {
+        Realm lord = GetOverlord(subject);
+        if (lord == null) return true;
+        return subject.GetOrCreate().feudal_vassal_level == 1 &&
+               (alliance == null || !alliance.MemberSet.Contains(lord));
+    }
+
+    public static bool CanIncreaseControl(Realm lord, Realm subject)
+    {
+        if (lord?.Ruler?.Record == null || lord.Ruler.Renown < AnnualControlCost ||
+            GetOverlord(subject) != lord || EmpireWorld.Current == null) return false;
+        var data = subject.GetOrCreate();
+        return data.feudal_vassal_level is >= 1 and <= 3 &&
+               (data.feudal_vassal_level < 3 || data.feudal_vassal_progress < ProgressPerLevel) &&
+               (data.feudal_last_control_timestamp < 0 ||
+                GameClock.YearsSince(data.feudal_last_control_timestamp) >= 1);
+    }
+
+#if EC_PENDING
+    public static bool IncreaseControl(Realm lord, Realm subject)
+    {
+        if (!CanIncreaseControl(lord, subject)) return false;
+        lord.Ruler.editRenown(-AnnualControlCost);
+        var data = subject.GetOrCreate();
+        data.feudal_last_control_timestamp = GameClock.Now;
+        data.feudal_vassal_progress++;
+        if (data.feudal_vassal_progress >= ProgressPerLevel && data.feudal_vassal_level < 3)
+        {
+            data.feudal_vassal_level++;
+            data.feudal_vassal_progress = 0;
+            if (data.feudal_vassal_level == 3)
+            {
+                foreach (Realm child in GetDirectVassals(subject).ToList()) Break(child);
+                if (subject.HasAlliance()) subject.GetAlliance().Leave(subject);
+            }
+        }
+        return true;
+    }
+#endif
+
+    // 吞并附庸：控制度练满(三级满进度)照旧可以；此外附庸满六年后——
+    //   · 宗主(连同治下各国)实力达到附庸两倍以上；
+    //   · 或宗主施行了能容纳多个法理与城市的制度(西方的中央集权君主制等"直辖治理")，实力达到附庸一倍半以上；
+    // 双方都没在打仗。吞并是一次尝试，会失败(见 Annex)，失败后十年内不能再试。
+    // 三倍 → 两倍：以前附庸收了就几乎吞不掉，王国一层整合不起来(用户 2026-10-21 选"西欧能整合、帝国能倒")
+    // 满十年 → 满六年(用户 2026-10-21 选"附庸并入加快")：十年里宗主、附庸只要有一方在打仗就试不成，西欧整合最慢
+    private const int AnnexMinYears = 6, AnnexRetryYears = 10;
+    private const double AnnexPowerRatio = 2d, CentralizedAnnexPowerRatio = 1.5d;
+
+    // 能容纳多个法理与城市：施行了"直辖治理"特性的制度(西方中央集权君主制、神权国家)
+    public static bool HasDirectAdministration(Realm kingdom)
+    {
+        if (kingdom?.Record == null || kingdom.IsGone()) return false;
+        Empire empire = kingdom.GetEmpire();
+        if (empire != null && !empire.IsArchived())
+            return InstitutionSystem.HasFeature(empire, InstitutionFeatures.DirectAdministration);
+        string culture = CultureService.GetInstitutionCulture(kingdom);
+        return !string.IsNullOrEmpty(culture) && InstitutionSystem.HasFeature(culture, InstitutionFeatures.DirectAdministration);
+    }
+
+    public static bool CanAnnex(Realm lord, Realm subject)
+    {
+        if (lord?.Ruler == null || !lord.Ruler.Alive || GetOverlord(subject) != lord ||
+            lord.GetWars().Any(war => war != null && !war.HasEnded()) ||
+            subject.GetWars().Any(war => war != null && !war.HasEnded())) return false;
+        var data = subject.GetOrCreate();
+        if (data.feudal_vassal_level == 3 && data.feudal_vassal_progress >= ProgressPerLevel) return true;
+        if (data.feudal_vassal_since < 0d) data.feudal_vassal_since = GameClock.Now;
+        if (GameClock.YearsSince(data.feudal_vassal_since) < AnnexMinYears) return false;
+        if (data.feudal_annex_failed_at >= 0d && GameClock.YearsSince(data.feudal_annex_failed_at) < AnnexRetryYears) return false;
+        double ratio = GetWarPower(lord, false, subject) / Math.Max(1d, GetWarPower(subject, false));
+        return ratio >= (HasDirectAdministration(lord) ? CentralizedAnnexPowerRatio : AnnexPowerRatio);
+    }
+
+    // 吞并的成算：控制度越高、实力越悬殊、宗主集权越易成；控制度练满的必成。
+    // 基数 0.4 → 0.5(用户 2026-10-21 选"附庸并入加快")：以前一级控制度、实力刚够两倍的只有四成出头，失败了又要等十年
+    private const float AnnexChanceBase = 0.5f;
+
+    public static float AnnexChance(Realm lord, Realm subject)
+    {
+        var data = subject.GetOrCreate();
+        if (data.feudal_vassal_level == 3 && data.feudal_vassal_progress >= ProgressPerLevel) return 1f;
+        double ratio = GetWarPower(lord, false, subject) / Math.Max(1d, GetWarPower(subject, false));
+        float chance = AnnexChanceBase + 0.12f * (data.feudal_vassal_level - 1) + (float)Math.Min(0.3d, (ratio - 1.5d) * 0.06d);
+        if (HasDirectAdministration(lord)) chance += 0.15f;
+        return Mathf.Clamp(chance, 0.2f, 0.9f);
+    }
+
+#if EC_PENDING
+    public static bool Annex(Realm lord, Realm subject)
+    {
+        if (!CanAnnex(lord, subject)) return false;
+        var data = subject.GetOrCreate();
+        // 吞并失败：附庸离心，控制度清零，十年内不能再试；附庸可能就此起兵独立
+        if (EcRandom.value >= AnnexChance(lord, subject))
+        {
+            data.feudal_annex_failed_at = GameClock.Now;
+            data.feudal_vassal_progress = 0;
+            string failed = string.Format(LM.Get("feudal_annex_failed_history"), lord.GetKingdomName(), subject.GetKingdomName());
+            TranslateHelper.LogEventMessage(failed, lord);
+            if (EcRandom.value < 0.35f)
+            {
+                War war = EmpireWorld.Current.StartWar(subject, lord, WarKinds.Normal);
+                war?.SetEmpireWarType(EmpireWarType.附庸独立);
+            }
+            return false;
+        }
+        string subjectName = subject.GetKingdomName();
+        // 宗主能容纳多个法理与城市(集权君主、共和、现代)：附庸真正并入，城市与法理归宗主；否则由宗主兼领(共主)
+        if (IsPostMonarchy(lord) || HasDirectAdministration(lord))
+        {
+            Absorb(lord, subject);
+            TranslateHelper.LogEventMessage(string.Format(LM.Get("feudal_annex_absorbed_history"), lord.GetKingdomName(), subjectName), lord);
+            return true;
+        }
+        bool united = UniteUnderLord(lord, subject);
+        if (united)
+            TranslateHelper.LogEventMessage(string.Format(LM.Get("feudal_annex_union_history"), lord.GetKingdomName(), subjectName), lord);
+        return united;
+    }
+#endif
+
+    // 共主兼领(未集权的封建宗主)：宗主君主兼任附庸之君，入盟或并入宗主的帝国
+#if EC_PENDING
+    private static bool UniteUnderLord(Realm lord, Realm subject)
+    {
+        PersonalUnionService.CrownInUnion(subject, lord.Ruler);
+        if (subject.Ruler != lord.Ruler) return false;
+        Break(subject);
+        subject.UpdateColor(lord.GetColor());
+        if (lord.IsInEmpire()) lord.GetEmpire()?.join(subject, pForce: true);
+        else PersonalUnionService.JoinAlliance(lord, subject);
+        return true;
+    }
+#endif
+
+    // 真正并入：附庸手下的小附庸改向宗主效忠，法理交给宗主君主，城市并入宗主
+#if EC_PENDING
+    private static void Absorb(Realm lord, Realm subject)
+    {
+        foreach (Realm vassal in GetDirectVassals(subject).ToList())
+            if (vassal != lord) BindCore(lord, vassal);
+        Empire subjectGovernment = subject.IsEmpire() ? subject.GetEmpire() : null;
+        Person ruler = lord.Ruler;
+        Person former = subject.Ruler;
+        var titles = new List<KingdomTitle>(subject.GetControlledTitles() ?? new List<KingdomTitle>());
+        KingdomTitle main = subject.GetMainTitle();
+        if (main != null && !titles.Contains(main)) titles.Add(main);
+        // 附庸自己组建了政府(现代国家作附庸可保留政府)：政府一解散，其余省州以前就散成一个个独立的小国(现代即"某某自治军")。
+        // 和附庸手下的小附庸一样改向宗主效忠；宗主是现代国家的中央时直接编入
+        List<Realm> governmentMembers = subjectGovernment?.kingdoms_list?
+            .Where(member => member != null && member != subject && member != lord && !member.IsGone()).ToList()
+            ?? new List<Realm>();
+        Break(subject);
+        if (subjectGovernment != null && !subjectGovernment.IsArchived())
+            ModClass.EMPIRE_MANAGER?.dissolveEmpire(subjectGovernment);
+        bool joinLordState = lord.IsInEmpire() && IsPostMonarchy(lord);
+        if (joinLordState) lord.GetEmpire()?.join(subject, pForce: true);
+        else
+            foreach (City city in subject.Cities?.ToList() ?? new List<City>())
+                city.JoinRealm(lord);
+        foreach (Realm member in governmentMembers)
+        {
+            if (member.IsGone() || member.IsInEmpire()) continue;
+            if (joinLordState) lord.GetEmpire()?.join(member, pForce: true);
+            else BindCore(lord, member);
+        }
+        if (ruler == null) return;
+        foreach (KingdomTitle title in titles)
+        {
+            if (title == null || title.IsGone()) continue;
+            if (former != null && former != ruler) former.GetOwnedTitle()?.Remove(title.Key);
+            if (title.owner != null && title.owner != ruler) title.owner.GetOwnedTitle()?.Remove(title.Key);
+            ruler.AddOwnedTitle(title);
+            title.owner = ruler;
+            if (lord.IsTitleWithinRealm(title)) lord.RegisterRealmTitle(title);
+        }
+    }
+#endif
+
+    // 旧的吞并实现(兼容)：共和、现代宗主直接并入
+#if EC_PENDING
+    private static bool AnnexLegacy(Realm lord, Realm subject)
+    {
+        if (IsPostMonarchy(lord))
+        {
+            // 共和国/现代国家没有君主可以兼领：附庸直接并入宗主国家
+            Empire subjectGovernment = subject.IsEmpire() ? subject.GetEmpire() : null;
+            Break(subject);
+            if (subjectGovernment != null && !subjectGovernment.IsArchived())
+                ModClass.EMPIRE_MANAGER?.dissolveEmpire(subjectGovernment);
+            if (lord.IsInEmpire()) lord.GetEmpire()?.join(subject, pForce: true);
+            else
+                foreach (City city in subject.Cities?.ToList() ?? new List<City>())
+                    city.JoinRealm(lord);
+            return true;
+        }
+        PersonalUnionService.CrownInUnion(subject, lord.Ruler);
+        if (subject.Ruler != lord.Ruler) return false;
+        Break(subject);
+        subject.UpdateColor(lord.GetColor());
+        if (lord.IsInEmpire()) lord.GetEmpire()?.join(subject, pForce: true);
+        else PersonalUnionService.JoinAlliance(lord, subject);
+        return true;
+    }
+#endif
+
+    private static void CollectPower(Realm kingdom, HashSet<long> visited, Realm excluded)
+    {
+        if (kingdom == null || kingdom.IsGone() ||
+            excluded != null && IsInChain(kingdom, excluded) || !visited.Add(kingdom.Key)) return;
+        Empire empire = kingdom.GetEmpire();
+        if (empire != null && !empire.IsArchived())
+            foreach (Realm member in empire.kingdoms_list ?? new List<Realm>())
+                if (member != kingdom) CollectPower(member, visited, excluded);
+        if (kingdom.Ruler != null)
+            foreach (Realm realm in PersonalUnionService.GetRealms(kingdom.Ruler))
+                if (realm != kingdom) CollectPower(realm, visited, excluded);
+        foreach (Realm child in GetDirectVassals(kingdom)) CollectPower(child, visited, excluded);
+    }
+
+    private static readonly Dictionary<(long, bool, long), (double power, float at)> WarPowerCache = new();
+    private const float WarPowerCacheSeconds = 2f;
+
+    public static double GetWarPower(Realm kingdom, bool defending, Realm excluded = null)
+    {
+        if (kingdom == null || kingdom.IsGone()) return 0d;
+        var key = (kingdom.Key, defending, excluded?.Key ?? -1L);
+        float now = Time.unscaledTime;
+        if (WarPowerCache.TryGetValue(key, out var cached) && now - cached.at < WarPowerCacheSeconds && now >= cached.at)
+            return cached.power;
+        if (WarPowerCache.Count > 4000) WarPowerCache.Clear();
+        double power = ComputeWarPower(kingdom, defending, excluded);
+        WarPowerCache[key] = (power, now);
+        return power;
+    }
+
+    private static double ComputeWarPower(Realm kingdom, bool defending, Realm excluded)
+    {
+        Realm root = kingdom;
+        if (defending)
+        {
+            var seen = new HashSet<long>();
+            while (GetOverlord(root) is Realm lord && seen.Add(root.Key)) root = lord;
+        }
+        var visited = new HashSet<long>();
+        CollectPower(root, visited, excluded);
+        return visited.Sum(id => EmpireWorld.Current.RealmByKey(id)?.GetNationalPower() ?? 0d);
+    }
+
+    public static bool CanDeclareExternalWar(Realm attacker, Realm target,
+        bool includeImperialMembers = false)
+    {
+        if (attacker == null || target == null || attacker == target || !target.Alive ||
+            attacker.IsInSameEmpire(target) || RoyalMarriageSystem.Allied(attacker, target) ||
+            IsInChain(attacker, target) || IsInChain(target, attacker) || ColonySystem.Bound(attacker, target) ||
+            attacker.Ruler != null && attacker.Ruler == target.Ruler ||
+            attacker.HasAlliance() && attacker.GetAlliance() == target.GetAlliance()) return false;
+        Realm attackerRoot = GetFeudalRoot(attacker);
+        Realm targetRoot = GetFeudalRoot(target);
+        if (attackerRoot == targetRoot || attackerRoot.IsInSameEmpire(targetRoot)) return false;
+        Realm lord = GetOverlord(attacker);
+        if (lord != null)
+        {
+            int level = attacker.GetOrCreate().feudal_vassal_level;
+            if (level >= 3) return false;
+            if (level == 2 && (EmpireWorld.Current?.Diplomacy?.GetOpinion(lord, target)?.Total ?? 0) >= 0)
+                return false;
+        }
+        bool hostile = (EmpireWorld.Current?.Diplomacy?.GetOpinion(attacker, target)?.Total ?? 0) < 0;
+        if (!hostile && includeImperialMembers && attacker.IsEmpire())
+        {
+            Empire empire = attacker.GetEmpire();
+            hostile = empire?.kingdoms_list?.Any(member => member != null && !member.IsGone() &&
+                member != attacker && member.IsNeighbourWith(target) &&
+                (EmpireWorld.Current?.Diplomacy?.GetOpinion(member, target)?.Total ?? 0) < 0) == true;
+        }
+        // 开战的由头：交恶(好感为负)且强过对方整个附庸体系；对那国王位有继承宣称(见 RoyalMarriageSystem)且实力
+        // 不太悬殊；或实力是对方整个附庸体系的两倍以上(以强凌弱，好感再好也会动手)
+        double ours = GetWarPower(attacker, false), theirs = GetWarPower(target, true);
+        if (hostile) return ours > theirs;
+        if (RoyalMarriageSystem.HasClaim(attacker, target)) return ours > theirs * 0.8d;
+        return ours >= theirs * 2d;
+    }
+
+    public const int DefectorLoyaltyYears = 10;
+
+    // 封建贡赋：附庸每年向直接宗主上贡(陪臣贡给自己的直接宗主，不越级)。
+    // 贡额按户数(与朝贡贡金 StartToTaken 同口径)，控制等级越高抽得越重：1/2/3 级 → 户数的 1/6、1/4、1/2；
+    // 启用财政时以附庸国库现款为限，付不起就少交(不滚欠账)。国库类目与朝贡同为 Tribute。
+    private static double _lastTributeScan = -1d;
+
+    // 名义年贡(不含国库上限)：户数按控制等级抽成，1/2/3 级 → 1/6、1/4、1/2
+    public static long YearlyTribute(Realm subject)
+    {
+        if (subject?.Record == null) return 0L;
+        int households = CityPopulationSystem.AbstractPopulationEnabled
+            ? CityPopulationSystem.Households(subject) : subject.PopulationCount();
+        int level = Math.Min(3, Math.Max(1, subject.GetOrCreate().feudal_vassal_level));
+        return households / (level == 1 ? 6 : level == 2 ? 4 : 2);
+    }
+
+#if EC_PENDING
+    public static void TryYearlyTribute()
+    {
+        if (EmpireWorld.Current?.LiveRealms == null || ModClass.IS_CLEAR) return;
+        double now = GameClock.Now;
+        if (_lastTributeScan >= 0d && now >= _lastTributeScan && GameClock.YearsSince(_lastTributeScan) < 1) return;
+        _lastTributeScan = now;
+        foreach (Realm subject in EmpireWorld.Current.LiveRealms)
+        {
+            if (subject?.Record == null || subject.IsGone()) continue;
+            Realm lord = GetOverlord(subject);
+            if (lord == null || lord.IsGone() ||
+                AncientWarfareCompatibility.Owns(subject) || AncientWarfareCompatibility.Owns(lord)) continue;
+            long tribute = YearlyTribute(subject);
+            if (TreasurySystem.Enabled(subject))
+                tribute = Math.Min(tribute, Math.Max(0L, subject.GetTreasuryBalance()));
+            if (tribute <= 0L) continue;
+            int amount = (int)Math.Min(int.MaxValue, tribute);
+            subject.SubMoney(amount, TreasuryCategory.Tribute);
+            lord.AddMoney(amount, TreasuryCategory.Tribute);
+            FiscalDiagnostics.Count("封建贡赋");
+        }
+        ReleaseDistantVassals();
+    }
+#endif
+
+    // 鞭长莫及的封建附庸每年结算时当场脱离(见 TooFar)；神力强制附庸的保护期内不走
+#if EC_PENDING
+    private static void ReleaseDistantVassals()
+    {
+        foreach (Realm subject in EmpireWorld.Current.LiveRealms.ToList())
+        {
+            if (subject?.Record == null || subject.IsGone()) continue;
+            Realm lord = GetOverlord(subject);
+            if (lord == null || lord.IsGone() || AncientWarfareCompatibility.Owns(subject) || AncientWarfareCompatibility.Owns(lord) ||
+                MembershipCooldown.ManualJoinActive(subject) || !TooFar(lord, subject)) continue;
+            bool detached = Detached(lord, subject);
+            Break(subject);
+            string text = string.Format(LM.Get(detached ? "feudal_detached_break_history" : "feudal_distant_break_history"),
+                subject.GetKingdomName(), lord.GetKingdomName());
+            EventRecorder.Record(lord, text);
+            EmpireCraft.Core.TranslateHelper.LogEventOnly(text, lord);
+            LogService.LogInfo($"[EmpireCraft][远方附庸] {subject.GetKingdomName()} " +
+                                                     $"{(detached ? "与" + lord.GetKingdomName() + " 一系不接壤" : "远在 " + lord.GetKingdomName() + " 控制范围之外")}，脱离附庸");
+        }
+    }
+#endif
+
+    // 军阀时期易帜归附(WarlordEraSystem)：记下时间，此后若干年内不得闹独立
+    public static void MarkDefected(Realm subject)
+    {
+        if (subject?.Record != null && EmpireWorld.Current != null)
+            subject.GetOrCreate().feudal_defected_at = GameClock.Now;
+    }
+
+    public static bool CanSeekIndependence(Realm subject)
+    {
+        Realm lord = GetOverlord(subject);
+        // 质子在宗主那里，或质子回国即位不久：不求独立(见 HostageSystem)
+        if (HostageSystem.Binds(subject)) return false;
+        double defectedAt = subject?.Record == null ? -1d : subject.GetOrCreate().feudal_defected_at;
+        if (defectedAt >= 0d && GameClock.YearsSince(defectedAt) < DefectorLoyaltyYears) return false;
+        // 去留冷却(见 MembershipCooldown)：神力强制附庸的十五年内、新附的附庸十年内不闹独立
+        if (MembershipCooldown.ManualJoinActive(subject)) return false;
+        double since = subject?.Record == null ? -1d : subject.GetOrCreate().feudal_vassal_since;
+        if (since >= 0d && EmpireWorld.Current != null && GameClock.Now >= since &&
+            GameClock.YearsSince(since) < RebellionRules.LocalGraceYears) return false;
+        // 开国气象(统一战争期间、统一后三十年)附庸不独立(见 UnificationSystem)
+        if (lord != null && UnificationSystem.InGrace(lord)) return false;
+        return lord != null && subject.Ruler != null && subject.Ruler.Alive &&
+               !subject.GetWars().Any(war => war != null && !war.HasEnded()) &&
+               GetWarPower(subject, false) > GetWarPower(lord, false, subject);
+    }
+
+#if EC_PENDING
+    public static bool StartIndependenceWar(Realm subject)
+    {
+        if (!CanSeekIndependence(subject)) return false;
+        Realm lord = GetOverlord(subject);
+        War war = EmpireWorld.Current.StartWar(subject, lord, WarKinds.Normal);
+        if (war == null) return false;
+        war.SetEmpireWarType(EmpireWarType.附庸独立);
+        return true;
+    }
+
+    public static void ResolveIndependenceWar(War war, WarOutcome winner)
+    {
+        // 殖民地起兵独立(见 ColonySystem)
+        ColonySystem.ResolveIndependenceWar(war, winner);
+        if (war?.GetEmpireWarType() != EmpireWarType.附庸独立 || winner != WarOutcome.Attackers) return;
+        Realm subject = war.GetMainAttacker();
+        if (GetOverlord(subject) == war.GetMainDefender()) Break(subject);
+    }
+
+    public static void ExpandWar(War war)
+    {
+        if (war == null || war.HasEnded()) return;
+        ExpandSide(war, true);
+        ExpandSide(war, false);
+    }
+
+    private static void ExpandSide(War war, bool attackers)
+    {
+        var side = attackers ? war.Attackers : war.Defenders;
+        var opposite = attackers ? war.Defenders : war.Attackers;
+        var visited = new HashSet<long>();
+        var queue = new Queue<Realm>(side.Where(kingdom => kingdom != null));
+        while (queue.Count > 0)
+        {
+            Realm current = queue.Dequeue();
+            if (current == null || current.IsGone() || !visited.Add(current.Key)) continue;
+            var followers = GetDirectVassals(current).ToList();
+            // 殖民地随宗主出征(殖民地自己的独立战争除外，见 ColonySystem)
+            if (!ColonySystem.IsIndependenceWar(war)) followers.AddRange(ColonySystem.ColoniesOf(current));
+            // 帝国：只有中央自己的仗，听命于中央的成员才随征；成员的仗中央不插手(要求援，见 MemberWarAid)，
+            // 有自主外交的诸侯、藩镇看好感自己决定(见 CheckJoinWar)；战国周室不再号令诸侯。
+            // 封建帝国别国打上门、中央是主守方时，诸侯也随征(用户 2026-10-21 选"称帝后动员不变差"，见 EmpirePeacePatch.FollowsIntoWar)
+            Empire empire = current.GetEmpire();
+            if (empire != null && current == empire.CoreKingdom && war.GetMainAttacker() != null &&
+                war.GetMainDefender() != null && !war.GetMainAttacker().IsInSameEmpire(war.GetMainDefender()) &&
+                !MemberWarAid.IsMemberWar(war, empire, attackers) && ZhouEraSystem.Era(empire) < ZhouEraSystem.Warring)
+                followers.AddRange(empire.kingdoms_list.Where(member => member != null && member != current &&
+                    EmpirePeacePatch.FollowsIntoWar(empire, member, war) && !EmpirePeacePatch.HasLeft(member, war, attackers)));
+            bool directIndependence = GetOverlord(war.GetMainAttacker()) == war.GetMainDefender() ||
+                                      ColonySystem.IsIndependenceWar(war);
+            if (!attackers && !directIndependence && GetOverlord(current) is Realm protector)
+                followers.Add(protector);
+            // 宗主保护殖民地
+            if (!attackers && !directIndependence && ColonySystem.MetropoleOf(current) is Realm metropole)
+                followers.Add(metropole);
+            if (current.Ruler != null) followers.AddRange(PersonalUnionService.GetRealms(current.Ruler));
+            foreach (Realm follower in followers)
+            {
+                if (follower == null || follower.IsGone() || opposite.Contains(follower)) continue;
+                if (!side.Contains(follower))
+                {
+                    if (attackers) war.JoinAttackers(follower);
+                    else war.JoinDefenders(follower);
+                }
+                queue.Enqueue(follower);
+            }
+        }
+    }
+#endif
+}
+}

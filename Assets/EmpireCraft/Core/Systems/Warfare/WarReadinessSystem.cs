@@ -1,0 +1,132 @@
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/WarReadinessSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
+// see Port/manifest.json and Tools/PortTool.
+using Mathf = EmpireCraft.Core.EcMath;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace EmpireCraft.Core
+{
+
+// 先动员、陈兵边境，再宣战：谋划开战(见 CityPopulationSystem.WarPlots)的进度满了也不马上宣战——
+//   · 动员只动就近的军(动员范围见 WarScopeSystem，离敌境远的城照太平兵额、军留守驻地)；
+//   · 要等动员范围里的军补足战时兵额(八成以上)、开到朝向目标国的边境(七成五兵力离边境两块地块以内)才宣战；
+//   · 等满 12 个月还没集结好就仓促开战；与目标不接壤(跨海)、本国没有能动员的军时不等；
+//   · 大军一开到边境，被侵略方就看得见，跟着动员(见 CityPopulationSystem.Alert)。
+//   只在军团模式(无小人 + 占领模式)下生效，进度由 WarReadinessPatch 在 Plot.updateProgressTarget 前拦下。
+public static class WarReadinessSystem
+{
+    private const float FilledShare = 0.8f, MassedShare = 0.75f;
+    private const int MassedZones = 2;
+    private const int MaxWaitMonths = 12;
+
+    // 谋划 id → 开始等集结的时间
+    private static readonly Dictionary<long, double> Waiting = new();
+
+    public static void ResetWorldState()
+    {
+        Waiting.Clear();
+        WarMuster.ResetWorldState();
+    }
+
+    // 朝议定策的集结(见 WarMuster)：定策的国与随同动员的成员合起来算——范围里的军补到 filled、七成五开到了边境。
+    // 没有朝向目标的边境的成员(隔着别的省)不算在内，开战后再上
+    public static bool Ready(IEnumerable<Realm> sides, float filled)
+    {
+        float full = 0f, strength = 0f, massed = 0f;
+        foreach (Realm side in sides)
+        {
+            if (side?.Record == null || side.IsGone()) continue;
+            IReadOnlyList<Cell> front = CityPopulationSystem.FrontZones(side);
+            if (front.Count == 0) continue;
+            foreach (CorpsData corps in CorpsSystem.Of(side))
+            {
+                if (corps.militia || corps.order_id >= 0 || corps.task == "retreat" || !WarScopeSystem.InScope(CorpsSystem.Home(corps))) continue;
+                full += corps.full;
+                strength += corps.strength;
+                if (CorpsSystem.Zone(corps) is Cell at && front.Any(zone => CorpsSystem.ZoneDistance(zone, at) <= MassedZones))
+                    massed += corps.strength;
+            }
+        }
+        if (strength <= 0f) return true;
+        return (full <= 0f || strength >= full * filled) && massed >= strength * MassedShare;
+    }
+
+    // 被盯上的一方看不看得见：对方有军开到了边境。吏治败坏的察觉得晚(群友"朝廷积弊越大刺探到情报的可能性越小")——
+    // 六弊平均每 10 点，要等对方多一成的兵到了边境才看得见，至多六成
+    public static bool Spotted(Realm author, Realm target)
+    {
+        if (!Massing(author)) return false;
+        float blind = Mathf.Clamp(MaladySystem.Average(target?.GetEmpire()) / 100f, 0f, 0.6f);
+        if (blind <= 0.05f) return true;
+        IReadOnlyList<Cell> front = CityPopulationSystem.FrontZones(author);
+        float strength = 0f, massed = 0f;
+        foreach (CorpsData corps in CorpsSystem.Of(author))
+        {
+            if (corps.militia || corps.order_id >= 0 || !WarScopeSystem.InScope(CorpsSystem.Home(corps))) continue;
+            strength += corps.strength;
+            if (CorpsSystem.Zone(corps) is Cell at && front.Any(zone => CorpsSystem.ZoneDistance(zone, at) <= MassedZones))
+                massed += corps.strength;
+        }
+        return strength <= 0f || massed >= strength * blind;
+    }
+
+    // 进度已满、大军还没陈兵边境：暂缓宣战
+#if EC_PENDING
+    public static bool Hold(Plot plot)
+    {
+        if (!CorpsSystem.Enabled || plot?.data == null || plot.GetKind() == null ||
+            global::System.Array.IndexOf(CityPopulationSystem.WarPlots, plot.GetKind().Id) < 0 ||
+            plot.data.progress_current < plot.getProgressMax()) return false;
+        Realm kingdom = plot.GetAuthor()?.Realm, target = plot.TargetRealm;
+        if (kingdom?.Record == null || target?.Record == null || kingdom.IsGone() || target.IsGone()) return false;
+        if (CityPopulationSystem.FrontZones(kingdom).Count == 0) return false;
+        long key = plot.data.id;
+        if (Ready(kingdom))
+        {
+            if (Waiting.Remove(key))
+                FrontSystem.Log(kingdom, string.Format(LM.Get("war_ready_massed"), kingdom.GetKingdomName(), target.GetKingdomName()));
+            return false;
+        }
+        double now = GameClock.Now;
+        if (!Waiting.TryGetValue(key, out double since))
+        {
+            Waiting[key] = now;
+            FrontSystem.Log(kingdom, string.Format(LM.Get("war_ready_waiting"), kingdom.GetKingdomName(), target.GetKingdomName()));
+            return true;
+        }
+        if (GameClock.MonthsSince(since) < MaxWaitMonths) return true;
+        Waiting.Remove(key);
+        FrontSystem.Log(kingdom, string.Format(LM.Get("war_ready_rushed"), kingdom.GetKingdomName(), target.GetKingdomName()));
+        return false;
+    }
+#endif
+
+    // 本国动员的军已有开到边境的(对方看得见，见 CityPopulationSystem.Alert)
+    public static bool Massing(Realm kingdom)
+    {
+        if (!CorpsSystem.Enabled || kingdom?.Record == null) return false;
+        IReadOnlyList<Cell> front = CityPopulationSystem.FrontZones(kingdom);
+        if (front.Count == 0) return false;
+        return CorpsSystem.Of(kingdom).Any(corps => corps.task == "march" && corps.strength >= 1f &&
+                                                    CorpsSystem.Zone(corps) is Cell at &&
+                                                    front.Any(zone => CorpsSystem.ZoneDistance(zone, at) <= MassedZones));
+    }
+
+    // 动员范围里的军补足了战时兵额、大部分开到了边境
+    public static bool Ready(Realm kingdom)
+    {
+        List<CorpsData> list = CorpsSystem.Of(kingdom)
+            .Where(corps => !corps.militia && corps.order_id < 0 && corps.task != "retreat" &&
+                            WarScopeSystem.InScope(CorpsSystem.Home(corps))).ToList();
+        if (list.Count == 0) return true;
+        float full = list.Sum(corps => corps.full), strength = list.Sum(corps => corps.strength);
+        if (strength <= 0f) return true;
+        if (full > 0f && strength < full * FilledShare) return false;
+        IReadOnlyList<Cell> front = CityPopulationSystem.FrontZones(kingdom);
+        float massed = list.Where(corps => CorpsSystem.Zone(corps) is Cell at &&
+                                           front.Any(zone => CorpsSystem.ZoneDistance(zone, at) <= MassedZones))
+            .Sum(corps => corps.strength);
+        return massed >= strength * MassedShare;
+    }
+}
+}

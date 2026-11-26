@@ -1,0 +1,27 @@
+key,cz,en,ch
+
+Arabic_caliphate,哈里发国,Caliphate,哈里發國
+Arabic_sultanate,苏丹国,Sultanate,蘇丹國
+Arabic_emirate,酋长国,Emirate,酋長國
+Arabic_province,行省,Province,行省
+
+Arabic_officiallevel_0,哈里发,Caliph,哈里發
+Arabic_officiallevel_1,宰相,Vizier,宰相
+Arabic_officiallevel_2,大法官,Chief Judge,大法官
+Arabic_officiallevel_3,军事总督,Military Governor,軍事總督
+Arabic_officiallevel_4,酋长,Emir,酋長
+Arabic_officiallevel_5,省长,Governor,省長
+Arabic_officiallevel_6,苏丹,Sultan,蘇丹
+Arabic_officiallevel_7,市长,Mayor,市長
+
+Arabic_city,城,City,城
+
+Arabic_caliphate_india,帝国,Empire,帝國
+Arabic_sultanate_india,王国,Kingdom,王國
+Arabic_emirate_india,土邦,Princely State,土邦
+Arabic_officiallevel_0_india,大君,Maharaja,大君
+Arabic_officiallevel_4_india,王公,Prince,王公
+Arabic_officiallevel_6_india,王,Raja,王
+
+Arabic_caliphate_preislamic,帝国,Empire,帝國
+Arabic_officiallevel_0_preislamic,皇帝,Emperor,皇帝

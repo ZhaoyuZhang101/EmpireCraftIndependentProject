@@ -1,0 +1,98 @@
+// Ported from the EmpireCraft mod: Scripts/GeneralSystems/CultureShareRules.cs @ e770dbbe. Body kept line-for-line for three-way sync;
+// see Port/manifest.json and Tools/PortTool.
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace EmpireCraft.Core
+{
+
+public static class CultureShareRules
+{
+    public const float AssimilatedThreshold = 80f;
+    public const float TitleConversionThreshold = 70f;
+    // 城市层面：挑战文化必须形成稳定多数，并明显领先当前官方主流文化。
+    public const float CityCultureShiftThreshold = 55f;
+    public const float CityCultureShiftLeadMargin = 15f;
+    // 稳定期与占领冲击(用户 2026-10-27 反馈文化传播太快)：以前 5 年、一占领就 30 个百分点，攻下的城二三十年就改从征服者之俗
+    public const int CityCultureShiftStableYears = 10;
+    // 新生儿采用出生城市官方文化的概率。70% 是制度教育提供的基础值，官方文化相对
+    // 最强竞争文化的领先越明显，概率越接近 100%；未触发时保留父母继承出的文化。
+    public const float NewbornLocalCultureBaseChance = 0.70f;
+    public const float NewbornLocalCultureMaxChance = 1f;
+    public const float NewbornLocalCultureChance = NewbornLocalCultureBaseChance;
+    // 人口迁徙只会缓慢改变城市中的文化影响力。和平治理下，官方文化依靠制度、教育和公共生活
+    // 始终保留多数地位；只有异文化征服才能直接更换官方文化并打破这种惯性。
+    public const float PopulationPressurePerYear = 1f;
+    public const float OfficialCultureInstitutionalFloor = 55f;
+    // 官方文化靠制度、教育在人口与教化之上最多再抬这么多个百分点(至多到上面的 55)：人口与教化压倒性偏向别的文化时，
+    // 官方文化守不住多数，城会慢慢改从多数之俗(用户 2026-10-19 选"可和平同化、留少数族群"；以前一律保底 55，
+    // 挑战者最多 45，迁徙、教化永远翻不了城)
+    public const float OfficialCultureInstitutionalLift = 25f;
+    public const float ForeignOccupationCultureShock = 15f;
+    public const float ForeignOccupationCultureTarget = 60f;
+    // 王国/帝国法理层面：某文化需要成为法理辖下至少这个比例的城市的主流文化（且是首都的主流文化）
+    // 才允许“文治”派系发起“改变法理主流文化”的决议。
+    public const float TitleCultureDominanceRatio = 2f / 3f;
+    private const float Epsilon = 0.0001f;
+
+    public static bool IsAssimilated(float share)
+    {
+        return share > AssimilatedThreshold;
+    }
+
+    public static float CalculateNewbornLocalCultureChance(float officialShare, float strongestOtherShare)
+    {
+        officialShare = Math.Max(0f, Math.Min(100f, officialShare));
+        strongestOtherShare = Math.Max(0f, Math.Min(100f, strongestOtherShare));
+        float leadRatio = Math.Max(0f, officialShare - strongestOtherShare) / 100f;
+        return NewbornLocalCultureBaseChance +
+               (NewbornLocalCultureMaxChance - NewbornLocalCultureBaseChance) * leadRatio;
+    }
+
+    public static void SetShare(Dictionary<string, float> shares, string culture, float percentage)
+    {
+        if (shares == null || string.IsNullOrWhiteSpace(culture)) return;
+        percentage = Math.Max(0f, Math.Min(100f, percentage));
+        float oldValue = shares.TryGetValue(culture, out float current) ? current : 0f;
+        float oldOthers = Math.Max(0f, 100f - oldValue);
+        float newOthers = 100f - percentage;
+        foreach (string key in shares.Keys.Where(key => key != culture).ToList())
+        {
+            shares[key] = oldOthers <= Epsilon ? 0f : shares[key] * newOthers / oldOthers;
+        }
+        shares[culture] = percentage;
+    }
+
+    public static void Normalize(Dictionary<string, float> shares, Func<string, bool> isValidCulture)
+    {
+        if (shares == null) return;
+        foreach (string key in shares.Keys.ToList())
+        {
+            float value = shares[key];
+            if (!isValidCulture(key) || float.IsNaN(value) || float.IsInfinity(value) || value <= Epsilon)
+                shares.Remove(key);
+            else
+                shares[key] = Math.Max(0f, value);
+        }
+        float total = shares.Values.Sum();
+        if (total <= Epsilon) return;
+        foreach (string key in shares.Keys.ToList()) shares[key] = shares[key] * 100f / total;
+        string largest = shares.OrderByDescending(pair => pair.Value).First().Key;
+        shares[largest] += 100f - shares.Values.Sum();
+    }
+
+    public static string FindUnanimousConversionCulture(IEnumerable<IDictionary<string, float>> cityShares,
+        string currentCulture, float threshold)
+    {
+        List<IDictionary<string, float>> cities = cityShares?.Where(shares => shares != null && shares.Count > 0).ToList()
+                                                   ?? new List<IDictionary<string, float>>();
+        if (cities.Count == 0) return "";
+        string candidate = cities[0].OrderByDescending(pair => pair.Value).ThenBy(pair => pair.Key).First().Key;
+        if (candidate == currentCulture) return "";
+        return cities.All(shares => shares.TryGetValue(candidate, out float value) && value > threshold)
+            ? candidate
+            : "";
+    }
+}
+}

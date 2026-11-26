@@ -1,0 +1,187 @@
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/WorldMap/WorldMapReligion.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
+// see Port/manifest.json and Tools/PortTool.
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using Newtonsoft.Json;
+
+namespace EmpireCraft.Core
+{
+
+// 开局宗教(WorldMaps/religions.json，由 Tools/WorldMap/religion.py 生成)：按时代立教、定圣地、定各城信仰，
+// 分出的教会记母宗教(东正教会、什叶派、新教各宗、科普特与亚美尼亚教会)，各国国教随都城。
+// 以前剧本不管宗教，开局后按天下各立一教：全欧洲连罗斯一个"使徒教会"，1628 年的天竺是"佛教"、华夏是"道教"
+public static class WorldMapReligion
+{
+    private sealed class Definition
+    {
+        public string id = "", faith = "", sphere = "", parent = "", split = "";
+        public bool caesaro;
+        // 名(按年换名)、圣地(按年换城；分出的教会记的是本宗中心，圣地随母教)、圣战目标(圣地以外要收复的城)：[年, 值]
+        public List<List<object>> n = new();
+        public List<List<object>> holy = new();
+        public List<List<object>> crusade = new();
+    }
+
+    private sealed class FileData
+    {
+        public List<int> years = new();
+        public List<Definition> religions = new();
+        public Dictionary<string, List<string>> regions = new();
+        public Dictionary<string, Dictionary<string, string>> cities = new();
+    }
+
+    public sealed class Place
+    {
+        public string id, region;
+        public int rank;
+        public City city;
+    }
+
+    private static FileData _file;
+    private static bool _loaded;
+
+#if EC_PENDING
+    private static FileData Load()
+    {
+        if (_loaded) return _file;
+        _loaded = true;
+        try
+        {
+            string path = Path.Combine(WorldMapData.Folder, "religions.json");
+            if (File.Exists(path)) _file = JsonConvert.DeserializeObject<FileData>(File.ReadAllText(path));
+        }
+        catch (Exception exception)
+        {
+            LogService.LogWarning($"[EmpireCraft][世界地图] 宗教表读不出来: {exception.Message}");
+        }
+        return _file;
+    }
+#endif
+
+    // 按年取值：不晚于开局年的最后一条
+    private static string AtYear(List<List<object>> entries, int year)
+    {
+        string value = null;
+        foreach (List<object> entry in entries ?? new List<List<object>>())
+        {
+            if (entry == null || entry.Count < 2 || Convert.ToInt32(entry[0]) > year) continue;
+            value = entry[1]?.ToString();
+        }
+        return value;
+    }
+
+    // 开局年取哪一列：离开局年最近的时代(1140 年取 1190，别退回 800 年的格局)
+    private static int Column(FileData file, int year)
+    {
+        int column = 0;
+        for (int i = 1; i < file.years.Count; i++)
+            if (global::System.Math.Abs(file.years[i] - year) < global::System.Math.Abs(file.years[column] - year)) column = i;
+        return column;
+    }
+
+#if EC_PENDING
+    public static void Apply(int year, List<Place> places, List<(Realm kingdom, City capital, Empire empire)> realms)
+    {
+        FileData file = Load();
+        if (file?.religions == null || file.years == null || file.years.Count == 0) return;
+        int column = Column(file, year);
+        string yearKey = file.years[column].ToString();
+        // 各城本时代的宗教
+        var faithOf = new Dictionary<City, string>();
+        foreach (Place place in places.Where(place => place.city?.Record != null && !place.city.IsGone()))
+        {
+            string religion = null;
+            if (file.cities != null && file.cities.TryGetValue(place.id, out Dictionary<string, string> row))
+                row.TryGetValue(yearKey, out religion);
+            if (religion == null && place.region != null && file.regions.TryGetValue(place.region, out List<string> columns) &&
+                column < columns.Count)
+                religion = columns[column];
+            if (!string.IsNullOrEmpty(religion)) faithOf[place.city] = religion;
+        }
+        var byId = file.religions.Where(definition => !string.IsNullOrEmpty(definition.id))
+            .GroupBy(definition => definition.id).ToDictionary(group => group.Key, group => group.First());
+        var made = new Dictionary<string, Religion>();
+        // 母宗教先立(分出的教会要记母宗教编号)
+        foreach (string id in faithOf.Values.Distinct().OrderBy(id => byId.TryGetValue(id, out Definition d) && !string.IsNullOrEmpty(d.parent) ? 1 : 0))
+        {
+            if (!byId.TryGetValue(id, out Definition definition)) continue;
+            try
+            {
+                List<Place> followers = places.Where(place => place.city != null && faithOf.TryGetValue(place.city, out string r) && r == id)
+                    .OrderBy(place => place.rank).ToList();
+                string holyId = AtYear(definition.holy, year);
+                City holy = places.FirstOrDefault(place => place.id == holyId && place.city != null && faithOf.TryGetValue(place.city, out string r) && r == id)?.city
+                            ?? followers.FirstOrDefault()?.city;
+                Religion religion = Found(definition, holy, year);
+                if (religion == null) continue;
+                made[id] = religion;
+                // 圣战目标(天主教会的耶路撒冷：圣地仍是罗马，见 PapacySystem.CrusadeCity)
+                string crusadeId = AtYear(definition.crusade, year);
+                City crusade = string.IsNullOrEmpty(crusadeId) ? null
+                    : places.FirstOrDefault(place => place.id == crusadeId && place.city?.Record != null && !place.city.IsGone())?.city;
+                if (crusade != null) religion.GetOrCreate().CrusadeCityId = crusade.Key;
+            }
+            catch (Exception exception)
+            {
+                LogService.LogWarning($"[EmpireCraft][世界地图] 立教 {id} 失败: {exception.Message}");
+            }
+        }
+        // 分出的教会：记母宗教，母宗教记已分出(免得又按大分裂、继承之争再分一次)
+        double now = GameClock.Now;
+        foreach ((string id, Religion religion) in made)
+        {
+            Definition definition = byId[id];
+            if (string.IsNullOrEmpty(definition.parent) || !made.TryGetValue(definition.parent, out Religion parent)) continue;
+            var data = religion.GetOrCreate();
+            data.ParentReligionId = parent.data.id;
+            data.SplitAt = now;
+            data.Caesaropapist = definition.caesaro;
+            var parentData = parent.GetOrCreate();
+            if (definition.split == "eastern") parentData.EasternSplit = true;
+            if (definition.split == "shia") parentData.ShiaSplit = true;
+        }
+        // 各城改信
+        foreach ((City city, string id) in faithOf)
+            if (made.TryGetValue(id, out Religion religion))
+                BackgroundReligionSystem.Convert(city, religion, city.Religion);
+        // 国教随都城(莫卧儿的都城阿格拉奉伊斯兰，治下多是印度教的城)
+        foreach ((Realm kingdom, City capital, Empire empire) in realms)
+        {
+            if (kingdom?.Record == null || kingdom.IsGone() || capital?.Record == null) continue;
+            if (!faithOf.TryGetValue(capital, out string id) || !made.TryGetValue(id, out Religion religion)) continue;
+            kingdom.SetReligion(religion);
+            if (kingdom.Ruler != null && !kingdom.Ruler.IsGone()) kingdom.Ruler.SetReligion(religion);
+            if (empire != null && empire.CoreKingdom == kingdom)
+            {
+                empire.Religion = religion;
+                // 开局就奉别教的阿拉伯一线帝国(那时还没有伊斯兰)不强改(见 CaliphateFaith)
+                CaliphateFaith.MarkScenarioFaith(empire, religion);
+            }
+        }
+        LogService.LogInfo($"[EmpireCraft][世界地图] 开局宗教：{string.Join("、", made.Values.Select(religion => religion.data.name))}");
+    }
+#endif
+
+    private static Religion Found(Definition definition, City holy, int year)
+    {
+        if (holy?.Record == null) return null;
+        CityPopulationSystem.EnsureLeader(holy);
+        Person founder = holy.Leader;
+        if (founder == null || founder.IsGone() || founder.Subspecies == null) founder = holy.Realm?.Ruler;
+        if (founder == null || founder.IsGone() || founder.Subspecies == null || founder.Realm == null) return null;
+        Religion religion = EmpireWorld.Current.Religions.NewReligion(founder, false);
+        if (religion?.data == null) return null;
+        string name = WorldMapData.PickParts(AtYear(definition.n, year));
+        if (!string.IsNullOrWhiteSpace(name)) religion.data.name = name;
+        var data = religion.GetOrCreate();
+        if (Enum.TryParse(definition.faith, out FaithType faith)) ReligionFaith.Record(religion, faith);
+        if (!string.IsNullOrEmpty(definition.sphere)) data.Sphere = definition.sphere;
+        religion.SetCity(holy);
+        // 原版造教时按创教者记了一条"某某创立某教"(名字还是原版起的)：剧本里的宗教是古已有之，不记
+        ReligionChronicle.Clear(religion);
+        return religion;
+    }
+}
+}

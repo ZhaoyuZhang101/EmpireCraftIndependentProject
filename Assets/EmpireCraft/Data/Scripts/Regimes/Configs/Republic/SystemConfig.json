@@ -1,0 +1,279 @@
+{  
+  //现代
+  "Modern": {
+    "description": "现代制度，各级别官员由考试产生，同时，最高领导者由各个省份领导人票选产生",
+    "icon_url": "",
+    "era_name": false,
+    "has_cabinet": false,
+    "is_monarchy": false,
+    // 共和：土地收归国有，不设地主阶层(私有土地市场随之关闭)
+    "allows_landlord_class": false,
+    "cabinet_number": 0,
+    "leader_select_method": "Vote",
+    "default_kingdom": "Modern_centre",
+    "centre_empire_separate": true,
+    // 政体行为开关(见 Scripts/Regimes/Configs/README.md)
+    "members_can_secede": false,
+    "secede_member_types": [],
+    "secede_ignores_central_army": false,
+    "indirect_rule": false,
+    "direct_member_types": [],
+    "partition_conquests": false,
+    "keep_member_roles": false,
+    "partition_chance_factor": 1.0,
+    "laws": [0,1,13,14,16,17,18,20,21,27,28,29,32,33,36,37,38,39,42,43,50,51,54],
+    "Factions": [
+      {
+        "_id": "ee61868b-90ff-415f-b749-882c561e6ccd",
+        "Type": "民主",
+        "Ban": false,
+        "_requiredTraits": [],
+        "Name": "民主党",
+        "only_king": false,
+        "EmpireId": -1,
+        "Members": [],
+        "TotalPower": 0,
+        "Leader": -1
+      },
+      {
+        "_id": "4e93a090-0c44-47b4-95d5-2a2b5918238b",
+        "Type": "共和",
+        "Ban": false,
+        "_requiredTraits": [],
+        "Name": "共和党",
+        "only_king": false,
+        "EmpireId": -1,
+        "Members": [],
+        "TotalPower": 0,
+        "Leader": -1
+      },
+      {
+        "_id": "11111111-0c44-47b4-95d5-2a2b5918238b",
+        "Type": "共产",
+        "Ban": false,
+        "_requiredTraits": [],
+        "Name": "革命党",
+        "only_king": false,
+        "EmpireId": -1,
+        "Members": [],
+        "TotalPower": 0,
+        "Leader": -1
+      },
+      {
+        "_id": "22222222-0c44-47b4-95d5-2a2b5918238b",
+        "Type": "尊王",
+        "Ban": false,
+        "_requiredTraits": [],
+        "Name": "保皇党",
+        "only_king": false,
+        "EmpireId": -1,
+        "Members": [],
+        "TotalPower": 0,
+        "Leader": -1
+      },
+      {
+        "_id": "33333333-0c44-47b4-95d5-2a2b5918238b",
+        "Type": "攘夷",
+        "Ban": false,
+        "_requiredTraits": [],
+        "Name": "军国主义者",
+        "only_king": false,
+        "EmpireId": -1,
+        "Members": [],
+        "TotalPower": 0,
+        "Leader": -1
+      }
+    ],
+    "options": {
+      "toggle_allow_diplomacy": [1],
+      "toggle_allow_army": [0],
+      "toggle_support_army_to_center": [1],
+      "option_tax_level": [2, 4],
+      "option_leader_select_method": [2, 3],
+      "option_religion_type": [0, 4],
+      "option_succession_law": [0, 5]
+    },
+    "bureau_config": {
+      "cores": [
+        {
+          "pre": "",
+          "type": 1,
+          "description": "",
+          "powers": [
+            "备选", "审核"
+          ],
+          "merit": -1,
+          "honorary": -1,
+          "select_from_local": false,
+          "leader_select_method": "Default",
+          "require_traits": []
+        },
+        {
+          "pre": "",
+          "type": 2,
+          "description": "",
+          "powers": [
+            "执行",
+            "拟定",
+            "礼仪",
+            "人事"
+          ],
+          "merit": -1,
+          "honorary": -1,
+          "select_from_local": false,
+          "leader_select_method": "Default",
+          "require_traits": []
+        }
+      ],
+      "harems": [],
+      "division": [
+        {
+          "pre": "finance_full",
+          "type": 3,
+          "description": "",
+          "powers": [
+            "财政"
+          ],
+          "merit": -1,
+          "honorary": -1,
+          "select_from_local": false,
+          "leader_select_method": "Default",
+          "require_traits": []
+        },
+        {
+          "pre": "defence_full",
+          "type": 3,
+          "description": "",
+          "powers": [
+            "军事"
+          ],
+          "merit": -1,
+          "honorary": -1,
+          "select_from_local": false,
+          "leader_select_method": "Default",
+          "require_traits": []
+        },
+        {
+          "pre": "law_full",
+          "type": 3,
+          "description": "",
+          "powers": [
+            "司法"
+          ],
+          "merit": -1,
+          "honorary": -1,
+          "select_from_local": false,
+          "leader_select_method": "Default",
+          "require_traits": []
+        },
+        {
+          "pre": "interior_full",
+          "type": 3,
+          "description": "",
+          "powers": [
+            "人事"
+          ],
+          "merit": -1,
+          "honorary": -1,
+          "select_from_local": false,
+          "leader_select_method": "Default",
+          "require_traits": []
+        },
+        {
+          "pre": "education_full",
+          "type": 3,
+          "description": "",
+          "powers": [
+            "教育"
+          ],
+          "merit": -1,
+          "honorary": -1,
+          "select_from_local": false,
+          "leader_select_method": "Default",
+          "require_traits": []
+        }
+      ],
+      "armies": {},
+      "kingdoms": {
+        "default_country_post": {
+          "pre": "",
+          "type": 0,
+          "description": "",
+          "powers": [],
+          "merit": -1,
+          "honorary": -1,
+          "select_from_local": false,
+          "leader_select_method": "Default",
+          "require_traits": [],
+          "condition": [],
+          "city_type": "Modern_city"
+        },
+        "Modern_centre": {
+          "pre": "",
+          "type": 0,
+          "description": "",
+          "powers": [],
+          "merit": -1,
+          "honorary": -1,
+          "select_from_local": false,
+          "leader_select_method": "Default",
+          "require_traits": [],
+          "condition": ["empire_center:true"],
+          "city_type": "Modern_city"
+        },
+        "Modern_province": {
+          "pre": "",
+          "type": 5,
+          "description": "",
+          "powers": [],
+          "merit": -1,
+          "honorary": -1,
+          "select_from_local": false,
+          "leader_select_method": "Default",
+          "require_traits": [],
+          "condition": ["allow_army:false", "another_race:false"],
+          "city_type": "Modern_city"
+        },
+        "Modern_state": {
+          "pre": "",
+          "type": 5,
+          "description": "",
+          "powers": [],
+          "merit": -1,
+          "honorary": -1,
+          "select_from_local": false,
+          "leader_select_method": "Default",
+          "require_traits": [],
+          "condition": ["allow_army:true", "another_race:false"],
+          "city_type": "Modern_city"
+        },
+        "Modern_autonomous_prefecture": {
+          "pre": "",
+          "type": 5,
+          "description": "",
+          "powers": [],
+          "merit": -1,
+          "honorary": -1,
+          "select_from_local": false,
+          "leader_select_method": "Default",
+          "require_traits": [],
+          "condition": ["another_race:true"],
+          "city_type": "Modern_city"
+        }
+      },
+      "cities": {
+        "Modern_city": {
+          "pre": "",
+          "type": 6,
+          "description": "",
+          "powers": [],
+          "merit": -1,
+          "honorary": -1,
+          "select_from_local": false,
+          "leader_select_method": "Default",
+          "require_traits": []
+        }
+      }
+    }
+  }
+}

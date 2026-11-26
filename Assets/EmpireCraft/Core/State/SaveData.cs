@@ -1,0 +1,102 @@
+// Generated from the EmpireCraft mod: Scripts/Data/SaveData.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
+// see Port/manifest.json and Tools/PortTool.
+using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using static EmpireCraft.Core.ActorExtension;
+using static EmpireCraft.Core.KingdomExtension;
+using static EmpireCraft.Core.CityExtension;
+using static EmpireCraft.Core.ClanExtension;
+using static EmpireCraft.Core.WarExtension;
+using static EmpireCraft.Core.ReligionExtension;
+namespace EmpireCraft.Core
+{
+
+public class SaveData
+{
+    public List<ActorExtraData> actorsExtraData = new List<ActorExtraData>();
+    public List<KingdomExtraData> kingdomExtraData = new List<KingdomExtraData>();
+    public List<CityExtraData> cityExtraData = new List<CityExtraData>();
+    public List<ClanExtraData> clanExtraData = new List<ClanExtraData>();
+    // 时代名著挂在原版书上的扩展(见 BookExtension)
+    public List<BookExtension.BookExtraData> bookExtraData = new List<BookExtension.BookExtraData>();
+    public List<WarExtraData> warExtraData = new List<WarExtraData>();
+    public List<ReligionExtraData> religionExtraData = new List<ReligionExtraData>();
+    public List<EmpireData> empireDatas = new List<EmpireData>();
+    public List<EmpireCore> empireCoreDatas = new List<EmpireCore>();
+    public List<KingdomTitleData> kingdomTitleDatas = new List<KingdomTitleData>();
+    public Dictionary<long, string> cultureBindings = new Dictionary<long, string>();
+    public Dictionary<string, CultureInstitutionState> cultureInstitutionStates = new Dictionary<string, CultureInstitutionState>();
+    public Dictionary<string, CultureTechState> cultureTechStates = new Dictionary<string, CultureTechState>();
+    // 名将名臣名册(见 FamousTalentSystem)
+    public TalentSaveData famousTalents = new TalentSaveData();
+    public List<string> yearNameSubspecies = new List<string>();
+    public Dictionary<long, List<EmpireCraftHistory>> all_history;
+    // 已亡帝国名录(见 FallenEmpireRecords)
+    public List<FallenEmpireRecord> fallen_empires = new List<FallenEmpireRecord>();
+    public Dictionary<string, double> culture_no_empire_since = new Dictionary<string, double>();
+    public Dictionary<string, List<long>> feudal_empire_lineage = new Dictionary<string, List<long>>();
+    public List<long> mod_alliance_ids = new List<long>();
+    // 图层城墙(纯净地图把原版城墙转成的数据，格编号 → 城墙种类，见 MapWallSystem)
+    public Dictionary<int, string> map_walls = new Dictionary<int, string>();
+    // 神力画的路(格编号 → 等级、路况，见 RoadPaintSystem)
+    public Dictionary<int, EmpireCraft.Core.PaintedRoad> painted_roads =
+        new Dictionary<int, EmpireCraft.Core.PaintedRoad>();
+    // 城郊的镇村(钉在地图上，见 RuralSettlementSystem)
+    public List<RuralSettlement> rural_settlements = new List<RuralSettlement>();
+    // 工厂(钉在地图上，见 FactorySystem)
+    public List<FactorySite> factories = new List<FactorySite>();
+    // 无人区(连片的山脉、沙漠、冻土雪原、丛林、沼泽，见 WildernessSystem)：编号、类型、名字、起名的文化、地块与各块挂的法理；
+    // 下一片的编号。旧档没有，读档后按地形划
+    public List<EmpireCraft.Core.WildRegionData> wild_regions =
+        new List<EmpireCraft.Core.WildRegionData>();
+    public int wild_next_id = 1;
+    // 雨林、大泽无人区的开发度(按地块)与朝廷的开发诏令(见 WildernessDevelopmentSystem)。旧档没有，从零开发
+    public EmpireCraft.Core.WildDevelopmentData wild_development =
+        new EmpireCraft.Core.WildDevelopmentData();
+    // 开着无人区时交给别城的城地碎块(地块、原城、接收的城；关掉设置时还回原城，见 CityFragmentSystem)。旧档没有，没交过
+    public List<EmpireCraft.Core.CityFragmentMove> city_fragment_moves =
+        new List<EmpireCraft.Core.CityFragmentMove>();
+    // 通路之约：两国交好的年数、有过友好时期的、议定的(见 RoadTreatySystem)
+    public RoadTreatyData road_treaties = new RoadTreatyData();
+    // 借道：主国许借道国借道，单向，有起止(见 MilitaryAccessSystem)。旧档没有，从无约起
+    public MilitaryAccessData military_access = new MilitaryAccessData();
+    // 世界格局：阵营、冷战、万国公会、制裁(见 WorldOrderSystem)。旧档没有，从无到有
+    public WorldOrderData world_order = new WorldOrderData();
+    // 公司与证券交易所(见 CompanySystem、StockMarketSystem)。旧档没有，从无到有
+    public CompanyBook companies = new CompanyBook();
+    // 在办的决议(见 DecisionSystem)
+    // 内帑(见 PrivyPurse)
+    public List<EmpireCraft.Core.PrivyPurseData> privy_purse = new List<EmpireCraft.Core.PrivyPurseData>();
+    // 交给服务器核心接手过的局的编号(见 CoreGameId)
+    public string core_game_id;
+    // 编年：世界上发过的消息(见 WorldChronicle)
+    public List<EmpireCraft.Core.ChronicleEntry> world_chronicle = new List<EmpireCraft.Core.ChronicleEntry>();
+    public List<EmpireCraft.Core.DecisionCase> decisions = new List<EmpireCraft.Core.DecisionCase>();
+    // 本模组的世界法则(法则 id → 开关)：法则本身是跨存档的玩家选项，这里随存档记一份，读档时还原
+    // (见 EmpireCraftWorldLawLibrary.Capture/Apply)。旧档没有，各法则按 default_state
+    public Dictionary<string, bool> empirecraft_world_laws = new Dictionary<string, bool>();
+    public bool switch_real_num = false;
+    public bool switch_simple_nameplate = false;
+    public bool switch_empire_show_alliance = false;
+    public List<SpecificClan> specificClans = new List<SpecificClan>();
+    public Dictionary<long, OfficeObject>  officeObjects = new Dictionary<long, OfficeObject>();
+    public int mod_version = 0;
+    // 世界地图一块区块合多少公里(见 WorldMapScale；不是世界地图为 0)
+    public float world_map_zone_km = 0f;
+    // 世界地图的范围、大小、时代、开局年份与无人区的史实归属(见 WorldMapWilderness；不是世界地图为 null)
+    public EmpireCraft.Core.WorldMapWildSave world_map_wild;
+    // 自定剧本的剧情事件与剧本里的国、城、地区对上的编号、触发过的(见 ScenarioEventSystem；没有剧情事件为 null)
+    public EmpireCraft.Core.ScenarioEventSave world_map_events;
+    // 丝绸之路沿途各站对上的城(见 SilkRoadSystem；没有丝路为 null)
+    public List<EmpireCraft.Core.SilkRouteSave> world_map_silk;
+    // 剧本这一时代的长城(格坐标折线 [x0, y0, x1, y1, …])，行政区以它为界(见 FrontierWalls；没有长城为 null)
+    public List<float[]> world_map_walls;
+    // 剧本世界的日历，科技按年代封顶(见 TechCalendarRules；不是剧本开局的世界、旧档为 null)
+    public EmpireCraft.Core.TechCalendarSave world_map_tech_calendar;
+    // 时代锁定：科技至多到这一档时代，0 不锁(终端管理员定，见 TechnologySystem.EraLock)
+    public int era_lock_tier;
+}
+}

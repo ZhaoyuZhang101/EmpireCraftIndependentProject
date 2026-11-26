@@ -1,0 +1,122 @@
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/CapitalLossNamingSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
+// see Port/manifest.json and Tools/PortTool.
+using Mathf = EmpireCraft.Core.EcMath;
+using Vector2 = EmpireCraft.Core.EcVector2;
+using System;
+
+namespace EmpireCraft.Core
+{
+
+// 失都改称(模拟宋室南渡称"南宋"、晋室东迁称"东晋")：
+//   统一王朝(有帝国核心)的核心首都落到别国手里满 LostYears 年，始终没能夺回，
+//   国号前加方位——按现今都城在旧都的哪个方向：在南称"南"、在东称"东"……；
+//   原来的前缀(如"大")先记下，日后收复旧都就去掉方位、恢复原称。每年检查一次(见 CityPatch 的年度扫描)。
+public static class CapitalLossNamingSystem
+{
+    private const int LostYears = 50;
+    private static double _lastScan = -1d;
+
+    private static readonly string[] Directions = { "Eastern", "Western", "Southern", "Northern" };
+
+    public static void TryYearlyScan()
+    {
+        if (EmpireWorld.Current == null || ModClass.EMPIRE_MANAGER == null) return;
+        double now = GameClock.Now;
+        if (_lastScan >= 0d && now >= _lastScan && GameClock.YearsSince(_lastScan) < 1) return;
+        _lastScan = now;
+        foreach (Empire empire in ModClass.EMPIRE_MANAGER)
+        {
+            try
+            {
+                Check(empire, now);
+            }
+            catch (Exception exception)
+            {
+                LogService.LogWarning($"[EmpireCraft] 失都改称检查失败: {exception.Message}");
+            }
+        }
+    }
+
+    private static void Check(Empire empire, double now)
+    {
+        if (empire?.data == null || empire.IsGone() || empire.IsArchived()) return;
+        Realm core = empire.CoreKingdom;
+        if (core == null || core.IsGone() || core.Capital == null || core.HasCustomCountryNaming()) return;
+        City oldCapital = EmpireCoreManager.Get(empire)?.GetCoreCapital();
+        if (oldCapital == null || oldCapital.IsGone()) return;
+        EmpireData data = empire.data;
+        bool lost = oldCapital.Realm == null || oldCapital.Realm.GetEmpire() != empire;
+        if (!lost)
+        {
+            data.core_capital_lost_since = -1d;
+            if (!data.capital_loss_prefix_applied) return;
+            // 还于旧都：去掉方位，恢复原称
+            string southern = empire.GetEmpireFullName();
+            data.directPre = data.capital_loss_previous_prefix ?? "";
+            data.capital_loss_prefix_applied = false;
+            data.capital_loss_previous_prefix = "";
+            TranslateHelper.LogEventMessage(string.Format(LM.Get("capital_loss_restored"), southern,
+                oldCapital.GetCityName(), empire.GetEmpireFullName()), core);
+            return;
+        }
+        if (data.core_capital_lost_since < 0d || now < data.core_capital_lost_since)
+        {
+            data.core_capital_lost_since = now;
+            return;
+        }
+        if (data.capital_loss_prefix_applied || GameClock.YearsSince(data.core_capital_lost_since) < LostYears) return;
+        if (core.Capital == oldCapital) return;
+        // 教宗授的"神圣"不是方位，失都也不拿方位顶掉它
+        if (OverallHelperFunc.IsHolyPrefix(data)) return;
+        // 复国称帝时定下的方位是本朝国号的一部分，失都不改(只显示行在，见 RealmNamingSystem)
+        if (RealmNamingSystem.KeepsFoundingPrefix(empire)) return;
+        string before = empire.GetEmpireFullName();
+        data.capital_loss_previous_prefix = Array.IndexOf(Directions, data.directPre) >= 0 ? "" : data.directPre ?? "";
+        data.directPre = DirectionFrom(oldCapital.Center, core.Capital.Center);
+        data.capital_loss_prefix_applied = true;
+        FiscalDiagnostics.Count("失都改称");
+        TranslateHelper.LogEventMessage(string.Format(LM.Get("capital_loss_renamed"), before, oldCapital.GetCityName(),
+            LostYears, empire.GetEmpireFullName()), core);
+    }
+
+    // 南明结成(见 SouthernRetreatSystem)：京师已失、朝廷在别处，不等五十年当场冠方位；收复京师照旧去掉(见 Check)
+    public static bool ApplyNow(Empire empire)
+    {
+        if (empire?.data == null || empire.IsGone() || empire.IsArchived()) return false;
+        Realm core = empire.CoreKingdom;
+        if (core == null || core.IsGone() || core.Capital == null || core.HasCustomCountryNaming()) return false;
+        City oldCapital = EmpireCoreManager.Get(empire)?.GetCoreCapital();
+        if (oldCapital == null || oldCapital.IsGone() || core.Capital == oldCapital) return false;
+        if (oldCapital.Realm != null && oldCapital.Realm.GetEmpire() == empire) return false;
+        EmpireData data = empire.data;
+        if (data.capital_loss_prefix_applied || OverallHelperFunc.IsHolyPrefix(data) || RealmNamingSystem.KeepsFoundingPrefix(empire))
+            return false;
+        if (data.core_capital_lost_since < 0d) data.core_capital_lost_since = GameClock.Now;
+        data.capital_loss_previous_prefix = Array.IndexOf(Directions, data.directPre) >= 0 ? "" : data.directPre ?? "";
+        data.directPre = DirectionFrom(oldCapital.Center, core.Capital.Center);
+        data.capital_loss_prefix_applied = true;
+        return true;
+    }
+
+    // 行在：华夏王朝的核心王国(直隶)在核心首都失陷期间(不必满五十年)，类别改称"行在"
+    public static bool IsTemporaryCapital(Realm kingdom)
+    {
+        if (kingdom?.Record == null || kingdom.IsGone() || !kingdom.IsCivilized()) return false;
+        Empire empire = kingdom.GetEmpire();
+        if (empire?.data == null || empire.CoreKingdom != kingdom || empire.IsArchived()) return false;
+        if (!kingdom.GetKingdomType().ToString().EndsWith("_centre", StringComparison.Ordinal)) return false;
+        City oldCapital = EmpireCoreManager.Get(empire)?.GetCoreCapital();
+        if (oldCapital == null || oldCapital.IsGone() || kingdom.Capital == oldCapital) return false;
+        if (oldCapital.Realm != null && oldCapital.Realm.GetEmpire() == empire) return false;
+        return InstitutionSystem.GetCultureLine(CultureService.GetRealmCulture(kingdom)) == "Huaxia";
+    }
+
+    // 新都在旧都的哪个方向(地图 y 轴朝北)
+    private static string DirectionFrom(Vector2 oldPos, Vector2 newPos)
+    {
+        float dx = newPos.x - oldPos.x, dy = newPos.y - oldPos.y;
+        if (Mathf.Abs(dx) > Mathf.Abs(dy)) return dx > 0f ? "Eastern" : "Western";
+        return dy > 0f ? "Northern" : "Southern";
+    }
+}
+}

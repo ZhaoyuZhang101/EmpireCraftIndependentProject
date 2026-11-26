@@ -1,0 +1,92 @@
+// Ported from the EmpireCraft mod: Scripts/GeneralSystems/StateDebtRules.cs @ e770dbbe. Body kept line-for-line for three-way sync;
+// see Port/manifest.json and Tools/PortTool.
+using System;
+using System.Collections.Generic;
+
+namespace EmpireCraft.Core
+{
+
+// 国债的纯数值规则(不触 Unity/游戏对象，离线测试直接编译，见 Tasks/FiscalPhase2.Tests.ps1)
+public static class StateDebtRules
+{
+    public const double DebtCapYears = 2d;
+    public const double LendShare = 0.5d;
+    // 债台高筑：付不起的利息滚进本金，债会越滚越大；超过年经常收入的 3 倍就废债重组，削到 1 年收入
+    public const double MaxDebtYears = 3d;
+    public const double RestructuredDebtYears = 1d;
+
+    // 年利率：4% 起，未掌握银行 +3%，正统越低越贵(最多 +4%)，有欠饷 +2%；限 3%~12%
+    public static float AnnualRate(bool hasBanking, int legitimacy, bool hasArrears)
+    {
+        double rate = 0.04d;
+        if (!hasBanking) rate += 0.03d;
+        rate += 0.04d * (1d - Math.Max(0, Math.Min(100, legitimacy)) / 100d);
+        if (hasArrears) rate += 0.02d;
+        return (float)Math.Max(0.03d, Math.Min(0.12d, rate));
+    }
+
+    // 月息：本金 × 年息 / 12，零头留在 carry 里下月继续，不丢也不重复
+    public static int MonthlyInterest(long principal, float rate, ref double carry)
+    {
+        if (principal <= 0L || rate <= 0f) return 0;
+        if (double.IsNaN(carry) || double.IsInfinity(carry) || carry < 0d) carry = 0d;
+        // 存档里利率是 float(0.12f → 0.11999...)，计息前规整回名义值(万分位)，大额本金才不会被表示误差磨掉利息
+        double nominal = Math.Round(rate * 10000d) / 10000d;
+        double interest = principal * nominal / 12d + carry;
+        int due = (int)Math.Min(int.MaxValue, Math.Floor(interest + .00000001d));
+        carry = Math.Max(0d, interest - due);
+        return due;
+    }
+
+    // 按月账折年收：满十二个月按合计；不满一年保守估——按月均折年与按中位月折年取小(缺账的月份算 0，偶数个取低的那个)。
+    // 以前一律 合计 × 12 / 月数，新立的国家头一两个月有一笔大进账就被放大成十几倍的年收
+    public static long Annualize(IReadOnlyList<long> monthly, int months)
+    {
+        months = Math.Max(1, Math.Min(12, months));
+        var values = new List<long>();
+        long sum = 0L;
+        if (monthly != null)
+            foreach (long value in monthly)
+            {
+                long amount = Math.Max(0L, value);
+                values.Add(amount);
+                sum += amount;
+            }
+        if (months >= 12) return sum;
+        while (values.Count < months) values.Add(0L);
+        values.Sort();
+        long median = values[(values.Count - 1) / 2];
+        return Math.Min(sum * 12L / months, median * 12L);
+    }
+
+    // 还能借多少：年经常收入 × 上限倍数 − 现有债务
+    public static long BorrowRoom(long annualStableIncome, long outstanding) =>
+        Math.Max(0L, (long)(Math.Max(0L, annualStableIncome) * DebtCapYears) - Math.Max(0L, outstanding));
+
+    // 废债重组后各笔本金的保留比例(1 = 不动)
+    public static double RestructureKeep(long annualStableIncome, long outstanding)
+    {
+        double income = Math.Max(0L, annualStableIncome);
+        if (outstanding <= 0L || outstanding <= income * MaxDebtYears) return 1d;
+        return Math.Max(0d, Math.Min(1d, income * RestructuredDebtYears / outstanding));
+    }
+
+    // 什么时候才借：一般地方限额拨款，或国库不到安全储备的四分之一(约三个月的必要开支)。
+    // 不为凑满储备借钱——借来放在库里还要付利息
+    public static long BorrowNeed(long balance, long reserve, bool rationing)
+    {
+        long floor = Math.Max(0L, reserve) / 4;
+        if (balance >= floor && !rationing) return 0L;
+        return Math.Max(floor - balance, rationing ? Math.Max(1L, floor) : 0L);
+    }
+
+    // 一座城可借出：现金超出日用底线部分的一半，加投资池的一半
+    public static long Lendable(long cash, long reserve, long investmentPool) =>
+        (long)(Math.Max(0L, cash - reserve) * LendShare) + (long)(Math.Max(0L, investmentPool) * LendShare);
+
+    // 同城合并借款时的加权利率
+    public static float MergedRate(long oldPrincipal, float oldRate, long added, float newRate) =>
+        oldPrincipal + added <= 0L ? newRate
+            : (float)((oldRate * (double)oldPrincipal + newRate * (double)added) / (oldPrincipal + (double)added));
+}
+}

@@ -1,0 +1,183 @@
+{
+  //游牧
+  "YouMu": {
+    "description": "草原传统部落制文明，参考蒙古汗国",
+    "icon_url": "",
+    "era_name": false,
+    "has_cabinet": false,
+    "is_monarchy": true,
+    "allows_landlord_class": true,
+    "cabinet_number": 0,
+    "centre_empire_separate": true,
+    // 政体行为开关(见 Scripts/Regimes/Configs/README.md)
+    "members_can_secede": true,
+    "secede_member_types": [],
+    "secede_ignores_central_army": true,
+    "indirect_rule": false,
+    "direct_member_types": [],
+    "partition_conquests": false,
+    "keep_member_roles": false,
+    "partition_chance_factor": 1.25,
+    "leader_select_method": "Succession",
+    "default_kingdom": "YouMu_kingdom",
+    "laws": [0,1,2,3,5,13,14,16,17,18,19,20,21,25,27,28,29,31,32,33,34,35,36,37,38,39,40,41,42,43,50,51,52,54,55],
+    "Factions": [
+      {
+        "_id": "136f74b5-0c6f-4ee7-aee8-bc59c7e77fa8",
+        "Type": "融入",
+        "_requiredTraits": ["peaceful", "pacifist"],
+        "Ban": false,
+        "Name": "融合派",
+        "only_king": false,
+        "EmpireId": -1,
+        "Members": [],
+        "TotalPower": 0,
+        "Leader": -1
+      },
+      {
+        "_id": "0f0c0d11-7a3d-4ff8-97a2-61bd12c08f55",
+        "Type": "同化",
+        "_requiredTraits": ["ambitious", "bloodlust"],
+        "Ban": false,
+        "Name": "同化派",
+        "only_king": false,
+        "EmpireId": -1,
+        "Members": [],
+        "TotalPower": 0,
+        "Leader": -1
+      }
+    ],
+    // option_tax_level 三档(无/低/中)：阿兹特克、林地部族这类非游牧文化的游牧政体能用到"中"；真游牧(游牧文化)照旧只到"低"，
+    // 由 Regime.MaxTaxLevel 按文化压回(用户 2026-10-21 选"阿兹特克、奥吉布瓦不再吃游牧的亏")
+    "options": {
+      "toggle_allow_diplomacy": [1],
+      "toggle_allow_army": [1],
+      "toggle_support_army_to_center": [0],
+      "option_tax_level": [1, 3],
+      "option_leader_select_method": [1, 3],
+      "option_religion_type": [2, 4],
+      "option_succession_law": [0, 5]
+    },
+    "bureau_config": {
+      "cores": [
+        {
+          "pre": "",
+          "type": 1,
+          "description": "",
+          "powers": [
+            "拟定","审核","执行"
+          ],
+          "merit": -1,
+          "honorary": -1,
+          "select_from_local": false,
+          "peerageType": "Civil",
+          "leader_select_method": "Default",
+          "require_traits": []
+        },
+        {
+          "pre": "",
+          "type": 2,
+          "description": "",
+          "powers": [
+            "军事"
+          ],
+          "merit": -1,
+          "honorary": -1,
+          "select_from_local": false,
+          "peerageType": "Civil",
+          "leader_select_method": "Default",
+          "require_traits": []
+        }
+      ],
+      "division": [],
+      "harems": [],
+      "armies": {},
+      "kingdoms": {
+        "default_country_post":{
+          "pre": "",
+          "type": 3,
+          "description": "",
+          "powers": [],
+          "merit": -1,
+          "honorary": -1,
+          "peerageType": "Civil",
+          "select_from_local": false,
+          "leader_select_method": "Succession",
+          "require_traits": [],
+          "condition": [],
+          "city_type": "YouMu_city"
+        },
+        "YouMu_centre":{
+          "pre": "",
+          "type": 0,
+          "description": "",
+          "powers": [],
+          "merit": -1,
+          "honorary": -1,
+          "peerageType": "Civil",
+          "select_from_local": false,
+          "leader_select_method": "Succession",
+          "require_traits": [],
+          "condition": ["empire_center:true"],
+          "city_type": "YouMu_city"
+        },
+        "YouMu_province":{
+          "pre": "",
+          "type": 6,
+          "description": "",
+          "powers": [],
+          "merit": -1,
+          "honorary": -1,
+          "peerageType": "Civil",
+          "select_from_local": false,
+          "leader_select_method": "Exam",
+          "require_traits": [],
+          "condition": ["allow_diplomacy:false","succession:false","empire_center:false"],
+          "city_type": "YouMu_city"
+        },
+        "YouMu_kingdom":{
+          "pre": "",
+          "type": 3,
+          "description": "",
+          "powers": [],
+          "merit": -1,
+          "honorary": -1,
+          "peerageType": "Civil",
+          "select_from_local": false,
+          "leader_select_method": "Succession",
+          "require_traits": [],
+          "condition": ["support_center_army:false","empire_center:false"],
+          "city_type": "YouMu_city"
+        },
+        "YouMu_bu":{
+          "pre": "",
+          "type": 4,
+          "description": "",
+          "powers": [],
+          "merit": -1,
+          "honorary": -1,
+          "peerageType": "Military",
+          "select_from_local": false,
+          "leader_select_method": "Succession",
+          "require_traits": [],
+          "condition": ["support_center_army:true","empire_center:false"],
+          "city_type": "YouMu_city"
+        }
+      },
+      "cities": {
+        "YouMu_city": {
+          "pre": "",
+          "type": 5,
+          "description": "",
+          "powers": [],
+          "merit": -1,
+          "honorary": -1,
+          "peerageType": "Civil",
+          "select_from_local": false,
+          "leader_select_method": "Default",
+          "require_traits": []
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,1019 @@
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/WarGoalSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
+// see Port/manifest.json and Tools/PortTool.
+using Time = EmpireCraft.Core.FrameClock;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace EmpireCraft.Core
+{
+
+// 开战目标(战后分配的一部分，参照钢铁雄心：战时占领与最终归属分开)：国战开打时按形势定一个目标，议和时按目标结算——
+//   · 吞并：攻方兵力两倍以上、与对方接壤、对方是小国(西欧封建只认三城以内，周制不吞并)；
+//   · 割地(局部入侵)：接壤、兵力相当；
+//   · 赔款：不接壤(跨海)或攻方兵力不如对方；
+//   · 劫掠：原有的劫掠战争(洗劫第一座城即收兵，见 CityPatch)；
+//   · 收复：对方手里有我方法理的城(宣称口径见 ClaimsTitle)，且接壤——优先于其他目标；
+//   · 迫使附庸：攻方兵力两倍以上(周制一倍半)、对方不是帝国、吞不下；
+//   · 改宗：圣战且两边宗教不同——对方连同各城改奉攻方的宗教；
+//   · 通商：跨海打不下城、兵力够、两边都有港口，对方锁国或攻方兵力两倍以上——对方被迫开港，与攻方通商二十年(锁国也开)；
+//   · 扶立：兵力一倍半以上、对方不是帝国，攻方对那国王位有血亲宣称或对方君主年幼——从对方宗室里另立一位成年人为君，
+//     二十年内两国互不开战。(用户 2026-10-19 选"改宗、开港通商、扶立君主")
+// 战争窗口里点"战争目标"一行可以轮换目标(劫掠除外)。
+// 议和时按这场仗里双方各丢了多少城(含被对方占了一半以上地块的城)判胜负，相差不到一城就是白和——不赔不割：
+//   攻方胜：赔款 → 对方赔款；割地 → 被攻方占了一半以上的城割给占领者；吞并 → 同割地，对方丢了一半城或都城时余下的城一并吞并；
+//           收复 → 我方法理的城中占了一半以上的归还占领者，占了法理城的一半以上时全部归还；迫使附庸 → 对方成为攻方的附庸；
+//   守方胜：攻方赔款(劫掠的不赔，打退就是)。
+// 以前不论怎么收场都按"有胜负"处理，议和(原版最常见的结局)也让攻方赔款，几乎每场仗打完都赔款。
+// 叛乱、独立、索取法理、去帝号这类有自己结局的战争不在此列，照旧各按各的规则。
+public static class WarGoalSystem
+{
+    // 吞并：攻方兵力至少是对方几倍、对方城数不超过多少(或不超过攻方一半)
+    internal const float AnnexStrength = 2f;
+    internal const int AnnexSmallCities = 3;
+    // 割地：攻方兵力至少是对方几成
+    internal const float ConquestStrength = 0.8f;
+    // 迫使附庸：攻方兵力至少是对方几倍。一倍半 → 两倍(用户 2026-10-21 选"封建能吞小国")：迫使附庸是死战目标(见 Excessive)，
+    // 以前行分封的攻方兵力一倍半就定迫使附庸，本该只求割地的仗反把对方逼得困兽犹斗；一倍半到两倍之间改求割地
+    private const float VassalStrength = 2f;
+    // 扶立君主：攻方兵力至少是对方几倍(仍是一倍半，不随迫使附庸提到两倍——用户只定了迫使附庸的门槛)
+    private const float InstallStrength = 1.5f;
+    // 周制(华夏分封)的迫使附庸照旧一倍半：周室与诸侯有自己的兼并规则(见 ZhouEraSystem)，用户这次只放开西欧封建
+    private const float ZhouVassalStrength = 1.5f;
+    // 战争窗口里轮换的顺序(劫掠不参与)
+    private static readonly WarGoal[] Cycle =
+        { WarGoal.吞并, WarGoal.割地, WarGoal.收复, WarGoal.迫使附庸, WarGoal.保护国, WarGoal.租借, WarGoal.扶立, WarGoal.改宗, WarGoal.通商, WarGoal.赔款 };
+
+    // 战争窗口上可供玩家点名的目标(同 Cycle，界面只读)
+    public static IReadOnlyList<WarGoal> PlayerGoals => Cycle;
+    // 扶立君主之后两国互不开战的年数
+    private const int InstalledYears = 20;
+    // 占了一座城一半以上的地块才算到手
+    private const float HeldShare = 0.5f;
+    // 每帧最多易主几座城(易主有原版开销)
+    private const int CessionsPerFrame = 3;
+
+    private static readonly HashSet<EmpireWarType> OwnEnding = new()
+    {
+        EmpireWarType.游牧扩张, EmpireWarType.迫使朝贡, EmpireWarType.藩王索取皇位, EmpireWarType.派系叛乱,
+        EmpireWarType.地方叛乱, EmpireWarType.民族叛乱, EmpireWarType.宗教叛乱, EmpireWarType.地方独立,
+        EmpireWarType.附庸独立, EmpireWarType.清君侧, EmpireWarType.索取法理, EmpireWarType.去帝号,
+        EmpireWarType.帝国正统, EmpireWarType.不奉诏, EmpireWarType.获取帝国, EmpireWarType.征伐不服,
+        EmpireWarType.私战, EmpireWarType.对立国王, EmpireWarType.草场之争, EmpireWarType.逼冕
+    };
+
+    private static readonly List<(long city, long to)> PendingCessions = new();
+    private static readonly List<(long lord, long subject)> PendingVassals = new();
+    // 统一战争(含共主平定之战)议和割让、吞并的城：易主时记作统一所得(不计代际侵占，见 AdministrativeControlSystem.GenerationConquests)。
+    // 和约结算时仗还没结束，城却排在之后几帧才易主，那时已认不出是统一战争——以前只有战时攻下的城算统一所得(2026-11-07 用户选 B)
+    private static readonly HashSet<long> UnificationCessions = new();
+
+    public static void ResetWorldState()
+    {
+        PendingCessions.Clear();
+        PendingVassals.Clear();
+        UnificationCessions.Clear();
+        WarObjective.ResetWorldState();
+        PeaceTable.ResetWorldState();
+    }
+
+    // 议和台管不管这场仗：有开战目标的国战(劫掠、叛乱、各有结局的仗不在此列，见 PeaceTable)
+    internal static bool UsesPeaceTable(War war) => Applies(war) && war.GetEmpireWarType() != EmpireWarType.劫掠;
+
+    private static bool Applies(War war) =>
+        war?.Record != null && war.GetKind() != WarKinds.Rebellion && !OwnEnding.Contains(war.GetEmpireWarType());
+
+    public static WarGoal Get(War war)
+    {
+        if (war?.Record == null) return WarGoal.None;
+        if (war.GetEmpireWarType() == EmpireWarType.劫掠) return WarGoal.劫掠;
+        return Applies(war) ? war.GetOrCreate().war_goal : WarGoal.None;
+    }
+
+    // 别的系统开战时直接定了目标(天下统一、雄主统一、圣战、帝国禁令)：照样落到具体目标上、起名、记宣战
+#if EC_PENDING
+    public static void Preset(War war, WarGoal goal)
+    {
+        if (war?.Record == null) return;
+        var data = war.GetOrCreate();
+        data.war_goal = goal;
+        Realm attacker = war.MainAttacker, defender = war.MainDefender;
+        if (attacker?.Record == null || defender?.Record == null || attacker.IsGone() || defender.IsGone()) return;
+        data.war_goal_capital_id = defender.Capital?.Record != null ? defender.Capital.Key : -1L;
+        WarObjective.Refine(war, attacker, defender, WarSituation.StrengthRatio(defender, attacker), substitute: false);
+        WarCatalog.ApplyName(war);
+        WarChronicle.Declared(war);
+    }
+#endif
+
+    // 判定战争目标(从 Ensure 抽出来，Review 每年重算时复用同一套算式)
+#if EC_PENDING
+    private static WarGoal Decide(War war, Realm attacker, Realm defender, float strength)
+    {
+        WarGoal goal;
+        int theirs = WarSituation.SideCities(defender), ours = WarSituation.SideCities(attacker);
+        // 只隔着无人区的也算接壤(走得通才开得了这一仗，见 WarReach)，不走跨海那套；
+        // 同一块陆地上相距不远、陆路走得过去的(宣战闸的陆上一条，通达层算好后按陆路成本，见 WarReach.LandNearby)也按陆战定目标
+        bool borders = attacker.IsNeighbourWith(defender) || WarReach.AcrossWild(attacker, defender) ||
+                       WarReach.LandNearby(attacker, defender);
+        RegimeType? regime = attacker.GetRegime()?.type;
+        bool feudal = regime == RegimeType.Feudalism || regime == RegimeType.ZhouFeudalism;
+        bool small = theirs <= AnnexSmallCities || theirs * 2 <= ours;
+        // 西欧封建以前永不选吞并，打赢了只得附庸，核心永远只有几座城(用户 2026-10-21 选"封建能吞小国")：
+        // 兵力两倍以上、对方三城以内的也吞并。别的政体的"小国"还含不到攻方一半大的；封建不含，城多的照旧收作附庸。
+        // 周制照旧不吞并、一倍半就迫使附庸(只放开西欧)
+        bool zhou = regime == RegimeType.ZhouFeudalism;
+        bool annexable = zhou ? false : feudal ? theirs <= AnnexSmallCities : small;
+        float vassalAt = zhou ? ZhouVassalStrength : VassalStrength;
+        // 战国诸侯互伐：兵力够就以兼并(对方小)或割地为务，不再只求赔款
+        if (borders && ZhouEraSystem.WarringRivals(attacker, defender) && Claimed(attacker, defender.Cities).Count == 0)
+            goal = strength >= ConquestStrength ? small ? WarGoal.吞并 : WarGoal.割地 : WarGoal.赔款;
+        // 迫使附庸与吞并的兵力门槛现在都是两倍(以前行分封的一倍半就迫使附庸；周制照旧一倍半)：吞不下的、不是帝国的，迫其为附庸
+        else goal = !borders ? OverseasGoal(attacker, defender, strength, small)
+            : Claimed(attacker, defender.Cities).Count > 0 ? WarGoal.收复
+            : strength >= AnnexStrength && annexable ? WarGoal.吞并
+            : strength >= vassalAt && !defender.IsEmpire() ? WarGoal.迫使附庸
+            : strength >= ConquestStrength ? WarGoal.割地
+            : WarGoal.赔款;
+        // 扩张上限：已经过度扩张，或对方都城远在本国控制范围之外，或这一代人侵占的法理已满(统一战争不限，
+        // 见 AdministrativeControlSystem.GenerationExhausted)，不谋土地，改为迫其称臣(帝国则求赔款)。
+        // 统一战争(含共主平定天下的仗，用户 2026-11-07 选「平定之战算统一战争」，见 UnificationSystem.IsUnificationWar)
+        // 不因过度扩张改称臣，只有路程太远、鞭长莫及的照旧改
+        if (goal is WarGoal.吞并 or WarGoal.割地)
+        {
+            string generation = null;
+            if ((UnificationSystem.ExpansionExempt(war, attacker)
+                    ? AdministrativeControlSystem.OutOfReach(attacker, defender.Capital)
+                    : AdministrativeControlSystem.BeyondReach(attacker, defender.Capital)) ||
+                AdministrativeControlSystem.GenerationExhausted(war, attacker, out generation))
+            {
+                // 行封建附庸的，对方远在控制范围之外也收不成附庸(见 FeudalVassalService.TooFar)，只求赔款
+                goal = defender.IsEmpire() || FeudalVassalService.TooFar(attacker, defender) ? WarGoal.赔款 : WarGoal.迫使附庸;
+                if (generation != null)
+                    LogService.LogInfo($"[EmpireCraft][扩张上限] {attacker.GetKingdomName()} 伐 {defender.GetKingdomName()}：{generation}，不谋土地");
+            }
+        }
+        // 近代殖民列强对异族之国：不收作附庸，立为保护国(见 ColonySystem)
+        if (goal == WarGoal.迫使附庸 && ColonySystem.ColonialPower(attacker) && !defender.IsEmpire() &&
+            !CultureService.SameKin(CultureService.GetRealmCulture(attacker), CultureService.GetRealmCulture(defender)))
+            goal = WarGoal.保护国;
+        // 别国的附从(傀儡、属地、宗主国不在图上的剧本属地)不收作附庸、保护国：只求赔款(以前暹罗收英属马来亚作保护国)
+        if (goal is WarGoal.迫使附庸 or WarGoal.保护国 && WarlordEraSystem.Dependent(defender)) goal = WarGoal.赔款;
+        // 圣战且两边宗教不同：要对方改宗
+        if (war.GetEmpireWarType() == EmpireWarType.神圣 && Convertible(attacker, defender)) goal = WarGoal.改宗;
+        // 扶立君主：对那国王位有血亲宣称、或对方君主年幼，又找得到人扶立
+        else if (goal is WarGoal.迫使附庸 or WarGoal.割地 && strength >= InstallStrength && !defender.IsEmpire() && !WarlordEraSystem.Dependent(defender) &&
+                 (RoyalMarriageSystem.HasClaim(attacker, defender) || defender.Ruler?.IsAdult() == false) &&
+                 HasInstallCandidate(defender))
+            goal = WarGoal.扶立;
+        return goal;
+    }
+#endif
+
+    // 概况页的门槛格：为什么是这个目标、还差什么才能升到割地或吞并(用户 2026-11-09"外交需要透明，玩家需要清晰的外交过程以及合理性"；
+    // 玩家 11-08"现在帝盒的战争系统对玩家而言已经完全变成混沌系统了""我这边显示战争胜利""但没有吞并敌国")。
+    // 与 Decide 同一套算式：兵力比、接壤、双方城数
+    public readonly struct GoalFacts
+    {
+        public readonly float strength;
+        public readonly bool borders;
+        public readonly int ours, theirs;
+        // 目标怎么变：yearly 每年重算、locked 神力点名的不改、fixed 这类目标不随战况改
+        public readonly string rule;
+
+        public GoalFacts(float strength, bool borders, int ours, int theirs, string rule)
+        {
+            this.strength = strength;
+            this.borders = borders;
+            this.ours = ours;
+            this.theirs = theirs;
+            this.rule = rule;
+        }
+
+        public bool CanCede => borders && strength >= ConquestStrength;
+        public bool CanAnnex => strength >= AnnexStrength;
+        public bool SmallEnough => theirs <= AnnexSmallCities || theirs * 2 <= ours;
+    }
+
+#if EC_PENDING
+    public static GoalFacts? Facts(War war)
+    {
+        if (war?.Record == null) return null;
+        Realm attacker = war.MainAttacker, defender = war.MainDefender;
+        if (attacker?.Record == null || defender?.Record == null || attacker.IsGone() || defender.IsGone()) return null;
+        var data = war.GetOrCreate();
+        string rule = data.war_goal_locked ? "locked" : !Reviewable(Get(war)) ? "fixed" : "yearly";
+        return new GoalFacts(WarSituation.StrengthRatio(defender, attacker),
+            attacker.IsNeighbourWith(defender) || WarReach.AcrossWild(attacker, defender),
+            WarSituation.SideCities(attacker), WarSituation.SideCities(defender), rule);
+    }
+#endif
+
+    // 这些目标不随战况改：劫掠(抢够就退)、收复(有法理宣称)、改宗(圣战)、扶立(选定了人)
+    private static bool Reviewable(WarGoal goal) =>
+        goal is not (WarGoal.None or WarGoal.劫掠 or WarGoal.收复 or WarGoal.改宗 or WarGoal.扶立);
+
+    // 由轻到重：赔款 < 通商 < 迫使附庸 < 割地 < 吞并。重算只升不降
+    private static int Weight(WarGoal goal) => Coarse(goal) switch
+    {
+        WarGoal.吞并 => 4,
+        WarGoal.割地 => 3,
+        WarGoal.迫使附庸 => 2,
+        WarGoal.保护国 => 2,
+        WarGoal.通商 => 1,
+        WarGoal.租借 => 1,
+        _ => 0
+    };
+
+    // 战争目标每年重算一次(用户 2026-11-09 选"每年重算")。以前目标在开打那一刻定死再不更改：
+    // 开战时兵力一点三倍，目标就是赔款；之后打了十年把对方打剩两座城，结算还是赔款——玩家反馈
+    // "我这边显示战争胜利""但没有吞并敌国""割地都没有""就是赔款"，统一战争更是一开打就收岁币白和。
+    // 现在按当前兵力比、占领、接壤重算，**只升不降**(打弱了不会反过来降级，省得越打越亏)。
+    // 玩家在外交面板点名的目标(war_goal_locked)与剧本设定的仗不动。
+#if EC_PENDING
+    public static void Review(War war)
+    {
+        if (war?.Record == null || war.HasEnded() || EmpireWorld.Current == null) return;
+        var data = war.GetOrCreate();
+        if (data.war_goal_locked || !Reviewable(data.war_goal) || !Applies(war)) return;
+        double now = GameClock.Now;
+        if (data.war_goal_reviewed_at >= 0d && now >= data.war_goal_reviewed_at &&
+            GameClock.YearsSince(data.war_goal_reviewed_at) < 1) return;
+        data.war_goal_reviewed_at = now;
+        Realm attacker = war.MainAttacker, defender = war.MainDefender;
+        if (attacker?.Record == null || defender?.Record == null || attacker.IsGone() || defender.IsGone()) return;
+        float strength = WarSituation.StrengthRatio(defender, attacker);
+        WarGoal before = data.war_goal;
+        WarGoal now_goal = Decide(war, attacker, defender, strength);
+        if (!Reviewable(now_goal) || Weight(now_goal) <= Weight(before)) return;
+        data.war_goal = now_goal;
+        // 照 Refocus 的做法落到具体的城与法理、改战争名，但不再记一次"宣战"(那是开打时的事)
+        WarObjective.Refine(war, attacker, defender, strength, substitute: false);
+        if (data.goal_named) WarCatalog.ApplyName(war, force: true);
+        LogService.LogInfo($"[EmpireCraft][战争目标] {attacker.GetKingdomName()} 伐 {defender.GetKingdomName()}：" +
+                           $"战况有变，目标由 {before} 改为 {now_goal}(兵力比 {strength:F2})");
+    }
+#endif
+
+    // 开打时定目标(WarPatch.update 每场仗第一次结算时调用)；读档后已定的不变
+#if EC_PENDING
+    public static void Ensure(War war)
+    {
+        if (war?.Record == null || war.HasEnded()) return;
+        var data = war.GetOrCreate();
+        if (data.war_goal != WarGoal.None || !Applies(war)) return;
+        Realm attacker = war.MainAttacker, defender = war.MainDefender;
+        if (attacker?.Record == null || defender?.Record == null || attacker.IsGone() || defender.IsGone()) return;
+        if (war.GetEmpireWarType() == EmpireWarType.劫掠)
+        {
+            data.war_goal = WarGoal.劫掠;
+            return;
+        }
+        float strength = WarSituation.StrengthRatio(defender, attacker);
+        data.war_goal = Decide(war, attacker, defender, strength);
+        data.war_goal_capital_id = defender.Capital?.Record != null ? defender.Capital.Key : -1L;
+        // 落到具体的城、法理上(夺城、侵略、争法理、争夺资源、继承、羁縻……见 WarObjective)，按目标起战争名
+        WarObjective.Refine(war, attacker, defender, strength);
+        WarCatalog.ApplyName(war);
+        WarChronicle.Declared(war);
+        TranslateHelper.LogEventMessage(string.Format(LM.Get("war_goal_declared"), attacker.GetKingdomName(),
+            defender.GetKingdomName(), WarCatalog.GoalText(war)), attacker);
+        // 开打即拜统帅(谋划开战时已拜的不变，见 WarCommandSystem)
+        WarCommandSystem.MonthTick(FrontSystem.ModRealm(attacker));
+        WarCommandSystem.MonthTick(FrontSystem.ModRealm(defender));
+    }
+#endif
+
+    // 跨海：兵力两倍以上、战舰是对方一倍半以上、对方都城在舰种航程内，才谋割地(小国则吞并)，否则只求赔款
+#if EC_PENDING
+    private static WarGoal OverseasGoal(Realm attacker, Realm defender, float strength, bool small)
+    {
+        if (strength < AnnexStrength || defender.Capital?.Record == null) return OverseasFallback(attacker, defender, strength);
+        int ours = NavySystem.Warships(attacker), theirs = NavySystem.Warships(defender);
+        if (ours <= 0 || ours < theirs * 1.5f) return OverseasFallback(attacker, defender, strength);
+        List<SeaRegionSystem.Region> route = NavySystem.LandingRoute(attacker, defender.Capital);
+        if (route == null || route.Count > NavySystem.MaxRange(attacker)) return OverseasFallback(attacker, defender, strength);
+        return small ? WarGoal.吞并 : WarGoal.割地;
+    }
+#endif
+
+    // 跨海打不下城：兵力够、两边都有港口，对方锁国或攻方兵力两倍以上的，逼对方开港通商；否则赔款
+    // 近代殖民列强隔海打大国：吞不下、割不动，兵力两倍以上的租借一座港口城(见 ColonySystem.LeaseTarget)
+#if EC_PENDING
+    private static WarGoal OverseasFallback(Realm attacker, Realm defender, float strength) =>
+        strength >= AnnexStrength && ColonySystem.ColonialPower(attacker) && ColonySystem.LeaseTarget(defender) != null
+            ? WarGoal.租借
+            : strength >= ConquestStrength && TradeRouteSystem.HasPort(attacker) && TradeRouteSystem.HasPort(defender) &&
+        (TradeRouteSystem.Closed(defender) || strength >= AnnexStrength)
+            ? WarGoal.通商
+            : WarGoal.赔款;
+#endif
+
+    internal static bool Convertible(Realm attacker, Realm defender) =>
+        attacker?.Religion != null && defender?.Record != null && !defender.IsGone() && defender.Religion != attacker.Religion &&
+        CaliphateFaith.MayAdopt(defender, attacker.Religion);
+
+    // 改宗：对方国教、君主、都城改奉攻方的宗教；其余的城只当场改与该教同天下的(或无教的)，外天下的城改走国教推行
+    // (此后四十年国教势能加倍，见 ReligionConversionSystem.RecentlyConverted；用户 2026-11-06 "古典时代全世界都信基督"，
+    // 以前一场圣战整国连城改宗，不看天下)
+    internal static bool Convert(Realm defender, Realm attacker)
+    {
+        if (!Convertible(attacker, defender)) return false;
+        Religion faith = attacker.Religion;
+        Religion old = defender.Religion;
+        defender.SetReligion(faith);
+        if (defender.Ruler?.Record != null && defender.Ruler.Alive) defender.Ruler.SetReligion(faith);
+        if ((defender.GetEmpire()?.CoreKingdom ?? defender) == defender) defender.GetOrCreate().religion_converted_at = GameClock.Now;
+        int converted = 0, spared = 0;
+        foreach (City city in defender.Cities.ToList())
+        {
+            if (city?.Record == null || city.IsGone() || city.Religion == faith) continue;
+            if (city != defender.Capital && city.HasReligion() && !ReligionTenets.AtHome(faith, ReligionSphere.SphereOfCity(city)))
+            {
+                spared++;
+                continue;
+            }
+            BackgroundReligionSystem.Convert(city, faith, city.Religion);
+            converted++;
+        }
+        ReligionDiagnostics.Add(ReligionDiagnostics.HolyWar, converted);
+        ReligionDiagnostics.Add(ReligionDiagnostics.HolyWarSpared, spared);
+        if (old != null) SyncretismSystem.NoteConversion(old, faith);
+        TranslateHelper.LogEventMessage(string.Format(LM.Get("war_peace_converted"), defender.GetKingdomName(),
+            attacker.GetKingdomName(), faith.Name), attacker);
+        return true;
+    }
+
+    // 扶立：对方宗室里另一位成年人(不是现任君主)，威望最高的
+    // realize：地图上没有时从对方宗室的虚拟族人里落成一位(真要扶立时)；只看有没有人用 HasInstallCandidate
+    internal static Person InstallCandidate(Realm defender, bool realize = false)
+    {
+        SpecificClan clan = defender?.Ruler?.GetSpecificClan();
+        bool Fit(Person actor) => actor?.Record != null && !actor.IsGone() && actor.Alive && actor.IsAdult() &&
+                                 actor != defender.Ruler && !actor.IsRuler() && actor.Realm == defender && actor.IsFitToRule();
+        Person pick = clan?.AllAliveMembers?.Where(Fit).OrderByDescending(actor => actor.Renown).FirstOrDefault();
+        return pick ?? (realize ? KinRoster.RealizeFirst(VirtualInstallCandidates(defender, clan), Fit, 2) : null);
+    }
+
+    // 对方宗室在本国的成年虚拟族人(纯净地图下宗室多不在地图上；以前只数地图上的，宗室在世也"无人可扶立")，年长的在前
+    private static IEnumerable<PersonalClanIdentity> VirtualInstallCandidates(Realm defender, SpecificClan clan) =>
+        clan == null ? Enumerable.Empty<PersonalClanIdentity>()
+            : clan.LivingPeople.Where(person => KinRoster.Virtual(person) && person.age >= KinRoster.AdultAge &&
+                                                !person.is_concubine && !person.disinherited && KinRoster.KingdomOf(person) == defender)
+                .OrderByDescending(person => person.age).ThenBy(person => person.id);
+
+    // 有没有人可扶立(连虚拟族人一起看，不落成)
+    internal static bool HasInstallCandidate(Realm defender) =>
+        InstallCandidate(defender) != null ||
+        VirtualInstallCandidates(defender, defender?.Ruler?.GetSpecificClan()).Any();
+
+    // 继承之战兼领不成时退为扶立(见 WarObjective.SettleWin)
+    internal static bool TryInstall(Realm attacker, Realm defender) =>
+        attacker?.Record != null && defender?.Record != null && !defender.IsGone() && !defender.IsEmpire() && Install(attacker, defender);
+
+    // 立附庸、称臣纳贡排进队列(羁縻、继承不成时的退路，见 WarObjective.SettleWin)
+    internal static void QueueVassal(Realm lord, Realm subject)
+    {
+        if (lord?.Record != null && subject?.Record != null) PendingVassals.Add((lord.Key, subject.Key));
+    }
+
+    private static bool Install(Realm attacker, Realm defender)
+    {
+        Person candidate = InstallCandidate(defender, realize: true);
+        if (candidate == null) return false;
+        Person former = defender.Ruler;
+        GraceEdictService.Crown(defender, candidate);
+        if (defender.Ruler != candidate) return false;
+        var extra = defender.GetOrCreate();
+        extra.installed_by_kingdom_id = attacker.Key;
+        extra.installed_at = GameClock.Now;
+        TranslateHelper.LogEventMessage(string.Format(LM.Get("war_peace_installed"), attacker.GetKingdomName(),
+            candidate.FullName(), defender.GetKingdomName(), former?.FullName() ?? ""), attacker);
+        return true;
+    }
+
+    // 扶立之君：二十年内两国互不开战(见 WarGate、WarTargetPatch)
+    public static bool Installed(Realm a, Realm b)
+    {
+        if (a?.Record == null || b?.Record == null || a == b || EmpireWorld.Current == null) return false;
+        return InstalledBy(a, b) || InstalledBy(b, a);
+    }
+
+    private static bool InstalledBy(Realm puppet, Realm patron)
+    {
+        var extra = puppet.GetOrCreate();
+        return extra.installed_by_kingdom_id == patron.Key && extra.installed_at >= 0d &&
+               GameClock.YearsSince(extra.installed_at) < InstalledYears;
+    }
+
+    // 窗口里能不能轮换目标：定了目标、还没打完、不是劫掠
+    public static bool Switchable(War war)
+    {
+        WarGoal goal = Get(war);
+        return goal != WarGoal.None && goal != WarGoal.劫掠 && war?.Record != null && !war.HasEnded();
+    }
+
+    // 夺城、侵略、争法理、争夺资源都是割地落到具体上的，羁縻、继承是迫使附庸落到具体上的；轮换、重定目标时按大方向算
+    internal static WarGoal Coarse(WarGoal goal) =>
+        goal is WarGoal.夺城 or WarGoal.侵略 or WarGoal.争法理 or WarGoal.争夺资源 ? WarGoal.割地
+        : goal is WarGoal.羁縻 or WarGoal.继承 ? WarGoal.迫使附庸 : goal;
+
+    // 主攻主守换了一家(远战换成够得着的一家，见 WarReach)：目标按原来的大方向落到新的主攻主守之间，名字按目标起的跟着改
+#if EC_PENDING
+    public static void Refocus(War war)
+    {
+        Realm attacker = war?.MainAttacker, defender = war?.MainDefender;
+        if (war?.Record == null || attacker?.Record == null || defender?.Record == null || attacker.IsGone() || defender.IsGone()) return;
+        var data = war.GetOrCreate();
+        data.war_goal = Coarse(data.war_goal);
+        WarObjective.Refine(war, attacker, defender, WarSituation.StrengthRatio(defender, attacker), substitute: false);
+        if (data.goal_named) WarCatalog.ApplyName(war, force: true);
+    }
+#endif
+
+    // 玩家在战争窗口点名战争目标(用户 2026-11-09"我希望现在这个界面玩家也能够修改战争目标议和条件之类的")。
+    // 与 Next 同一套落地方式，只是目标由玩家指定，并打上 war_goal_locked——此后每年的重算(见 Review)不再改它。
+    // 不要任何代价(用户 11-09 选"完全免费，只记一条史册")，也不受兵力、城数门槛限制：上帝视角有充分的裁定权，
+    // 门槛只用来说明"AI 原本会怎么判"(见 Facts 与战争窗口概况页的门槛格)。
+#if EC_PENDING
+    public static bool SetByPlayer(War war, WarGoal goal)
+    {
+        if (!Switchable(war) || goal == WarGoal.None) return false;
+        var data = war.GetOrCreate();
+        WarGoal before = data.war_goal;
+        if (Coarse(before) == goal) return false;
+        Realm attacker = war.MainAttacker, defender = war.MainDefender;
+        if (attacker?.Record == null || defender?.Record == null || attacker.IsGone() || defender.IsGone()) return false;
+        data.war_goal = goal;
+        data.war_goal_locked = true;
+        if (data.war_goal_capital_id < 0 && defender.Capital?.Record != null)
+            data.war_goal_capital_id = defender.Capital.Key;
+        WarObjective.Refine(war, attacker, defender, WarSituation.StrengthRatio(defender, attacker), substitute: false);
+        if (data.goal_named) WarCatalog.ApplyName(war, force: true);
+        WarChronicle.Record(war, WarChronicle.Goal, string.Format(LM.Get("war_chronicle_arbitrate"),
+            attacker.GetKingdomName(), defender.GetKingdomName(), Name(goal, attacker)));
+        LogService.LogInfo($"[EmpireCraft][战争目标] 神力裁定：{attacker.GetKingdomName()} 伐 {defender.GetKingdomName()} 的目标" +
+                           $"由 {before} 改为 {goal}");
+        return true;
+    }
+
+    public static void Next(War war)
+    {
+        if (!Switchable(war)) return;
+        var data = war.GetOrCreate();
+        int index = Array.IndexOf(Cycle, Coarse(data.war_goal));
+        data.war_goal = Cycle[(index + 1) % Cycle.Length];
+        if (data.war_goal_capital_id < 0 && war.MainDefender?.Capital?.Record != null)
+            data.war_goal_capital_id = war.MainDefender.Capital.Key;
+        Realm attacker = war.MainAttacker, defender = war.MainDefender;
+        if (attacker?.Record == null || defender?.Record == null || attacker.IsGone() || defender.IsGone()) return;
+        WarObjective.Refine(war, attacker, defender, WarSituation.StrengthRatio(defender, attacker), substitute: false);
+        // 名字是按目标起的才跟着改(圣战、禁令、革命这类专名不动)
+        if (data.goal_named) WarCatalog.ApplyName(war, force: true);
+    }
+#endif
+
+    // cities 里攻方一方(帝国按整个帝国算)有宣称的、不在攻方一方手里的城；挑宣战目标也按它先收法理(见 DeJureAgenda)
+    internal static List<City> Claimed(Realm claimant, IEnumerable<City> cities)
+    {
+        var result = new List<City>();
+        Realm realm = FrontSystem.ModRealm(claimant);
+        if (cities == null || realm == null) return result;
+        foreach (City city in cities)
+        {
+            if (city?.Record == null || city.IsGone() || city.Realm != null && FrontSystem.ModRealm(city.Realm) == realm) continue;
+            // 兼属：这座城兼属的王国法理、帝国法理在攻方一方，也算收复(见 DeJureShareSystem)
+            if (DeJureShareSystem.ClaimedBy(city, realm))
+            {
+                result.Add(city);
+                continue;
+            }
+            KingdomTitle title = city.GetTitle();
+            if (title != null && !title.IsGone() && ClaimsTitle(realm, title)) result.Add(city);
+        }
+        return result;
+    }
+
+    // 这一方(帝国按整个帝国算)对这个王国法理有宣称(用户 2026-10-26 "感觉所有国家都没有按照法理扩张"，
+    // 问答选"握都城或过半就宣称整个法理"；以前只认法理主国，全图多半法理没有主国，宣称几乎没有)：
+    // 法理主国或持有人在这一方；以它为行政法理的省份在这一方；法理都城在这一方手里；这一方占着它过半的城
+    public static bool ClaimsTitle(Realm realm, KingdomTitle title)
+    {
+        if (realm == null || title == null || title.IsGone()) return false;
+        Realm holder = title.main_kingdom ?? title.owner?.Realm;
+        if (holder?.Record != null && !holder.IsGone() && FrontSystem.ModRealm(holder) == realm) return true;
+        if (AdminHolder(title) is Realm admin && FrontSystem.ModRealm(admin) == realm) return true;
+        City capital = title.title_capital;
+        if (capital?.Realm != null && !capital.IsGone() && FrontSystem.ModRealm(capital.Realm) == realm) return true;
+        int total = 0, ours = 0;
+        foreach (City city in title.GetCities())
+        {
+            if (city?.Record == null || city.IsGone()) continue;
+            total++;
+            if (city.Realm != null && FrontSystem.ModRealm(city.Realm) == realm) ours++;
+        }
+        return ours * 2 > total;
+    }
+
+    // 以这个王国法理为行政法理的省份(一帧查一次表)
+    private static int _adminFrame = -1;
+    private static readonly Dictionary<long, Realm> AdminTitles = new();
+
+    private static Realm AdminHolder(KingdomTitle title)
+    {
+        if (_adminFrame != Time.frameCount)
+        {
+            _adminFrame = Time.frameCount;
+            AdminTitles.Clear();
+            foreach (Realm kingdom in EmpireWorld.Current.LiveRealms)
+            {
+                if (kingdom?.Record == null || kingdom.IsGone()) continue;
+                long id = kingdom.GetOrCreate().AdministrativeTitle;
+                if (id >= 0) AdminTitles[id] = kingdom;
+            }
+        }
+        return AdminTitles.TryGetValue(title.Key, out Realm found) ? found : null;
+    }
+
+    public static string Name(WarGoal goal) => LM.Get("war_goal_" + goal);
+
+    // 不行封建附庸的攻方：迫使附庸称"迫使称臣"(战后对方称臣纳贡，见 Tick)
+    public static string Name(WarGoal goal, Realm attacker) =>
+        goal == WarGoal.迫使附庸 && attacker?.Record != null && !FeudalVassalService.UsesFeudalVassals(attacker)
+            ? LM.Get("war_goal_迫使称臣")
+            : Name(goal);
+
+    // 战争窗口：目标与战况(双方各已得几城)
+    public static string Describe(War war)
+    {
+        WarGoal goal = Get(war);
+        if (goal == WarGoal.None) return null;
+        if (war.HasEnded()) return WarCatalog.GoalText(war);
+        (int attackerGain, int defenderGain) = Gains(war);
+        return string.Format(LM.Get("war_goal_standing"), WarCatalog.GoalText(war), attackerGain, defenderGain);
+    }
+
+    // 攻守双方在这场仗里各得几城：对方参战以来少了的城 + 己方占了一半以上地块的对方城市
+    public static (int attackerGain, int defenderGain) Gains(War war)
+    {
+        Realm attacker = war.MainAttacker, defender = war.MainDefender;
+        int defenderLost = Math.Max(0, WarSituation.CitiesLost(war, defender));
+        int attackerLost = Math.Max(0, WarSituation.CitiesLost(war, attacker));
+        return (defenderLost + HeldCities(war, war.Defenders, war.Attackers).Count,
+            attackerLost + HeldCities(war, war.Attackers, war.Defenders).Count);
+    }
+
+    // owners 的城里被 occupiers 一方占了一半以上地块的：城 → 占得最多的那国
+    private static List<(City city, Realm holder)> HeldCities(War war, IEnumerable<Realm> owners, IEnumerable<Realm> occupiers)
+    {
+        var result = new List<(City, Realm)>();
+        List<Realm> side = occupiers.Where(kingdom => kingdom?.Record != null && !kingdom.IsGone()).ToList();
+        foreach (Realm owner in owners)
+        {
+            if (owner?.Cities == null || owner.IsGone()) continue;
+            foreach (City city in owner.Cities)
+            {
+                if (city?.Record == null || city.IsGone() || city.Zones == null || city.Zones.Count == 0) continue;
+                int total = 0, best = 0;
+                Realm holder = null;
+                foreach (Realm kingdom in side)
+                {
+                    int count = city.GetOccupiedTileZoneCount(kingdom);
+                    if (count <= 0) continue;
+                    total += count;
+                    if (count > best)
+                    {
+                        best = count;
+                        holder = kingdom;
+                    }
+                }
+                if (holder != null && total >= city.Zones.Count * HeldShare) result.Add((city, holder));
+            }
+        }
+        return result;
+    }
+
+    // 战争收尾时(WarPatch.end_war，清掉占领之前)：判胜负、按目标结算
+#if EC_PENDING
+    public static void Settle(War war, WarOutcome winner)
+    {
+        // 部落之间破城求和已经了结(见 TribalWarSystem)
+        if (TribalWarSystem.Settling(war)) return;
+        try
+        {
+            if (war?.Record == null || winner == WarOutcome.Nobody || winner == WarOutcome.Merged || !Applies(war) &&
+                war.GetEmpireWarType() != EmpireWarType.劫掠) return;
+            Realm attacker = war.MainAttacker, defender = war.MainDefender;
+            if (attacker?.Record == null || defender?.Record == null || attacker == defender) return;
+            WarGoal goal = Get(war);
+            if (goal == WarGoal.None) goal = WarGoal.赔款;
+            (int attackerGain, int defenderGain) = Gains(war);
+            bool attackersWon = winner == WarOutcome.Attackers || winner == WarOutcome.Peace && attackerGain >= defenderGain + 1;
+            bool defendersWon = winner == WarOutcome.Defenders || winner == WarOutcome.Peace && defenderGain >= attackerGain + 1;
+            // 议和(不分胜负)走议和台：神签的、两国自己谈成的照台上的条款；强制停战、罢兵、外交面板停战照目标开价后撮合出折中
+            // (见 PeaceTable)。以前按"谁多得一城"套战争目标，多一城就全按目标拿，差一城就白和
+            if (winner == WarOutcome.Peace && UsesPeaceTable(war) && !attacker.IsGone() && !defender.IsGone())
+            {
+                PeaceTable.Conclude(war, attacker, defender);
+                if (attackersWon) Modernize(war, defender, attacker, war.Defenders, war.Attackers);
+                else if (defendersWon) Modernize(war, attacker, defender, war.Attackers, war.Defenders);
+                return;
+            }
+            if (attackersWon)
+            {
+                if (defender.IsGone()) return;
+                if (!WarObjective.SettleWin(war, attacker, defender, goal))
+                switch (goal)
+                {
+                    case WarGoal.赔款:
+                        WarReparationsSystem.Impose(defender, attacker);
+                        break;
+                    case WarGoal.割地:
+                        Cede(war, attacker, defender, annex: false);
+                        break;
+                    case WarGoal.吞并:
+                        Cede(war, attacker, defender, annex: true);
+                        break;
+                    case WarGoal.收复:
+                        Reclaim(war, attacker, defender);
+                        break;
+                    case WarGoal.迫使附庸:
+                        // 帝国不会整个沦为附庸，退回赔款
+                        if (defender.IsEmpire()) WarReparationsSystem.Impose(defender, attacker);
+                        else PendingVassals.Add((attacker.Key, defender.Key));
+                        break;
+                    case WarGoal.保护国:
+                    {
+                        // 立为保护国(过几帧再做，不在原版结束战争的同一帧里改关系)；立不成退回赔款
+                        Realm lord = attacker, ward = defender;
+                        ColonySystem.Defer(() =>
+                        {
+                            if (!ColonySystem.MakeProtectorate(lord, ward)) WarReparationsSystem.Impose(ward, lord);
+                        });
+                        break;
+                    }
+                    case WarGoal.租借:
+                    {
+                        Realm lessee = attacker, lessor = defender;
+                        List<City> leased = WarObjective.Targets(war, war.GetOrCreate()).Where(city => city.Realm == defender).ToList();
+                        ColonySystem.Defer(() =>
+                        {
+                            if (ColonySystem.Lease(lessee, lessor, leased) == null) WarReparationsSystem.Impose(lessor, lessee);
+                        });
+                        break;
+                    }
+                    case WarGoal.改宗:
+                        if (!Convert(defender, attacker)) WarReparationsSystem.Impose(defender, attacker);
+                        break;
+                    case WarGoal.通商:
+                        if (TradeRouteSystem.ImposeTreaty(defender, attacker))
+                            TranslateHelper.LogEventMessage(string.Format(LM.Get("war_peace_trade"), defender.GetKingdomName(),
+                                attacker.GetKingdomName()), attacker);
+                        else WarReparationsSystem.Impose(defender, attacker);
+                        break;
+                    case WarGoal.扶立:
+                        if (defender.IsEmpire() || !Install(attacker, defender)) WarReparationsSystem.Impose(defender, attacker);
+                        break;
+                }
+            }
+            else if (defendersWon)
+            {
+                if (goal != WarGoal.劫掠 && !attacker.IsGone()) WarReparationsSystem.Impose(attacker, defender);
+            }
+            if (attackersWon) Modernize(war, defender, attacker, war.Defenders, war.Attackers);
+            else if (defendersWon) Modernize(war, attacker, defender, war.Attackers, war.Defenders);
+            else if (!attacker.IsGone() && !defender.IsGone())
+            {
+                TranslateHelper.LogEventMessage(string.Format(LM.Get("war_peace_white"), attacker.GetKingdomName(),
+                    defender.GetKingdomName()), attacker);
+            }
+        }
+        catch (Exception exception)
+        {
+            LogService.LogWarning($"[EmpireCraft][开战目标] 议和结算失败: {exception.Message}");
+        }
+    }
+#endif
+
+    // 剧本点名的仗这么多年内不因欠饷收场：后面的事件还等着这场仗(清明之战开局半年就"各守旧土"，松锦之战就没了)，欠饷只逃散减员
+    private const float ScriptedWarYears = 10f;
+
+    // 发不出军饷的一方求和(见 CorpsSystem.SueForPeace)：攻方罢兵(判和，按双方所得结算，占不到便宜的反赔)；
+    // 守方只要条件不过分就认输(按攻方的开战目标结算)。叛乱、独立、争位这类有自己收场的仗、全面战争不在此列
+    public static bool TrySueForPeace(War war, Realm broke)
+    {
+        if (war?.Record == null || war.HasEnded() || broke == null || war.IsTotalWar()) return false;
+        if (!Applies(war) && war.GetEmpireWarType() != EmpireWarType.劫掠) return false;
+        Realm attacker = war.MainAttacker, defender = war.MainDefender;
+        if (attacker?.Record == null || defender?.Record == null || attacker == defender) return false;
+        // 开国雄主、天下统一的仗：欠饷只逃散减员，不罢兵(以前开战当月军饷掏空国库，三个月后攻方就"各守旧土")
+        if (broke == attacker && RulerTraitSystem.IsFounderUnificationWar(war)) return false;
+        if (war.GetOrCreate().scripted_war && WarSituation.WarYears(war) < ScriptedWarYears) return false;
+        if (broke == attacker)
+        {
+            EmpireWorld.Current.EndWar(war, WarOutcome.Peace);
+            return true;
+        }
+        // 本土帝国抵御异族入侵不求和(见 NativeDefenseSystem)
+        if (broke != defender || Excessive(war, defender) || NativeDefenseSystem.Resisting(defender, attacker)) return false;
+        EmpireWorld.Current.EndWar(war, WarOutcome.Attackers);
+        return true;
+    }
+
+    // 守方认输的代价太大：要吞并、要逼成附庸(帝国不会整个沦为附庸，只赔款)、割地要拿走都城或一半以上的城。
+    // 2026-10-21 核对(封建能吞小国)：按兵力定的吞并、迫使附庸现在都要攻方两倍以上，死战落在被两倍兵力压着的国家身上，照旧合理；
+    // 行分封的攻方兵力一倍半到两倍之间改求割地，对方只在都城或半数城被占时才死战，不再一开打就困兽犹斗。
+    // 没动的：扶立仍是一倍半；过度扩张改迫使附庸、战国诸侯兼并、跨海吞并照旧
+    private static bool Excessive(War war, Realm defender)
+    {
+        WarGoal goal = Get(war);
+        if (goal == WarGoal.吞并 || goal is WarGoal.迫使附庸 or WarGoal.扶立 or WarGoal.羁縻 or WarGoal.继承 && !defender.IsEmpire())
+            return true;
+        // 具体目标里含对方都城的，同割地拿走都城一样死战
+        if (goal is WarGoal.夺城 or WarGoal.侵略 or WarGoal.争法理 or WarGoal.争夺资源 &&
+            war.GetOrCreate().goal_city_ids?.Contains(defender.Capital?.Key ?? -1L) == true) return true;
+        if (goal is not (WarGoal.割地 or WarGoal.夺城 or WarGoal.侵略 or WarGoal.争法理 or WarGoal.争夺资源)) return false;
+        List<(City city, Realm holder)> held = HeldCities(war, new[] { defender }, war.Attackers);
+        int cities = defender.Cities?.Count ?? 0;
+        return held.Exists(entry => entry.city == defender.Capital) || held.Count * 2 >= Math.Max(1, cities);
+    }
+
+    // 正被全面侵略：作为主守方的仗求不了和(对方条件过分，或是叛乱、独立、争位这类)，或在打全面战争，
+    // 或是本土帝国(连同成员)抵御异族入侵。欠饷也困兽犹斗
+    public static bool FightingForSurvival(Realm kingdom)
+    {
+        if (kingdom == null) return false;
+        foreach (War war in kingdom.GetWars())
+        {
+            if (war?.Record == null || war.HasEnded() || !war.IsDefender(kingdom)) continue;
+            if (war.IsTotalWar()) return true;
+            // 本土帝国抵御异族入侵，倾国而战(见 NativeDefenseSystem)
+            if (NativeDefenseSystem.Resisting(kingdom, war.MainAttacker)) return true;
+            if (war.MainDefender != kingdom) continue;
+            if (!Applies(war) && war.GetEmpireWarType() != EmpireWarType.劫掠 || Excessive(war, kingdom)) return true;
+        }
+        return false;
+    }
+
+    // 被迫现代化：败方是帝国中央或独立君主国，战胜方是立宪、共和或现代国家时，按败方丢城多少决定是否被强行改造
+    private static void Modernize(War war, Realm loser, Realm victor, IEnumerable<Realm> losers, IEnumerable<Realm> victors)
+    {
+        if (loser?.Record == null || loser.IsGone()) return;
+        Empire empire = loser.GetEmpire();
+        if (empire?.CoreKingdom != loser) return;
+        List<(City city, Realm holder)> held = HeldCities(war, new[] { loser }, victors);
+        City capital = loser.Capital;
+        bool lostCapital = capital != null && held.Exists(entry => entry.city == capital);
+        ConstitutionalEconomySystem.ImposeModernization(empire, victor, held.Count, lostCapital);
+    }
+
+    // 割让攻方占了一半以上的城；吞并且对方丢了一半城或都城时，主守方余下的城一并归主攻方(帝国核心不整体吞并，只割城)
+#if EC_PENDING
+    private static void Cede(War war, Realm attacker, Realm defender, bool annex)
+    {
+        int pending = PendingCessions.Count;
+        CedeCities(war, attacker, defender, annex);
+        if (!UnificationSystem.IsUnificationWar(war)) return;
+        for (int i = pending; i < PendingCessions.Count; i++) UnificationCessions.Add(PendingCessions[i].city);
+    }
+
+    private static void CedeCities(War war, Realm attacker, Realm defender, bool annex)
+    {
+        List<(City city, Realm holder)> held = Contiguous(HeldCities(war, war.Defenders, war.Attackers), out int dropped);
+        // 连不上的城退还原主，改求赔款(见 Contiguous)
+        if (dropped > 0)
+        {
+            WarReparationsSystem.Impose(defender, attacker);
+            LogService.LogInfo($"[EmpireCraft][割地连片] {attacker.GetKingdomName()} 占了 {defender.GetKingdomName()} 的 {dropped} 座城连不上本国，退还原主、改求赔款");
+        }
+        foreach ((City city, Realm holder) in held) PendingCessions.Add((city.Key, holder.Key));
+        int ceded = held.Count;
+        if (annex && !defender.IsEmpire())
+        {
+            Dictionary<long, int> initial = war.GetOrCreate().initial_cities;
+            int before = initial != null && initial.TryGetValue(WarSituation.SideKey(defender), out int count) ? count : 0;
+            int lost = Math.Max(0, WarSituation.CitiesLost(war, defender)) + held.Count;
+            City capital = EmpireWorld.Current.CityByKey(war.GetOrCreate().war_goal_capital_id);
+            bool capitalTaken = capital?.Record != null && (capital.Realm != defender || held.Any(entry => entry.city == capital));
+            if (capitalTaken || before > 0 && lost * 2 >= before)
+            {
+                // 吞并也只收连片的(用户 2026-10-27 截图拜占庭的行省远在东方："他离拜占庭中间还隔了一个国家"——罗马吞并铁河公国，
+                // 把铁河远在东方的三座城一并收进中央，又分成了行省)：连不上的、隔海又在控制范围之外的留给原主，原主在那里延续
+                var queued = new HashSet<long>(held.Select(entry => entry.city.Key));
+                var rest = defender.Cities.Where(city => city?.Record != null && !city.IsGone() && !queued.Contains(city.Key) &&
+                                                         !(Overseas(attacker, city) && AdministrativeControlSystem.OutOfReach(attacker, city)))
+                    .Select(city => (city, attacker)).ToList();
+                foreach ((City city, Realm _) in Contiguous(held.Concat(rest).ToList(), out _).Where(entry => !queued.Contains(entry.city.Key)))
+                    if (queued.Add(city.Key)) PendingCessions.Add((city.Key, attacker.Key));
+                int kept = defender.Cities.Count(city => city?.Record != null && !queued.Contains(city.Key));
+                if (kept > 0)
+                    LogService.LogInfo($"[EmpireCraft][吞并连片] {attacker.GetKingdomName()} 吞并 {defender.GetKingdomName()}，{kept} 座城连不上、留给原主");
+                TranslateHelper.LogEventMessage(string.Format(LM.Get("war_peace_annexed"), attacker.GetKingdomName(),
+                    defender.GetKingdomName()), attacker);
+                return;
+            }
+        }
+        ceded += CompleteTitles(war, attacker, held);
+        if (ceded > 0)
+            TranslateHelper.LogEventMessage(string.Format(LM.Get("war_peace_ceded"), attacker.GetKingdomName(),
+                defender.GetKingdomName(), ceded), attacker);
+    }
+#endif
+
+    // 割地只要连片的城(用户 2026-10-27 嫌版图太碎、问答选"割地只要连片的城")：占了的城挨着受让一方(按宗主、帝国中央算)
+    // 本来的城、或挨着已经割过去的城，才割；不在受让一方都城那片陆地上的(跨海征服，够不够得着归水师辐射管)照割。
+    // 连不上的(深入腹地、东一座西一座的)退还原主，由调用方改求赔款——以前占了哪座割哪座，和约一签就是一地飞地
+    private static List<(City city, Realm holder)> Contiguous(List<(City city, Realm holder)> held, out int dropped)
+    {
+        var accepted = new List<(City city, Realm holder)>();
+        var pending = new List<(City city, Realm holder)>(held);
+        var taken = new Dictionary<Realm, HashSet<City>>();
+        bool progress = true;
+        while (progress && pending.Count > 0)
+        {
+            progress = false;
+            for (int i = pending.Count - 1; i >= 0; i--)
+            {
+                (City city, Realm holder) = pending[i];
+                Realm realm = EmpireCoreControl.Sovereign(holder) ?? holder;
+                if (!taken.TryGetValue(realm, out HashSet<City> mine)) taken[realm] = mine = new HashSet<City>();
+                if (!Joined(city, realm, mine)) continue;
+                accepted.Add(pending[i]);
+                mine.Add(city);
+                pending.RemoveAt(i);
+                progress = true;
+            }
+        }
+        dropped = pending.Count;
+        return accepted;
+    }
+
+    private static bool Overseas(Realm kingdom, City city)
+    {
+        Realm realm = EmpireCoreControl.Sovereign(kingdom) ?? kingdom;
+        return realm?.Capital?.SeatCell() is Cell seat && city.SeatCell() is Cell at && !at.IsSameIsland(seat);
+    }
+
+    private static bool Joined(City city, Realm realm, HashSet<City> taken)
+    {
+        if (realm?.Capital?.SeatCell() is Cell seat && city.SeatCell() is Cell at && !at.IsSameIsland(seat)) return true;
+        foreach (City next in (IEnumerable<City>)city.NeighbourCities ?? Array.Empty<City>())
+        {
+            if (next?.Record == null || next.IsGone()) continue;
+            if (taken.Contains(next) || next.Realm != null && EmpireCoreControl.Sovereign(next.Realm) == realm) return true;
+        }
+        return false;
+    }
+
+    // 割地把法理补完整(用户 2026-10-26 问答选"占了的照割，法理城优先")：割完以后攻方一方握着哪个王国法理的都城、或占了它过半的城，
+    // 守方一方手里这个法理余下的城一并割给主攻方。返回多割了几座
+    private static int CompleteTitles(War war, Realm attacker, List<(City city, Realm holder)> held)
+    {
+        Realm realm = FrontSystem.ModRealm(attacker);
+        if (realm == null || held.Count == 0) return 0;
+        var ceded = new HashSet<long>(held.Select(entry => entry.city.Key));
+        var defenders = new HashSet<Realm>(war.Defenders.Where(kingdom => kingdom?.Record != null));
+        bool Ours(City city) => ceded.Contains(city.Key) || city.Realm != null && FrontSystem.ModRealm(city.Realm) == realm;
+        int added = 0;
+        foreach (KingdomTitle title in held.Select(entry => entry.city.GetTitle()).Where(title => title != null && !title.IsGone())
+                     .Distinct().ToList())
+        {
+            List<City> cities = title.GetCities().Where(city => city?.Record != null && !city.IsGone()).ToList();
+            City capital = title.title_capital;
+            bool claimed = capital?.Record != null && !capital.IsGone() && Ours(capital) || cities.Count(Ours) * 2 > cities.Count;
+            if (!claimed) continue;
+            foreach (City city in cities)
+            {
+                if (Ours(city) || city.Realm == null || !defenders.Contains(city.Realm)) continue;
+                ceded.Add(city.Key);
+                PendingCessions.Add((city.Key, attacker.Key));
+                added++;
+            }
+        }
+        return added;
+    }
+
+    // 收复：我方法理的城里占了一半以上的归还占领者；占了法理城的一半以上时全部归还主攻方。对方手里没有我方法理的城时按割地
+#if EC_PENDING
+    private static void Reclaim(War war, Realm attacker, Realm defender)
+    {
+        List<City> claimed = Claimed(attacker, war.Defenders.Where(kingdom => kingdom?.Cities != null)
+            .SelectMany(kingdom => kingdom.Cities).ToList());
+        if (claimed.Count == 0)
+        {
+            Cede(war, attacker, defender, annex: false);
+            return;
+        }
+        var claimedSet = new HashSet<City>(claimed);
+        List<(City city, Realm holder)> held = HeldCities(war, war.Defenders, war.Attackers)
+            .Where(entry => claimedSet.Contains(entry.city)).ToList();
+        var queued = new HashSet<long>();
+        foreach ((City city, Realm holder) in held)
+            if (queued.Add(city.Key)) PendingCessions.Add((city.Key, holder.Key));
+        if (held.Count * 2 >= claimed.Count || war.GetOrCreate().goal_achieved)
+            foreach (City city in claimed)
+                if (queued.Add(city.Key)) PendingCessions.Add((city.Key, attacker.Key));
+        if (queued.Count > 0)
+            TranslateHelper.LogEventMessage(string.Format(LM.Get("war_peace_reclaimed"), attacker.GetKingdomName(),
+                defender.GetKingdomName(), queued.Count), attacker);
+    }
+#endif
+
+    // 一座城排进移交队列(诸侯私战收场割城、退城，见 HolyRomanSystem.Feuds)，逐帧易主
+    // unification：统一战争里割得的城，记作统一所得(同 Cede)
+    public static void QueueCession(City city, Realm to, bool unification = false)
+    {
+        if (city?.Record == null || city.IsGone() || to?.Record == null || to.IsGone() || city.Realm == to) return;
+        PendingCessions.Add((city.Key, to.Key));
+        if (unification) UnificationCessions.Add(city.Key);
+    }
+
+    // 整国并入(见 UnificationSystem)：把一国所有的城排进移交队列，逐帧易主；返回排了几座
+    public static int QueueAnnex(Realm from, Realm to)
+    {
+        if (from?.Cities == null || to?.Record == null || to.IsGone() || from == to) return 0;
+        int queued = 0;
+        foreach (City city in from.Cities.ToList())
+        {
+            if (city?.Record == null || city.IsGone()) continue;
+            PendingCessions.Add((city.Key, to.Key));
+            queued++;
+        }
+        return queued;
+    }
+
+    // 战争结束后几帧内逐城易主、立附庸(不在原版结束战争的同一帧里改归属)
+#if EC_PENDING
+    public static void Tick()
+    {
+        if (EmpireWorld.Current == null) return;
+        WarObjective.Tick();
+        while (PendingVassals.Count > 0)
+        {
+            (long lordId, long subjectId) = PendingVassals[0];
+            PendingVassals.RemoveAt(0);
+            Realm lord = EmpireWorld.Current.RealmByKey(lordId), subject = EmpireWorld.Current.RealmByKey(subjectId);
+            if (lord?.Record == null || subject?.Record == null || lord.IsGone() || subject.IsGone()) continue;
+            try
+            {
+                // 称臣纳贡(用户 2026-10-19 选"朝贡双向与称臣和约")：不行封建附庸的胜者(华夏、游牧、阿拉伯……)不再得
+                // 西方式附庸，改为对方向本帝国称臣纳贡；收不了朝贡的照旧赔款
+                if (!FeudalVassalService.UsesFeudalVassals(lord))
+                {
+                    // 降部戍边：游牧政权败给施行了羁縻的帝国，整部内附为羁縻州(见 FrontierRelations)
+                    if (FrontierRelations.SettleSurrenderedTribe(lord, subject)) { }
+                    else if (TributaryRelations.Submit(lord, subject))
+                    {
+                        TranslateHelper.LogEventMessage(string.Format(LM.Get("war_peace_tributary"), subject.GetKingdomName(),
+                            lord.GetEmpire()?.GetEmpireName() ?? lord.GetKingdomName()), lord);
+                        // 城下之盟：送质子(见 HostageSystem)
+                        HostageSystem.Send(lord, subject);
+                    }
+                    else WarReparationsSystem.Impose(subject, lord);
+                }
+                // 鞭长莫及的不立封建附庸，改赔款(见 FeudalVassalService.TooFar)
+                else if (FeudalVassalService.TooFar(lord, subject)) WarReparationsSystem.Impose(subject, lord);
+                else if (FeudalVassalService.ForceBind(lord, subject))
+                {
+                    TranslateHelper.LogEventMessage(string.Format(LM.Get("war_peace_vassalized"), subject.GetKingdomName(),
+                        lord.GetKingdomName()), lord);
+                    HostageSystem.Send(lord, subject);
+                }
+                else WarReparationsSystem.Impose(subject, lord);
+            }
+            catch (Exception exception)
+            {
+                LogService.LogWarning($"[EmpireCraft][开战目标] 立附庸失败: {exception.Message}");
+            }
+        }
+        if (PendingCessions.Count == 0) return;
+        int done = 0;
+        while (PendingCessions.Count > 0 && done < CessionsPerFrame)
+        {
+            (long cityId, long toId) = PendingCessions[0];
+            PendingCessions.RemoveAt(0);
+            bool unification = UnificationCessions.Remove(cityId);
+            City city = EmpireWorld.Current.CityByKey(cityId);
+            Realm to = EmpireWorld.Current.RealmByKey(toId);
+            if (city?.Record == null || city.IsGone() || to?.Record == null || to.IsGone() || city.Realm == to) continue;
+            try
+            {
+                Realm from = city.Realm;
+                bool capital = from?.Record != null && from.Capital == city;
+                AdministrativeControlSystem.MarkConquered(city, to);
+                if (unification) city.GetOrCreate().conquered_unification = true;
+                city.JoinRealm(to);
+                done++;
+                // 周室诸侯的都城在和约中割走，与攻破都城一样灭其国；割走王畿则攻者取而代之
+                if (capital && city.Realm == to && ZhouEraSystem.SphereOf(from) is Empire sphere)
+                    ZhouEraSystem.QueueCapitalTaken(city, from, to, sphere.CoreKingdom == from);
+            }
+            catch (Exception exception)
+            {
+                LogService.LogWarning($"[EmpireCraft][开战目标] {city.Name} 割让失败: {exception.Message}");
+            }
+        }
+    }
+#endif
+}
+}

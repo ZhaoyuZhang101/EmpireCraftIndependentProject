@@ -1,0 +1,3374 @@
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/InstitutionSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
+// see Port/manifest.json and Tools/PortTool.
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace EmpireCraft.Core
+{
+
+public sealed class InstitutionPoliticalBalance
+{
+    public float Support;
+    public float Opposition;
+}
+
+public sealed class InstitutionCultureRanking
+{
+    public string Culture = "";
+    public string Line = "";
+    public int Advancement;
+    public int Level;
+    public string LevelName = "";
+    public bool Manual;
+    public int AbsorbedCount;
+}
+
+public sealed class InstitutionReformEnvironment
+{
+    public int SameCultureCountries;
+    public int SameCultureEmpires;
+    // 同文化推制度的政权(帝国 + 独立王国 + 帝国里同文化成员国每三国折一家)；王国改革关掉时不计王国。改革竞争按它加速
+    public int SameCultureRealms;
+    // 同文化帝国里本文化的成员国数(不含核心)，每 MembersPerRealm 国折一家政权
+    public int SameCultureMembers;
+    public int AdvancedBorderEmpires;
+    public float SpeedMultiplier = 1f;
+    public int EffectiveMinimumYears = 1;
+}
+
+public enum InstitutionNodeStatus
+{
+    Locked,             //本线节点，前置未满足 / 被互斥 / 正统不足
+    Available,          //本线节点，可以正常推动
+    Forceable,          //本线节点，反对压过支持，只能强制推行
+    Reforming,          //本线节点，正在改革中
+    Enacted,            //本文化已掌握（自研）
+    Absorbed,           //本文化已掌握（从别的线吸收而来）
+    ForeignLocked,      //外来节点，等级不够、还吸收不了
+    ForeignContacting,  //外来节点，正在接触积累中
+    ForeignReady,       //外来节点，接触度已达标，下一次年度结算就会被吸收
+    Superseded          //本线节点，已被更新的制度取代(如两税法取代均田租庸)，不能再推行
+}
+
+public sealed class InstitutionNodeView
+{
+    public InstitutionNodeConfig Node;
+    public InstitutionNodeStatus Status;
+    public float Support;
+    public float Opposition;
+    public float Exposure;
+    public int ContactYears;
+    public float RequiredExposure;
+    public int RequiredContactYears;
+    public string Reason = "";
+    // 看的是哪个文化的树(节点名按文化另有叫法，见 InstitutionSystem.GetNodeName)
+    public string Culture = "";
+}
+
+// 制度系统。
+//
+// 关键约定（跟上一版相反）：**制度的持有者是文化，不是国家。**
+//   - 文化持有已掌握的制度（CultureInstitutionState.enacted_node_ids），全局唯一一份；
+//   - 帝国只持有"正在推进的这一次改革"和"本政权已经落地过哪些节点的持久效果"；
+//   - 某个帝国把改革推完之后，节点写进文化，同文化的所有政权在自己的年度更新里
+//     把该节点的持久效果补上（SyncSharedEffects），于是"研究成功后所有同文化的都受益"。
+//
+// 四条线（华夏/阿拉伯/罗马/游牧）各自自成体系，线之间不存在前置关系。别的线的制度只能靠
+// "接触 → 吸收"进来：接触渠道有同帝国、陆地边境、同盟/朝贡、异文化统治的城市四种，吸收
+// 条件是节点等级高于本文化当前文明等级（可选再限制领先幅度），吸收成功即直接获得该节点，
+// 不要求补它在原线上的前置。
+//
+// 推改革的是"政权"(InstitutionRealm)：帝国，或独立王国/部落(简化朝堂，见 InstitutionSystem.Realm.cs)。
+// 核心流程都按政权写；原来按帝国的签名保留为一行包装，外部调用不用改。只有帝国才有的环节
+// (宪法、执政党与理念、复合帝国、改革冲击、社会动荡、阻力升级、外来政体同步、国名改换、教廷偏好、多数派)用 realm.IsEmpire 包住。
+public static partial class InstitutionSystem
+{
+    private static Dictionary<string, CultureInstitutionState> _cultureStates = new(StringComparer.Ordinal);
+    // 世界级的接触/吸收结算每年只跑一次(见 TryYearlyWorldPass)
+    private static double _lastWorldPassTimestamp = -1d;
+    // set_regime_option 配了个该政体没有的选项键时，只警告一次，避免每年刷日志
+    private static readonly HashSet<string> WarnedMissingOptions = new(StringComparer.Ordinal);
+
+    public static void ResetWorldState()
+    {
+        IdeologyPopulationSystem.ResetWorldState();
+        _cultureStates = new Dictionary<string, CultureInstitutionState>(StringComparer.Ordinal);
+        _lastWorldPassTimestamp = -1d;
+        WarnedMissingOptions.Clear();
+        ResetDiagnostics();
+    }
+
+    public static void ImportCultureStates(Dictionary<string, CultureInstitutionState> states)
+    {
+        ResetWorldState();
+        foreach (KeyValuePair<string, CultureInstitutionState> pair in states ??
+                 new Dictionary<string, CultureInstitutionState>())
+        {
+            if (!CultureService.IsValidCulture(pair.Key) || pair.Value == null) continue;
+            InstitutionStateNormalizer.Normalize(pair.Value);
+            _cultureStates[pair.Key] = pair.Value;
+        }
+    }
+
+    public static Dictionary<string, CultureInstitutionState> ExportCultureStates()
+    {
+        return _cultureStates.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+    }
+
+    #region 文化侧：持有、等级、排行
+
+    // 文化所属的线（字符串 id）。配了不存在的线 id 时退化成 Settings.json 里的 default_line，
+    // 这样玩家自己加线/改配置写错了也不会让整个制度系统瘫掉。
+    public static string GetCultureLine(string culture) =>
+        InstitutionDefinitionRegistry.ResolveLine(culture.GetInstitutionLine());
+
+    public static bool IsSameLine(string a, string b) => string.Equals(a, b, StringComparison.Ordinal);
+
+    // 反查：某个派系类别(FactionType)在这条文化科技线里到底支持/反对哪些节点——用来在派系
+    // UI 里显示"这个派系跟科技树是什么关系"，而不是只能单向地从节点详情看它牵扯哪些派系。
+    public static (List<InstitutionNodeConfig> supports, List<InstitutionNodeConfig> opposes)
+        GetFactionInstitutionStance(string culture, FactionType factionType)
+    {
+        List<InstitutionNodeConfig> nodes = InstitutionDefinitionRegistry.GetForLine(GetCultureLine(culture)).ToList();
+        List<InstitutionNodeConfig> supports = nodes.Where(node => node.politics.support_factions.ContainsKey(factionType)).ToList();
+        List<InstitutionNodeConfig> opposes = nodes.Where(node => node.politics.oppose_factions.ContainsKey(factionType)).ToList();
+        return (supports, opposes);
+    }
+
+    public static CultureInstitutionState GetOrCreateCultureState(string culture)
+    {
+        // 这一帧整理过的直接回(见 FrameStamp)：下面的整理、折算、补根节点都是修补性质，一帧做一回就够；
+        // 以前每问一回特性就全做一遍，月结里一座城要问几十回
+        int frame = FrameStamp.Current;
+        if (culture != null && _cultureStates.TryGetValue(culture, out CultureInstitutionState ready) &&
+            ready.checked_frame == frame && ready.enacted_node_ids != null) return ready;
+        if (!CultureService.IsValidCulture(culture)) return null;
+        if (!_cultureStates.TryGetValue(culture, out CultureInstitutionState state))
+        {
+            state = new CultureInstitutionState();
+            _cultureStates[culture] = state;
+            // 文化配置的开局阶段(start_institution)：这个节点及其前置开局即已施行
+            if (OnomasticsRule.ALL_CULTURE_RULE.TryGetValue(culture, out Setting setting) &&
+                !string.IsNullOrWhiteSpace(setting?.start_institution) &&
+                InstitutionDefinitionRegistry.Get(setting.start_institution) is InstitutionNodeConfig start &&
+                IsSameLine(start.line, GetCultureLine(culture)))
+            {
+                InstitutionStateNormalizer.Normalize(state);
+                ForceEnactChain(state, start, new List<InstitutionNodeConfig>());
+            }
+        }
+        InstitutionStateNormalizer.Normalize(state);
+        MigrateLine(culture, state);
+        // 开局即初始状态：只给本线的根节点（无效果），其余一律自己研究或从别的线吸收。
+        // 根节点已被后来的制度取代(如华夏母系氏族被父系、宗法取代)就不再补回
+        foreach (string rootId in InstitutionDefinitionRegistry.GetRootNodes(GetCultureLine(culture)))
+        {
+            if (InstitutionDefinitionRegistry.Get(rootId) != null && !state.enacted_node_ids.Contains(rootId) &&
+                !IsSuperseded(state, rootId))
+                state.enacted_node_ids.Add(rootId);
+        }
+        state.checked_frame = frame;
+        return state;
+    }
+
+    // 文化换了制度线(如日本从华夏线分出自己的线)：旧线上已施行的制度折算到新线，旧档不退回原始阶段——
+    // 同一公共模板的实例直接对上；另按 LineMigrations 把旧线的阶段节点对到新线的阶段节点(连同前置一起施行)
+    private static readonly Dictionary<string, string> LineMigrations = new()
+    {
+        { "huaxia_patriarchal_clan", "japan_yamato_kingship" },
+        { "zhou_enfeoffment", "japan_kabane_ranks" },
+        { "huaxia_prefecture_county_bureaucracy", "japan_ritsuryo_state" },
+        { "huaxia_three_departments", "japan_ritsuryo_state" },
+        { "huaxia_land_equalization", "japan_handen" },
+        { "huaxia_military_garrison", "japan_samurai_bands" },
+        { "huaxia_constitutional_preparation", "japan_meiji_restoration" },
+    };
+
+    private static void MigrateLine(string culture, CultureInstitutionState state)
+    {
+        string line = GetCultureLine(culture);
+        if (string.IsNullOrEmpty(line) || state.line_id == line) return;
+        bool firstSeen = string.IsNullOrEmpty(state.line_id);
+        state.line_id = line;
+        List<InstitutionNodeConfig> foreign = state.enacted_node_ids.Select(InstitutionDefinitionRegistry.Get)
+            .Where(node => node != null && !IsSameLine(node.line, line) && !state.absorbed_node_ids.Contains(node.id)).ToList();
+        // 新开的文化、或一直就在这条线上的旧档：没有旧线成果可折算
+        if (foreign.Count == 0 || firstSeen && foreign.Count < 3) return;
+        List<InstitutionNodeConfig> lineNodes = InstitutionDefinitionRegistry.GetForLine(line).ToList();
+        var added = new List<InstitutionNodeConfig>();
+        foreach (InstitutionNodeConfig old in foreign)
+        {
+            InstitutionNodeConfig target = LineMigrations.TryGetValue(old.id, out string mapped)
+                ? InstitutionDefinitionRegistry.Get(mapped)
+                : lineNodes.FirstOrDefault(node => node.equivalence_key == old.equivalence_key && node.id != old.id);
+            if (target != null && IsSameLine(target.line, line)) ForceEnactChain(state, target, added);
+        }
+        // 旧线的节点不再算本文化自研，记作吸收来的(还在已掌握里，特性照旧生效)
+        foreach (InstitutionNodeConfig old in foreign)
+            if (!state.absorbed_node_ids.Contains(old.id)) state.absorbed_node_ids.Add(old.id);
+        if (added.Count > 0)
+            LogService.LogInfo($"[EmpireCraft][制度] {culture} 改用 {line} 线，旧线成果折算为 {string.Join("、", added.Select(node => node.id))}");
+    }
+
+    public static bool IsEnacted(string culture, string nodeId)
+    {
+        CultureInstitutionState state = GetOrCreateCultureState(culture);
+        return state != null && state.enacted_node_ids.Contains(nodeId);
+    }
+
+    public static bool IsEnacted(Empire empire, string nodeId) => IsEnacted(GetPrimaryCulture(empire), nodeId);
+
+    // 本文化已施行的某个节点声明了 replaces 这个节点 → 它已经过时，不能再推行
+    public static bool IsSuperseded(string culture, string nodeId)
+    {
+        CultureInstitutionState state = GetOrCreateCultureState(culture);
+        return state != null && IsSuperseded(state, nodeId);
+    }
+
+    // 作为前置是否已具备：已施行，或已被本文化施行的新制度取代(这一步算走过了，同强制点亮的 ForceEnactChain)。
+    // 以前推改革、时代潮流、界面只认"已施行"：新制度取代旧制度后，挂在旧制度下面的别支再也推不了——
+    // 阿拉伯线施行哈里发神权或苏丹官僚(都取代哈里发官署)后，贝特马尔国库连同其后的开放党禁、废除君主制、普选、
+    // 各理念节点全部锁死，马穆鲁克军团、火器近卫也锁死；华夏郡县官僚(取代分封)后朝贡体系、羁縻制度锁死，
+    // 募兵制后战阵操典、军镇强藩锁死。真该作废的旧路由节点自己的 exclusive_with 挡住(如九品中正与科举取士)
+    public static bool IsPrerequisiteHeld(CultureInstitutionState state, string nodeId) =>
+        state != null && (state.enacted_node_ids.Contains(nodeId) || IsSuperseded(state, nodeId));
+
+    public static bool IsPrerequisiteHeld(string culture, string nodeId) =>
+        IsPrerequisiteHeld(GetOrCreateCultureState(culture), nodeId);
+
+    #region 制度特性
+
+    // 特性值：文化已掌握的节点里声明该特性的最大值；没有任何节点声明时返回 0。
+    // 系统代码应当查询特性而不是具体节点 id，这样任何线（自研、吸收、公共模板实例）都能提供同一效果。
+    // 本文化最早掌握某项特性的时间(没有掌握或旧存档没记时间返回 -1)
+    public static double GetFeatureEnactedTime(string culture, string feature)
+    {
+        CultureInstitutionState state = GetOrCreateCultureState(culture);
+        if (state == null || string.IsNullOrWhiteSpace(feature)) return -1d;
+        double earliest = -1d;
+        foreach (string nodeId in state.enacted_node_ids)
+        {
+            InstitutionNodeConfig node = InstitutionDefinitionRegistry.Get(nodeId);
+            if (node == null || !node.features.ContainsKey(feature)) continue;
+            if (state.enacted_timestamps == null || !state.enacted_timestamps.TryGetValue(nodeId, out double at) ||
+                at < 0d) continue;
+            if (earliest < 0d || at < earliest) earliest = at;
+        }
+        return earliest;
+    }
+
+    public static float GetFeature(string culture, string feature)
+    {
+        CultureInstitutionState state = GetOrCreateCultureState(culture);
+        if (state == null || string.IsNullOrWhiteSpace(feature)) return 0f;
+        // 结果记一帧：已掌握的制度没变(个数、头一项、末一项都对得上)就不重算。同一帧里施行、废止了制度照样重算——
+        // 施行与取代都是往末尾加(末一项变)，单废止是个数变(改动已掌握制度的地方都在本文件与 InstitutionStateNormalizer)
+        List<string> enacted = state.enacted_node_ids;
+        int signature = enacted.Count;
+        if (signature > 0)
+            signature = unchecked(signature * 397 +
+                                  global::System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(enacted[0]) * 31 +
+                                  global::System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(enacted[signature - 1]));
+        // 这本缓存不加锁，只许主线程用(见 FrameStamp.MainThread)；别的线程来问照老办法现算
+        if (!FrameStamp.OnMainThread) return ComputeFeature(enacted, feature);
+        Dictionary<string, float> values = state.feature_values ??= new Dictionary<string, float>(StringComparer.Ordinal);
+        int frame = FrameStamp.Current;
+        if (state.feature_frame != frame || state.feature_signature != signature)
+        {
+            values.Clear();
+            state.feature_frame = frame;
+            state.feature_signature = signature;
+        }
+        else if (values.TryGetValue(feature, out float cached))
+        {
+            if (CacheAudit.Enabled) CacheAudit.Compare("制度特性", cached == ComputeFeature(enacted, feature));
+            return cached;
+        }
+        float result = ComputeFeature(enacted, feature);
+        values[feature] = result;
+        return result;
+    }
+
+    private static float ComputeFeature(List<string> enacted, string feature)
+    {
+        float result = 0f;
+        foreach (string nodeId in enacted)
+        {
+            InstitutionNodeConfig node = InstitutionDefinitionRegistry.Get(nodeId);
+            if (node != null && node.features.TryGetValue(feature, out float value) && value > result)
+                result = value;
+        }
+        return result;
+    }
+
+    public static float GetFeature(Empire empire, string feature) => GetFeature(GetPrimaryCulture(empire), feature);
+
+    public static bool HasFeature(string culture, string feature) => GetFeature(culture, feature) > 0f;
+
+    public static bool HasFeature(Empire empire, string feature) => GetFeature(empire, feature) > 0f;
+
+    // 本线里声明了某特性的节点（按等级排序）。派系诉求这类"推动某项改革"的逻辑用它找目标，
+    // 而不是写死节点 id。
+    public static IEnumerable<InstitutionNodeConfig> GetLineNodesWithFeature(Empire empire, string feature) =>
+        InstitutionDefinitionRegistry.GetForLine(GetCultureLine(GetPrimaryCulture(empire)))
+            .Where(node => !string.IsNullOrWhiteSpace(feature) && node.features.ContainsKey(feature));
+
+    // 派系诉求要推动的改革目标：本线声明了 claim_reform:<诉求名> 特性、且本文化尚未掌握的节点。
+    // 诉求代码只认诉求名，具体推动哪项制度由各线配置决定。
+    public static InstitutionNodeConfig FindClaimReformTarget(Empire empire, string claim)
+    {
+        if (empire == null || string.IsNullOrWhiteSpace(claim)) return null;
+        string culture = GetPrimaryCulture(empire);
+        if (!CultureService.IsValidCulture(culture)) return null;
+        return GetLineNodesWithFeature(empire, InstitutionFeatures.ClaimReformPrefix + claim)
+            .FirstOrDefault(node => !IsEnacted(culture, node.id));
+    }
+
+    // 已掌握同源制度（同一个公共模板在任意线上的实例都算）
+    public static bool HasEquivalentEnacted(CultureInstitutionState state, InstitutionNodeConfig node) =>
+        state != null && node != null && state.enacted_node_ids.Any(id =>
+            string.Equals(InstitutionDefinitionRegistry.Get(id)?.equivalence_key, node.equivalence_key,
+                StringComparison.Ordinal));
+
+    // 外来节点能否进入本文化的吸收流程：别的线的、允许吸收、本文化还没有同源制度、
+    // 而且本线自己的树上也没有同源实例（本线有的就该按本线前置自己研究）。
+    private static bool IsForeignCandidate(InstitutionNodeConfig node, string targetLine,
+        CultureInstitutionState target, string targetCulture)
+    {
+        if (node == null || IsSameLine(node.line, targetLine) || node.absorb?.enabled != true ||
+            IdeologyInstitutionPaths.TryGetIdeology(node.branch, out _)) return false;
+        if (!InstitutionDefinitionRegistry.FitsCulture(node, targetCulture)) return false;
+        if (TechnologySystem.ModernInstitutionBlocked(node)) return false;
+        if (HasEquivalentEnacted(target, node)) return false;
+        return !InstitutionDefinitionRegistry.GetForLine(targetLine).Any(own =>
+            string.Equals(own.equivalence_key, node.equivalence_key, StringComparison.Ordinal));
+    }
+
+    #endregion
+
+
+    public static Dictionary<string, int> GetCultureBranchAdvancements(string culture)
+    {
+        CultureInstitutionState state = GetOrCreateCultureState(culture);
+        var result = InstitutionDefinitionRegistry.Branches.ToDictionary(branch => branch, _ => 0,
+            StringComparer.Ordinal);
+        foreach (InstitutionNodeConfig node in state?.enacted_node_ids.Select(InstitutionDefinitionRegistry.Get)
+                     .Where(node => node != null) ?? Enumerable.Empty<InstitutionNodeConfig>())
+        {
+            if (!result.TryGetValue(node.branch, out int current) || node.advancement > current)
+                result[node.branch] = node.advancement;
+        }
+        return result;
+    }
+
+    // 累计制度分 = 各分支已掌握节点的最高等级之和
+    public static int GetCultureAdvancement(string culture) =>
+        GetCultureBranchAdvancements(culture).Values.Sum();
+
+    // 文明等级（1~4）。这个数既上排行榜，也是吸收外来制度的判定基准。
+    public static int GetCultureLevel(string culture) => GetCultureRanking(culture).Level;
+
+    public static InstitutionCultureRanking GetCultureRanking(string culture)
+    {
+        int advancement = GetCultureAdvancement(culture);
+        CultureInstitutionState state = GetOrCreateCultureState(culture);
+        List<InstitutionCultureLevelConfig> levels = InstitutionDefinitionRegistry.Global.culture_levels;
+        InstitutionCultureLevelConfig selected = state?.manual_level > 0
+            ? InstitutionRules.ResolveManualLevel(levels, state.manual_level)
+            : InstitutionRules.ResolveLevel(levels, advancement);
+        string levelName = LM.Get(selected.name_key);
+        if (string.IsNullOrWhiteSpace(levelName) || levelName == selected.name_key)
+            levelName = string.Format(LM.Get("institution_culture_level_format"), selected.level);
+        return new InstitutionCultureRanking
+        {
+            Culture = culture,
+            Line = GetCultureLine(culture),
+            Advancement = advancement,
+            Level = selected.level,
+            LevelName = levelName,
+            Manual = state?.manual_level > 0,
+            AbsorbedCount = state?.absorbed_node_ids.Count ?? 0
+        };
+    }
+
+    public static void SetCultureLevel(string culture, int level)
+    {
+        CultureInstitutionState state = GetOrCreateCultureState(culture);
+        if (state == null) return;
+        int previousLevel = GetCultureRanking(culture).Level;
+        if (level <= 0)
+        {
+            state.manual_level = 0;
+            int automaticLevel = GetCultureRanking(culture).Level;
+            if (automaticLevel < previousLevel)
+                ApplyCultureLevelRegression(culture, previousLevel, automaticLevel);
+            return;
+        }
+        List<int> levels = InstitutionDefinitionRegistry.Global.culture_levels.Select(item => item.level)
+            .Distinct().OrderBy(item => item).ToList();
+        if (levels.Count == 0) return;
+        state.manual_level = levels.OrderBy(item => Math.Abs(item - level)).ThenBy(item => item).First();
+        int currentLevel = GetCultureRanking(culture).Level;
+        if (currentLevel < previousLevel) ApplyCultureLevelRegression(culture, previousLevel, currentLevel);
+    }
+
+    public static int GetMinimumCultureLevel() =>
+        InstitutionDefinitionRegistry.Global.culture_levels.Select(item => item.level).DefaultIfEmpty(1).Min();
+
+    public static int GetMaximumCultureLevel() =>
+        InstitutionDefinitionRegistry.Global.culture_levels.Select(item => item.level).DefaultIfEmpty(1).Max();
+
+    // 只排当前世界里实际存在的文化——配置文件里登记过、但本局没有任何王国在用的文化
+    // (比如没开的模组文化)不该出现在这个排行榜里。
+    public static IReadOnlyList<InstitutionCultureRanking> GetCultureRankings()
+    {
+        return CultureService.GetActiveCultureKeys().Select(GetCultureRanking)
+            .OrderByDescending(item => item.Level).ThenByDescending(item => item.Advancement)
+            .ThenBy(item => item.Culture, StringComparer.Ordinal).ToList();
+    }
+
+    // 文化当前的政体形态，由它已掌握的制度反推：取"本线已掌握、且声明了政体"的节点里等级
+    // 最高的那个；一个都没有就用本线根节点声明的政体——也就是**一级制度决定初始政体**，
+    // 所以华夏开局是周制而不是律令制，律令要等郡县官僚（等级 5）研究出来。
+    // 只看本线节点：从别的线吸收来的制度不该把本文化的政体形态也换掉。
+    // 被取代的节点不算已掌握：取代了声明政体的节点的，自己也得声明政体，否则一取代就退回根节点的原始政体。
+    // 阿拉伯线的阿拉伯政体从部族舒拉挪到哈里发官署(迪万)(用户 2026-10-21 选文明平衡 A1"推迟行省窗口"：以前青铜加文字就有
+    // 听调、缴五成的行省)：舒拉施行后、迪万施行前按根节点仍是原始政体(部落)；取代迪万的苏丹官僚、哈里发神权也声明阿拉伯政体。
+    // 仍在现存君主国里的成员国：跟随帝国核心的政体，不按文化直接变成现代政体(君主国的改制走 RepublicSystem)
+    public static RegimeType AdjustForMonarchyEmpire(Realm kingdom, RegimeType regime)
+    {
+        if (regime != RegimeType.Modern || kingdom == null || kingdom.IsEmpire() || !kingdom.IsInEmpire()) return regime;
+        RegimeType? core = kingdom.GetEmpire()?.CoreKingdom?.GetRegime()?.type;
+        return core.HasValue && RegimeManager.IsMonarchy(core) ? core.Value : regime;
+    }
+
+    // 这个国家能否过渡到本文化的某个体制：本文化制度线上声明这个政体的节点所需的科技，本国都已采纳
+    public static bool RealmCanAdoptRegime(Realm kingdom, RegimeType regime)
+    {
+        string culture = CultureService.GetInstitutionCulture(kingdom);
+        if (!CultureService.IsValidCulture(culture)) return true;
+        InstitutionNodeConfig node = InstitutionDefinitionRegistry.GetForLine(GetCultureLine(culture))
+            .FirstOrDefault(candidate => InstitutionDefinitionRegistry.TryGetNodeRegime(candidate, out RegimeType declared) &&
+                                         declared == regime);
+        return node == null || TechnologySystem.AreRealmInstitutionTechsMet(kingdom, node, out _);
+    }
+
+    // 本文化制度树上已施行的最晚的君主政体(复辟用，见 RepublicSystem)：不看废除君主制，原始政体不算；
+    // 树上没有就取文化配置的默认政体(是君主制的话)
+    public static bool TryResolveMonarchyRegime(string culture, out RegimeType regime)
+    {
+        regime = default;
+        if (!CultureService.IsValidCulture(culture)) return false;
+        string line = culture.GetInstitutionLine();
+        CultureInstitutionState state = GetOrCreateCultureState(culture);
+        InstitutionNodeConfig best = null;
+        foreach (string nodeId in state?.enacted_node_ids ?? Enumerable.Empty<string>())
+        {
+            InstitutionNodeConfig node = InstitutionDefinitionRegistry.Get(nodeId);
+            if (node == null || !IsSameLine(node.line, line) ||
+                !InstitutionDefinitionRegistry.TryGetNodeRegime(node, out RegimeType declared) ||
+                !RegimeManager.IsMonarchy(declared) || RegimeManager.IsPrimitive(declared)) continue;
+            if (best != null && node.advancement < best.advancement) continue;
+            best = node;
+            regime = declared;
+        }
+        if (best != null) return true;
+        if (!OnomasticsRule.ALL_CULTURE_RULE.TryGetValue(culture, out Setting setting) || setting == null ||
+            !RegimeManager.IsMonarchy(setting.regime) || RegimeManager.IsPrimitive(setting.regime)) return false;
+        regime = setting.regime;
+        return true;
+    }
+
+    public static bool TryResolveCultureRegime(string culture, out RegimeType regime)
+    {
+        regime = default;
+        if (!CultureService.IsValidCulture(culture)) return false;
+        // 政体不能借用别的文化的默认科技线。缺线时交给调用方按本文化 setting.regime 兜底。
+        string line = culture.GetInstitutionLine();
+        if (!InstitutionDefinitionRegistry.HasLine(line)) return false;
+        // 本文化已废除君主制：此后新建、归化、分裂出来的本文化政权一律是现代政体，不会再出现皇帝
+        if (!TechnologySystem.PremodernLocked &&
+            GetFeature(culture, RepublicSystem.FeatureAbolishMonarchy) > 0f &&
+            RegimeManager.regimes != null && RegimeManager.regimes.ContainsKey(RegimeType.Modern))
+        {
+            regime = RegimeType.Modern;
+            return true;
+        }
+        CultureInstitutionState state = GetOrCreateCultureState(culture);
+        InstitutionNodeConfig best = null;
+        foreach (string nodeId in state?.enacted_node_ids ?? Enumerable.Empty<string>())
+        {
+            InstitutionNodeConfig node = InstitutionDefinitionRegistry.Get(nodeId);
+            if (node == null || !IsSameLine(node.line, line)) continue;
+            if (!InstitutionDefinitionRegistry.TryGetNodeRegime(node, out _)) continue;
+            // 等级相同取后施行的(以前取先施行的：部落、汗国、哈里发国、周制这些节点等级相同，全靠 replaces 兜着)
+            if (best == null || node.advancement >= best.advancement) best = node;
+        }
+        if (best != null && InstitutionDefinitionRegistry.TryGetNodeRegime(best, out regime)) return true;
+        return InstitutionDefinitionRegistry.TryGetRootRegime(line, out regime);
+    }
+
+    // 文化掌握封建化只代表具备改制条件；未主持改革的旧城邦按本国节奏过渡。
+    // 各国逐个跟上本文化的政体(用户 2026-10-19 选"各线通用逐国跟进"；以前只有罗马线的城邦→封建化会跟，别的线第二个帝国
+    // 永远停在旧政体——节点"已施行"后别国再也采纳不了)：独立国家与帝国核心每年看本文化制度树走到的政体，本国没跟上的，
+    // 在本文化走到那一步后的第 2~5 年(属国已改的先改)、本国采纳了所需科技时改过去。
+    // 原始政体(部落分迁管)、共和与现代(RepublicSystem 管)、手动选过或被锁定的、征服王朝(复合帝国)、周室之内的不动
+    private const int RegimeReformAge = 16, RegimeFollowNotableCities = 8;
+    private const float RegimeFollowChance = 0.35f;
+
+    public static void TryAdvanceRegimeTransition(Realm kingdom)
+    {
+        if (kingdom?.Record == null || kingdom.IsGone() || EmpireWorld.Current == null || RegimeManager.regimes == null) return;
+        RegimeType? current = kingdom.GetRegime()?.type;
+        if (current == null || RegimeManager.IsPrimitive(current) || current is RegimeType.Modern or RegimeType.Republic) return;
+        Empire empire = kingdom.GetEmpire();
+        if (empire != null && (empire.IsArchived() || empire.IsGone() || empire.CoreKingdom != kingdom ||
+                               CompositeEmpireService.IsComposite(empire))) return;
+        var extra = kingdom.GetOrCreate();
+        // 周室之内：只认还在的周室(战国离开帝国、所属周室仍是周制的诸侯)。zhou_sphere_id 只在周被代、统一时清，
+        // 周室亡于外族、改行律令或解散后还留着，以前凭它一概不动，这些旧诸侯就永远停在周制
+        if (extra.regime_manually_selected || ZhouEraSystem.IsDetachedVassal(kingdom) || RepublicSystem.IsRegimeLocked(kingdom)) return;
+        // 旧制犹存的跟旧制所属的文化(见 LegacyInstitutionSystem)，不跟着落后的新文化退回去；帝国核心跟帝国的制度文化
+        // (不跟核心王国自己的，见 CultureService.GetRegimeCulture)
+        string culture = CultureService.GetRegimeCulture(kingdom);
+        if (!CultureService.IsValidCulture(culture) || !TryResolveCultureRegime(culture, out RegimeType target) ||
+            target == current || RegimeManager.IsPrimitive(target) || target is RegimeType.Modern or RegimeType.Republic ||
+            !RegimeManager.regimes.TryGetValue(target, out Regime targetRegime) || targetRegime == null) return;
+
+        // 本文化施行那个政体节点的时间(没记过的从现在起算)
+        CultureInstitutionState cultureState = GetOrCreateCultureState(culture);
+        if (cultureState == null) return;
+        string line = GetCultureLine(culture);
+        InstitutionNodeConfig node = InstitutionDefinitionRegistry.GetForLine(line).FirstOrDefault(candidate =>
+            cultureState.enacted_node_ids.Contains(candidate.id) &&
+            InstitutionDefinitionRegistry.TryGetNodeRegime(candidate, out RegimeType declared) && declared == target);
+        if (node == null) return;
+        cultureState.enacted_timestamps ??= new Dictionary<string, double>();
+        if (!cultureState.enacted_timestamps.TryGetValue(node.id, out double enactedAt) || enactedAt < 0d)
+        {
+            enactedAt = GameClock.Now;
+            cultureState.enacted_timestamps[node.id] = enactedAt;
+        }
+
+        // 属国已经改制时先让中央跟上；其他国家在文化走到这一步后的第 2~5 年分批改制
+        bool subjectsFirst = empire?.kingdoms_list?.Any(member => member != null && member != kingdom && !member.IsGone() &&
+            GetCultureLine(CultureService.GetInstitutionCulture(member)) == line && member.GetRegime()?.type == target) == true;
+        if (!subjectsFirst && GameClock.YearsSince(enactedAt) < 2 + kingdom.Key % 4) return;
+        // 本国还没采纳所需的科技：等采纳了再改
+        if (!RealmCanAdoptRegime(kingdom, target)) return;
+        // 改制得有人主持、挑时候(用户 2026-11-24 "政权更替大多数情况下都是自发的")：以前到了年头、科技齐了就悄悄换，
+        // 只写日志，看不到是谁改的。现在要有成年的君主在位、眼下不在打仗，每年 RegimeFollowChance 的机会办成(属国已改的不掷)，
+        // 办成记在主持的君主名下、进史书，举足轻重的国上屏幕
+        Person ruler = kingdom.Ruler;
+        if (ruler == null || !ruler.Alive || ruler.Age() < RegimeReformAge || kingdom.HasEnemies()) return;
+        if (!subjectsFirst && EcRandom.value >= RegimeFollowChance) return;
+
+        LogService.LogInfo($"[EmpireCraft][制度] {kingdom.GetKingdomName()} 跟上本文化的政体：{current} → {target}");
+        string followed = string.Format(LM.Get("institution_regime_followed_history"), ruler.FullName(), kingdom.GetKingdomName(),
+            CompositeEmpireService.GetRegimeName(current.Value), CompositeEmpireService.GetRegimeName(target));
+        if (empire != null) EventRecorder.RecordRoutine(empire, followed, ruler);
+        else if ((kingdom.Cities?.Count ?? 0) >= RegimeFollowNotableCities) TranslateHelper.LogEventMessage(followed, kingdom);
+        if (empire != null)
+        {
+            EnsureEmpireState(empire);
+            ChangeRegime(empire, target);
+        }
+        else
+        {
+            ReligionLevel? piety = PapacySystem.PietyBeforeReload(kingdom);
+            kingdom.SetRegimeType(target);
+            kingdom.LoadRegime();
+            kingdom.SystemChange();
+            // LoadRegime 从模板重新克隆政体，改过的选项都回到默认：同王国推成改政体的制度，清掉落地记录整体重放一遍持久效果。
+            // 以前独立王国跟上文化政体时不重放，早先施行的教权至上等对它再也不生效
+            InstitutionRealm realm = InstitutionRealm.Of(kingdom);
+            InstitutionEmpireState state = InstitutionRealm.IsSovereignKingdom(kingdom) ? EnsureRealmState(realm) : null;
+            if (state != null)
+            {
+                state.applied_node_ids.Clear();
+                SyncSharedEffects(realm);
+            }
+            // 圣城之主的政教合一不是制度给的(圣城神权自立、恢复圣地)，城邦封建化之后照旧，才成得了教宗国
+            PapacySystem.KeepTheocracy(kingdom, piety);
+        }
+    }
+
+    // 帝国的制度文化：政体、改革、立宪、党禁与政党机制、复辟、继承法、制度特性等照它(旧制犹存的照旧制)
+    public static string GetPrimaryCulture(Empire empire) => GetPrimaryCulture(empire, honorLegacy: true);
+
+    // 帝国的风俗文化：党名、国号后缀、宪法名、元首称号这些词库，文化特性(游牧、劫掠)，宗教亲和(教廷、哈里发)，
+    // 族类(逐客、朝贡国并入)，本文化发明的科技与名著的通告——照国家/统治文化，不随旧制(见 LegacyInstitutionSystem)。
+    // 没有旧制时与制度文化相同
+    public static string GetCustomsCulture(Empire empire) => GetPrimaryCulture(empire, honorLegacy: false);
+
+    // honorLegacy：帝国核心改从文明等级更低的文化后旧制犹存(见 LegacyInstitutionSystem)，制度照旧制所属的文化；
+    // 传 false 取不论旧制时本该用的制度文化(判旧制何时结束用)
+    public static string GetPrimaryCulture(Empire empire, bool honorLegacy)
+    {
+        // 制度按国家绑定的文化走：征服王朝采用当地制度后，制度树跟随制度文化(而不是统治族群的文化)，
+        // 否则会按统治族群的科技线把政体改回去(如阿拉伯王朝治下的华夏帝国显示哈里发)
+        bool composite = CompositeEmpireService.IsComposite(empire);
+        // 征服王朝另有统治文化、制度文化之分，不叠旧制
+        if (honorLegacy && !composite && LegacyInstitutionSystem.Stored(empire?.CoreKingdom) is string legacy) return legacy;
+        // 分治的征服王朝朝廷照本族旧制，制度树走本族那条线(见 CompositeEmpireService.GetCourtCulture)
+        string culture = composite
+            ? CompositeEmpireService.GetCourtCulture(empire)
+            : CultureService.GetEmpireDefaultCulture(empire);
+        // 统治者与治下多数城市同属一种文化：制度跟着这种文化走，不看法统缓存的文化。
+        // 华夏的梁继承了游牧政权"西苏"的法统(法统文化不能改：一种文化同时只能有一个正统帝国)，
+        // 以前按法统的游牧文化走游牧制度、改游牧政体，国号也成了"匈鲁斯"
+        if (!composite && empire?.data != null && RulingMajorityCulture(empire) is string local) culture = local;
+        return CultureService.IsValidCulture(culture)
+            ? culture
+            : CultureService.GetRealmCulture(empire?.CoreKingdom);
+    }
+
+    // 统治文化同时也是治下多数城市的主流文化时返回它，否则 null(按帝国缓存，一年重算一次)
+    private static readonly Dictionary<long, (string culture, double at)> RulingMajority = new();
+
+    // 统治文化变了(易俗改制等)：丢掉缓存，下次重算
+    public static void ForgetRulingMajority(Empire empire)
+    {
+        if (empire?.data != null) RulingMajority.Remove(empire.data.id);
+    }
+
+    private static string RulingMajorityCulture(Empire empire)
+    {
+        if (EmpireWorld.Current == null || empire.kingdoms_list == null) return null;
+        double now = GameClock.Now;
+        if (RulingMajority.TryGetValue(empire.data.id, out var hit) && now >= hit.at && GameClock.YearsSince(hit.at) < 1)
+            return hit.culture;
+        string result = null;
+        string ruling = CompositeEmpireService.GetRulingCulture(empire);
+        if (CultureService.IsValidCulture(ruling))
+        {
+            int total = 0, same = 0;
+            foreach (Realm kingdom in empire.kingdoms_list)
+            {
+                if (kingdom?.Cities == null || kingdom.IsGone()) continue;
+                foreach (City city in kingdom.Cities)
+                {
+                    string main = city?.Record == null ? null : city.GetOrCreate().main_culture;
+                    if (!CultureService.IsValidCulture(main)) continue;
+                    total++;
+                    if (string.Equals(main, ruling, StringComparison.Ordinal)) same++;
+                }
+            }
+            if (total > 0 && same * 2 > total) result = ruling;
+        }
+        RulingMajority[empire.data.id] = (result, now);
+        return result;
+    }
+
+    // 之前因为本国没采纳科技而没跟上本文化的新体制：科技采纳齐了就过渡过去
+    private static void RetryPendingRegime(Empire empire, InstitutionEmpireState state)
+    {
+        if (state == null || !state.pending_culture_regime) return;
+        Realm core = empire.CoreKingdom;
+        Regime current = core?.GetRegime();
+        string culture = GetPrimaryCulture(empire);
+        // 原始政体(部落分迁管)、共和与现代(RepublicSystem 管)不从这里改：以前读档后本文化制度线还在原始阶段的帝国
+        // 会被改成部落，成员被赶出、帝号变成部落
+        if (current == null || CompositeEmpireService.IsComposite(empire) || RepublicSystem.IsRegimeLocked(core) ||
+            core.GetOrCreate().regime_manually_selected || !TryResolveCultureRegime(culture, out RegimeType regime) ||
+            current.type == regime || RegimeManager.IsPrimitive(regime) ||
+            regime is RegimeType.Modern or RegimeType.Republic)
+        {
+            state.pending_culture_regime = false;
+            return;
+        }
+        if (!RealmCanAdoptRegime(core, regime)) return;
+        state.pending_culture_regime = false;
+        LogService.LogInfo($"[EmpireCraft][制度] {empire.GetEmpireName()} 已采纳所需科技，政体由 {current.type} 过渡到 {regime}");
+        ChangeRegime(empire, regime);
+    }
+
+    // 帝国核心的政体根本不属于制度文化那条线(如华夏制度线上没有游牧政体)：改成本文化已施行到的政体，
+    // 帝号随之重算；正在推的外线改革作废。封建化过渡、共和、手动指定、复合帝国这些正常的不一致不动
+    private static void SyncForeignRegime(Empire empire)
+    {
+        Realm core = empire?.CoreKingdom;
+        Regime regime = core?.GetRegime();
+        if (regime == null || CompositeEmpireService.IsComposite(empire) || RepublicSystem.IsRegimeLocked(core) ||
+            core.GetOrCreate().regime_manually_selected) return;
+        string culture = GetPrimaryCulture(empire);
+        string line = GetCultureLine(culture);
+        InstitutionEmpireState state = empire.data.institution_state;
+        if (state?.active_reform != null && InstitutionDefinitionRegistry.Get(state.active_reform.node_id) is InstitutionNodeConfig node &&
+            InstitutionDefinitionRegistry.HasLine(line) && !IsSameLine(node.line, line))
+            state.active_reform = null;
+        // 不属于本文化制度线的政体一律改回本线的(以前只管游牧、阿拉伯、律令、周制四种)；原始、共和、现代各有专管
+        if (RegimeManager.IsPrimitive(regime.type) || regime.type is RegimeType.Modern or RegimeType.Republic) return;
+        if (!InstitutionDefinitionRegistry.HasLine(line) || LineDeclares(line, regime.type)) return;
+        if (!TryResolveCultureRegime(culture, out RegimeType target) || target == regime.type) return;
+        // 本文化制度线还停在原始阶段(华夏、游牧、阿拉伯、日本线开局都是原始政体)时不能把成形的帝国改回部落——
+        // 这里读档(MigrateEmpire)和每年都跑，以前一读档就把帝国改成部落，成员被赶出、帝号变成部落；
+        // 也不从这里跳到共和、现代(那些走 RepublicSystem)。外线政体先留着，等本文化走出原始阶段再改
+        if (RegimeManager.IsPrimitive(target) || target is RegimeType.Modern or RegimeType.Republic) return;
+        LogService.LogInfo($"[EmpireCraft][制度] {empire.GetEmpireName()} 政体 {regime.type} 不属于 {culture} 的制度线，改为 {target}");
+        ChangeRegime(empire, target);
+        empire.data.empire_type_key = "";
+    }
+
+    // 征服王朝改换治理路线后制度树换了线：正在推的外线改革作废
+    public static void DropForeignReform(Empire empire)
+    {
+        InstitutionEmpireState state = empire?.data?.institution_state;
+        if (state?.active_reform == null) return;
+        string line = GetCultureLine(GetPrimaryCulture(empire));
+        if (InstitutionDefinitionRegistry.Get(state.active_reform.node_id) is InstitutionNodeConfig node &&
+            InstitutionDefinitionRegistry.HasLine(line) && !IsSameLine(node.line, line))
+            state.active_reform = null;
+    }
+
+    private static bool LineDeclares(string line, RegimeType type) =>
+        InstitutionDefinitionRegistry.TryGetRootRegime(line, out RegimeType root) && root == type ||
+        InstitutionDefinitionRegistry.GetForLine(line).Any(node =>
+            InstitutionDefinitionRegistry.TryGetNodeRegime(node, out RegimeType declared) && declared == type);
+
+    #endregion
+
+    #region 帝国侧：年度更新
+
+#if EC_PENDING
+    public static void Update(Empire empire)
+    {
+        if (empire?.data == null || empire.IsArchived() || empire.IsGone() || EmpireWorld.Current == null ||
+            empire.CoreKingdom == null || empire.CoreKingdom.IsGone()) return;
+        InstitutionEmpireState state = EnsureEmpireState(empire);
+        if (state == null) return;
+        double now = GameClock.Now;
+        if (state.last_update_timestamp < 0)
+        {
+            state.last_update_timestamp = now;
+            return;
+        }
+        if (GameClock.YearsSince(state.last_update_timestamp) < 1) return;
+        state.last_update_timestamp = now;
+
+        SyncForeignRegime(empire);
+        RetryPendingRegime(empire, state);
+        // 现代同文化小国并入接壤大国(见 NationalUnificationSystem)
+        NationalUnificationSystem.Consider(empire);
+        // 原始阶段的帝号类别随阶段改称(华夏部落联盟→朝，日本部族连合→王权)
+        if (empire.CoreKingdom.GetRegime() is Regime originRegime && RegimeManager.IsPrimitive(originRegime.type) &&
+            !string.IsNullOrEmpty(empire.data.empire_type_key) && empire.data.empire_type_key.StartsWith("Origin_empire") &&
+            empire.data.empire_type_key != OverallHelperFunc.ResolveEmpireTypeKey(originRegime, empire.CoreKingdom))
+            empire.data.empire_type_key = "";
+        // 走出原始阶段(汗国、哈里发国、律令国家……)：部落、部落联盟、部族连合、王权这些称呼不再沿用，按新政体重取
+        // (华夏家天下以后的"朝"照旧)
+        else if (empire.CoreKingdom.GetRegime() is Regime settled && !RegimeManager.IsPrimitive(settled.type) &&
+                 empire.data.empire_type_key is string staleKey && staleKey.StartsWith("Origin_empire") &&
+                 staleKey != "Origin_empire_huaxia_dynasty")
+            empire.data.empire_type_key = "";
+        // 元首制：共和国改称帝国(见 Empire.IsPrincipate)；原始封建制按文化另起称呼(印度称帝国，不称至高王国，见
+        // OriginFeudalism/OfficialType.csv)，旧档里记着"至高王国"的也在这里按文化重取
+        else if (empire.data.empire_type_key is string republicKey &&
+                 (republicKey.StartsWith("ClassicalRepublic_empire") || republicKey.StartsWith("OriginFeudalism_empire")) &&
+                 republicKey != OverallHelperFunc.ResolveEmpireTypeKey(empire.CoreKingdom.GetRegime(), empire.CoreKingdom))
+            empire.data.empire_type_key = "";
+        // 同文化的其他政权研究出来的制度，在这里把持久效果补到本政权身上
+        InstitutionRealm realm = InstitutionRealm.Of(empire);
+        SyncSharedEffects(realm);
+        SyncGrantedTraits(realm);
+        UpdateSocialUnrest(empire);
+
+        if (state.active_reform != null) AdvanceReform(realm);
+        else TryStartAiReform(realm);
+    }
+#endif
+
+    // 世界级的接触/吸收结算一年一次。以前由当年第一个更新的帝国顺带触发，没有帝国的年份(部落时代、天下大乱)
+    // 就不结算；现在登记在城市钩子的年度扫描里(见 CityPatch.WorldYearlyScans"制度接触")，有没有帝国都照常结算
+    public static void TryYearlyWorldPass()
+    {
+        if (EmpireWorld.Current == null || ModClass.IS_CLEAR) return;
+        double now = GameClock.Now;
+        // 换了世界、读了更早的档(时间倒流)：立即重算
+        if (_lastWorldPassTimestamp >= 0 && now >= _lastWorldPassTimestamp &&
+            GameClock.YearsSince(_lastWorldPassTimestamp) < 1) return;
+        _lastWorldPassTimestamp = now;
+        try
+        {
+            ProcessWorldContactsAndAbsorption();
+        }
+        catch (Exception exception)
+        {
+            LogService.LogError($"制度接触/吸收结算失败: {exception}");
+        }
+    }
+
+    private static InstitutionEmpireState EnsureEmpireState(Empire empire) =>
+        EnsureRealmState(InstitutionRealm.Of(empire));
+
+    // 政权的改革状态：帝国存在 EmpireData，王国存在 KingdomExtraData(可空，第一次用到才建)
+    public static InstitutionEmpireState EnsureRealmState(InstitutionRealm realm)
+    {
+        if (realm == null) return null;
+        InstitutionEmpireState state;
+        if (realm.IsEmpire)
+        {
+            if (realm.Empire.data == null) return null;
+            state = realm.Empire.data.institution_state ??= new InstitutionEmpireState();
+        }
+        else
+        {
+            if (realm.Realm?.Record == null || realm.Realm.IsGone()) return null;
+            KingdomExtension.KingdomExtraData extra = realm.Realm.GetOrCreate();
+            state = extra.institution_state ??= new InstitutionEmpireState();
+        }
+        InstitutionStateNormalizer.Normalize(state);
+        return state;
+    }
+
+    // 老存档 / 新建帝国的兜底：确保文化状态存在并带上本线根节点。
+    // 刻意不再往帝国身上塞任何"已施行"节点——施行记录只存在文化里。
+    // 易俗改制(见 CultureReformSystem)改了统治文化之后：重算制度文化，政体不属于新制度线的当即改过来
+    public static void ResyncCulture(Empire empire)
+    {
+        if (empire?.data == null) return;
+        RulingMajority.Remove(empire.data.id);
+        GetOrCreateCultureState(GetPrimaryCulture(empire));
+        SyncForeignRegime(empire);
+    }
+
+    public static void MigrateEmpire(Empire empire)
+    {
+        if (EnsureEmpireState(empire) == null) return;
+        GetOrCreateCultureState(GetPrimaryCulture(empire));
+        SyncForeignRegime(empire);
+    }
+
+    #endregion
+
+    #region 改革流程
+
+#if EC_PENDING
+    public static bool CanStartReform(Empire empire, InstitutionNodeConfig node, out string reason,
+        bool force = false, InstitutionPoliticalBalance balance = null) =>
+        CanStartReform(InstitutionRealm.Of(empire), node, out reason, force, balance);
+
+    public static bool CanStartReform(InstitutionRealm realm, InstitutionNodeConfig node, out string reason,
+        bool force = false, InstitutionPoliticalBalance balance = null)
+    {
+        reason = "";
+        InstitutionEmpireState state = EnsureRealmState(realm);
+        Realm core = realm?.Core;
+        if (state == null || core == null || core.IsGone() || node == null ||
+            !InstitutionDefinitionRegistry.IsValid(node))
+        {
+            reason = "institution_reform_invalid";
+            return false;
+        }
+        Empire empire = realm.Empire;
+        string culture = realm.Culture;
+        CultureInstitutionState cultureState = GetOrCreateCultureState(culture);
+        if (cultureState == null)
+        {
+            reason = "institution_reform_invalid";
+            return false;
+        }
+        // 只能研究本文化所属线上的节点；别的线的制度只能靠接触吸收
+        if (!IsSameLine(node.line, GetCultureLine(culture)))
+        {
+            reason = "institution_reform_wrong_line";
+            return false;
+        }
+        // 同线里只给部分文化的制度(见 InstitutionNodeConfig.cultures)
+        if (!InstitutionDefinitionRegistry.FitsCulture(node, culture))
+        {
+            reason = "institution_reform_no_tradition";
+            return false;
+        }
+        // 理念车道要执政党推：只有帝国有政党，王国一概推不了
+        if (IdeologyInstitutionPaths.TryGetIdeology(node.branch, out PartyIdeology ideology))
+        {
+            FixedFaction governing = realm.IsEmpire ? PartySystem.GetGovernmentParty(empire) : null;
+            if (governing?.IsParty != true || governing.Ban || governing.Ideology != ideology)
+            {
+                reason = "ideology_reform_requires_governing_party";
+                return false;
+            }
+        }
+        // 之前漏了这一条：被取代的旧制度(均田租庸/府兵制/察举制……)在强制全解锁之后仍然"前置满足"，
+        // AI 会去推行一个已经过时的制度
+        if (IsSuperseded(cultureState, node.id))
+        {
+            reason = "institution_reform_superseded";
+            return false;
+        }
+        if (state.active_reform != null)
+        {
+            reason = "institution_reform_already_active";
+            return false;
+        }
+        if (realm.IsEmpire && empire.data.constitutional_economy?.constitutional_reform_active == true)
+        {
+            reason = "institution_reform_already_active";
+            return false;
+        }
+        if (cultureState.enacted_node_ids.Contains(node.id))
+        {
+            reason = "institution_reform_already_enacted";
+            return false;
+        }
+        if (!InstitutionDefinitionRegistry.ArePrerequisitesMet(node, id => IsPrerequisiteHeld(cultureState, id)))
+        {
+            reason = "institution_reform_missing_requirement";
+            return false;
+        }
+        // 禁止近代化：只能走到君主立宪；时代锁定：锁定时代以后的制度不再新行(见 TechnologySystem.EraLock)
+        if (TechnologySystem.ModernInstitutionBlocked(node))
+        {
+            reason = TechnologySystem.ModernInstitutionReason(node);
+            return false;
+        }
+        // 技术是制度的物质基础：没有对应技术，这项制度推不动(强制也不行，只有上帝模式直接点亮)。
+        // 本文化发明了还不够，本国也要采纳了(见 TechnologySystem.RealmHasTech)
+        if (!TechnologySystem.AreRealmInstitutionTechsMet(core, node, out _))
+        {
+            reason = "institution_reform_missing_tech";
+            return false;
+        }
+        if (node.requires_composite_empire && (!realm.IsEmpire || !CompositeEmpireService.IsMultiethnic(empire)))
+        {
+            reason = "institution_reform_requires_composite_empire";
+            return false;
+        }
+        if (node.requires_cities > 0 && RealmCityCount(realm) < node.requires_cities)
+        {
+            reason = "institution_reform_requires_cities";
+            return false;
+        }
+        if (node.exclusive_with.Any(cultureState.enacted_node_ids.Contains))
+        {
+            reason = "institution_reform_exclusive";
+            return false;
+        }
+        // 王国：总开关、是否独立、本文化有帝国时不推改政体的制度(见 InstitutionSystem.Realm.cs)
+        if (!realm.IsEmpire && !CanKingdomTakeUp(realm, node, culture, out reason)) return false;
+        if (realm.Authority < node.research.mandate_required)
+        {
+            reason = realm.IsEmpire ? "institution_reform_low_mandate" : "institution_reform_low_authority";
+            return false;
+        }
+        if (node.politics.sponsor_only.Count > 0 &&
+            !node.politics.sponsor_only.Contains(
+                core.GetRegime()?.GetDominateFaction()?.Type ?? FactionType.无))
+        {
+            reason = "institution_reform_sponsor_required";
+            return false;
+        }
+        if (force && !node.reform.allow_force)
+        {
+            reason = "institution_reform_force_disabled";
+            return false;
+        }
+        balance ??= CalculatePoliticalBalance(realm, node);
+        if (!force && balance.Support < balance.Opposition)
+        {
+            reason = "institution_reform_opposition_dominant";
+            return false;
+        }
+        return true;
+    }
+
+    public static bool StartReform(Empire empire, string nodeId, bool force = false,
+        string sponsorFactionId = "") =>
+        StartReform(InstitutionRealm.Of(empire), nodeId, force, sponsorFactionId);
+
+    public static bool StartReform(InstitutionRealm realm, string nodeId, bool force = false,
+        string sponsorFactionId = "")
+    {
+        InstitutionNodeConfig node = InstitutionDefinitionRegistry.Get(nodeId);
+        if (!CanStartReform(realm, node, out _, force)) return false;
+        InstitutionPoliticalBalance balance = CalculatePoliticalBalance(realm, node);
+        FixedFaction sponsor = ResolveReformSponsor(realm, node, sponsorFactionId);
+        string culture = realm.Culture;
+        bool replacesVestedInterest = node.replaces.Any(id => IsEnacted(culture, id));
+        float radicalism = node.resistance.base_radicalism;
+        if (replacesVestedInterest) radicalism += node.resistance.vested_interest_radicalism;
+        if (force) radicalism += node.reform.force_radicalism;
+        EnsureRealmState(realm).active_reform = new InstitutionReformState
+        {
+            node_id = node.id,
+            sponsor_faction_id = sponsor?.GetID() ?? "",
+            support = balance.Support,
+            opposition = balance.Opposition,
+            radicalism = InstitutionRules.Clamp100(radicalism),
+            stage = InstitutionReformStage.Debate,
+            started_timestamp = GameClock.Now,
+            forced = force
+        };
+        ApplyOppositionFactionGrowth(realm, node);
+        ApplyEffects(realm, node, node.effects_on_start, false);
+        string content = string.Format(LM.Get("institution_reform_started_history"), realm.Name,
+            GetNodeName(node, culture));
+        realm.Record(content, actorId: realm.Ruler?.Key ?? -1L, kingdomId: realm.Core?.Key ?? -1L);
+        EmpireCraft.Core.TranslateHelper.LogEventMessage(content, realm.Core);
+        return true;
+    }
+#endif
+
+    // shares：已算好的本政权阶层构成(王国年度扫描里一并算过，免得再扫一遍人口)；
+    // years：这次结算抵几年(帝国按年更新为 1；王国分帧扫描，一轮可能不止一年，按实际年数补，见 UpdateKingdom)
+#if EC_PENDING
+    private static void AdvanceReform(InstitutionRealm realm, Dictionary<SocialClass, float> shares = null,
+        float years = 1f)
+    {
+        InstitutionEmpireState state = EnsureRealmState(realm);
+        InstitutionReformState reform = state.active_reform;
+        if (reform.resistance_war_id > 0)
+        {
+            War resistanceWar = EmpireWorld.Current?.WarByKey(reform.resistance_war_id);
+            if (resistanceWar != null && !resistanceWar.HasEnded()) return;
+            reform.resistance_war_id = -1L;
+        }
+        InstitutionNodeConfig node = InstitutionDefinitionRegistry.Get(reform.node_id);
+        string culture = realm.Culture;
+        if (node == null || !IsSameLine(node.line, GetCultureLine(culture)) || IsSuperseded(culture, node.id))
+        {
+            // 节点被配置删掉了，或者这个政权的主文化在改革期间变了（征服/同化导致），
+            // 或者同文化已经施行了取代它的新制度 → 本次改革作废
+            state.active_reform = null;
+            return;
+        }
+        // 回退另算阻力与进度，推完是撤下而不是施行(用户 2026-11-11 "派系可以有自己倾向的文化制度节点""或者回退，但是回退阻力应当巨大"，见 InstitutionSystem.FactionAgenda)
+        if (reform.revert)
+        {
+            AdvanceRevert(realm, reform, node, shares, years);
+            return;
+        }
+        if (IdeologyInstitutionPaths.TryGetIdeology(node.branch, out PartyIdeology ideology) &&
+            (!realm.IsEmpire || PartySystem.GetGovernmentParty(realm.Empire)?.Ideology != ideology))
+        {
+            state.active_reform = null;
+            string stopped = string.Format(LM.Get("ideology_reform_stopped_history"), GetNodeName(node, culture));
+            realm.Record(stopped, kingdomId: realm.Core?.Key ?? -1L);
+            return;
+        }
+        if (IsEnacted(culture, node.id))
+        {
+            // 同文化的另一个政权先推完了，或者这个节点被吸收进来了 → 本次改革直接算完成
+            state.active_reform = null;
+            state.last_reform_completed_timestamp = GameClock.Now;
+            SyncSharedEffects(realm);
+            return;
+        }
+        InstitutionPoliticalBalance balance = CalculatePoliticalBalance(realm, node, shares);
+        reform.support = balance.Support;
+        reform.opposition = balance.Opposition;
+        bool replacesVestedInterest = node.replaces.Any(id => IsEnacted(culture, id));
+        InstitutionReformEnvironment environment = GetReformEnvironment(realm, node);
+        // 技术爆炸推动相应的制度变革：掌握的相关技术越多，改革推进越快
+        float techPush = TechnologySystem.GetInstitutionPush(culture, node);
+        // 时代落差越大，改革越快(最短年限每档减一年，最少一年)
+        int minimumYears = Math.Max(1, environment.EffectiveMinimumYears - EraLag(culture, node));
+        float advance = InstitutionRules.CalculateDurationScaledAnnualProgress(
+            node.reform.base_progress_per_year, balance.Support, balance.Opposition,
+            minimumYears) * (1f + techPush) * years;
+        // 澳洲人的改革不论支持反对，最多 MaxReformYears 年推完
+        if (culture == TransmigrantSystem.Culture) advance = Math.Max(advance, 100f / TransmigrantSystem.MaxReformYears * years);
+        reform.progress = Math.Min(100f, reform.progress + advance);
+        reform.radicalism = InstitutionRules.Clamp100(reform.radicalism +
+            InstitutionRules.CalculateAnnualRadicalism(balance.Support, balance.Opposition,
+                replacesVestedInterest, reform.forced) * years);
+        reform.stage = InstitutionRules.ResolveStage(reform.progress);
+        ApplyOppositionFactionGrowth(realm, node, years);
+        if (!reform.resistance_triggered && reform.radicalism >= node.resistance.rebellion_threshold)
+        {
+            // 帝国：反对派拥立成员国起兵；王国没有成员国，改革当场作罢(见 InstitutionSystem.Realm.cs)
+            if (realm.IsEmpire) reform.resistance_triggered = TryEscalateResistance(realm.Empire, node);
+            else
+            {
+                CollapseKingdomReform(realm, node);
+                return;
+            }
+        }
+        int elapsedYears = Math.Max(0, GameClock.YearsSince(reform.started_timestamp));
+        if (reform.progress >= 100f && elapsedYears >= minimumYears)
+            CompleteReform(realm, node);
+    }
+#endif
+
+    public static InstitutionReformEnvironment GetReformEnvironment(Empire empire,
+        InstitutionNodeConfig node = null) =>
+        GetReformEnvironment(InstitutionRealm.Of(empire), node);
+
+    public static InstitutionReformEnvironment GetReformEnvironment(InstitutionRealm realm,
+        InstitutionNodeConfig node = null)
+    {
+        int nativeMinimum = Math.Max(1, node?.reform?.minimum_years ?? 1);
+        var result = new InstitutionReformEnvironment { EffectiveMinimumYears = nativeMinimum };
+        InstitutionReformCompetitionConfig config = InstitutionDefinitionRegistry.Global?.reform_competition;
+        if (config?.enabled != true || realm == null || EmpireWorld.Current == null) return result;
+
+        string culture = realm.Culture;
+        if (!CultureService.IsValidCulture(culture)) return result;
+        result.SameCultureCountries = EmpireWorld.Current.LiveRealms.Count(kingdom =>
+            kingdom != null && !kingdom.IsGone() && kingdom.Record != null && kingdom.Cities?.Count > 0 &&
+            string.Equals(CultureService.GetRealmCulture(kingdom), culture, StringComparison.Ordinal));
+        if (ModClass.EMPIRE_MANAGER != null)
+        {
+            result.SameCultureEmpires = ModClass.EMPIRE_MANAGER.Count(candidate =>
+                candidate != null && !candidate.IsGone() && !candidate.IsArchived() &&
+                candidate.CoreKingdom != null && !candidate.CoreKingdom.IsGone() &&
+                string.Equals(GetPrimaryCulture(candidate), culture, StringComparison.Ordinal));
+        }
+        // 改革竞争按同文化"政权"数(帝国 + 自己推制度的独立王国)算：部落时代多是王国、部落，
+        // 只数帝国的话那时的改革要慢一倍。统一成一个大帝国后只剩一家，一项要四十来年；
+        // 帝国里同文化的成员国每三国折一家(九个成员的统一帝国约二十二年一项，同分立的部落、王国相当)
+        result.SameCultureMembers = CultureEmpireMembers(culture);
+        result.SameCultureRealms = Math.Max(1, result.SameCultureEmpires + CultureKingdomRealms(culture).Count +
+                                               result.SameCultureMembers / MembersPerRealm);
+        result.SameCultureCountries = Math.Max(1, result.SameCultureCountries);
+        result.SameCultureEmpires = Math.Max(1, result.SameCultureEmpires);
+        result.AdvancedBorderEmpires = CountAdvancedBorderEmpires(realm, culture);
+
+        float countryBonus = Math.Min(config.country_bonus_cap,
+            Math.Max(0, result.SameCultureCountries - 1) * config.country_bonus_per_additional);
+        float empireBonus = Math.Min(config.empire_bonus_cap,
+            Math.Max(0, result.SameCultureRealms - 1) * config.empire_bonus_per_additional);
+        float borderBonus = result.AdvancedBorderEmpires > 0 ? config.advanced_border_bonus : 0f;
+        result.SpeedMultiplier = Math.Max(1f, Math.Min(config.maximum_speed_multiplier,
+            1f + countryBonus + empireBonus + borderBonus));
+        result.EffectiveMinimumYears = Math.Max(nativeMinimum,
+            (int)Math.Ceiling(config.isolated_duration_years / result.SpeedMultiplier));
+        // 穿越者的文化(澳洲人)：带着现代的知识与组织，每项改革最多 TransmigrantSystem.MaxReformYears 年
+        // (用户 10-29 "临高政权的科技速度研究太慢了""每项改革最多5年")。以前只有临高一家，按孤立文化每项至少二十五年
+        if (culture == TransmigrantSystem.Culture)
+            result.EffectiveMinimumYears = Math.Min(result.EffectiveMinimumYears, TransmigrantSystem.MaxReformYears);
+        return result;
+    }
+
+    // 接壤的、文明等级更高的异文化政权数(帝国按全体成员的边境算；邻国是帝国的算帝国，自己推制度的独立王国也算一个)。
+    // 列岛文化隔海相望的外国也算接壤(用户 2026-10-21 选文明平衡 D2：岛上没有接壤的外国，以前拿不到这份加速；
+    // 不要水师，见 TechnologySystem.CitiesAcrossStrait)，别的文化照旧只认陆上接壤
+    // 通达层算好后(用户 2026-11-06)：不再只数接壤的(加列岛隔海)，数通达强度不低于 institution_advanced_min 的更先进政权——
+    // 隔着雪山大漠接壤的不算，隔着窄海、沿着商路往来密切的也算
+    private static int CountAdvancedBorderEmpires(InstitutionRealm realm, string culture)
+    {
+        if (realm == null || realm.IsEmpire && realm.Empire.kingdoms_list == null) return 0;
+        if (ConnectivitySystem.Ready)
+        {
+            int counted = CountAdvancedReachable(realm, culture);
+            if (counted >= 0) return counted;
+        }
+        IEnumerable<Realm> members = realm.IsEmpire ? realm.Empire.kingdoms_list : realm.Scope;
+        int ownLevel = GetCultureRanking(culture).Level;
+        bool archipelago = TianxiaSystem.IsArchipelago(culture);
+        var neighbours = new HashSet<string>(StringComparer.Ordinal);
+        foreach (Realm member in members.Where(kingdom => kingdom != null && !kingdom.IsGone()))
+        {
+            foreach (City city in (member.Cities ?? Enumerable.Empty<City>()).Where(city =>
+                         city != null && !city.IsGone() && (city.NeighbourRealms != null || archipelago)))
+            {
+                IEnumerable<Realm> bordering = city.NeighbourRealms ?? Enumerable.Empty<Realm>();
+                if (archipelago)
+                    bordering = bordering.Concat(TechnologySystem.CitiesAcrossStrait(city)
+                        .Where(across => !across.IsGone()).Select(across => across.Realm));
+                foreach (Realm neighbour in bordering)
+                {
+                    if (neighbour == null || neighbour.IsGone() || neighbour == member) continue;
+                    Empire neighbourEmpire = neighbour.GetEmpire();
+                    string key;
+                    string neighbourCulture;
+                    if (neighbourEmpire != null)
+                    {
+                        if (neighbourEmpire == realm.Empire || neighbourEmpire.IsGone() ||
+                            neighbourEmpire.IsArchived() || neighbourEmpire.CoreKingdom == null ||
+                            neighbourEmpire.CoreKingdom.IsGone()) continue;
+                        key = "e" + neighbourEmpire.Key;
+                        neighbourCulture = GetPrimaryCulture(neighbourEmpire);
+                    }
+                    else if (KingdomReformsEnabledFor(neighbour) && neighbour != realm.Realm &&
+                             InstitutionRealm.IsSovereignKingdom(neighbour))
+                    {
+                        key = "k" + neighbour.Key;
+                        neighbourCulture = CultureService.GetInstitutionCulture(neighbour);
+                    }
+                    else continue;
+                    if (!CultureService.IsValidCulture(neighbourCulture) ||
+                        string.Equals(neighbourCulture, culture, StringComparison.Ordinal)) continue;
+                    if (GetCultureRanking(neighbourCulture).Level > ownLevel) neighbours.Add(key);
+                }
+            }
+        }
+        return neighbours.Count;
+    }
+
+    // 按通达数更先进的政权；本政权这一轮还没进通达层(新立的)返回 -1，照旧数接壤
+    private static int CountAdvancedReachable(InstitutionRealm realm, string culture)
+    {
+        Realm own = realm.IsEmpire ? realm.Empire.CoreKingdom : realm.Realm;
+        if (own == null || own.IsGone()) return -1;
+        int ownLevel = GetCultureRanking(culture).Level;
+        float min = ConnectivitySystem.Config.institution_advanced_min;
+        if (!ConnectivitySystem.Knows(own)) return -1;
+        var counted = new HashSet<string>(StringComparer.Ordinal);
+        foreach (Realm other in EmpireWorld.Current.LiveRealms)
+        {
+            if (other == null || other.IsGone() || !other.IsCivilized() || other == own) continue;
+            Empire otherEmpire = other.GetEmpire();
+            string key;
+            string otherCulture;
+            if (otherEmpire != null)
+            {
+                if (otherEmpire == realm.Empire || otherEmpire.IsGone() || otherEmpire.IsArchived() || otherEmpire.CoreKingdom != other ||
+                    otherEmpire.CoreKingdom.IsGone()) continue;
+                key = "e" + otherEmpire.Key;
+                otherCulture = GetPrimaryCulture(otherEmpire);
+            }
+            else if (KingdomReformsEnabledFor(other) && other != realm.Realm && InstitutionRealm.IsSovereignKingdom(other))
+            {
+                key = "k" + other.Key;
+                otherCulture = CultureService.GetInstitutionCulture(other);
+            }
+            else continue;
+            if (!CultureService.IsValidCulture(otherCulture) || string.Equals(otherCulture, culture, StringComparison.Ordinal)) continue;
+            if (GetCultureRanking(otherCulture).Level <= ownLevel) continue;
+            if (ConnectivitySystem.LearnStrength(own, other) >= min) counted.Add(key);
+        }
+        return counted.Count;
+    }
+
+    private static void CompleteReform(InstitutionRealm realm, InstitutionNodeConfig node)
+    {
+        InstitutionEmpireState state = EnsureRealmState(realm);
+        Empire empire = realm.Empire;
+        string culture = realm.Culture;
+        CultureInstitutionState cultureState = GetOrCreateCultureState(culture);
+        if (cultureState == null)
+        {
+            state.active_reform = null;
+            return;
+        }
+        foreach (string replaced in node.replaces.Where(cultureState.enacted_node_ids.Contains).ToList())
+        {
+            cultureState.enacted_node_ids.Remove(replaced);
+            cultureState.absorbed_node_ids.Remove(replaced);
+        }
+        if (!cultureState.enacted_node_ids.Contains(node.id)) cultureState.enacted_node_ids.Add(node.id);
+        cultureState.enacted_timestamps ??= new Dictionary<string, double>();
+        cultureState.enacted_timestamps[node.id] = GameClock.Now;
+        if (realm.IsEmpire) ApplyReformCompletionShock(empire, node);
+        FactionClassSystem.ApplyInstitutionOutcome(realm, node, GetReformSponsor(realm, state.active_reform));
+        // 一次性效果只作用于推完这次改革的政权，持久效果同时记进 applied 里免得同步再补一遍
+        ApplyEffects(realm, node, node.effects_on_complete, false);
+        if (!state.applied_node_ids.Contains(node.id)) state.applied_node_ids.Add(node.id);
+        // 节点自己声明了政体形态的（比如郡县官僚 = 律令制、封建化 = 封建制），施行完成就顺势
+        // 完成政体变更，不必再额外配一个 change_regime 效果 —— 两处配置也就不会互相矛盾。
+        // 只认本文化科技线上的节点；吸收来的外线节点不改政体
+        if (IsSameLine(node.line, culture.GetInstitutionLine()) &&
+            InstitutionDefinitionRegistry.TryGetNodeRegime(node, out RegimeType declaredRegime) &&
+            realm.Core?.GetRegime()?.type != declaredRegime)
+        {
+            ChangeRegime(realm, declaredRegime);
+        }
+        state.active_reform = null;
+        state.last_reform_completed_timestamp = GameClock.Now;
+        string content = string.Format(LM.Get("institution_reform_completed_history"), realm.Name,
+            GetNodeName(node, culture), culture.GetCultureTranslate());
+        realm.Record(content, actorId: realm.Ruler?.Key ?? -1L, kingdomId: realm.Core?.Key ?? -1L);
+        EmpireCraft.Core.TranslateHelper.LogEventMessage(content, realm.Core);
+    }
+
+    // 反方向的补丁：有些派系诉求(比如"转天朝制度"/"转周制")会直接把政体设成某个值，完全
+    // 绕过科技树——政体已经变了，但科技树里对应的节点还显示"未解锁"，看着自相矛盾。这里把
+    // 这条文化线上声明了这个政体的节点、连同它的前置链，一并补记成"已施行"，让科技树跟上
+    // 真实的政体状态。只补状态，不重放一次性效果(比如正统性惩罚)——那些后果已经跟着诉求
+    // 本身走了，重复触发不合理；节点的共享型效果(继承法解锁等)会在下次 SyncSharedEffects
+    // 时自然补上，不用在这里手动重放一遍。
+    public static void SyncEnactedNodeForRegime(Empire empire, RegimeType regimeType)
+    {
+        if (empire == null) return;
+        SyncEnactedNodeForRegime(GetPrimaryCulture(empire), regimeType);
+    }
+
+    // 按文化补记(王国直接改了政体时用，没有帝国可取制度文化)
+    public static void SyncEnactedNodeForRegime(string culture, RegimeType regimeType)
+    {
+        CultureInstitutionState state = GetOrCreateCultureState(culture);
+        if (state == null) return;
+        InstitutionNodeConfig node = InstitutionDefinitionRegistry.GetForLine(GetCultureLine(culture))
+            .FirstOrDefault(candidate =>
+                InstitutionDefinitionRegistry.TryGetNodeRegime(candidate, out RegimeType declared) &&
+                declared == regimeType);
+        if (node != null) EnactNodeChain(state, node);
+    }
+
+    // 读档补记(见 TechnologySystem.BackfillRegimes)：这条文化线上声明了这些政体的制度，连同前置链记成已施行；返回新记的项数
+    public static int EnactRegimeNodes(string culture, IEnumerable<RegimeType> regimes)
+    {
+        CultureInstitutionState state = GetOrCreateCultureState(culture);
+        if (state == null || regimes == null) return 0;
+        int before = state.enacted_node_ids.Count;
+        List<InstitutionNodeConfig> line = InstitutionDefinitionRegistry.GetForLine(GetCultureLine(culture)).ToList();
+        foreach (RegimeType regime in regimes)
+        {
+            InstitutionNodeConfig node = line.FirstOrDefault(candidate =>
+                InstitutionDefinitionRegistry.TryGetNodeRegime(candidate, out RegimeType declared) && declared == regime);
+            if (node != null) EnactNodeChain(state, node);
+        }
+        return state.enacted_node_ids.Count - before;
+    }
+
+    private static void EnactNodeChain(CultureInstitutionState state, InstitutionNodeConfig node)
+    {
+        // 被取代的旧制度不补；补上的新制度取代旧的(同改革落地、强制点亮；以前这里漏了，读档补记后新旧制度并存)
+        if (node == null || state.enacted_node_ids.Contains(node.id) || IsSuperseded(state, node.id)) return;
+        foreach (string requiredId in node.requires)
+            EnactNodeChain(state, InstitutionDefinitionRegistry.Get(requiredId));
+        // "任一满足"的一组一个都没施行时，补上第一个有效的分支
+        if (node.requires_any.Count > 0 &&
+            !node.requires_any.Any(id => state.enacted_node_ids.Contains(id) || IsSuperseded(state, id)))
+            EnactNodeChain(state, node.requires_any.Select(InstitutionDefinitionRegistry.Get)
+                .FirstOrDefault(candidate => candidate != null));
+        foreach (string replaced in node.replaces.Where(state.enacted_node_ids.Contains).ToList())
+        {
+            state.enacted_node_ids.Remove(replaced);
+            state.absorbed_node_ids.Remove(replaced);
+        }
+        state.enacted_node_ids.Add(node.id);
+    }
+
+    #region 强制点亮（玩家/上帝模式）
+
+    // 不走改革流程、不检查正统与政治态势、不受互斥限制，直接把节点（连同缺失的前置链）记为本文化已施行。
+    // 取代关系照常生效（施行"两税法"会撤掉"均田租庸"），被已施行节点取代的前置不会被重新点亮。
+    // 持久效果立即同步到同文化的所有帝国；本文化由制度决定的政体变化也施加到这些帝国。
+    // 一次性效果（正统、派系力量等）不触发。返回新点亮的节点数。
+    public static int ForceEnactNode(string culture, string nodeId)
+    {
+        CultureInstitutionState state = GetOrCreateCultureState(culture);
+        InstitutionNodeConfig node = InstitutionDefinitionRegistry.Get(nodeId);
+        if (state == null || node == null) return 0;
+        var added = new List<InstitutionNodeConfig>();
+        ForceEnactChain(state, node, added);
+        AfterForceEnact(culture, added);
+        return added.Count;
+    }
+
+    // 把本文化所在线的全部节点按等级依次强制点亮（互斥的分支也一并点亮）。
+    // 意识形态车道除外：理念要一个个解锁(或由传播获得)，全部点亮就等于所有理念同时出现；需要时单独强制点亮。
+    public const string IdeologyBranch = "ideology";
+
+    public static int ForceEnactAll(string culture)
+    {
+        CultureInstitutionState state = GetOrCreateCultureState(culture);
+        if (state == null) return 0;
+        var added = new List<InstitutionNodeConfig>();
+        foreach (InstitutionNodeConfig node in InstitutionDefinitionRegistry.GetForLine(GetCultureLine(culture))
+                     .Where(node => node.branch != IdeologyBranch &&
+                                    !IdeologyInstitutionPaths.TryGetIdeology(node.branch, out _)))
+            ForceEnactChain(state, node, added);
+        AfterForceEnact(culture, added);
+        return added.Count;
+    }
+
+    private static bool IsSuperseded(CultureInstitutionState state, string nodeId) =>
+        state.enacted_node_ids.Any(id => InstitutionDefinitionRegistry.Get(id)?.replaces.Contains(nodeId) == true);
+
+    private static void ForceEnactChain(CultureInstitutionState state, InstitutionNodeConfig node,
+        List<InstitutionNodeConfig> added)
+    {
+        if (node == null || state.enacted_node_ids.Contains(node.id) || IsSuperseded(state, node.id)) return;
+        foreach (string requiredId in node.requires)
+            ForceEnactChain(state, InstitutionDefinitionRegistry.Get(requiredId), added);
+        if (node.requires_any.Count > 0 &&
+            !node.requires_any.Any(id => state.enacted_node_ids.Contains(id) || IsSuperseded(state, id)))
+            ForceEnactChain(state, node.requires_any.Select(InstitutionDefinitionRegistry.Get)
+                .FirstOrDefault(candidate => candidate != null), added);
+        foreach (string replaced in node.replaces.Where(state.enacted_node_ids.Contains).ToList())
+        {
+            state.enacted_node_ids.Remove(replaced);
+            state.absorbed_node_ids.Remove(replaced);
+        }
+        state.enacted_node_ids.Add(node.id);
+        state.enacted_timestamps ??= new Dictionary<string, double>();
+        state.enacted_timestamps[node.id] = EmpireWorld.Current?.Now() ?? 0d;
+        added.Add(node);
+    }
+
+    // 撤销本文化的"废除君主制"(连同必须以它为前置的后续制度)。强人复辟成功时调用(见 RestorationSystem)
+    public static int RevokeAbolishMonarchy(string culture)
+    {
+        CultureInstitutionState state = GetOrCreateCultureState(culture);
+        if (state == null) return 0;
+        List<string> nodes = state.enacted_node_ids.Where(id =>
+            InstitutionDefinitionRegistry.Get(id)?.features.TryGetValue(RepublicSystem.FeatureAbolishMonarchy,
+                out float value) == true && value > 0f).ToList();
+        return nodes.Sum(id => ForceRevokeNode(culture, id));
+    }
+
+    // 玩家手动回退：撤销本文化已掌握的一项制度，连同必须以它为前置的后续制度；它们当初取代的旧制度随之恢复。
+    // 这是已废除君主制的文化重新允许君主制的唯一途径(其他途径见 RepublicSystem.CanRestore 等的拦截)
+    public static int ForceRevokeNode(string culture, string nodeId) => ForceRevokeNodes(culture, new[] { nodeId });
+
+    // 一次回退多项(科技回退神力撤下缺科技的制度，见 TechRollbackSystem)：同上，连同后续制度、恢复被取代的旧制度。
+    // announce = false 时不发世界消息、不记史书(调用方自己记一条总的)，改革作废与持久效果同步照旧
+    public static int ForceRevokeNodes(string culture, IEnumerable<string> nodeIds, bool announce = true)
+    {
+        CultureInstitutionState state = GetOrCreateCultureState(culture);
+        if (state == null || nodeIds == null) return 0;
+        var revoked = new HashSet<string>();
+        var queue = new Queue<string>();
+        foreach (string nodeId in nodeIds)
+            if (InstitutionDefinitionRegistry.Get(nodeId) != null && state.enacted_node_ids.Contains(nodeId)) queue.Enqueue(nodeId);
+        if (queue.Count == 0) return 0;
+        while (queue.Count > 0)
+        {
+            string id = queue.Dequeue();
+            if (!revoked.Add(id)) continue;
+            foreach (string other in state.enacted_node_ids)
+            {
+                if (revoked.Contains(other)) continue;
+                InstitutionNodeConfig node = InstitutionDefinitionRegistry.Get(other);
+                if (node == null) continue;
+                bool needsIt = node.requires.Contains(id) ||
+                               node.requires_any.Contains(id) && !node.requires_any.Any(alternative =>
+                                   alternative != id && !revoked.Contains(alternative) &&
+                                   state.enacted_node_ids.Contains(alternative));
+                if (needsIt) queue.Enqueue(other);
+            }
+        }
+        var removed = new List<InstitutionNodeConfig>();
+        foreach (string id in revoked)
+        {
+            state.enacted_node_ids.Remove(id);
+            state.absorbed_node_ids.Remove(id);
+            state.enacted_timestamps?.Remove(id);
+            InstitutionNodeConfig node = InstitutionDefinitionRegistry.Get(id);
+            if (node != null) removed.Add(node);
+        }
+        state.enacted_timestamps ??= new Dictionary<string, double>();
+        foreach (InstitutionNodeConfig node in removed)
+        foreach (string replaced in node.replaces)
+        {
+            if (state.enacted_node_ids.Contains(replaced) || IsSuperseded(state, replaced) ||
+                InstitutionDefinitionRegistry.Get(replaced) == null) continue;
+            state.enacted_node_ids.Add(replaced);
+            state.enacted_timestamps[replaced] = EmpireWorld.Current?.Now() ?? 0d;
+        }
+        AfterForceRevoke(culture, removed, announce);
+        return removed.Count;
+    }
+
+    // 科技回退以后(见 TechRollbackSystem)：本文化各帝国、各独立王国正在推的改革，目标制度缺了科技或前置制度的作废——
+    // 推进时只看开始改革时的条件，不作废的话推完又把缺科技的制度施行回来。返回作废的项数
+    public static int DropReformsLackingTech(string culture)
+    {
+        CultureInstitutionState cultureState = GetOrCreateCultureState(culture);
+        if (cultureState == null) return 0;
+        bool Void(InstitutionEmpireState state)
+        {
+            InstitutionNodeConfig node = state?.active_reform == null ? null : InstitutionDefinitionRegistry.Get(state.active_reform.node_id);
+            return node != null && (!TechnologySystem.AreInstitutionTechsMet(culture, node, out _) ||
+                                    !InstitutionDefinitionRegistry.ArePrerequisitesMet(node, id => IsPrerequisiteHeld(cultureState, id)));
+        }
+        int dropped = 0;
+        foreach (Empire empire in ModClass.EMPIRE_MANAGER?.ToList() ?? new List<Empire>())
+        {
+            if (empire?.data == null || empire.IsArchived() || empire.IsGone() || empire.CoreKingdom == null ||
+                !string.Equals(GetPrimaryCulture(empire), culture, StringComparison.Ordinal) || !Void(empire.data.institution_state)) continue;
+            empire.data.institution_state.active_reform = null;
+            dropped++;
+        }
+        foreach (Realm kingdom in CultureKingdomRealms(culture))
+        {
+            InstitutionEmpireState state = kingdom.GetOrCreate().institution_state;
+            if (!Void(state)) continue;
+            state.active_reform = null;
+            dropped++;
+        }
+        return dropped;
+    }
+
+    private static void AfterForceRevoke(string culture, List<InstitutionNodeConfig> removed, bool announce = true)
+    {
+        if (removed.Count == 0 || ModClass.EMPIRE_MANAGER == null) return;
+        string content = !announce ? null : string.Format(LM.Get("institution_force_revoked_history"), culture.GetCultureTranslate(),
+            string.Join("、", removed.Select(node => GetNodeName(node, culture))));
+        Realm messageKingdom = null;
+        foreach (Empire empire in ModClass.EMPIRE_MANAGER.ToList())
+        {
+            if (empire?.data == null || empire.IsArchived() || empire.IsGone() || empire.CoreKingdom == null ||
+                !string.Equals(GetPrimaryCulture(empire), culture, StringComparison.Ordinal)) continue;
+            InstitutionEmpireState empireState = EnsureEmpireState(empire);
+            if (empireState?.active_reform != null && removed.Any(node => node.id == empireState.active_reform.node_id))
+                empireState.active_reform = null;
+            SyncSharedEffects(empire);
+            if (content != null) empire.RecordHistory(directContent: content, kingdomId: empire.CoreKingdom.Key);
+            messageKingdom ??= empire.CoreKingdom;
+        }
+        SyncCultureKingdoms(culture, nodeId => removed.Any(node => node.id == nodeId));
+        if (content != null) EmpireCraft.Core.TranslateHelper.LogEventMessage(content, messageKingdom);
+    }
+
+    private static void AfterForceEnact(string culture, List<InstitutionNodeConfig> added,
+        string historyKey = "institution_force_enacted_history")
+    {
+        if (added.Count == 0 || ModClass.EMPIRE_MANAGER == null) return;
+        string content = string.Format(LM.Get(historyKey), culture.GetCultureTranslate(),
+            string.Join("、", added.Select(GetNodeName)));
+        Realm messageKingdom = null;
+        foreach (Empire empire in ModClass.EMPIRE_MANAGER.ToList())
+        {
+            if (empire?.data == null || empire.IsArchived() || empire.IsGone() || empire.CoreKingdom == null ||
+                !string.Equals(GetPrimaryCulture(empire), culture, StringComparison.Ordinal)) continue;
+            InstitutionEmpireState empireState = EnsureEmpireState(empire);
+            // 正在推进的改革对象已经被点亮了，或者已经被新点亮的制度取代了，就结束这次改革
+            if (empireState?.active_reform != null && !empireState.active_reform.revert && (IsEnacted(culture, empireState.active_reform.node_id) ||
+                                                       IsSuperseded(culture, empireState.active_reform.node_id)))
+                empireState.active_reform = null;
+            // 本国还没采纳新体制所需的科技：政体暂不过渡
+            if (TryResolveCultureRegime(culture, out RegimeType regime) &&
+                empire.CoreKingdom.GetRegime()?.type != regime)
+            {
+                if (RealmCanAdoptRegime(empire.CoreKingdom, regime)) ChangeRegime(empire, regime);
+                else if (empireState != null) empireState.pending_culture_regime = true;
+            }
+            SyncSharedEffects(empire);
+            empire.RecordHistory(directContent: content, kingdomId: empire.CoreKingdom.Key);
+            messageKingdom ??= empire.CoreKingdom;
+        }
+        // 本文化的王国：推着的改革已点亮或被取代就结束，补上持久效果(政体由 TryAdvanceRegimeTransition 逐国跟进)
+        SyncCultureKingdoms(culture, nodeId => IsEnacted(culture, nodeId) || IsSuperseded(culture, nodeId));
+        messageKingdom ??= EmpireWorld.Current?.LiveRealms?.FirstOrDefault(kingdom => kingdom != null && !kingdom.IsGone() &&
+            kingdom.IsCivilized() && string.Equals(CultureService.GetRealmCulture(kingdom), culture, StringComparison.Ordinal));
+        EmpireCraft.Core.TranslateHelper.LogEventMessage(content, messageKingdom);
+    }
+
+    #endregion
+
+    #region 时代潮流
+
+    // 制度原本只能由帝国发起改革推进：一个文化里没有帝国(只有独立王国)，或帝国迟迟推不动，
+    // 科技点满了制度也停在封建。时代潮流补上这一环：每年对每个文化，挑一项前置与技术都已满足、
+    // 还没确立的制度(按技术推力优先)，由民间与各国自发推行，进度满 100 即在本文化确立。
+    // 本文化有帝国正在推行改革时不介入；有帝国但没在改革时按一半速度推进。
+    private const float DriftBase = 4f;
+    private const float DriftPerPush = 40f;
+    private static object _driftWorld;
+    private static double _lastDrift = -1d;
+
+    public static void TryYearlyCultureDrift()
+    {
+        if (EmpireWorld.Current == null || ModClass.IS_CLEAR || !InstitutionDefinitionRegistry.Global.ai_enabled) return;
+        double now = GameClock.Now;
+        if (!ReferenceEquals(_driftWorld, EmpireWorld.Current) || now < _lastDrift)
+        {
+            _driftWorld = EmpireWorld.Current;
+            _lastDrift = now;
+            return;
+        }
+        if (GameClock.YearsSince(_lastDrift) < 1) return;
+        _lastDrift = now;
+        foreach (string culture in CultureService.GetActiveCultureKeys().ToList())
+        {
+            try
+            {
+                UpdateCultureDrift(culture);
+            }
+            catch (Exception exception)
+            {
+                LogService.LogWarning($"[EmpireCraft] 时代潮流结算失败({culture}): {exception.Message}");
+            }
+            // 每年每个文化一行制度进度(见 InstitutionSystem.Diagnostics.cs)
+            try
+            {
+                LogCultureProgress(culture);
+            }
+            catch (Exception exception)
+            {
+                LogService.LogWarning($"[EmpireCraft][制度进度] {culture} 诊断失败: {exception.Message}");
+            }
+        }
+    }
+
+    private static void UpdateCultureDrift(string culture)
+    {
+        CultureInstitutionState state = GetOrCreateCultureState(culture);
+        if (state == null) return;
+        List<Empire> empires = (ModClass.EMPIRE_MANAGER ?? Enumerable.Empty<Empire>())
+            .Where(empire => empire?.data != null && !empire.IsArchived() && !empire.IsGone() &&
+                             empire.CoreKingdom != null &&
+                             string.Equals(GetPrimaryCulture(empire), culture, StringComparison.Ordinal)).ToList();
+        if (empires.Any(empire => empire.data.institution_state?.active_reform != null)) return;
+        // 自己推制度的独立王国也算政权：有在推的就不介入，有王国在时同样半速
+        List<Realm> kingdomRealms = CultureKingdomRealms(culture);
+        if (kingdomRealms.Any(kingdom => kingdom.GetOrCreate().institution_state?.active_reform != null)) return;
+
+        // 部落不再是帝国(用户 2026-10-26)：只剩部落、没有部落联盟时 empires 为空，也不许潮流替各部改政体
+        // (以前每个部落都是帝国，原始阶段从来轮不到潮流改政体；原始改革由各部自己推，见 KingdomReformsEnabledFor)
+        bool regimeByRealm = empires.Count > 0 || kingdomRealms.Any(TribalFissionService.IsTribal);
+        InstitutionNodeConfig target = GetForLine(culture)
+            .Where(node => IsDriftCandidate(culture, state, node) && (!regimeByRealm || !ChangesRegime(node)))
+            .OrderByDescending(node => TechnologySystem.GetInstitutionPush(culture, node))
+            .ThenBy(node => node.advancement)
+            // 西方教会、世俗两条路：教权高先倒向教会，低先倒向世俗(以前按字母顺序，永远先选教会)
+            .ThenBy(node => PapacySystem.DriftRank(culture, node)).FirstOrDefault();
+        if (target == null)
+        {
+            state.drift_node_id = "";
+            state.drift_progress = 0f;
+            return;
+        }
+        if (state.drift_node_id != target.id)
+        {
+            state.drift_node_id = target.id;
+            state.drift_progress = 0f;
+        }
+        float gain = (DriftBase + TechnologySystem.GetInstitutionPush(culture, target) * DriftPerPush) *
+                     (empires.Count + kingdomRealms.Count > 0 ? 0.5f : 1f);
+        state.drift_progress += gain;
+        if (state.drift_progress < 100f) return;
+        state.drift_node_id = "";
+        state.drift_progress = 0f;
+        var added = new List<InstitutionNodeConfig>();
+        ForceEnactChain(state, target, added);
+        AfterForceEnact(culture, added, "institution_trend_enacted_history");
+    }
+
+    // 改变政体(含废除君主制)的制度：本文化有帝国时必须由帝国改革或革命完成，时代潮流不越俎代庖
+    private static bool ChangesRegime(InstitutionNodeConfig node) =>
+        InstitutionDefinitionRegistry.TryGetNodeRegime(node, out _) ||
+        node.features != null && node.features.ContainsKey(RepublicSystem.FeatureAbolishMonarchy);
+
+    private static IEnumerable<InstitutionNodeConfig> GetForLine(string culture) =>
+        InstitutionDefinitionRegistry.GetForLine(GetCultureLine(culture));
+
+    // 推制度的政权有几座城(帝国按全帝国)
+    private static int RealmCityCount(InstitutionRealm realm) => realm.IsEmpire
+        ? realm.Empire.kingdoms_list?.Where(kingdom => kingdom != null && !kingdom.IsGone()).Sum(kingdom => kingdom.Cities?.Count ?? 0) ?? 0
+        : realm.Realm?.Cities?.Count ?? 0;
+
+    // 与帝国改革同样的门槛(本线、未确立、未被取代、前置、技术、互斥、禁止近代化)，
+    // 意识形态车道与需要复合帝国的制度除外——那些必须由政权推动
+    private static bool IsDriftCandidate(string culture, CultureInstitutionState state, InstitutionNodeConfig node)
+    {
+        if (node == null || !InstitutionDefinitionRegistry.IsValid(node)) return false;
+        if (node.branch == IdeologyBranch || IdeologyInstitutionPaths.TryGetIdeology(node.branch, out _)) return false;
+        if (node.requires_composite_empire || node.requires_cities > 0) return false;
+        if (state.enacted_node_ids.Contains(node.id) || IsSuperseded(state, node.id)) return false;
+        if (!InstitutionDefinitionRegistry.ArePrerequisitesMet(node, id => IsPrerequisiteHeld(state, id))) return false;
+        if (node.exclusive_with.Any(state.enacted_node_ids.Contains)) return false;
+        if (TechnologySystem.ModernInstitutionBlocked(node)) return false;
+        return TechnologySystem.AreInstitutionTechsMet(culture, node, out _);
+    }
+
+    #endregion
+
+    // 时代落差：本文化的科技时代(1~11)比这项制度的等级(1~11)高出几档。科技遥遥领先而制度还停在封建时，
+    // 落差每一档给这项改革加 EraLagSupport 点支持、把最短改革年限减一年，AI 也改为每年尝试一次改革
+    private const float EraLagSupport = 8f;
+
+    public static int EraLag(string culture, InstitutionNodeConfig node) =>
+        node == null ? 0 : Math.Max(0, TechnologySystem.GetEraTier(culture) - node.advancement);
+
+    private static int EnactedAdvancement(string culture)
+    {
+        int max = 0;
+        foreach (string id in GetOrCreateCultureState(culture)?.enacted_node_ids ?? new List<string>())
+        {
+            InstitutionNodeConfig node = InstitutionDefinitionRegistry.Get(id);
+            if (node != null) max = Math.Max(max, node.advancement);
+        }
+        return max;
+    }
+
+    private const int BasicsSlack = 2;
+
+    // 称帝制度：王国(不是帝国)、城数够称帝的才优先推
+    private static bool ImperialPriority(InstitutionRealm realm, InstitutionNodeConfig node) =>
+        !realm.IsEmpire && realm.Realm?.Cities != null && realm.Realm.Cities.Count >= EmpireFormationService.MinimumCities &&
+        node.features != null && node.features.TryGetValue(EmpireFormationService.ImperialFeature, out float value) && value > 0f;
+
+    // 自主现代化(开放党禁)的硬发展门槛(用户 2026-11-10)：帝国用法理核心繁荣(PartyBanSystem.PassesModernizationGate)，
+    // 独立王国/部落用自身城邑繁荣均值，阈值同 PartyBanSystem.ModernizationProsperityFloor。
+    private static bool ReformRealmProsperousEnough(InstitutionRealm realm)
+    {
+        if (realm == null) return false;
+        if (realm.IsEmpire) return PartyBanSystem.PassesModernizationGate(realm.Empire);
+        List<City> cities = realm.Core?.Cities?.Where(city => city != null && !city.IsGone()).ToList();
+        return cities != null && cities.Count > 0 &&
+               cities.Average(IdeologyPopulationSystem.CityProsperity) >= PartyBanSystem.ModernizationProsperityFloor;
+    }
+
+#if EC_PENDING
+    private static void TryStartAiReform(InstitutionRealm realm, Dictionary<SocialClass, float> shares = null)
+    {
+        if (!InstitutionDefinitionRegistry.Global.ai_enabled) return;
+        InstitutionEmpireState state = EnsureRealmState(realm);
+        if (state == null) return;
+        string primaryCulture = realm.Culture;
+        int interval = TechnologySystem.GetEraTier(primaryCulture) - EnactedAdvancement(primaryCulture) >= 3 ? 1 : 3;
+        if (state.last_ai_reform_attempt_timestamp >= 0 &&
+            GameClock.YearsSince(state.last_ai_reform_attempt_timestamp) < interval) return;
+        // 王国、部落：错开年份、叛乱未平不推、每文化同推有名额(3~6 家，见 InstitutionSystem.Realm.cs)
+        bool kingdomRules = FollowsKingdomRules(realm);
+        if (kingdomRules && !KingdomAiMayTry(realm, state, primaryCulture, interval)) return;
+        state.last_ai_reform_attempt_timestamp = GameClock.Now;
+        NoteAiTry(primaryCulture);
+        // 王国、部落不跟着同文化别的政权重复推同一项
+        HashSet<string> takenElsewhere = kingdomRules ? NodesReformedElsewhere(realm, primaryCulture) : null;
+
+        // 全人口只扫一遍，所有候选节点共用这份阶级构成
+        shares ??= BuildClassShares(realm);
+        // 先推基础的：能推、也有足够支持的候选里，只在先进程度最低的那一档(+BasicsSlack)里按支持度挑。
+        // 以前分数里先进程度乘 2 加分，越先进越优先——察举、科举、府兵这些古代制度牵动世家地主、反对多，
+        // 一直排在后面，城市生产(商人、工匠、市民都支持)倒先推到了工场生产
+        // 比本文化技术时代落后三档以上的老制度(大势所趋)：支持不少于反对就推，不再要求多出 5
+        int era = TechnologySystem.GetEraTier(primaryCulture);
+        CultureInstitutionState cultureState = GetOrCreateCultureState(primaryCulture);
+        var candidates = new List<(InstitutionNodeConfig node, float score)>();
+        InstitutionNodeConfig imperial = null;
+        foreach (InstitutionNodeConfig node in InstitutionDefinitionRegistry.GetForLine(
+                     GetCultureLine(primaryCulture)))
+        {
+            // 已施行、前置未齐的先跳过(CanStartReform 也会拒)，免得一百多个节点个个都算一遍支持度；
+            // 王国扫描每帧只有几毫秒，省下来一轮扫得快些
+            if (cultureState != null && (cultureState.enacted_node_ids.Contains(node.id) ||
+                                         !InstitutionDefinitionRegistry.ArePrerequisitesMet(node,
+                                             id => IsPrerequisiteHeld(cultureState, id)))) continue;
+            if (takenElsewhere != null && takenElsewhere.Contains(node.id))
+            {
+                NoteCandidateBlock(realm, primaryCulture, node, ReasonTakenElsewhere);
+                continue;
+            }
+            // 用户 2026-11-10：开放党禁(party_politics)是自主现代化的门槛节点——核心繁荣不足的穷/贫瘠政权
+            // 不走常规改革自行推开，只能等外力(战败和约，见 ConstitutionalEconomySystem.ImposeModernization)来逼。
+            if (node.features.ContainsKey(PartySystem.FeaturePartyPolitics) && !ReformRealmProsperousEnough(realm))
+            {
+                NoteCandidateBlock(realm, primaryCulture, node, ReasonProsperityGate);
+                continue;
+            }
+            InstitutionPoliticalBalance balance = CalculatePoliticalBalance(realm, node, shares);
+            if (!CanStartReform(realm, node, out string reason, false, balance))
+            {
+                NoteCandidateBlock(realm, primaryCulture, node, reason);
+                continue;
+            }
+            if (balance.Support < balance.Opposition + (era - node.advancement >= 3 ? 0f : 5f))
+            {
+                NoteCandidateBlock(realm, primaryCulture, node, ReasonSupportMargin);
+                continue;
+            }
+            float score = balance.Support - balance.Opposition +
+                          TechnologySystem.GetInstitutionPush(primaryCulture, node) * 40f +
+                          (realm.IsEmpire ? PapacySystem.ReformBias(realm.Empire, node) +
+                                            HolyRomanSystem.ReformBias(realm.Empire, node) : 0f);
+            // 称帝制度(见 EmpireFormationService.HasImperialRule)：够得上称帝规模的王国最先推，不受"先推基础的"那一档限制
+            if (ImperialPriority(realm, node))
+            {
+                imperial = node;
+                break;
+            }
+            candidates.Add((node, score));
+        }
+        if (imperial != null)
+        {
+            if (StartReform(realm, imperial.id)) NoteAiStart(primaryCulture);
+            return;
+        }
+        // 派系倾向优先：占比大的派系先走本派倾向的节点，或回退本派反对的制度(用户 2026-11-11 "派系可以有自己倾向的文化制度节点""或者回退，但是回退阻力应当巨大"，见 InstitutionSystem.FactionAgenda)
+        if (TryStartFactionPreference(realm, candidates, shares))
+        {
+            NoteAiStart(primaryCulture);
+            return;
+        }
+        if (candidates.Count == 0) return;
+        int basic = candidates.Min(entry => entry.node.advancement) + BasicsSlack;
+        InstitutionNodeConfig selected = candidates.Where(entry => entry.node.advancement <= basic)
+            .OrderByDescending(entry => entry.score).First().node;
+        if (StartReform(realm, selected.id)) NoteAiStart(primaryCulture);
+    }
+#endif
+
+    #endregion
+
+    #region 政治平衡
+
+    // 帝国的阶级构成。全人口遍历很贵，所以抽成一次调用、多节点复用。
+    public static Dictionary<SocialClass, float> BuildClassShares(Empire empire) =>
+        BuildClassShares(empire?.kingdoms_hashset);
+
+    // 政权的阶级构成：帝国按全体成员，王国按本国
+    public static Dictionary<SocialClass, float> BuildClassShares(InstitutionRealm realm) =>
+        BuildClassShares(realm?.Scope);
+
+    // 按一组国家统计阶级构成
+    public static Dictionary<SocialClass, float> BuildClassShares(IEnumerable<Realm> scope)
+    {
+        var counts = new Dictionary<SocialClass, int>();
+        foreach (SocialClass value in Enum.GetValues(typeof(SocialClass)).Cast<SocialClass>()) counts[value] = 0;
+        int total = 0;
+        if (scope != null)
+        {
+            foreach (Person actor in EmpirePopulation.Enumerate(scope))
+            {
+                SocialClass socialClass = EmpireCraft.Core.EmpireCaftActorJudgeClass.JudgeClass(actor);
+                actor.SetSocialClass(socialClass);
+                if (!counts.ContainsKey(socialClass)) continue;
+                counts[socialClass]++;
+                total++;
+            }
+            // 无小人模式：加上背景人口的阶层构成
+            var background = new Dictionary<SocialClass, int>();
+            CityPopulationSystem.AddBackgroundCounts(CityPopulationSystem.CitiesOf(scope),
+                background, group => group.social_class);
+            foreach (KeyValuePair<SocialClass, int> pair in background)
+            {
+                if (!counts.ContainsKey(pair.Key)) continue;
+                counts[pair.Key] += pair.Value;
+                total += pair.Value;
+            }
+        }
+        var shares = new Dictionary<SocialClass, float>();
+        foreach (KeyValuePair<SocialClass, int> pair in counts)
+            shares[pair.Key] = total > 0 ? (float)pair.Value / total : 0f;
+        return shares;
+    }
+
+    public static IReadOnlyDictionary<SocialClass, float> GetClassGrievances(Empire empire)
+    {
+        InstitutionEmpireState state = EnsureEmpireState(empire);
+        return state?.class_grievances ?? new Dictionary<SocialClass, float>();
+    }
+
+    public static string GetSocialGrievanceCause(Empire empire, SocialClass socialClass)
+    {
+        InstitutionEmpireState state = EnsureEmpireState(empire);
+        if (state == null || !state.class_grievance_causes.TryGetValue(socialClass, out string cause) ||
+            string.IsNullOrWhiteSpace(cause))
+            return LM.Get("institution_social_cause_general");
+        if (cause.StartsWith("regression:", StringComparison.Ordinal))
+        {
+            string[] parts = cause.Split(':');
+            if (parts.Length == 3 && int.TryParse(parts[1], out int oldLevel) &&
+                int.TryParse(parts[2], out int newLevel))
+                return string.Format(LM.Get("institution_social_cause_regression"), oldLevel, newLevel);
+        }
+        if (cause == "constitution") return LM.Get("constitution_noble_grievance");
+        if (cause.StartsWith("material:", StringComparison.Ordinal))
+            return LM.Get("social_cause_" + cause.Substring("material:".Length));
+        InstitutionNodeConfig node = InstitutionDefinitionRegistry.Get(cause);
+        return node == null
+            ? LM.Get("institution_social_cause_general")
+            : string.Format(LM.Get("institution_social_cause_policy"), GetNodeName(node));
+    }
+
+    private static void ApplyReformCompletionShock(Empire empire, InstitutionNodeConfig node)
+    {
+        InstitutionSocialUnrestConfig config = InstitutionDefinitionRegistry.Global.social_unrest;
+        InstitutionEmpireState state = EnsureEmpireState(empire);
+        if (config?.enabled != true || state == null || node?.politics == null) return;
+        Dictionary<SocialClass, float> shares = BuildClassShares(empire);
+        foreach (KeyValuePair<SocialClass, float> pair in node.politics.oppose_classes)
+        {
+            if (!shares.TryGetValue(pair.Key, out float share) || share <= 0f) continue;
+            state.class_grievances[pair.Key] = InstitutionRules.Clamp100(
+                state.class_grievances[pair.Key] + config.reform_completion_shock * pair.Value);
+            state.class_grievance_causes[pair.Key] = node.id;
+        }
+        foreach (KeyValuePair<SocialClass, float> pair in node.politics.support_classes)
+        {
+            if (!shares.TryGetValue(pair.Key, out float share) || share <= 0f) continue;
+            state.class_grievances[pair.Key] = InstitutionRules.Clamp100(
+                state.class_grievances[pair.Key] - config.reform_completion_shock * pair.Value * 0.5f);
+        }
+    }
+
+    private static void ApplyCultureLevelRegression(string culture, int previousLevel, int currentLevel)
+    {
+        InstitutionSocialUnrestConfig config = InstitutionDefinitionRegistry.Global.social_unrest;
+        if (config?.enabled != true || previousLevel <= currentLevel || ModClass.EMPIRE_MANAGER == null) return;
+        int levelsLost = Math.Max(1, previousLevel - currentLevel);
+        CultureInstitutionState cultureState = GetOrCreateCultureState(culture);
+        List<InstitutionNodeConfig> disruptedNodes = (cultureState?.enacted_node_ids ?? new List<string>())
+            .Select(InstitutionDefinitionRegistry.Get)
+            .Where(node => node != null && node.advancement > currentLevel)
+            .ToList();
+        foreach (Empire empire in ModClass.EMPIRE_MANAGER.Where(empire => empire != null && !empire.IsGone() &&
+                     !empire.IsArchived() && string.Equals(GetPrimaryCulture(empire), culture, StringComparison.Ordinal)))
+        {
+            InstitutionEmpireState state = EnsureEmpireState(empire);
+            if (state == null) continue;
+            Dictionary<SocialClass, float> shares = BuildClassShares(empire);
+            foreach (SocialClass socialClass in Enum.GetValues(typeof(SocialClass)).Cast<SocialClass>())
+            {
+                if (!shares.TryGetValue(socialClass, out float share) || share <= 0f)
+                {
+                    state.class_grievances[socialClass] = 0f;
+                    state.class_grievance_causes[socialClass] = "";
+                    continue;
+                }
+                float lostBenefit = disruptedNodes.Sum(node =>
+                    node.politics.support_classes.TryGetValue(socialClass, out float weight) ? weight : 0f);
+                if (lostBenefit <= 0f) continue;
+                state.class_grievances[socialClass] = InstitutionRules.Clamp100(
+                    state.class_grievances[socialClass] + config.regression_shock * levelsLost * lostBenefit);
+                state.class_grievance_causes[socialClass] = $"regression:{previousLevel}:{currentLevel}";
+            }
+            string history = string.Format(LM.Get("institution_level_regression_history"),
+                empire.GetEmpireName(), previousLevel, currentLevel);
+            empire.RecordHistory(directContent: history, actorId: empire.Emperor?.Key ?? -1L,
+                kingdomId: empire.CoreKingdom?.Key ?? -1L);
+            EmpireCraft.Core.TranslateHelper.LogEventMessage(history, empire.CoreKingdom);
+        }
+    }
+
+    // 危局时怨气回落的速度(×0.5，即每年 16% → 8%)；平民怨气下限：积弊 60 时 20，每多一点 +1
+    private const float CrisisFallFactor = 0.5f;
+    private const float CrisisGrievanceFloor = 20f;
+    private const float CrisisFloorPerStrain = 1f;
+
+#if EC_PENDING
+    private static void UpdateSocialUnrest(Empire empire)
+    {
+        InstitutionSocialUnrestConfig config = InstitutionDefinitionRegistry.Global.social_unrest;
+        InstitutionEmpireState state = EnsureEmpireState(empire);
+        if (config?.enabled != true || state == null) return;
+        CultureInstitutionState cultureState = GetOrCreateCultureState(GetPrimaryCulture(empire));
+        List<InstitutionNodeConfig> enacted = (cultureState?.enacted_node_ids ?? new List<string>())
+            .Select(InstitutionDefinitionRegistry.Get).Where(node => node != null).ToList();
+        Dictionary<SocialClass, float> classShares = BuildClassShares(empire);
+        // 制度适应期：施行越久，反对阶层越习惯，每项制度造成的怨气压力每 40 年减半
+        Dictionary<string, float> adaptation = GetOppositionAdaptation(cultureState, enacted);
+        // 生活压力与纾解(重税、饥荒、无地、贫困；轻税、善治)，见 SocialCrisisSystem
+        SocialCrisisSystem.Snapshot living = SocialCrisisSystem.Capture(empire);
+        state.social_suppression = living.Suppression;
+        state.avg_city_stability = living.Stability;
+        state.arrears_months = living.ArrearsMonths;
+        MonarchyLegitimacy.Invalidate(empire);
+        // 徭役(见 CorveeSystem)：农民、国人、野人的怨气目标值按每城摊到的工役加，最多 +10
+        float corvee = CorveeSystem.PeasantPressure(empire);
+        // 危局(王朝积弊 ≥ 60，见 DynasticCycleSystem)：用户 2026-10-26"积弊满额之后，民怨只升不降"，按对照方案改为
+        // 各阶层怨气往下回落的速度减半(往上照旧)，平民(PopularGrievance.IsCommoner)的怨气另有下限：
+        // 积弊 60 时 20，每多一点 +1，满额 100 时 60(仍低于阶层起义的 75)。改革阵痛、整顿吏治等照旧
+        bool crisis = DynasticCycleSystem.InCrisis(empire);
+        float crisisFloor = crisis
+            ? CrisisGrievanceFloor + Math.Max(0f, DynasticCycleSystem.GetPressure(empire) -
+                                                 DynasticCycleRules.CrisisPressure) * CrisisFloorPerStrain
+            : 0f;
+
+        foreach (SocialClass socialClass in Enum.GetValues(typeof(SocialClass)).Cast<SocialClass>())
+        {
+            if (!classShares.TryGetValue(socialClass, out float classShare) || classShare <= 0f)
+            {
+                state.class_grievances[socialClass] = 0f;
+                state.class_grievance_causes[socialClass] = "";
+                continue;
+            }
+            float opposition = 0f;
+            float support = 0f;
+            float strongestPressure = 0f;
+            string strongestCause = "";
+            foreach (InstitutionNodeConfig node in enacted)
+            {
+                if (node.politics.oppose_classes.TryGetValue(socialClass, out float opposeWeight))
+                {
+                    opposeWeight *= adaptation.TryGetValue(node.id, out float factor) ? factor : 1f;
+                    opposition += opposeWeight;
+                    if (opposeWeight > strongestPressure)
+                    {
+                        strongestPressure = opposeWeight;
+                        strongestCause = node.id;
+                    }
+                }
+                if (node.politics.support_classes.TryGetValue(socialClass, out float supportWeight))
+                    support += supportWeight;
+            }
+            SocialCrisisSystem.Material material = SocialCrisisSystem.For(living, socialClass);
+            float target = InstitutionRules.Clamp100(opposition * config.opposition_target_multiplier -
+                                                       support * config.support_relief_multiplier +
+                                                       material.Pressure - material.Relief);
+            float institutionalPressure = opposition * config.opposition_target_multiplier;
+            if (material.Pressure > institutionalPressure && !string.IsNullOrEmpty(material.Cause))
+            {
+                strongestPressure = float.MaxValue;
+                strongestCause = material.Cause;
+            }
+            if (corvee > 0f && socialClass.IsPeasantry())
+            {
+                target = InstitutionRules.Clamp100(target + corvee);
+                if (corvee > institutionalPressure && corvee > material.Pressure)
+                {
+                    strongestPressure = float.MaxValue;
+                    strongestCause = "material:corvee";
+                }
+            }
+            if (empire.data?.constitutional_economy?.welfare_funded == true &&
+                (socialClass == SocialClass.Labour || socialClass.IsPeasantry()))
+                target = InstitutionRules.Clamp100(target -
+                    8f * empire.data.constitutional_economy.welfare_level);
+            // 工业时代以后：市面兴衰、工钱与劳动法、产业归属与教育、财阀垄断(见各系统的 GrievanceShift)
+            if (empire.data?.constitutional_economy != null)
+            {
+                float modern = EconomicCycleSystem.GrievanceShift(empire, socialClass) + LabourSystem.GrievanceShift(empire, socialClass) +
+                               ModernPolicySystem.GrievanceShift(empire, socialClass) + ConglomerateSystem.GrievanceShift(empire, socialClass) +
+                               CompanySystem.GrievanceShift(empire, socialClass) +
+                               // 汽车、电器这些消费品买不买得到(见 CommodityMarketSystem.ConsumerSatisfaction)
+                               (socialClass is SocialClass.Citizen or SocialClass.Labour
+                                   ? CommodityMarketSystem.ConsumerGrievanceShift(empire.CoreKingdom) : 0f) -
+                               // 末代的可重复研究"民生精进"(见 TechnologySystem.Repeat)
+                               Math.Min(10f, TechnologySystem.RepeatLevel(GetPrimaryCulture(empire), "welfare") * 0.5f);
+                if (modern != 0f) target = InstitutionRules.Clamp100(target + modern);
+            }
+            float current = state.class_grievances[socialClass];
+            float adjustment = config.annual_adjustment_rate;
+            if (crisis)
+            {
+                if (PopularGrievance.IsCommoner(socialClass) && crisisFloor > target)
+                {
+                    target = crisisFloor;
+                    strongestPressure = float.MaxValue;
+                    strongestCause = "material:crisis";
+                }
+                if (target < current) adjustment *= CrisisFallFactor;
+            }
+            state.class_grievances[socialClass] = InstitutionRules.Clamp100(
+                current + (target - current) * adjustment);
+            bool regressionShockFaded = state.class_grievance_causes[socialClass]
+                                            ?.StartsWith("regression:", StringComparison.Ordinal) == true &&
+                                        state.class_grievances[socialClass] <= target + 5f;
+            if (!string.IsNullOrWhiteSpace(strongestCause) &&
+                (regressionShockFaded || !state.class_grievance_causes[socialClass]
+                     .StartsWith("regression:", StringComparison.Ordinal)))
+                state.class_grievance_causes[socialClass] = strongestCause;
+            else if (target <= 0.5f && state.class_grievances[socialClass] <= 1f)
+                state.class_grievance_causes[socialClass] = "";
+        }
+
+        if (state.social_rebellion_war_id > 0)
+        {
+            War activeWar = EmpireWorld.Current?.WarByKey(state.social_rebellion_war_id);
+            if (activeWar != null && !activeWar.HasEnded()) { state.social_quiet_reason = "at_war"; return; }
+            state.social_rebellion_war_id = -1L;
+        }
+        if (state.last_social_rebellion_timestamp >= 0 &&
+            GameClock.YearsSince(state.last_social_rebellion_timestamp) < config.rebellion_cooldown_years)
+        {
+            state.social_quiet_reason = "cooldown";
+            return;
+        }
+        // 各阶层组织动员逐年积累/消退；镇压只压动员
+        foreach (SocialClass socialClass in Enum.GetValues(typeof(SocialClass)).Cast<SocialClass>())
+            SocialCrisisSystem.UpdateMobilization(state, socialClass,
+                state.class_grievances.TryGetValue(socialClass, out float classGrievance) ? classGrievance : 0f,
+                empire.Legitimacy, state.social_suppression);
+        // 国人不起兵割据，怨气大了在国都暴动、逐君(见 GuoyeSystem)
+        KeyValuePair<SocialClass, float> mostAngry = state.class_grievances
+            .Where(pair => pair.Key != SocialClass.Guoren && classShares.TryGetValue(pair.Key, out float share) && share >= 0.03f)
+            .OrderByDescending(pair => pair.Value).FirstOrDefault();
+        state.social_quiet_reason = "";
+        if (mostAngry.Value < config.rebellion_threshold) return;
+        float mobilization = SocialCrisisSystem.GetMobilization(empire, mostAngry.Key);
+        if (mobilization < SocialCrisisSystem.MobilizationThreshold)
+        {
+            state.social_quiet_reason = state.social_suppression >= 10f ? "suppressed" : "mobilizing";
+            return;
+        }
+        if (!TryStartSocialRebellion(empire, mostAngry.Key, mostAngry.Value) && string.IsNullOrEmpty(state.social_quiet_reason))
+            state.social_quiet_reason = "no_city";
+        else if (state.social_rebellion_war_id > 0) state.class_mobilization[mostAngry.Key] = 20f;
+    }
+#endif
+
+    private const float OppositionAdaptationHalfLifeYears = 40f;
+
+    private static Dictionary<string, float> GetOppositionAdaptation(CultureInstitutionState cultureState,
+        List<InstitutionNodeConfig> enacted)
+    {
+        var result = new Dictionary<string, float>(StringComparer.Ordinal);
+        if (cultureState == null) return result;
+        cultureState.enacted_timestamps ??= new Dictionary<string, double>();
+        double now = GameClock.Now;
+        foreach (InstitutionNodeConfig node in enacted)
+        {
+            if (!cultureState.enacted_timestamps.TryGetValue(node.id, out double since))
+            {
+                cultureState.enacted_timestamps[node.id] = now;
+                since = now;
+            }
+            float years = Math.Max(0f, GameClock.YearsSince(since));
+            result[node.id] = (float)Math.Pow(0.5d, years / OppositionAdaptationHalfLifeYears);
+        }
+        return result;
+    }
+
+    private static float GetKingdomClassShare(Realm kingdom, SocialClass socialClass)
+    {
+        int total = 0;
+        int matching = 0;
+        foreach (Person actor in EmpirePopulation.Enumerate(new[] { kingdom }))
+        {
+            total++;
+            if (actor.GetOrCreate().socialClass == socialClass) matching++;
+        }
+        return total > 0 ? (float)matching / total : 0f;
+    }
+
+#if EC_PENDING
+    private static bool TryStartSocialRebellion(Empire empire, SocialClass socialClass, float grievance)
+    {
+        if (!RebellionSystem.CanAttempt(empire?.CoreKingdom))
+        {
+            EnsureEmpireState(empire).social_quiet_reason = "grace";
+            return false;
+        }
+        Dictionary<SocialClass, float> shares = BuildClassShares(empire);
+        if (!shares.TryGetValue(socialClass, out float empireShare) || empireShare < 0.03f) return false;
+        // 分封制帝国在施行分封类制度之前，诸国基本自治，阶层起义只在天子直辖的核心王国里爆发，
+        // 不会蔓延到其他国家
+        bool coreOnly = FeudalConquestService.AppliesTo(empire) &&
+                        !FeudalConquestService.HasEnfeoffmentInstitution(empire);
+        Realm rebel = coreOnly ? null : empire.kingdoms_list.Where(kingdom => kingdom != null && !kingdom.IsGone() &&
+                                                              kingdom != empire.CoreKingdom &&
+                                                              RebellionSystem.CanAttempt(kingdom) &&
+                                                              CityStabilitySystem.CanRise(kingdom.Capital) &&
+                                                              !kingdom.IsFactionRebelling() &&
+                                                              !kingdom.IsLocalRebelling() &&
+                                                              !kingdom.GetWars().Any())
+            .Select(kingdom => new { Realm = kingdom, Share = GetKingdomClassShare(kingdom, socialClass) })
+            .Where(candidate => candidate.Share > 0f)
+            .OrderByDescending(candidate => candidate.Share)
+            .ThenByDescending(candidate => candidate.Kingdom.countTotalWarriors())
+            .Select(candidate => candidate.Kingdom).FirstOrDefault();
+        // 单一王国的大帝国也可能爆发社会革命：没有现成封国可起兵时，由受损阶层成员
+        // 在非首都城市建立叛军政权，避免“只有分封帝国才会有农民起义”的反直觉结果。
+        City splitSeat = null;
+        Realm splitOrigin = null;
+        Person splitLeader = null;
+        if (rebel == null)
+        {
+            IEnumerable<Realm> sourceKingdoms = coreOnly
+                ? new[] { empire.CoreKingdom }
+                : (IEnumerable<Realm>)empire.kingdoms_hashset;
+            Person leader = EmpirePopulation.Enumerate(sourceKingdoms)
+                .Where(actor => actor != null && !actor.IsGone() && actor.Alive && actor.HasCity() &&
+                                actor.City.Realm != null && actor.City != actor.City.Realm.Capital &&
+                                RebellionSystem.CanAttempt(actor.City.Realm) && CityStabilitySystem.CanRise(actor.City) &&
+                                actor.GetOrCreate().socialClass == socialClass)
+                .OrderByDescending(actor => actor.Renown).FirstOrDefault();
+            // 无小人模式里该阶层多半没有实体人物：从虚拟人口里推举
+            leader ??= SocialCrisisSystem.SpawnClassLeader(sourceKingdoms, socialClass);
+            splitSeat = leader?.City;
+            splitOrigin = splitSeat?.Realm;
+            splitLeader = leader;
+        }
+        RebellionCauseData rebellionCause = RebellionSystem.Capture(rebel ?? splitOrigin,
+            splitSeat ?? rebel?.Capital, "rebellion_reason_class",
+            string.Format(LM.Get("rebellion_class_detail"), LM.Get($"class_{socialClass}"), grievance,
+                GetSocialGrievanceCause(empire, socialClass)));
+        if (splitSeat != null) rebel = splitSeat.MakeOwnRealm(splitLeader, rebellion: true);
+        if (rebel == null) return false;
+
+        string originalName = rebel.Name;
+        if (!rebel.StartLocalRebelling(EmpireWarType.地方叛乱))
+        {
+            if (splitSeat != null) RebellionStartupService.RollbackCitySplit(splitSeat, splitOrigin, rebel);
+            return false;
+        }
+        string className = LM.Get($"class_{socialClass}");
+        rebel.Name = string.Format(LM.Get("institution_social_rebel_kingdom_name"), className);
+        War war = EmpireWorld.Current.StartWar(rebel, empire.CoreKingdom, WarKinds.Rebellion);
+        if (war == null)
+        {
+            rebel.EndLocalRebelling();
+            if (splitSeat != null) RebellionStartupService.RollbackCitySplit(splitSeat, splitOrigin, rebel);
+            else rebel.Name = originalName;
+            return false;
+        }
+        war.SetEmpireWarType(EmpireWarType.地方叛乱);
+        string cause = GetSocialGrievanceCause(empire, socialClass);
+        war.Name = string.Format(LM.Get("institution_social_rebellion_war_name"), className);
+        WarExtension.WarExtraData warData = war.GetOrCreate();
+        warData.institution_social_rebellion_empire_id = empire.Key;
+        warData.institution_social_rebellion_class = socialClass;
+        warData.institution_social_rebellion_cause = cause;
+        warData.institution_social_rebellion_grievance = grievance;
+        RebellionSystem.Record(rebel, war, rebellionCause);
+        if (socialClass == SocialClass.Peasant)
+        {
+            City originCity = rebel.Capital;
+            float landlessRatio = LandEconomySystem.GetReport(originCity).LandlessPopulationRatio;
+            LandEconomySystem.MarkPeasantSocialRebellion(war, rebel, empire.CoreKingdom, originCity,
+                landlessRatio, cause);
+        }
+        InstitutionEmpireState state = EnsureEmpireState(empire);
+        state.social_rebellion_war_id = war.Key;
+        state.last_social_rebellion_timestamp = GameClock.Now;
+
+        string history = string.Format(LM.Get("institution_social_rebellion_history"), className,
+            rebel.GetKingdomName(), cause, grievance);
+        empire.RecordHistory(directContent: history, actorId: rebel.Ruler?.Key ?? -1L, kingdomId: rebel.Key);
+        EmpireCraft.Core.TranslateHelper.LogEventMessage(history, empire.CoreKingdom);
+
+        FiscalDiagnostics.Count("阶层起义");
+        RebellionStartupService.RaiseUprisingMilitia(rebel, grievance / 100f);
+        int defected = DefectCoreSoldiers(empire, rebel, socialClass, grievance);
+        if (defected > 0)
+        {
+            string defection = string.Format(LM.Get("institution_social_rebellion_defection_history"), defected,
+                className, rebel.GetKingdomName());
+            empire.RecordHistory(directContent: defection, kingdomId: rebel.Key);
+            EmpireCraft.Core.TranslateHelper.LogEventMessage(defection, empire.CoreKingdom);
+        }
+        return true;
+    }
+#endif
+
+    // 阶层起义的叛军在占领扩散中以该阶层当前怨气(民心)作为天命
+    public static bool TryGetSocialRebelMandate(Realm kingdom, out int mandate)
+    {
+        mandate = 0;
+        if (kingdom == null || kingdom.IsGone()) return false;
+        foreach (War war in kingdom.GetWars())
+        {
+            if (war == null || war.HasEnded() || !war.Attackers.Contains(kingdom)) continue;
+            WarExtension.WarExtraData data = war.GetOrCreate();
+            if (data.institution_social_rebellion_empire_id < 0) continue;
+            Empire empire = ModClass.EMPIRE_MANAGER?.Get(data.institution_social_rebellion_empire_id);
+            float grievance = data.institution_social_rebellion_grievance;
+            if (empire != null && GetClassGrievances(empire)
+                    .TryGetValue(data.institution_social_rebellion_class, out float current))
+                grievance = current;
+            mandate = (int)Math.Round(grievance);
+            return true;
+        }
+        return false;
+    }
+
+    // 中央倒戈：起义爆发时，核心王国军中属于该阶层的士兵按怨气比例投奔叛军(怨气 75%→约 53%)，
+    // 贵族、军人起义时倒戈的更多。倒戈者原地转投叛军，不再听中央调遣。
+    private static int DefectCoreSoldiers(Empire empire, Realm rebel, SocialClass socialClass, float grievance)
+    {
+        Realm core = empire?.CoreKingdom;
+        if (core?.People == null || rebel?.Capital == null || rebel.Capital.IsGone()) return 0;
+        float fraction = Math.Max(0.3f, Math.Min(0.7f, grievance / 100f * 0.7f));
+        if (socialClass is SocialClass.Noble or SocialClass.Army) fraction = Math.Min(0.85f, fraction * 1.3f);
+
+        List<Person> candidates = core.People.ToList().Where(actor =>
+                actor != null && !actor.IsGone() && actor.Alive && actor.IsWarrior() && !actor.IsRuler() &&
+                actor.GetOrCreate().socialClass == socialClass)
+            .ToList();
+        int count = (int)Math.Round(candidates.Count * fraction);
+        if (count <= 0) return 0;
+        return TransferDefectingSoldiers(core, rebel,
+            candidates.OrderBy(_ => EcRandom.Range(0f, 1f)).Take(count));
+    }
+
+    public static int TransferDefectingSoldiers(Realm source, Realm rebel, IEnumerable<Person> soldiers)
+    {
+        City destination = rebel?.Capital;
+        if (source == null || destination == null || destination.IsGone() || soldiers == null) return 0;
+        int transferred = 0;
+        foreach (Person soldier in soldiers.ToList())
+        {
+            if (soldier == null || soldier.IsGone() || !soldier.Alive || !soldier.IsWarrior() ||
+                soldier.IsRuler() || soldier.Realm != source) continue;
+            soldier.RemoveFromArmy();
+            if (soldier.IsCityLeader()) soldier.City.RemoveLeader();
+            soldier.JoinCity(destination);
+            transferred++;
+        }
+        return transferred;
+    }
+
+    public static void ResolveSocialRebellion(War war, WarOutcome winner)
+    {
+        if (war == null) return;
+        WarExtension.WarExtraData warData = war.GetOrCreate();
+        if (warData.institution_social_rebellion_empire_id < 0) return;
+        Empire empire = ModClass.EMPIRE_MANAGER?.Get(warData.institution_social_rebellion_empire_id);
+        InstitutionEmpireState state = EnsureEmpireState(empire);
+        if (empire == null || state == null) return;
+        SocialClass socialClass = warData.institution_social_rebellion_class;
+        bool rebelsWon = winner == WarOutcome.Attackers;
+        bool centralWon = winner == WarOutcome.Defenders;
+        state.social_rebellion_war_id = -1L;
+        float current = state.class_grievances.TryGetValue(socialClass, out float grievance) ? grievance : 0f;
+        state.class_grievances[socialClass] = rebelsWon ? 18f : centralWon ? current * 0.35f : current * 0.55f;
+        if (rebelsWon) empire.AddMandate(-15);
+
+        string className = LM.Get($"class_{socialClass}");
+        string key = rebelsWon
+            ? "institution_social_rebellion_rebel_victory_history"
+            : centralWon
+                ? "institution_social_rebellion_central_victory_history"
+                : "institution_social_rebellion_compromise_history";
+        string history = string.Format(LM.Get(key), className,
+            string.IsNullOrWhiteSpace(warData.institution_social_rebellion_cause)
+                ? LM.Get("institution_social_cause_general")
+                : warData.institution_social_rebellion_cause);
+        empire.RecordHistory(directContent: history, actorId: war.GetMainAttacker()?.Ruler?.Key ?? -1L,
+            kingdomId: war.GetMainAttacker()?.Key ?? -1L);
+        EmpireCraft.Core.TranslateHelper.LogEventMessage(history, empire.CoreKingdom);
+    }
+
+    public static InstitutionPoliticalBalance CalculatePoliticalBalance(Empire empire,
+        InstitutionNodeConfig node, Dictionary<SocialClass, float> classShares = null) =>
+        CalculatePoliticalBalance(InstitutionRealm.Of(empire), node, classShares);
+
+    // 帝国、王国同一套算法：阶层按本政权人口，派系按推改革那个王国(帝国核心/王国本身)的派系占比
+    public static InstitutionPoliticalBalance CalculatePoliticalBalance(InstitutionRealm realm,
+        InstitutionNodeConfig node, Dictionary<SocialClass, float> classShares = null)
+    {
+        var result = new InstitutionPoliticalBalance();
+        if (realm == null || node?.politics == null) return result;
+        classShares ??= BuildClassShares(realm);
+        foreach (KeyValuePair<SocialClass, float> pair in classShares)
+        {
+            // 阶级项乘 300 而不是 100：人口里贵族、官僚这类关键阶级的占比通常只有个位数百分点，
+            // 按 100 折算的话阶级构成在总分里几乎看不出来，全被派系占比盖住了。
+            if (node.politics.support_classes.TryGetValue(pair.Key, out float support))
+                result.Support += pair.Value * support * 300f;
+            if (node.politics.oppose_classes.TryGetValue(pair.Key, out float oppose))
+                result.Opposition += pair.Value * oppose * 300f;
+        }
+        Realm core = realm.Core;
+        foreach (FixedFaction faction in core?.GetRegime()?.GetPlayerFactions() ??
+                 Enumerable.Empty<FixedFaction>())
+        {
+            float share = core.GetFactionRatioValue(faction) / 100f;
+            if (node.politics.support_factions.TryGetValue(faction.Type, out float support))
+                result.Support += share * support * 100f;
+            if (node.politics.oppose_factions.TryGetValue(faction.Type, out float oppose))
+                result.Opposition += share * oppose * 100f;
+        }
+        // 时代潮流：本文化已经掌握这项制度所需的技术，掌握的相关技术越多，支持者越多
+        string culture = realm.Culture;
+        if (TechnologySystem.AreInstitutionTechsMet(culture, node, out _))
+            result.Support += TrendSupportBase + TechnologySystem.GetInstitutionPush(culture, node) * TrendSupportPerPush +
+                              EraLag(culture, node) * EraLagSupport;
+        // 世家在朝：触动世家利益的改革阻力更大，合世家心意的更易推(见 GentrySystem.Court)
+        (float gentrySupport, float gentryOpposition) = GentrySystem.ReformLean(realm, node);
+        result.Support += gentrySupport;
+        result.Opposition += gentryOpposition;
+        result.Support = InstitutionRules.Clamp100(result.Support);
+        result.Opposition = InstitutionRules.Clamp100(result.Opposition);
+        return result;
+    }
+
+    private const float TrendSupportBase = 10f;
+    private const float TrendSupportPerPush = 60f;
+
+    // 单独一个阶层/派系对支持度或反对度的实际贡献分——跟 CalculatePoliticalBalance 里
+    // 加总的每一项公式完全一样，只是不加总、只算这一项，供 UI 直接显示"贡献了多少"，
+    // 而不是显示一个抽象的配置权重让玩家自己猜这个数到底意味着什么。
+    public static float GetClassContribution(Empire empire, SocialClass socialClass, float weight,
+        Dictionary<SocialClass, float> classShares = null) =>
+        GetClassContribution(InstitutionRealm.Of(empire), socialClass, weight, classShares);
+
+    public static float GetClassContribution(InstitutionRealm realm, SocialClass socialClass, float weight,
+        Dictionary<SocialClass, float> classShares = null)
+    {
+        if (realm == null) return 0f;
+        classShares ??= BuildClassShares(realm);
+        float share = classShares.TryGetValue(socialClass, out float value) ? value : 0f;
+        return share * weight * 300f;
+    }
+
+    // 同一类别可以有好几个派系(朋党：宽政派、节用派都算绥靖)，要逐个加总，与 CalculatePoliticalBalance 一致。
+    // 以前只取第一个，界面上的派系贡献比实际算进支持度的少，看着像"派系不支持"
+    public static float GetFactionContribution(Empire empire, FactionType factionType, float weight) =>
+        GetFactionContribution(InstitutionRealm.Of(empire), factionType, weight);
+
+    public static float GetFactionContribution(InstitutionRealm realm, FactionType factionType, float weight)
+    {
+        Realm core = realm?.Core;
+        List<FixedFaction> factions = core?.GetRegime()?.GetPlayerFactions();
+        if (factions == null) return 0f;
+        float share = 0f;
+        foreach (FixedFaction faction in factions)
+            if (faction != null && faction.Type == factionType)
+                share += core.GetFactionRatioValue(faction) / 100f;
+        return share * weight * 100f;
+    }
+
+    // 派系在推改革那个王国里的占比：帝国派系认帝国(CentralRatio)，王国的派系不挂帝国，直接看本国占比
+    private static int RatioOf(InstitutionRealm realm, FixedFaction faction) =>
+        realm.IsEmpire ? faction.CentralRatio : realm.Core?.GetFactionRatioValue(faction) ?? 0;
+
+    private static FixedFaction ResolveReformSponsor(InstitutionRealm realm, InstitutionNodeConfig node,
+        string requestedFactionId = "")
+    {
+        Realm core = realm?.Core;
+        List<FixedFaction> factions = core?.GetRegime()?.GetPlayerFactions() ??
+                                      new List<FixedFaction>();
+        if (node.politics.sponsor_only.Count > 0)
+            return core?.GetRegime()?.GetDominateFaction();
+        if (!string.IsNullOrWhiteSpace(requestedFactionId))
+        {
+            FixedFaction requested = factions.FirstOrDefault(faction => faction?.GetID() == requestedFactionId);
+            if (requested != null && node.politics.support_factions.ContainsKey(requested.Type)) return requested;
+        }
+
+        // 王国朝堂从简：倡议者取支持派里占比最高的，一个都没有就是君主亲自提议(sponsor 为空)
+        return factions.Where(faction => faction != null && !faction.Ban &&
+                                          node.politics.support_factions.ContainsKey(faction.Type))
+            .OrderByDescending(faction => GetFactionContribution(realm, faction.Type,
+                node.politics.support_factions[faction.Type]))
+            .ThenByDescending(faction => RatioOf(realm, faction))
+            .FirstOrDefault();
+    }
+
+    public static FixedFaction GetReformSponsor(Empire empire, InstitutionReformState reform) =>
+        GetReformSponsor(InstitutionRealm.Of(empire), reform);
+
+    public static FixedFaction GetReformSponsor(InstitutionRealm realm, InstitutionReformState reform)
+    {
+        if (realm == null || reform == null || string.IsNullOrWhiteSpace(reform.sponsor_faction_id)) return null;
+        return realm.Core?.GetRegime()?.GetPlayerFactions()
+            ?.FirstOrDefault(faction => faction?.GetID() == reform.sponsor_faction_id);
+    }
+
+    public static string GetResistanceReasonKey(InstitutionNodeConfig node)
+    {
+        string key = string.IsNullOrWhiteSpace(node?.resistance?.reason_key)
+            ? "institution_resistance_reason_generic"
+            : node.resistance.reason_key;
+        // 老节点没有逐项配置理由时，按制度分支与主要反对派给出比“既得利益受损”更具体的兜底。
+        if (key == "institution_resistance_reason_generic" && node != null)
+        {
+            if (node.branch == "finance") key = "institution_resistance_reason_tax_register";
+            else if (node.branch == "military") key = "institution_resistance_reason_standing_army";
+            else if (node.politics.oppose_factions.ContainsKey(FactionType.神权))
+                key = "institution_resistance_reason_religious_reform";
+            else if (node.politics.oppose_factions.ContainsKey(FactionType.诸侯) ||
+                     node.politics.oppose_factions.ContainsKey(FactionType.自治))
+                key = "institution_resistance_reason_local_privilege";
+            else
+            {
+                string lineKey = InstitutionDefinitionRegistry.GetTree(node.line)?.default_resistance_reason_key;
+                if (!string.IsNullOrWhiteSpace(lineKey)) key = lineKey;
+            }
+        }
+        return key;
+    }
+
+    public static string GetResistanceReason(InstitutionNodeConfig node) =>
+        LM.Get(GetResistanceReasonKey(node));
+
+    // years：抵几年(王国一轮扫描不止一年时按实际年数，见 AdvanceReform)
+    private static void ApplyOppositionFactionGrowth(InstitutionRealm realm, InstitutionNodeConfig node, float years = 1f)
+    {
+        if (node.resistance.opposition_faction_growth <= 0) return;
+        int growth = Math.Max(1, (int)Math.Round(node.resistance.opposition_faction_growth * years));
+        Realm core = realm?.Core;
+        IEnumerable<FixedFaction> factions = core?.GetRegime()?.GetPlayerFactions() ??
+                                             Enumerable.Empty<FixedFaction>();
+        foreach (FixedFaction faction in factions.Where(faction =>
+                     node.politics.oppose_factions.ContainsKey(faction.Type)))
+        {
+            core.TryIncreaseFactionRatio(faction, growth);
+        }
+    }
+
+#if EC_PENDING
+    private static bool TryEscalateResistance(Empire empire, InstitutionNodeConfig node)
+    {
+        FixedFaction opposition = (empire.CoreKingdom?.GetRegime()?.GetPlayerFactions() ??
+                                   Enumerable.Empty<FixedFaction>())
+            .Where(faction => node.politics.oppose_factions.ContainsKey(faction.Type))
+            .OrderByDescending(faction => empire.CoreKingdom.GetFactionRatioValue(faction)).FirstOrDefault();
+        Realm rebel = empire.kingdoms_list.Where(kingdom => kingdom != null && !kingdom.IsGone() &&
+                                                              kingdom != empire.CoreKingdom &&
+                                                              RebellionSystem.CanAttempt(kingdom) &&
+                                                              CityStabilitySystem.CanRise(kingdom.Capital) &&
+                                                              !kingdom.IsFactionRebelling() &&
+                                                              !kingdom.GetWars().Any())
+            .OrderByDescending(kingdom => kingdom.Warriors()).FirstOrDefault();
+        if (opposition == null || rebel == null) return false;
+        var cause = RebellionSystem.Capture(rebel, rebel.Capital, "rebellion_reason_reform",
+            GetNodeName(empire, node) + "：" + GetResistanceReason(node));
+        rebel.StartFactionRebelling(opposition);
+        War war = EmpireWorld.Current.StartWar(rebel, empire.CoreKingdom, WarKinds.Normal);
+        if (war == null)
+        {
+            rebel.EndFactionRebelling();
+            return false;
+        }
+        war.SetEmpireWarType(EmpireWarType.派系叛乱);
+        // 战争名写明哪一派反哪项改革(起兵的行省以统兵者官爵相称，派系不在国名里了，见 FactionRebelNaming)
+        war.Name = string.Format(LM.Get("reform_rebellion_war_name"), opposition.Name, GetNodeName(empire, node));
+        RebellionSystem.Record(rebel, war, cause);
+        // 郡县多不许养兵，起兵时就地武装义军(见 RebellionStartupService)
+        RebellionStartupService.RaiseUprisingMilitia(rebel, 0.5f);
+        InstitutionReformState reform = empire.data.institution_state.active_reform;
+        FixedFaction sponsor = GetReformSponsor(empire, reform);
+        WarExtension.WarExtraData warData = war.GetOrCreate();
+        warData.institution_reform_empire_id = empire.Key;
+        warData.institution_reform_node_id = node.id;
+        warData.institution_reform_reason_key = GetResistanceReasonKey(node);
+        warData.institution_reform_sponsor_faction_id = sponsor?.GetID() ?? "";
+        warData.institution_reform_sponsor_name = sponsor?.Name ?? LM.Get("institution_reform_origin_ruler");
+        warData.institution_reform_opposition_faction_id = opposition.GetID();
+        warData.institution_reform_opposition_name = opposition.Name;
+        warData.institution_reform_support = reform?.support ?? 0f;
+        warData.institution_reform_opposition = reform?.opposition ?? 0f;
+        warData.institution_reform_radicalism = reform?.radicalism ?? 0f;
+        warData.institution_reform_stage = reform?.stage ?? InstitutionReformStage.Debate;
+        warData.institution_reform_forced = reform?.forced ?? false;
+        if (reform != null) reform.resistance_war_id = war.Key;
+
+        string reason = GetResistanceReason(node);
+        string stage = LM.Get($"institution_stage_{warData.institution_reform_stage}");
+        string forceMode = LM.Get(warData.institution_reform_forced
+            ? "institution_reform_forced_marker"
+            : "institution_reform_normal_marker");
+        string nodeName = GetNodeName(empire, node);
+        war.Name = string.Format(LM.Get("institution_reform_rebellion_war_name"), opposition.Name, nodeName);
+        string content = string.Format(LM.Get("institution_reform_resistance_history_detailed"), opposition.Name,
+            nodeName, rebel.GetKingdomName(), reason, stage, warData.institution_reform_support,
+            warData.institution_reform_opposition, warData.institution_reform_radicalism, forceMode);
+        empire.RecordHistory(directContent: content, actorId: opposition.GetLeader()?.Key ?? -1L,
+            kingdomId: rebel.Key);
+        EmpireCraft.Core.TranslateHelper.LogEventMessage(content, empire.CoreKingdom);
+        return true;
+    }
+#endif
+
+    public static void ResolveReformRebellion(War war, WarOutcome winner)
+    {
+        if (war == null) return;
+        WarExtension.WarExtraData warData = war.GetOrCreate();
+        if (string.IsNullOrWhiteSpace(warData.institution_reform_node_id)) return;
+        Empire empire = ModClass.EMPIRE_MANAGER?.Get(warData.institution_reform_empire_id);
+        InstitutionNodeConfig node = InstitutionDefinitionRegistry.Get(warData.institution_reform_node_id);
+        if (empire?.data == null || node == null) return;
+
+        InstitutionReformState reform = empire.data.institution_state?.active_reform;
+        bool sameReform = reform != null && reform.node_id == node.id;
+        bool rebelsWon = winner == WarOutcome.Attackers;
+        bool centralWon = winner == WarOutcome.Defenders;
+        FixedFaction sponsor = empire.CoreKingdom?.GetRegime()?.GetPlayerFactions()
+            ?.FirstOrDefault(faction => faction?.GetID() == warData.institution_reform_sponsor_faction_id);
+        FixedFaction opposition = empire.CoreKingdom?.GetRegime()?.GetPlayerFactions()
+            ?.FirstOrDefault(faction => faction?.GetID() == warData.institution_reform_opposition_faction_id);
+
+        if (rebelsWon)
+        {
+            if (sameReform) empire.data.institution_state.active_reform = null;
+            if (opposition != null) empire.CoreKingdom.TryIncreaseFactionRatio(opposition, 6);
+            empire.AddMandate(-10);
+        }
+        else if (centralWon && sameReform)
+        {
+            reform.resistance_war_id = -1L;
+            reform.radicalism = InstitutionRules.Clamp100(reform.radicalism - 25f);
+            if (sponsor != null) empire.CoreKingdom.TryIncreaseFactionRatio(sponsor, 4);
+        }
+        else if (sameReform)
+        {
+            reform.resistance_war_id = -1L;
+            reform.progress = Math.Max(0f, reform.progress - 10f);
+            reform.radicalism = InstitutionRules.Clamp100(reform.radicalism - 10f);
+        }
+
+        string oppositionName = string.IsNullOrWhiteSpace(warData.institution_reform_opposition_name)
+            ? opposition?.Name ?? LM.Get("institution_unknown_faction")
+            : warData.institution_reform_opposition_name;
+        string historyKey = rebelsWon
+            ? "institution_reform_rebellion_rebel_victory_history"
+            : centralWon
+                ? "institution_reform_rebellion_central_victory_history"
+                : "institution_reform_rebellion_compromise_history";
+        string sponsorName = string.IsNullOrWhiteSpace(warData.institution_reform_sponsor_name)
+            ? sponsor?.Name ?? LM.Get("institution_reform_origin_ruler")
+            : warData.institution_reform_sponsor_name;
+        string content = string.Format(LM.Get(historyKey),
+            oppositionName, GetNodeName(empire, node), sponsorName);
+        empire.RecordHistory(directContent: content,
+            actorId: opposition?.GetLeader()?.Key ?? -1L,
+            kingdomId: war.GetMainAttacker()?.Key ?? -1L);
+        EmpireCraft.Core.TranslateHelper.LogEventMessage(content, empire.CoreKingdom);
+    }
+
+    #endregion
+
+    #region 跨文化接触与吸收
+
+    // 一年一次的世界级结算：先统计文化之间的接触强度，再判定谁能吸收谁的制度。
+    private static void ProcessWorldContactsAndAbsorption()
+    {
+        InstitutionAbsorptionRuleConfig rule = InstitutionDefinitionRegistry.Global.absorption;
+        if (rule == null || !rule.enabled) return;
+        // An old de jure realm culture or saved research state is not evidence that a
+        // culture still has a population on this map.
+        var presentCultures = new HashSet<string>(StringComparer.Ordinal);
+        foreach (City city in EmpireWorld.Current.Cities)
+        {
+            if (city == null || city.IsGone() || city.PopulationCount() <= 0) continue;
+            string culture = CultureService.GetMainCulture(city);
+            if (CultureService.IsValidCulture(culture)) presentCultures.Add(culture);
+        }
+        foreach (KeyValuePair<string, CultureInstitutionState> pair in _cultureStates)
+        {
+            if (presentCultures.Contains(pair.Key)) continue;
+            pair.Value.exposure.Clear();
+            pair.Value.contact_years.Clear();
+            pair.Value.last_exposure_timestamp.Clear();
+        }
+        Dictionary<string, Dictionary<string, float>> contacts = BuildCultureContacts(rule, presentCultures);
+        double now = GameClock.Now;
+
+        foreach (KeyValuePair<string, Dictionary<string, float>> targetPair in contacts)
+        {
+            string targetCulture = targetPair.Key;
+            CultureInstitutionState target = GetOrCreateCultureState(targetCulture);
+            if (target == null) continue;
+            string targetLine = GetCultureLine(targetCulture);
+            int targetLevel = GetCultureLevel(targetCulture);
+            var touchedThisYear = new HashSet<string>(StringComparer.Ordinal);
+
+            foreach (KeyValuePair<string, float> sourcePair in targetPair.Value)
+            {
+                CultureInstitutionState source = GetOrCreateCultureState(sourcePair.Key);
+                if (source == null || IsSameLine(GetCultureLine(sourcePair.Key), targetLine)) continue;
+                foreach (string nodeId in source.enacted_node_ids)
+                {
+                    InstitutionNodeConfig node = InstitutionDefinitionRegistry.Get(nodeId);
+                    if (!IsForeignCandidate(node, targetLine, target, targetCulture)) continue;
+                    // 等级不够就完全不积累接触度，这样几张接触表只会装"真的有机会吸收"的节点
+                    if (!InstitutionRules.IsTierAbsorbable(node.advancement, targetLevel, rule.max_tier_gap))
+                        continue;
+                    if (!touchedThisYear.Add(nodeId)) continue;
+                    float gained = rule.exposure_per_year * Math.Max(0f, sourcePair.Value);
+                    if (gained <= 0f) continue;
+                    target.exposure[nodeId] = Math.Min(100f,
+                        (target.exposure.TryGetValue(nodeId, out float current) ? current : 0f) + gained);
+                    target.contact_years[nodeId] =
+                        (target.contact_years.TryGetValue(nodeId, out int years) ? years : 0) + 1;
+                    target.last_exposure_timestamp[nodeId] = now;
+                }
+            }
+
+            TryAbsorb(targetCulture, target, targetLevel, rule);
+        }
+    }
+
+    // 接触表：目标文化 → 来源文化 → 本年度权重（多条渠道之间取最大值，不累加）
+    private static Dictionary<string, Dictionary<string, float>> BuildCultureContacts(
+        InstitutionAbsorptionRuleConfig rule, HashSet<string> presentCultures)
+    {
+        var contacts = new Dictionary<string, Dictionary<string, float>>(StringComparer.Ordinal);
+
+        void Link(string from, string to, float weight)
+        {
+            if (weight <= 0f || string.IsNullOrEmpty(from) || string.IsNullOrEmpty(to) || from == to) return;
+            if (!CultureService.IsValidCulture(from) || !CultureService.IsValidCulture(to)) return;
+            if (!presentCultures.Contains(from) || !presentCultures.Contains(to)) return;
+            if (!contacts.TryGetValue(to, out Dictionary<string, float> sources))
+            {
+                sources = new Dictionary<string, float>(StringComparer.Ordinal);
+                contacts[to] = sources;
+            }
+            if (!sources.TryGetValue(from, out float existing) || weight > existing) sources[from] = weight;
+        }
+
+        void LinkBoth(string a, string b, float weight)
+        {
+            Link(a, b, weight);
+            Link(b, a, weight);
+        }
+
+        // 渠道一：同属一个帝国
+        if (ModClass.EMPIRE_MANAGER != null)
+        {
+            foreach (Empire empire in ModClass.EMPIRE_MANAGER.Where(empire =>
+                         empire != null && !empire.IsGone() && !empire.IsArchived()))
+            {
+                var cultures = new HashSet<string>(StringComparer.Ordinal);
+                string primary = GetPrimaryCulture(empire);
+                if (CultureService.IsValidCulture(primary)) cultures.Add(primary);
+                foreach (Realm kingdom in empire.kingdoms_list.Where(kingdom =>
+                             kingdom != null && !kingdom.IsGone()))
+                {
+                    string realm = CultureService.GetRealmCulture(kingdom);
+                    if (CultureService.IsValidCulture(realm)) cultures.Add(realm);
+                }
+                List<string> list = cultures.ToList();
+                for (int i = 0; i < list.Count; i++)
+                for (int j = i + 1; j < list.Count; j++)
+                    LinkBoth(list[i], list[j], rule.same_empire_weight);
+
+                // 渠道三之一：朝贡国 / 岁币国
+                foreach (long kingdomId in (empire.data.taken_Kingdoms ?? new List<long>())
+                         .Concat(empire.data.given_Kingdoms ?? new List<long>()))
+                {
+                    Realm tributary = EmpireWorld.Current.RealmByKey(kingdomId);
+                    if (tributary == null || tributary.IsGone()) continue;
+                    LinkBoth(primary, CultureService.GetRealmCulture(tributary),
+                        rule.alliance_or_tributary_weight);
+                }
+            }
+        }
+
+        // 渠道二：陆地边境相邻（用城市的邻国集合）。通达层算好后按地理通达打折(用户 2026-11-06 选"标准"，见 ConnectivitySystem)：
+        //   权重 = land_border_weight × 学的一方从对方学得到的强度——隔着雪山、大漠接壤的邻国比平原上的邻国慢得多
+        // 渠道四：城市的主流文化跟统治它的政权的法理文化不同 —— 占领融合
+        bool weighted = ConnectivitySystem.Ready;
+        ConnectivityConfig reach = ConnectivitySystem.Config;
+        float Geo(string learner, string source)
+        {
+            if (!weighted) return 1f;
+            float strength = ConnectivitySystem.CultureLearn(learner, source);
+            return strength < 0f ? 1f : strength;
+        }
+        var allianceGroups = new Dictionary<Alliance, HashSet<string>>();
+        foreach (City city in EmpireWorld.Current.Cities.Where(city => city != null && !city.IsGone()))
+        {
+            Realm owner = city.Realm;
+            if (owner == null || owner.IsGone()) continue;
+            string ownerCulture = CultureService.GetRealmCulture(owner);
+            string cityCulture = CultureService.GetMainCulture(city);
+            LinkBoth(ownerCulture, cityCulture, rule.occupied_city_weight);
+            if (city.NeighbourRealms != null)
+            {
+                foreach (Realm neighbour in city.NeighbourRealms)
+                {
+                    if (neighbour == null || neighbour.IsGone() || neighbour == owner) continue;
+                    string neighbourCulture = CultureService.GetRealmCulture(neighbour);
+                    if (!weighted)
+                    {
+                        LinkBoth(ownerCulture, neighbourCulture, rule.land_border_weight);
+                        continue;
+                    }
+                    Link(ownerCulture, neighbourCulture, rule.land_border_weight * Geo(neighbourCulture, ownerCulture));
+                    Link(neighbourCulture, ownerCulture, rule.land_border_weight * Geo(ownerCulture, neighbourCulture));
+                }
+            }
+            if (owner.HasAlliance())
+            {
+                Alliance alliance = owner.GetAlliance();
+                if (alliance != null)
+                {
+                    if (!allianceGroups.TryGetValue(alliance, out HashSet<string> members))
+                    {
+                        members = new HashSet<string>(StringComparer.Ordinal);
+                        allianceGroups[alliance] = members;
+                    }
+                    if (CultureService.IsValidCulture(ownerCulture)) members.Add(ownerCulture);
+                }
+            }
+        }
+
+        // 渠道三之二：同盟(通达层算好后：盟友隔得远的，往来照样打折，至少按 institution_alliance_min 算)
+        foreach (HashSet<string> members in allianceGroups.Values)
+        {
+            List<string> list = members.ToList();
+            for (int i = 0; i < list.Count; i++)
+            for (int j = i + 1; j < list.Count; j++)
+            {
+                if (!weighted)
+                {
+                    LinkBoth(list[i], list[j], rule.alliance_or_tributary_weight);
+                    continue;
+                }
+                Link(list[i], list[j], rule.alliance_or_tributary_weight * Math.Max(reach.institution_alliance_min, Geo(list[j], list[i])));
+                Link(list[j], list[i], rule.alliance_or_tributary_weight * Math.Max(reach.institution_alliance_min, Geo(list[i], list[j])));
+            }
+        }
+
+        // 渠道五：远播(用户 2026-11-06 选"标准")——不接壤的文化，通达够 institution_remote_min 的也有往来：
+        // 隔着窄海、沿着商路、电报以后隔着大洋，权重 institution_remote_weight × 强度(各渠道取最大，不累加)
+        if (weighted)
+        {
+            List<string> present = presentCultures.ToList();
+            foreach (string target in present)
+            foreach (string source in present)
+            {
+                if (target == source) continue;
+                float strength = ConnectivitySystem.CultureLearn(target, source);
+                if (strength >= reach.institution_remote_min) Link(source, target, reach.institution_remote_weight * strength);
+            }
+        }
+
+        return contacts;
+    }
+
+    private static void TryAbsorb(string culture, CultureInstitutionState state, int level,
+        InstitutionAbsorptionRuleConfig rule)
+    {
+        string line = GetCultureLine(culture);
+        foreach (string nodeId in state.exposure.Keys.ToList())
+        {
+            InstitutionNodeConfig node = InstitutionDefinitionRegistry.Get(nodeId);
+            if (!IsForeignCandidate(node, line, state, culture))
+            {
+                state.exposure.Remove(nodeId);
+                state.contact_years.Remove(nodeId);
+                state.last_exposure_timestamp.Remove(nodeId);
+                continue;
+            }
+            // 外来制度也要本文化先研究出它要求的科技，否则接触度留着、暂不吸收
+            if (!TechnologySystem.AreInstitutionTechsMet(culture, node, out _)) continue;
+            if (!InstitutionRules.IsTierAbsorbable(node.advancement, level, rule.max_tier_gap)) continue;
+            float requiredExposure = node.absorb.minimum_exposure >= 0f
+                ? node.absorb.minimum_exposure
+                : rule.minimum_exposure;
+            int requiredYears = node.absorb.minimum_contact_years >= 0
+                ? node.absorb.minimum_contact_years
+                : rule.minimum_contact_years;
+            float exposure = state.exposure.TryGetValue(nodeId, out float value) ? value : 0f;
+            int years = state.contact_years.TryGetValue(nodeId, out int contact) ? contact : 0;
+            if (!InstitutionRules.IsExposureSatisfied(exposure, years, requiredExposure, requiredYears)) continue;
+
+            // 吸收即直接获得：不要求补它在原线上的前置（那些前置属于别的线，本线永远长不到）
+            state.enacted_node_ids.Add(nodeId);
+            if (!state.absorbed_node_ids.Contains(nodeId)) state.absorbed_node_ids.Add(nodeId);
+            state.exposure.Remove(nodeId);
+            state.contact_years.Remove(nodeId);
+            state.last_exposure_timestamp.Remove(nodeId);
+            string absorbed = string.Format(LM.Get("institution_absorbed_tip"),
+                culture.GetCultureTranslate(), GetNodeName(node, culture),
+                LM.Get(InstitutionDefinitionRegistry.GetLineNameKey(node.line)));
+            // 吸收是文化层面的事件：发一条世界消息，并记入该文化所有帝国的史书
+            Realm messageKingdom = null;
+            foreach (Empire cultureEmpire in (ModClass.EMPIRE_MANAGER ?? Enumerable.Empty<Empire>()).ToList())
+            {
+                if (cultureEmpire?.data == null || cultureEmpire.IsArchived() || cultureEmpire.IsGone() ||
+                    !string.Equals(GetPrimaryCulture(cultureEmpire), culture, StringComparison.Ordinal)) continue;
+                cultureEmpire.RecordHistory(directContent: absorbed, kingdomId: cultureEmpire.CoreKingdom?.Key ?? -1L);
+                messageKingdom ??= cultureEmpire.CoreKingdom;
+            }
+            EmpireCraft.Core.TranslateHelper.LogEventMessage(absorbed, messageKingdom);
+            // 吸收会抬高文明等级，同一年内不再连续吸收下一个，留到明年重算
+            break;
+        }
+    }
+
+    #endregion
+
+    #region 效果
+
+    // 同文化其他政权的"补效果"：文化已掌握、但本政权还没落地过的节点，把持久效果补上。
+    public static void SyncSharedEffects(Empire empire) => SyncSharedEffects(InstitutionRealm.Of(empire));
+
+    public static void SyncSharedEffects(InstitutionRealm realm)
+    {
+        InstitutionEmpireState state = EnsureRealmState(realm);
+        if (state == null) return;
+        CultureInstitutionState cultureState = GetOrCreateCultureState(realm.Culture);
+        if (cultureState == null) return;
+        foreach (string nodeId in cultureState.enacted_node_ids.ToList())
+        {
+            if (state.applied_node_ids.Contains(nodeId)) continue;
+            InstitutionNodeConfig node = InstitutionDefinitionRegistry.Get(nodeId);
+            state.applied_node_ids.Add(nodeId);
+            if (node == null) continue;
+            ApplyEffects(realm, node, node.effects_on_complete, true);
+        }
+    }
+
+    private static void ApplyEffects(InstitutionRealm realm, InstitutionNodeConfig node,
+        IEnumerable<InstitutionEffectConfig> effects, bool sharedOnly)
+    {
+        foreach (InstitutionEffectConfig effect in effects ?? Enumerable.Empty<InstitutionEffectConfig>())
+        {
+            if (effect == null || string.IsNullOrWhiteSpace(effect.type)) continue;
+            if (sharedOnly && !InstitutionDefinitionRegistry.IsSharedEffect(effect.type)) continue;
+            try
+            {
+                ApplyEffect(realm, node, effect);
+            }
+            catch (Exception exception)
+            {
+                LogService.LogError($"应用制度效果失败: {node.id}/{effect.type}: {exception}");
+            }
+        }
+    }
+
+    // 效果的作用范围：核心王国，外加法理文化跟帝国主文化一致的成员国；王国就是它自己。
+    // 不再无差别地改"帝国内所有王国"——制度既然绑在文化上，异文化的附属国就不该被顺手改掉。
+    private static List<Realm> EnumerateAffectedKingdoms(Empire empire) =>
+        EnumerateAffectedKingdoms(InstitutionRealm.Of(empire));
+
+    private static List<Realm> EnumerateAffectedKingdoms(InstitutionRealm realm)
+    {
+        var result = new List<Realm>();
+        Realm core = realm?.Core;
+        if (core != null && !core.IsGone()) result.Add(core);
+        if (realm?.IsEmpire != true) return result;
+        Empire empire = realm.Empire;
+        string culture = realm.Culture;
+        string line = GetCultureLine(culture);
+        foreach (Realm kingdom in empire.kingdoms_list ?? new List<Realm>())
+        {
+            if (kingdom == null || kingdom.IsGone() || result.Contains(kingdom)) continue;
+            // 同一条制度线的成员国跟着核心换政体(用户 2026-10-19 选"成员国按制度线跟核心换"：以前要文化一字不差，
+            // 哈里发里的埃及、法兰克帝国里的日耳曼、华夏里的中国山海都留着旧政体)。旧制犹存的成员按旧制所属的文化看
+            string memberCulture = CultureService.GetInstitutionCulture(kingdom);
+            if (string.Equals(memberCulture, culture, StringComparison.Ordinal) ||
+                !string.IsNullOrEmpty(line) && GetCultureLine(memberCulture) == line)
+                result.Add(kingdom);
+        }
+        return result;
+    }
+
+    // 只管成员国的政体选项：王国没有成员，改了反而伤到自己(不许养兵就连本国军队都没了)
+    private static readonly HashSet<string> MemberOnlyOptions = new(StringComparer.Ordinal)
+    {
+        "option_leader_select_method", "toggle_allow_army", "toggle_support_army_to_center"
+    };
+
+    // 效果落到王国(简化朝堂)：正统换成君主声望，积弊、诉求这些只有帝国朝廷才有的跳过，其余照样作用于本国
+    private static void ApplyEffect(InstitutionRealm realm, InstitutionNodeConfig node, InstitutionEffectConfig effect)
+    {
+        Empire empire = realm.Empire;
+        Realm core = realm.Core;
+        switch (effect.type)
+        {
+            case "add_mandate":
+                if (realm.IsEmpire) empire.AddMandate(effect.int_value);
+                else AddRulerRenown(realm.Ruler, effect.int_value);
+                break;
+            // 财政改革对症减轻朝政积弊(value 为积弊键，见 MaladySystem)：两税法、一条鞭法清丈田亩、均田
+            case "relieve_malady":
+                if (realm.IsEmpire) MaladySystem.Relieve(empire, effect.value, effect.int_value);
+                break;
+            case "change_tax_level":
+                if (Enum.TryParse(effect.value, true, out TaxLevel taxLevel))
+                    foreach (Realm kingdom in EnumerateAffectedKingdoms(realm))
+                        kingdom.GetRegime()?.SetTaxLevel(taxLevel);
+                break;
+            case "set_regime_option":
+                // 没写改哪一项(编辑器里漏选)：拿空键查选项表会抛异常，校验时已报过
+                if (string.IsNullOrEmpty(effect.option)) break;
+                if (!realm.IsEmpire && MemberOnlyOptions.Contains(effect.option)) break;
+                foreach (Realm kingdom in EnumerateAffectedKingdoms(realm))
+                {
+                    Regime regime = kingdom.GetRegime();
+                    if (regime?.options == null) continue;
+                    // 科举取士只改流官的选任：世袭的封国、核心王国不改，否则有外交权的封国一改就成了"军府"
+                    if (effect.option == "option_leader_select_method" &&
+                        regime.GetLeaderSelectMethod() == LeaderSelectMethod.Succession) continue;
+                    if (regime.options.TryGetValue(effect.option, out int[] option) && option?.Length > 0)
+                    {
+                        option[0] = effect.int_value;
+                        // 政体选项变了要让月度的 KingdomType/官职重算认出来，否则得等下一次自然刷新
+                        kingdom.SystemChange();
+                    }
+                    else if (WarnedMissingOptions.Add($"{regime.type}/{effect.option}"))
+                    {
+                        LogService.LogWarning(
+                            $"制度节点 {node.id} 要改的政体选项 {effect.option} 在 {regime.type} 政体里不存在，已跳过。");
+                    }
+                }
+                break;
+            case "modify_faction_power":
+                foreach (FixedFaction faction in core.GetRegime()?.GetPlayerFactions() ??
+                         Enumerable.Empty<FixedFaction>())
+                    if (effect.faction == FactionType.无 || faction.Type == effect.faction)
+                        core.TryIncreaseFactionRatio(faction, effect.int_value);
+                break;
+            case "enable_claim":
+                // 诉求是帝国朝堂的玩法，王国朝堂从简没有诉求
+                if (realm.IsEmpire) EnableClaim(empire, node, effect);
+                break;
+            case "set_succession_law":
+                // 改核心的继承法(忽里勒台推举大汗)；只在还是默认的嫡长子继承时改，免得改政体重放持久效果时把后来改过的改回去
+                if (Enum.TryParse(effect.value, true, out SuccessionLawType lawToSet) &&
+                    core?.GetRegime() is Regime lawRegime &&
+                    core.GetSuccessionLaw() == SuccessionLawType.嫡长子继承法)
+                    lawRegime.SetSuccessionLaw(lawToSet);
+                break;
+            case "unlock_succession_law":
+                if (Enum.TryParse(effect.value, true, out SuccessionLawType succession))
+                {
+                    CultureInstitutionState cultureState = GetOrCreateCultureState(realm.Culture);
+                    if (cultureState != null && !cultureState.unlocked_succession_laws.Contains(succession))
+                        cultureState.unlocked_succession_laws.Add(succession);
+                }
+                break;
+            case "change_regime":
+                if (Enum.TryParse(effect.value, true, out RegimeType regimeType)) ChangeRegime(realm, regimeType);
+                break;
+            case "grant_trait":
+                GrantTraitToWarriors(realm, effect.value);
+                break;
+            case "abolish_monarchy":
+                // The institution unlocks political abolition; the actual transition needs a party mandate.
+                break;
+            case "open_private_land_market":
+                foreach (Realm kingdom in EnumerateAffectedKingdoms(realm))
+                    LandEconomySystem.OpenPrivateLandMarket(kingdom, redistribute: false, revolutionary: false);
+                break;
+            case "enact_law":
+                if (node.requires_composite_empire && (!realm.IsEmpire || !CompositeEmpireService.IsMultiethnic(empire)))
+                    break;
+                if (Enum.TryParse(effect.value, true, out LawType lawType))
+                {
+                    foreach (Realm kingdom in EnumerateAffectedKingdoms(realm))
+                    {
+                        Regime regime = kingdom.GetRegime();
+                        if (regime == null) continue;
+                        regime.laws ??= new List<LawType>();
+                        if (!regime.laws.Contains(lawType)) regime.laws.Add(lawType);
+                        if (lawType == LawType.逃人法)
+                            kingdom.GetOrCreate().fugitive_household_law_enacted = true;
+                    }
+                }
+                break;
+            default:
+                LogService.LogWarning($"未知制度效果 {effect.type}，节点 {node.id} 已跳过该效果。");
+                break;
+        }
+    }
+
+    // 给当前存量的士兵发特质(用于"战术研究"这类节点)——只覆盖研究完成那一刻已经在当兵的人，
+    // 之后新入伍的靠 SyncGrantedTraits 每年补一遍，不用改动游戏自己的入伍逻辑。
+    private static void GrantTraitToWarriors(InstitutionRealm realm, string traitId)
+    {
+        if (string.IsNullOrWhiteSpace(traitId)) return;
+        foreach (Person actor in EmpirePopulation.Enumerate(EnumerateAffectedKingdoms(realm)))
+        {
+            if (actor.IsWarrior() && !actor.HasTrait(traitId)) actor.AddTrait(traitId);
+        }
+    }
+
+    // 王国没有正统，正统增减折成君主声望(不低于零)
+    private static void AddRulerRenown(Person ruler, int amount)
+    {
+        if (ruler?.Record == null || ruler.IsGone() || amount == 0) return;
+        ruler.Renown = Math.Max(0, ruler.Renown + amount);
+    }
+
+    // 已经解锁的 grant_trait 效果要持续覆盖新入伍的士兵，不只是研究完成那一刻的存量部队——
+    // 跟着 Update 的年度节奏顺便扫一遍，找到还没有对应特质的士兵补上。
+    private static void SyncGrantedTraits(InstitutionRealm realm)
+    {
+        if (realm == null) return;
+        CultureInstitutionState cultureState = GetOrCreateCultureState(realm.Culture);
+        if (cultureState == null) return;
+        List<string> traitIds = cultureState.enacted_node_ids
+            .Select(InstitutionDefinitionRegistry.Get)
+            .Where(node => node != null)
+            .SelectMany(node => node.effects_on_complete)
+            .Where(effect => effect != null && effect.type == "grant_trait" && !string.IsNullOrWhiteSpace(effect.value))
+            .Select(effect => effect.value)
+            .Distinct()
+            .ToList();
+        if (traitIds.Count == 0) return;
+        foreach (Person actor in EmpirePopulation.Enumerate(EnumerateAffectedKingdoms(realm)))
+        {
+            if (!actor.IsWarrior()) continue;
+            foreach (string traitId in traitIds)
+                if (!actor.HasTrait(traitId)) actor.AddTrait(traitId);
+        }
+    }
+
+    private static void EnableClaim(Empire empire, InstitutionNodeConfig node, InstitutionEffectConfig effect)
+    {
+        if (!Enum.TryParse(effect.value, true, out TemporaryFactionType claim)) return;
+        IEnumerable<FixedFaction> factions = empire.CoreKingdom.GetRegime()?.GetPlayerFactions() ??
+                                             Enumerable.Empty<FixedFaction>();
+        if (effect.faction != FactionType.无) factions = factions.Where(faction => faction.Type == effect.faction);
+        else if (node.politics.support_factions.Count > 0)
+            factions = factions.Where(faction => node.politics.support_factions.ContainsKey(faction.Type));
+        foreach (FixedFaction faction in factions.ToList())
+        {
+            faction.TemporaryFactionTypesRecord ??= new List<TemporaryFactionType>();
+            if (!faction.TemporaryFactionTypesRecord.Contains(claim)) faction.TemporaryFactionTypesRecord.Add(claim);
+            faction.TemporaryFactions = faction.ConvertToObjectFromFactionType();
+            foreach (TemporaryFaction temporary in faction.TemporaryFactions)
+            {
+                temporary?.Init(faction);
+                temporary?.SetEmpire(empire);
+            }
+        }
+    }
+
+    private static void ChangeRegime(InstitutionRealm realm, RegimeType regimeType)
+    {
+        if (realm == null) return;
+        if (realm.IsEmpire) ChangeRegime(realm.Empire, regimeType);
+        else ApplyKingdomRegimeChange(realm, regimeType);
+    }
+
+    // 制度同步不会把已经改制共和的帝国拉回文化的政体；共和改制/复辟走 ChangeRegimeForTransition
+    private static void ChangeRegime(Empire empire, RegimeType regimeType)
+    {
+        if (empire?.data?.constitutional_economy?.is_republic == true) return;
+        // 已废除君主制的文化会解析出现代政体(见 TryResolveCultureRegime)，但现存的君主国不能随文化同步
+        // 直接变成现代国家：得走废君压力、退位、革命这些共和途径(RepublicSystem)，才有退位与史书
+        if (regimeType == RegimeType.Modern && RegimeManager.IsMonarchy(empire?.CoreKingdom?.GetRegime()?.type))
+            return;
+        ApplyRegimeChange(empire, regimeType);
+    }
+
+    public static void ChangeRegimeForTransition(Empire empire, RegimeType regimeType) =>
+        ApplyRegimeChange(empire, regimeType);
+
+    // 把声明了某个特性的本线节点直接记为本文化已掌握(外来吸收，不看前置)；已掌握或没有这样的节点返回 false
+    public static bool AbsorbFeatureNode(string culture, string feature)
+    {
+        CultureInstitutionState state = GetOrCreateCultureState(culture);
+        if (state == null || string.IsNullOrWhiteSpace(feature)) return false;
+        InstitutionNodeConfig node = InstitutionDefinitionRegistry.GetForLine(GetCultureLine(culture))
+            .FirstOrDefault(candidate => candidate.features != null && candidate.features.ContainsKey(feature) &&
+                                         InstitutionDefinitionRegistry.FitsCulture(candidate, culture));
+        if (node == null || state.enacted_node_ids.Contains(node.id)) return false;
+        state.enacted_node_ids.Add(node.id);
+        if (!state.absorbed_node_ids.Contains(node.id)) state.absorbed_node_ids.Add(node.id);
+        state.enacted_timestamps ??= new Dictionary<string, double>();
+        state.enacted_timestamps[node.id] = EmpireWorld.Current?.Now() ?? 0d;
+        return true;
+    }
+
+    private static bool IsHuaxiaMonarchy(RegimeType? type) =>
+        type == RegimeType.LvLing || type == RegimeType.ZhouFeudalism;
+
+    private static void ApplyRegimeChange(Empire empire, RegimeType regimeType)
+    {
+        RegimeType? previousCore = empire?.CoreKingdom?.GetRegime()?.type;
+        try
+        {
+            ApplyRegimeChangeCore(empire, regimeType);
+        }
+        finally
+        {
+            // 开幕府 / 大政奉还(见 BakufuSystem)；离开阿拉伯政体时不再有苏丹、哈里发之分(见 EmirateSystem)
+            BakufuSystem.OnRegimeChanged(empire, previousCore, regimeType);
+            EmirateSystem.OnRegimeChanged(empire, previousCore, regimeType);
+        }
+    }
+
+    private static void ApplyRegimeChangeCore(Empire empire, RegimeType regimeType)
+    {
+        List<Realm> affected = EnumerateAffectedKingdoms(empire);
+        var pieties = new Dictionary<Realm, ReligionLevel?>();
+        foreach (Realm kingdom in affected)
+        {
+            Regime old = kingdom.GetRegime();
+            if (old?.type == regimeType) continue;
+            // 改行律令制、周制时成员保留原有的外交权与选任方式(州郡仍是州郡、封国仍是封国)，
+            // 否则重置成模板默认(律令制默认有外交权、科举选任)，州郡和封国全被判成军府。
+            // 以前只管周制 ⇄ 律令制，封建制等改行律令制(如采纳三省六部连带补上郡县制)时全帝国州郡秒变军府
+            pieties[kingdom] = PapacySystem.PietyBeforeReload(kingdom);
+            kingdom.SetRegimeType(regimeType);
+            kingdom.LoadRegimeKeepingRole();
+            kingdom.SystemChange();
+        }
+        empire.data.centerOffice ??= new CenterOffice();
+        empire.data.centerOffice.Init(empire.CoreKingdom);
+
+        // LoadRegime 是从模板重新克隆 regime：之前所有 set_regime_option 改过的选项、
+        // enable_claim 解锁过的诉求、派系占比全都被抹回模板默认值。所以这里清掉 applied
+        // 再整体重放一遍本文化已掌握节点的持久效果，把被抹掉的部分补回来。
+        empire.data.institution_state.applied_node_ids.Clear();
+        SyncSharedEffects(empire);
+        // 圣城之主(教宗国)的政教合一不是制度给的，换政体后照旧
+        foreach (KeyValuePair<Realm, ReligionLevel?> piety in pieties) PapacySystem.KeepTheocracy(piety.Key, piety.Value);
+    }
+
+    #endregion
+
+    #region UI 取数
+
+    // 本文化所在线的全部节点 + 每个节点当前的状态，全人口只扫一遍。
+#if EC_PENDING
+    public static IReadOnlyList<InstitutionNodeView> BuildLineView(Empire empire) =>
+        empire?.data == null ? new List<InstitutionNodeView>() : BuildLineView(InstitutionRealm.Of(empire));
+
+    public static IReadOnlyList<InstitutionNodeView> BuildLineView(InstitutionRealm realm)
+    {
+        var result = new List<InstitutionNodeView>();
+        Realm core = realm?.Core;
+        if (core == null || core.IsGone()) return result;
+        InstitutionEmpireState empireState = EnsureRealmState(realm);
+        if (empireState == null) return result;
+        string culture = realm.Culture;
+        CultureInstitutionState state = GetOrCreateCultureState(culture);
+        if (state == null) return result;
+        string activeNode = empireState.active_reform?.node_id;
+        Dictionary<SocialClass, float> shares = BuildClassShares(realm);
+
+        foreach (InstitutionNodeConfig node in InstitutionDefinitionRegistry.GetForLine(GetCultureLine(culture)))
+        {
+            InstitutionPoliticalBalance balance = CalculatePoliticalBalance(realm, node, shares);
+            var view = new InstitutionNodeView
+            {
+                Node = node,
+                Culture = culture,
+                Support = balance.Support,
+                Opposition = balance.Opposition
+            };
+            if (state.enacted_node_ids.Contains(node.id))
+                view.Status = state.absorbed_node_ids.Contains(node.id)
+                    ? InstitutionNodeStatus.Absorbed
+                    : InstitutionNodeStatus.Enacted;
+            else if (IsSuperseded(state, node.id))
+            {
+                view.Status = InstitutionNodeStatus.Superseded;
+                view.Reason = "institution_reform_superseded";
+            }
+            else if (node.id == activeNode)
+                view.Status = InstitutionNodeStatus.Reforming;
+            else if (CanStartReform(realm, node, out string reason, false, balance))
+                view.Status = InstitutionNodeStatus.Available;
+            else if (CanStartReform(realm, node, out _, true, balance))
+            {
+                view.Status = InstitutionNodeStatus.Forceable;
+                view.Reason = reason;
+            }
+            else
+            {
+                view.Status = InstitutionNodeStatus.Locked;
+                view.Reason = reason;
+            }
+            result.Add(view);
+        }
+        return result;
+    }
+#endif
+
+    // 外来的可吸收 / 正在接触的节点（挂在树的旁边显示）
+    public static IReadOnlyList<InstitutionNodeView> BuildForeignView(Empire empire) =>
+        empire?.data == null
+            ? new List<InstitutionNodeView>()
+            : BuildCultureForeignView(GetPrimaryCulture(empire));
+
+    // 文化本身（不针对某个帝国）的整条科技线：只看文化掌握了什么、前置是否满足、
+    // 有没有同文化帝国正在推进。没有帝国上下文，所以不计算支持/反对。
+    public static IReadOnlyList<InstitutionNodeView> BuildCultureLineView(string culture)
+    {
+        var result = new List<InstitutionNodeView>();
+        CultureInstitutionState state = GetOrCreateCultureState(culture);
+        if (state == null) return result;
+        var reforming = new HashSet<string>(StringComparer.Ordinal);
+        foreach (Empire empire in ModClass.EMPIRE_MANAGER ?? Enumerable.Empty<Empire>())
+        {
+            if (empire?.data == null || empire.IsArchived() || empire.IsGone()) continue;
+            string nodeId = empire.data.institution_state?.active_reform?.node_id;
+            if (!string.IsNullOrEmpty(nodeId) &&
+                string.Equals(GetPrimaryCulture(empire), culture, StringComparison.Ordinal))
+                reforming.Add(nodeId);
+        }
+        foreach ((Realm _, string nodeId) in CultureKingdomReforms(culture)) reforming.Add(nodeId);
+        foreach (InstitutionNodeConfig node in InstitutionDefinitionRegistry.GetForLine(GetCultureLine(culture)))
+        {
+            var view = new InstitutionNodeView { Node = node, Culture = culture };
+            if (state.enacted_node_ids.Contains(node.id))
+                view.Status = state.absorbed_node_ids.Contains(node.id)
+                    ? InstitutionNodeStatus.Absorbed
+                    : InstitutionNodeStatus.Enacted;
+            else if (IsSuperseded(state, node.id))
+            {
+                view.Status = InstitutionNodeStatus.Superseded;
+                view.Reason = "institution_reform_superseded";
+            }
+            else if (reforming.Contains(node.id))
+                view.Status = InstitutionNodeStatus.Reforming;
+            else if (!InstitutionDefinitionRegistry.FitsCulture(node, culture))
+            {
+                view.Status = InstitutionNodeStatus.Locked;
+                view.Reason = "institution_reform_no_tradition";
+            }
+            else if (!InstitutionDefinitionRegistry.ArePrerequisitesMet(node, id => IsPrerequisiteHeld(state, id)))
+            {
+                view.Status = InstitutionNodeStatus.Locked;
+                view.Reason = "institution_reform_missing_requirement";
+            }
+            else if (TechnologySystem.ModernInstitutionBlocked(node))
+            {
+                view.Status = InstitutionNodeStatus.Locked;
+                view.Reason = TechnologySystem.ModernInstitutionReason(node);
+            }
+            else if (!TechnologySystem.AreInstitutionTechsMet(culture, node, out _))
+            {
+                view.Status = InstitutionNodeStatus.Locked;
+                view.Reason = "institution_reform_missing_tech";
+            }
+            else if (node.exclusive_with.Any(state.enacted_node_ids.Contains))
+            {
+                view.Status = InstitutionNodeStatus.Locked;
+                view.Reason = "institution_reform_exclusive";
+            }
+            else view.Status = InstitutionNodeStatus.Available;
+            result.Add(view);
+        }
+        return result;
+    }
+
+    public static IReadOnlyList<InstitutionNodeView> BuildCultureForeignView(string culture)
+    {
+        var result = new List<InstitutionNodeView>();
+        InstitutionAbsorptionRuleConfig rule = InstitutionDefinitionRegistry.Global.absorption;
+        if (rule == null || !rule.enabled) return result;
+        CultureInstitutionState state = GetOrCreateCultureState(culture);
+        if (state == null) return result;
+        string line = GetCultureLine(culture);
+        int level = GetCultureLevel(culture);
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string nodeId in state.enacted_node_ids.Where(state.absorbed_node_ids.Contains))
+        {
+            InstitutionNodeConfig node = InstitutionDefinitionRegistry.Get(nodeId);
+            if (node == null || !seen.Add(nodeId)) continue;
+            result.Add(new InstitutionNodeView { Node = node, Culture = culture, Status = InstitutionNodeStatus.Absorbed });
+        }
+        foreach (string nodeId in state.exposure.Keys)
+        {
+            InstitutionNodeConfig node = InstitutionDefinitionRegistry.Get(nodeId);
+            if (node == null || IsSameLine(node.line, line) || !seen.Add(nodeId)) continue;
+            float exposure = state.exposure.TryGetValue(nodeId, out float value) ? value : 0f;
+            int years = state.contact_years.TryGetValue(nodeId, out int contact) ? contact : 0;
+            float requiredExposure = node.absorb.minimum_exposure >= 0f
+                ? node.absorb.minimum_exposure
+                : rule.minimum_exposure;
+            int requiredYears = node.absorb.minimum_contact_years >= 0
+                ? node.absorb.minimum_contact_years
+                : rule.minimum_contact_years;
+            result.Add(new InstitutionNodeView
+            {
+                Node = node,
+                Culture = culture,
+                Exposure = exposure,
+                ContactYears = years,
+                RequiredExposure = requiredExposure,
+                RequiredContactYears = requiredYears,
+                Status = !InstitutionRules.IsTierAbsorbable(node.advancement, level, rule.max_tier_gap)
+                    ? InstitutionNodeStatus.ForeignLocked
+                    : InstitutionRules.IsExposureSatisfied(exposure, years, requiredExposure, requiredYears)
+                        ? InstitutionNodeStatus.ForeignReady
+                        : InstitutionNodeStatus.ForeignContacting
+            });
+        }
+        return result.OrderBy(view => view.Node.line, StringComparer.Ordinal).ThenBy(view => view.Node.advancement)
+            .ThenBy(view => view.Node.id, StringComparer.Ordinal).ToList();
+    }
+
+    public static string GetNodeName(InstitutionNodeConfig node) => GetNodeName(node, null);
+
+    // culture：看的是哪个文化的树——同一条线里个别文化另有叫法(印度的阿拉伯线不称哈里发国，见 DynastyNaming.CultureVariant)
+    public static string GetNodeName(InstitutionNodeConfig node, string culture)
+    {
+        if (node == null) return LM.Get("label_none");
+        // 开放党禁后生成的古代理念节点按这棵树的文化线叫(西方是经院正统……见 CultureDoctrines)
+        if (CultureDoctrines.NodeName(node, culture) is string doctrine) return doctrine;
+        string key = DynastyNaming.CultureVariant(node.name_key, culture) ?? node.name_key;
+        string value = LM.Get(key);
+        if (IdeologyInstitutionPaths.TryGetIdeology(node.branch, out PartyIdeology ideology) &&
+            node.name_key.StartsWith("ideology_stage_", StringComparison.Ordinal))
+            return $"{PartySystem.GetIdeologyName(ideology, culture)} · {value}";
+        return string.IsNullOrWhiteSpace(value) || value == key ? node.id : value;
+    }
+
+    public static string GetNodeName(Empire empire, InstitutionNodeConfig node) =>
+        GetNodeName(node, empire?.data == null || empire.CoreKingdom == null ? null : GetPrimaryCulture(empire));
+
+    public static string GetNodeDescription(InstitutionNodeConfig node, string culture)
+    {
+        if (node == null) return "";
+        string text = LM.Get(DynastyNaming.CultureVariant(node.description_key, culture) ?? node.description_key);
+        // 古代理念那一格接上本文化的学说说明(见 CultureDoctrines)
+        return CultureDoctrines.NodeDescriptionSuffix(node, culture) is string doctrine ? $"{text}{doctrine}" : text;
+    }
+
+    #endregion
+}
+}

@@ -61,7 +61,7 @@ namespace Orbis.Flat
         public bool IsDemoWorldActive => savedSession!=null&&!ReferenceEquals(World,savedSession.World);
         TextField seedField,pathField;DropdownField sizeField,presetField,layerField,toolField,heightField,brushField;
         int[] playerWidths;
-        Toggle gridToggle,cloudToggle,contourToggle,hazardLiveWeatherToggle;
+        Toggle gridToggle,cloudToggle,contourToggle,hazardLiveWeatherToggle,volumetricToggle;
         DropdownField cloudQuality,climateYearField,planetPresetField;Label legend,waterStatus,skyStatus,planetSummaryLabel;
         SliderInt planetCo2Slider;Slider planetObliqSlider;
         ExoPlaSimPlanetConfig activePlanetConfig=ExoPlaSimPlanetConfig.CreatePreset(ExoPlaSimPreset.EarthModern);
@@ -190,6 +190,7 @@ namespace Orbis.Flat
                 if(e.keyCode==KeyCode.C)contourToggle.value=!contourToggle.value;
                 if(e.keyCode==KeyCode.G)gridToggle.value=!gridToggle.value;
             });
+            InstallEmpireHud();
         }
         void MapShortcut(KeyDownEvent e)
         {

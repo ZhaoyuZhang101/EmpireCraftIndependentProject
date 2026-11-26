@@ -1,0 +1,562 @@
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/WarReach.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
+// see Port/manifest.json and Tools/PortTool.
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+
+namespace EmpireCraft.Core
+{
+
+// 远距离不宣战(用户 2026-10-22 转群友截图"超长宣战"，选"统一拦下并清理"，名分之战也一样要够得着)：
+// 本模组十几处开战(诉求、帝号之争、逼冕、索取皇位、复国、朝贡、游牧、统一战争……)多不判远近，开起来两边打不着，
+// 只在地图上挂一条横跨大半张图的箭头。开战总入口统一过这道闸(见 WarReachPatch)：
+//   够得着 = 两边(帝国连同成员)接壤、同一块陆地上有两座城相距不过 LandTiles 格(同 FrontSystem)且中间不隔着天堑——
+//   不隔着这一方过不去、又绕不过去的无人区(用户 2026-10-29 "能更有效地阻隔国家军队"，见 WildernessPassage；有路穿过、
+//   游牧过沙漠冻土、阿拉伯过沙漠的不算隔着)，沿直线的地形阻力也不过 LandCost(见 TerrainResistance.LineCost；
+//   用户 2026-10-26："印度打不到西藏"，以前量山地、冻土、沙漠的天堑深浅，已改成无人区)，或隔海在水师辐射内(StraitReach)；
+//   内乱不拦：叛乱、煽动、挑拨(神力)、全面战争，同一帝国内，封建上下级，开国不满一年的新政权宣战(刚分出来的叛军、割据打原主)。
+//   "同一块陆地上相距不远"的地形阻力：通达层算好后(用户 2026-11-06 同意，见 ConnectivitySystem)不再沿直线取样，
+//   查两城近邻表里不走海的那条路的成本(真实绕路、走路、过关都算进去)，门槛照旧 LandCost(24)；查不准时照旧沿直线估。
+// 接壤改成"法理相连且走得通"(用户 2026-11-04 转群友"邻国宣战机制把无人区法理算上""不至于打了整整 10 年的静坐战"，问答定
+// "法理相连且走得通才算")：三国剧本 90 年存档，真接壤的 201 对国家里 59 对一处都走不通，20 场仗 6 场两边走不到一起，最长打了 15 年。
+//   · 隔着无人区相邻(见 WildernessNeighbours)、走得通的算邻国，不限 LandTiles(走廊常比它长)；
+//   · 真接壤却走不通的不算：挑目标不挑(见 WarNear)，已开的按下面的规矩判和；
+//   · 走得通 = 两边城心军队走得到一起，连高山、山脊、过不去的无人区一起算，任一方的走法走得通都算(游牧过得来，仗就打得起来，见 WildernessPassage.Walks)。
+// 已经开着的：每月看一次，两边所有参战国两两都够不着、连续 ClearMonths 个月就判和(劫掠之战有自己的期限，不管)；
+// 主攻主守够不着的战争不画箭头(见 WarMarkerPatch)。
+// 远方的参战国(用户 2026-10-27 截图"为什么这里能够跨距离宣战")：几千年前开的扩张战争靠同盟援战滚成半个世界，原主攻主守都亡了，
+// 原版按军队多少另选主攻主守，选到隔着半个世界的两家，军团渡海往对面开；只要还有一对接壤就不判和。现在：
+//   · 主攻主守够不着、别的参战国有够得着的：换成够得着的一对(军队多的先)，目标与战名随之重定(WarGoalSystem.Refocus)；
+//   · 主攻主守以外的参战国连续 ClearMonths 个月一个敌方都够不着的，退出战争(远方盟友本来也不驰援，见 FrontSystem.InReach)
+public static class WarReach
+{
+    public const float LandTiles = 80f;
+    // 不接壤的两城之间沿直线的地形阻力上限：十块平地 10、中间三四块山地(每块 4)还够得着；
+    // 直线穿过绕得过去的无人区按地形阻力两倍估，横着三块山脉无人区(每块 8)就够不着
+    public const float LandCost = 24f;
+    private const int ClearMonths = 12;
+    // 叛军与原主够不着、判和之前多等一年：原主可能正在收复中间的地方
+    private const int RebelClearMonths = 24;
+    private const string LogTag = "[EmpireCraft][远战]";
+
+    private static object _world;
+    private static double _lastMonth = -1d;
+    // 主攻主守够不着的战争(不画箭头)；全体参战国都够不着的已连着几个月
+    private static readonly HashSet<long> Far = new();
+    private static readonly Dictionary<long, int> FarMonths = new();
+    // 主攻主守以外的参战国一个敌方都够不着、已连着几个月(战争, 国家)
+    private static readonly Dictionary<(long war, long kingdom), int> AllyFarMonths = new();
+    private static readonly HashSet<string> Reported = new(StringComparer.Ordinal);
+
+    // 剧本点名的战争(开局外交、剧情事件，见 DiplomacyActions.ApplyScenario)不看远近：王国的城表要过一帧才更新，
+    // 甲申之变刚把北京、大同献给顺，同一帧的清军入关还按旧城表算，就成了够不着。开起来之后每月照常算
+    public static bool ScenarioDeclaring;
+
+    public static bool IsFar(War war) => war?.Record != null && Far.Contains(war.Key);
+
+    // 开战闸：够不着又不是内乱的不开
+#if EC_PENDING
+    public static bool MayDeclare(Realm attacker, Realm defender, WarKind type)
+    {
+        if (attacker?.Record == null || defender?.Record == null || attacker == defender) return true;
+        // 宗主与殖民地、同一宗主的殖民地不开战(殖民地起兵独立、神力开战除外，见 ColonySystem)
+        if (!ExemptType(type) && !ColonySystem.Rising && ColonySystem.Bound(attacker, defender)) return false;
+        // 穿越政权伪装成属国期间：朝廷与各省(连统一战争)不来开战(见 TransmigrantSystem.DisguiseForbids)
+        if (!ExemptType(type) && TransmigrantSystem.DisguiseForbids(attacker, defender)) return false;
+        if (ScenarioDeclaring || ExemptType(type) || Related(attacker, defender) || Young(attacker)) return true;
+        if (Reachable(attacker, defender)) return true;
+        string caller = Caller();
+        if (Reported.Count < 512 && Reported.Add($"{caller}|{attacker.Key}|{defender.Key}"))
+            LogService.LogInfo($"{LogTag} 拦下 {attacker.GetKingdomName()} 对 {defender.GetKingdomName()} 宣战(来自 {caller})：两边够不着");
+        return false;
+    }
+#endif
+
+    // 世界法则「禁止AI宣战」「禁止AI外交(总)」(见 DiplomacyLaws)在开战总入口再拦一道(见 WarReachPatch)：
+    // 法则原先只拦经 WarGate.CanDeclare 的十几处与原版挑目标，其余四十来处直接 startWar / newWar 的(帝号之争、圣战、私战、
+    // 诸侯互伐、军阀混战、逼冕、复国……)都绕了过去(群友 2026-11-11 "昨天我关闭了所有外交功能""但还是会发起战争是bug吧")。
+    //   · 拦的是国与国之间 AI 自己开的仗；玩家在外交面板、神力里开的不拦(DiplomacyLaws 里看 MembershipCooldown.GodActing)；
+    //   · 剧本点名的战争、神力挑拨煽动、全面战争不拦；
+    //   · 起兵、内乱一类不算外交，归「禁止叛乱」管(见 Uprising)。
+    public static bool LawForbids(Realm attacker, Realm defender, WarKind type)
+    {
+        if (attacker?.Record == null || defender?.Record == null || attacker == defender) return false;
+        if (!DiplomacyLaws.WarBlocked) return false;
+        if (ScenarioDeclaring || ExemptType(type) || ColonySystem.Rising || Uprising(attacker, defender)) return false;
+        string caller = Caller();
+        if (Reported.Count < 512 && Reported.Add($"law|{caller}|{attacker.Key}|{defender.Key}"))
+            LogService.LogInfo($"{LogTag} 拦下 {attacker.GetKingdomName()} 对 {defender.GetKingdomName()} 宣战(来自 {caller})：世界法则禁止AI宣战");
+        return true;
+    }
+
+    // 起兵、内乱：同一帝国里有一方正在叛乱，刚离开或反过对方帝国(起兵、叛离、独立)，封建上下级，宗主与殖民地。
+    // 同一帝国里两个都没在叛乱的成员互相开战(私战、诸侯互伐)照样算 AI 宣战
+    private static bool Uprising(Realm a, Realm b)
+    {
+        if (LeftFrom(a, b) || LeftFrom(b, a)) return true;
+        if (FeudalVassalService.GetOverlord(a) == b || FeudalVassalService.GetOverlord(b) == a) return true;
+        if (ColonySystem.MetropoleOf(a) == b || ColonySystem.MetropoleOf(b) == a) return true;
+        Empire empire = a.GetEmpire();
+        return empire != null && !empire.IsGone() && empire == b.GetEmpire() &&
+               (a.IsFactionRebelling() || a.IsLocalRebelling() || b.IsFactionRebelling() || b.IsLocalRebelling());
+    }
+
+    private static bool ExemptType(WarKind type) =>
+        type != null && (type.TotalWar || type == WarKinds.Rebellion || type == WarKinds.Inspire ||
+                         type == WarKinds.WhisperOfWar);
+
+    // 同一帝国内、封建上下级；刚离开对方帝国(起兵、叛离、独立，一年内)或反过对方帝国的
+    // (好几处先请出帝国再开战，以前因此被当成两个外国拦下：成员直接独立、没有战争，史书照写起兵)
+    private static bool Related(Realm a, Realm b)
+    {
+        Empire empire = a.GetEmpire();
+        if (empire != null && !empire.IsGone() && empire == b.GetEmpire()) return true;
+        if (FeudalVassalService.GetOverlord(a) == b || FeudalVassalService.GetOverlord(b) == a) return true;
+        if (ColonySystem.MetropoleOf(a) == b || ColonySystem.MetropoleOf(b) == a) return true;
+        return LeftFrom(a, b) || LeftFrom(b, a);
+    }
+
+    private static bool LeftFrom(Realm kingdom, Realm other)
+    {
+        Empire empire = other.GetEmpire();
+        if (empire == null || empire.IsGone()) return false;
+        if (kingdom.HasRebelledAgainst(empire)) return true;
+        var data = kingdom.GetOrCreate();
+        return data.left_empire_id == empire.Key && data.left_empire_at >= 0d &&
+               GameClock.Now >= data.left_empire_at && GameClock.YearsSince(data.left_empire_at) < 1f;
+    }
+
+    // 读档：上一个存档的标记与计数作废(读档时世界对象不换，战争编号又从头来)
+    public static void ResetWorldState()
+    {
+        _world = null;
+        _lastMonth = -1d;
+        Far.Clear();
+        FarMonths.Clear();
+        AllyFarMonths.Clear();
+    }
+
+    private static bool Young(Realm kingdom) => GameClock.YearsSince(kingdom.FoundedStamp) < 1f;
+
+    // 两边(帝国连同成员)有一对够得着：法理相连且走得通(见 Borders)、同一块陆地上相距不过 LandTiles 格(不隔着绕不过去的无人区)，或任一边的水师够得着对方临海的城
+#if EC_PENDING
+    public static bool Reachable(Realm a, Realm b)
+    {
+        if (a?.Record == null || b?.Record == null || a.IsGone() || b.IsGone()) return false;
+        List<Realm> ours = Members(a), theirs = Members(b);
+        foreach (Realm y in theirs)
+            if (ours.Contains(y)) return true;
+        if (Borders(ours, theirs) || LandNear(ours, theirs)) return true;
+        foreach (Realm y in theirs)
+            if (StraitReach.Across(a, y)) return true;
+        foreach (Realm x in ours)
+            if (StraitReach.Across(b, x)) return true;
+        return false;
+    }
+#endif
+
+    // 挑宣战目标用(AI，见 EmpireCraftPlotsAddition、WarTargetPatch)：发起国连同所在帝国与目标法理相连且走得通，或隔海相望
+#if EC_PENDING
+    public static bool WarNear(Realm initiator, Realm target)
+    {
+        if (initiator?.Record == null || target?.Record == null || initiator.IsGone() || target.IsGone()) return false;
+        return Borders(Members(initiator), new List<Realm> { target }) || StraitReach.Across(initiator, target);
+    }
+#endif
+
+    // a 有城只隔着无人区挨着 b 的城(不管走不走得通；定战争目标用，见 WarGoalSystem)
+#if EC_PENDING
+    public static bool AcrossWild(Realm a, Realm b)
+    {
+        if (a?.Cities == null || b == null) return false;
+        foreach (City city in a.Cities)
+            foreach (City other in WildernessNeighbours.Of(city))
+                if (other?.Realm == b) return true;
+        return false;
+    }
+#endif
+
+    // 两边有一对邻城(地块相接，或只隔着无人区)走得通
+#if EC_PENDING
+    private static bool Borders(List<Realm> ours, List<Realm> theirs)
+    {
+        var others = new HashSet<Realm>(theirs);
+        foreach (Realm x in ours)
+        {
+            if (x.Cities == null) continue;
+            foreach (City city in x.Cities)
+            {
+                if (city?.Record == null || city.IsGone()) continue;
+                if (Walks(city, city.NeighbourCities, others) || Walks(city, WildernessNeighbours.Of(city), others)) return true;
+            }
+        }
+        return false;
+    }
+#endif
+
+    private static bool Walks(City city, IEnumerable<City> nearby, HashSet<Realm> others)
+    {
+        if (nearby == null) return false;
+        foreach (City other in nearby)
+        {
+            if (other?.Realm == null || !others.Contains(other.Realm)) continue;
+            Cell from = city.SeatCell()?.Zone, to = other.SeatCell()?.Zone;
+            if (WildernessPassage.Walks(from, to, city.Realm) || WildernessPassage.Walks(from, to, other.Realm)) return true;
+        }
+        return false;
+    }
+
+    // 走得通的邻城：地块相接、或只隔着无人区，且两边城心军队走得到一起(任一方的走法，同 Borders)。
+    // 天下大势量两家接壤用(见 UnificationSystem.Borders；2026-11-07 群友"帝国不会主动出击统一天下"：那边以前只认地块相接的原版邻城，
+    // 隔着无人区的天下各家既不算统一的对手、共主也不去平定)；没开无人区时就是原版邻城
+#if EC_PENDING
+    public static IEnumerable<City> WalkableNeighbours(City city)
+    {
+        if (city?.Record == null) yield break;
+        Cell from = city.SeatCell()?.Zone;
+        if (city.NeighbourCities != null)
+            foreach (City other in city.NeighbourCities)
+            {
+                if (other?.Realm == null || other.IsGone()) continue;
+                Cell to = other.SeatCell()?.Zone;
+                if (WildernessPassage.Walks(from, to, city.Realm) || WildernessPassage.Walks(from, to, other.Realm)) yield return other;
+            }
+        foreach (City other in WalkableWildNeighbours(city)) yield return other;
+    }
+#endif
+
+    // 发起国(连同所在帝国)法理相连且走得通的各国，一次算好(同 WarNear 的陆上一条；朝堂挑目标要逐国问一遍，见 TempFac_扩张地盘)
+#if EC_PENDING
+    public static HashSet<Realm> WalkableNeighbourKingdoms(Realm initiator)
+    {
+        var result = new HashSet<Realm>();
+        if (initiator?.Record == null || initiator.IsGone()) return result;
+        foreach (Realm x in Members(initiator))
+        {
+            if (x.Cities == null) continue;
+            foreach (City city in x.Cities)
+            {
+                if (city?.Record == null || city.IsGone()) continue;
+                foreach (City other in WalkableNeighbours(city))
+                    if (other.Realm != null) result.Add(other.Realm);
+            }
+        }
+        return result;
+    }
+#endif
+
+    // 只隔着无人区、又走得通的邻城(AcrossWild 不看走不走得通；隔着过不去的雪山大漠的不算，见 WildernessPassage)
+#if EC_PENDING
+    public static IEnumerable<City> WalkableWildNeighbours(City city)
+    {
+        if (city?.Record == null) yield break;
+        Cell from = city.SeatCell()?.Zone;
+        foreach (City other in WildernessNeighbours.Of(city))
+        {
+            if (other?.Realm == null) continue;
+            Cell to = other.SeatCell()?.Zone;
+            if (WildernessPassage.Walks(from, to, city.Realm) || WildernessPassage.Walks(from, to, other.Realm)) yield return other;
+        }
+    }
+#endif
+
+    // 只从给定的这几国(不连同所在帝国的别的成员)量挨不挨着对方：接壤、只隔着走得通的无人区，或隔海在一方水师辐射内；
+    // 隔着第三国不算，不管多近(朝贡要宗主直辖之地挨着，见 TributaryRelations.InReach)
+#if EC_PENDING
+    public static bool TouchingFrom(List<Realm> ours, Realm other)
+    {
+        if (ours == null || ours.Count == 0 || other?.Record == null || other.IsGone()) return false;
+        foreach (Realm x in ours)
+            if (x == other || x.IsNeighbourWith(other) || WalksAcrossWild(x, other) ||
+                StraitReach.Across(x, other) || StraitReach.Across(other, x)) return true;
+        return false;
+    }
+
+    private static bool WalksAcrossWild(Realm a, Realm b)
+    {
+        if (a?.Cities == null || b == null) return false;
+        foreach (City city in a.Cities)
+            foreach (City other in WalkableWildNeighbours(city))
+                if (other.Realm == b) return true;
+        return false;
+    }
+
+    private static bool LandNear(List<Realm> ours, List<Realm> theirs)
+    {
+        List<City> mine = Cities(ours), others = Cities(theirs);
+        float limit = LandTiles * LandTiles;
+        foreach (City x in mine)
+        {
+            Cell at = x.SeatCell();
+            if (at == null) continue;
+            foreach (City y in others)
+            {
+                if ((x.Center - y.Center).sqrMagnitude > limit) continue;
+                Cell tile = y.SeatCell();
+                if (tile != null && at.IsSameIsland(tile) && WildernessPassage.Reachable(at.Zone, tile.Zone, x.Realm) &&
+                    LandCostWithin(x, y, at, tile)) return true;
+            }
+        }
+        return false;
+    }
+#endif
+
+    // 两城之间陆路的地形阻力不过 LandCost(见类头)
+#if EC_PENDING
+    private static bool LandCostWithin(City x, City y, Cell at, Cell tile)
+    {
+        float cost = ConnectivitySystem.NearLandCost(x, y, LandCost);
+        if (cost >= 0f) return cost <= LandCost;
+        return TerrainResistance.LineCost(at.Zone, tile.Zone, x.Realm) <= LandCost;
+    }
+#endif
+
+    // 两边(帝国连同成员)同一块陆地上有两座城相距不远、走得过去(同 Reachable 的陆上一条；定战争目标分陆战、跨海用，见 WarGoalSystem)
+#if EC_PENDING
+    public static bool LandNearby(Realm a, Realm b)
+    {
+        if (a?.Record == null || b?.Record == null || a.IsGone() || b.IsGone()) return false;
+        return LandNear(Members(a), Members(b));
+    }
+#endif
+
+    private static List<City> Cities(List<Realm> realm) =>
+        realm.Where(kingdom => kingdom.Cities != null)
+            .SelectMany(kingdom => kingdom.Cities)
+            .Where(city => city?.Record != null && !city.IsGone())
+            .ToList();
+
+    private static List<Realm> Members(Realm kingdom)
+    {
+        Empire empire = kingdom.GetEmpire();
+        if (empire == null || empire.IsGone() || empire.IsArchived()) return new List<Realm> { kingdom };
+        List<Realm> members = empire.kingdoms_list.Where(member => member?.Record != null && !member.IsGone()).ToList();
+        if (!members.Contains(kingdom)) members.Add(kingdom);
+        return members;
+    }
+
+    // 哪一处开的战(日志用)：调用栈里头一个本模组、又不是这道闸自己的方法
+    private static string Caller()
+    {
+        try
+        {
+            foreach (StackFrame frame in new StackTrace(2, false).GetFrames() ?? Array.Empty<StackFrame>())
+            {
+                Type type = frame.GetMethod()?.DeclaringType;
+                if (type?.Namespace == null || !type.Namespace.StartsWith("EmpireCraft", StringComparison.Ordinal)) continue;
+                if (type == typeof(WarReach) || type.Name.StartsWith("WarReach", StringComparison.Ordinal)) continue;
+                return $"{type.Name}.{frame.GetMethod().Name}";
+            }
+        }
+        catch (Exception)
+        {
+            // 只是日志
+        }
+        return "原版";
+    }
+
+    // 每月一次(CityPatch 的全世界扫描轮到时)：标出够不着的战争，久不接触的判和
+#if EC_PENDING
+    public static void TryMonthlyScan()
+    {
+        if (EmpireWorld.Current?.LiveWars == null || ModClass.IS_CLEAR) return;
+        if (!ReferenceEquals(_world, EmpireWorld.Current))
+        {
+            _world = EmpireWorld.Current;
+            _lastMonth = -1d;
+            Far.Clear();
+            FarMonths.Clear();
+            AllyFarMonths.Clear();
+        }
+        double now = GameClock.Now;
+        if (_lastMonth >= 0d && now >= _lastMonth && GameClock.MonthsSince(_lastMonth) < 1) return;
+        _lastMonth = now;
+        try
+        {
+            Sweep();
+        }
+        catch (Exception exception)
+        {
+            LogService.LogWarning($"{LogTag} 月度清理失败: {exception.Message}");
+        }
+    }
+
+    private static void Sweep()
+    {
+        // 读档后路线(小径)还没算完：这时够不着不作数，不计月数
+        if (!RoadNetwork.PlansComplete) return;
+        var alive = new HashSet<long>();
+        // 本月已算过的两家(按政权)是否够得着
+        var cache = new Dictionary<(long, long), bool>();
+        foreach (War war in EmpireWorld.Current.LiveWars.ToList())
+        {
+            if (war?.Record == null || !war.Alive || war.HasEnded() || war.IsTotalWar()) continue;
+            Realm attacker = war.MainAttacker, defender = war.MainDefender;
+            if (attacker?.Record == null || defender?.Record == null || attacker.IsGone() || defender.IsGone()) continue;
+            long id = war.Key;
+            alive.Add(id);
+            if (ExemptType(war.GetKind()) || Related(attacker, defender))
+            {
+                if (war.GetKind() == WarKinds.Rebellion && !Reachable(attacker, defender) && !AnyPairReachable(war))
+                    SweepRebellion(war, attacker, defender);
+                else
+                {
+                    Far.Remove(id);
+                    FarMonths.Remove(id);
+                }
+                continue;
+            }
+            if (war.GetEmpireWarType() != EmpireWarType.劫掠) PruneDistant(war, cache);
+            if (Reachable(attacker, defender) || Refocus(war, attacker, defender, cache))
+            {
+                Far.Remove(id);
+                FarMonths.Remove(id);
+                continue;
+            }
+            Far.Add(id);
+            // 劫掠之战打满一年自己退兵(见 NomadRaidSystem)
+            if (war.GetEmpireWarType() == EmpireWarType.劫掠 || AnyPairReachable(war))
+            {
+                FarMonths.Remove(id);
+                continue;
+            }
+            int months = FarMonths.TryGetValue(id, out int count) ? count + 1 : 1;
+            FarMonths[id] = months;
+            if (months < ClearMonths) continue;
+            FarMonths.Remove(id);
+            Far.Remove(id);
+            LogService.LogInfo($"{LogTag} {war.Name}：{attacker.GetKingdomName()} 与 {defender.GetKingdomName()} " +
+                               $"连着 {ClearMonths} 个月两边够不着，判和");
+            EmpireWorld.Current.EndWar(war, WarOutcome.Peace);
+        }
+        Far.RemoveWhere(id => !alive.Contains(id));
+        foreach (long id in FarMonths.Keys.Where(id => !alive.Contains(id)).ToList()) FarMonths.Remove(id);
+        foreach (var key in AllyFarMonths.Keys.Where(key => !alive.Contains(key.war)).ToList()) AllyFarMonths.Remove(key);
+    }
+#endif
+
+    // 叛乱开战不拦(起事的城本来就在原主境内)，可打着打着两边隔开了：归化的明教军隔着燕国、隔着海跟济南国打了二十多年，
+    // 谁也够不着谁，地图上一条箭头横穿燕国，看着像燕国的仗僵在那里。叛军与原主(连同两边盟友)都够不着的不画箭头，
+    // 连着 RebelClearMonths 个月判和，叛军就此自立
+    private static void SweepRebellion(War war, Realm attacker, Realm defender)
+    {
+        long id = war.Key;
+        Far.Add(id);
+        int months = FarMonths.TryGetValue(id, out int count) ? count + 1 : 1;
+        FarMonths[id] = months;
+        if (months < RebelClearMonths) return;
+        FarMonths.Remove(id);
+        Far.Remove(id);
+        LogService.LogInfo($"{LogTag} {war.Name}：{attacker.GetKingdomName()} 与 {defender.GetKingdomName()} " +
+                           $"连着 {RebelClearMonths} 个月两边够不着，判和，叛军自立");
+        EmpireWorld.Current.EndWar(war, WarOutcome.Peace);
+    }
+
+#if EC_PENDING
+    private static bool Near(Realm a, Realm b, Dictionary<(long, long), bool> cache)
+    {
+        Realm x = RealmOf(a), y = RealmOf(b);
+        if (x == null || y == null) return false;
+        var key = x.Key < y.Key ? (x.Key, y.Key) : (y.Key, x.Key);
+        if (cache.TryGetValue(key, out bool near)) return near;
+        near = Related(a, b) || Reachable(a, b);
+        cache[key] = near;
+        return near;
+    }
+#endif
+
+    // 主攻主守够不着：换成够得着的一对——先留主攻换主守，再留主守换主攻，再两家都换；各边军队多的先(同原版另选主攻主守)
+#if EC_PENDING
+    private static bool Refocus(War war, Realm attacker, Realm defender, Dictionary<(long, long), bool> cache)
+    {
+        List<Realm> attackers = Ranked(war.Attackers), defenders = Ranked(war.Defenders);
+        Realm newAttacker = null, newDefender = defenders.FirstOrDefault(d => d != defender && Near(attacker, d, cache));
+        if (newDefender == null)
+        {
+            newAttacker = attackers.FirstOrDefault(a => a != attacker && Near(a, defender, cache));
+            if (newAttacker == null)
+                foreach (Realm a in attackers)
+                {
+                    newDefender = defenders.FirstOrDefault(d => Near(a, d, cache));
+                    if (newDefender == null) continue;
+                    newAttacker = a;
+                    break;
+                }
+        }
+        if (newAttacker == null && newDefender == null) return false;
+        string before = war.Name;
+        if (newAttacker != null) war.Record.MainAttacker = newAttacker.Key;
+        if (newDefender != null) war.Record.MainDefender = newDefender.Key;
+        WarGoalSystem.Refocus(war);
+        LogService.LogInfo($"{LogTag} {before}：{attacker.GetKingdomName()} 与 {defender.GetKingdomName()} 够不着，" +
+                           $"主攻主守改为够得着的 {war.MainAttacker.GetKingdomName()} 与 {war.MainDefender.GetKingdomName()}(今称 {war.Name})");
+        return true;
+    }
+
+    private static List<Realm> Ranked(List<Realm> side)
+    {
+        List<Realm> list = side?.Where(Alive).ToList() ?? new List<Realm>();
+        list.Sort(KingdomListComponent.sortByArmy);
+        return list;
+    }
+#endif
+
+    // 主攻主守以外的参战国：连续 ClearMonths 个月一个敌方都够不着的退出战争
+#if EC_PENDING
+    private static void PruneDistant(War war, Dictionary<(long, long), bool> cache)
+    {
+        Realm mainA = war.MainAttacker, mainD = war.MainDefender;
+        foreach (bool attackerSide in new[] { true, false })
+        {
+            List<Realm> own = (attackerSide ? war.Attackers : war.Defenders)?.Where(Alive).ToList() ?? new List<Realm>();
+            List<Realm> enemies = Distinct(attackerSide ? war.Defenders : war.Attackers);
+            foreach (Realm kingdom in own)
+            {
+                if (kingdom == mainA || kingdom == mainD) continue;
+                var key = (war.Key, kingdom.Key);
+                if (enemies.Any(enemy => Near(kingdom, enemy, cache)))
+                {
+                    AllyFarMonths.Remove(key);
+                    continue;
+                }
+                int months = AllyFarMonths.TryGetValue(key, out int count) ? count + 1 : 1;
+                if (months < ClearMonths)
+                {
+                    AllyFarMonths[key] = months;
+                    continue;
+                }
+                AllyFarMonths.Remove(key);
+                LogService.LogInfo($"{LogTag} {war.Name}：{kingdom.GetKingdomName()} 连着 {ClearMonths} 个月一个敌方都够不着，退出战争");
+                war.Leave(kingdom);
+            }
+        }
+    }
+#endif
+
+    // 主攻主守之外，两边的参战国有一对够得着(盟友在打)就不算久不接触。按政权去重(同一帝国的成员算一家，
+    // Reachable 本来就按全体成员算)，主攻主守那一对已经算过
+#if EC_PENDING
+    private static bool AnyPairReachable(War war)
+    {
+        List<Realm> attackers = Distinct(war.Attackers), defenders = Distinct(war.Defenders);
+        Realm mainA = RealmOf(war.MainAttacker), mainD = RealmOf(war.MainDefender);
+        foreach (Realm a in attackers)
+        foreach (Realm d in defenders)
+            if ((a != mainA || d != mainD) && Reachable(a, d)) return true;
+        return false;
+    }
+#endif
+
+    private static List<Realm> Distinct(List<Realm> side) =>
+        side?.Where(Alive).Select(RealmOf).Distinct().ToList() ?? new List<Realm>();
+
+    private static Realm RealmOf(Realm kingdom)
+    {
+        Empire empire = kingdom?.GetEmpire();
+        return empire != null && !empire.IsGone() && empire.CoreKingdom != null ? empire.CoreKingdom : kingdom;
+    }
+
+    private static bool Alive(Realm kingdom) => kingdom?.Record != null && !kingdom.IsGone();
+}
+}

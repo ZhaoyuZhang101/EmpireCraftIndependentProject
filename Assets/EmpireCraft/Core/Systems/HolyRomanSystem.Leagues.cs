@@ -1,0 +1,266 @@
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/HolyRomanSystem.Leagues.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
+// see Port/manifest.json and Tools/PortTool.
+using Mathf = EmpireCraft.Core.EcMath;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace EmpireCraft.Core
+{
+
+// 宗教改革之后(封建制帝国，原型施马尔卡尔登同盟、三十年战争与威斯特伐利亚和约)：
+//   · 新教会从哪来：改革者在某城张贴论纲(见 PapacySystem.Reformation，可能就在帝国境内)、别的帝国脱离罗马另立的国教会
+//     (PapacySystem.TryBreakWithRome)；选帝制帝国的皇帝不随宗教改革脱离罗马(KeepsOldFaith)，本文化施行宗教改革后世上还没有
+//     从皇帝所奉宗教分出去的教会时，由一位与皇帝最不睦的世俗诸侯在自己的都城另立新教会(SeedReformation，PapacySystem.FoundReformedChurch)；
+//   · 诸侯改宗(用户 2026-11-06 起与帝国之外同一套几率，见 PapacySystem.PrinceReformChance)：世上有从皇帝所奉宗教分出去的新教会时，
+//     成员国每年按境内新教之城占比、接壤的新教国、什一税、绝罚、对皇帝的观感、教皇党、君主虔诚、教宗正统、本文化制度定几率改奉；
+//     帝国之内宗教改革的风气另有保底(ConvertChance 的四分之一，教皇党再 ×0.3)；改奉只改君主、国与都城，其余各城随国教势能、
+//     新教传布慢慢改(以前整国连城当场改宗)；主教领不改；自由城市同样会改；
+//   · 诸侯同盟：改奉新教会(与皇帝所奉宗教有分合关系)的成员国两家以上、合计占帝国城数两成以上时，
+//     可能以最强一家的都城为名结成同盟；奉不相干的别教的诸侯不算(那不是宗教改革)；
+//   · 宗教战争：同盟每年有一成二可能向皇帝开战，同盟诸国随盟主进攻，与皇帝同教的诸侯多半助战；
+//   · 结局：皇帝胜——同盟诸国改回皇帝的宗教，同盟解散，正统 +10、帝国权威 +10；
+//           否则(同盟胜或打成平手)订立和约(以一座自由城市或同盟盟主都城为名)——诸侯取得完全主权
+//           (恢复外交与开战权、不再给中央出兵)，教随国定，帝国从此有名无实：正统 -5(长期)，议会更难通过议案，
+//           帝国权威 −30、此后每年 −1。
+// 加冕远征(原型罗马远征)：教廷不是皇帝自家领国时(在本帝国诸侯手里也一样)，皇帝要亲自远征教廷受冕——
+//   花两成年度经常收入(军费)，一年后到达才加冕；远征期间不开议会，正统 -3，诸侯更不听调遣。
+public static partial class HolyRomanSystem
+{
+    private const float ConvertChance = 0.04f;
+    private const float LeagueChance = 0.15f, LeagueCityShare = 0.2f, ReligiousWarChance = 0.12f, CatholicLeagueChance = 0.6f;
+    private const float ReformationSeedChance = 0.15f;
+    public const int LeagueCrushedLegitimacy = 10, PeaceLegitimacy = -10, SovereignLegitimacy = -5, RomzugLegitimacy = -3;
+    private const float RomzugCost = 0.2f;
+    private const double RomzugYears = 1d;
+    public const int RomzugNone = 0, RomzugTravelling = 1, RomzugArrived = 2;
+
+    #region 诸侯改宗与同盟
+
+#if EC_PENDING
+    private static void LeaguesYearly(Empire empire, HolyRomanState state)
+    {
+        Realm core = empire.CoreKingdom;
+        if (!core.HasReligion()) return;
+        SeedReformation(empire);
+        PrincelyReformation(empire);
+        if (state.sovereign_princes) return;
+        List<Realm> dissenters = Members(empire).Where(member => member.HasReligion() && Schismatic(member.Religion, core.Religion))
+            .ToList();
+        if (state.league_leader_id < 0)
+        {
+            if (dissenters.Count < 2 || EcRandom.value >= LeagueChance) return;
+            if (dissenters.Sum(member => member.Cities.Count) < empire.countCities() * LeagueCityShare) return;
+            Realm leader = dissenters.OrderByDescending(member => member.Warriors()).First();
+            state.league_leader_id = leader.Key;
+            state.league_member_ids = dissenters.Select(member => member.Key).ToList();
+            state.league_name = string.Format(LM.Get("hre_league_name"), leader.Capital?.GetCityName() ?? leader.GetKingdomName());
+            state.league_formed_at = GameClock.Now;
+            Record(empire, string.Format(LM.Get("hre_league_formed_history"), leader.GetKingdomName(), dissenters.Count,
+                state.league_name));
+            return;
+        }
+        Realm head = EmpireWorld.Current.RealmByKey(state.league_leader_id);
+        if (head?.Record == null || head.IsGone() || head.GetEmpire() != empire || !head.HasReligion() ||
+            !Schismatic(head.Religion, core.Religion))
+        {
+            head = dissenters.OrderByDescending(member => member.Warriors()).FirstOrDefault();
+            if (head == null)
+            {
+                DissolveLeague(state);
+                return;
+            }
+            state.league_leader_id = head.Key;
+        }
+        state.league_member_ids = dissenters.Select(member => member.Key).ToList();
+        if (LeagueWar(empire) != null || EcRandom.value >= ReligiousWarChance) return;
+        DeclareReligiousWar(empire, state, head, dissenters);
+    }
+#endif
+
+    public static War LeagueWar(Empire empire) => LiveWar(State(empire)?.league_war_id ?? -1L);
+
+    public static List<Realm> LeagueMembers(Empire empire)
+    {
+        HolyRomanState state = State(empire);
+        return state?.league_member_ids?.Select(id => EmpireWorld.Current.RealmByKey(id))
+            .Where(kingdom => kingdom?.Record != null && !kingdom.IsGone() && kingdom.GetEmpire() == empire).ToList() ?? new List<Realm>();
+    }
+
+    // 两教有分合关系：一方是从另一方分出去的(宗教改革另立的新教会与它的母宗教)
+    public static bool Schismatic(Religion a, Religion b) =>
+        a?.data != null && b?.data != null && a != b &&
+        (a.GetOrCreate().ParentReligionId == b.data.id || b.GetOrCreate().ParentReligionId == a.data.id);
+
+    // 选帝制帝国的皇帝不随本文化的宗教改革脱离罗马(见 PapacySystem.BrokeWithRome、TryBreakWithRome)：宗教改革由诸侯开头，
+    // 皇帝与奉旧教的诸侯对抗新教同盟。已另立过国教会的(如改回世袭时脱离过)照旧算脱离
+    public static bool KeepsOldFaith(Empire empire) =>
+        IsElective(empire) && (PapacySystem.State(empire)?.national_church_id ?? -1L) < 0;
+
+    // 诸侯另立新教会：本文化施行了宗教改革、皇帝仍奉旧教、世上还没有从皇帝所奉宗教分出去的新教会(宗教改革分出的)时，每年一成五可能由
+    // 与皇帝最不睦的世俗诸侯(不同族)在自己的都城另立新教会，圣地就在那里，之后各诸侯陆续改宗(PrincelyReformation)。
+    // 以前新教会只能来自别的帝国脱离罗马，帝国自己施行宗教改革又是整个改宗——一国独大的西方或握着教廷的帝国，
+    // 诸侯同盟与和约永远凑不齐(玩家日志 0 次)
+    private static void SeedReformation(Empire empire)
+    {
+        Religion old = empire.CoreKingdom.Religion;
+        if (!KeepsOldFaith(empire) || !InstitutionSystem.IsEnacted(empire, PapacySystem.NodeReformation) ||
+            PapacySystem.Reformations(old).Count > 0 || EcRandom.value >= ReformationSeedChance) return;
+        Realm founder = Members(empire)
+            .Where(member => SecularPrince(member) && member.HasRuler() && member.Capital != null && member.Religion == old &&
+                             !SameHouse(member.Ruler, empire.Emperor))
+            .OrderBy(member => Opinion(member, empire.CoreKingdom)).ThenByDescending(member => member.Cities.Count).FirstOrDefault();
+        if (founder == null) return;
+        PapacySystem.FoundReformedChurch(old, founder.Capital, founder.Ruler, PapacySystem.OriginPrince);
+    }
+
+    // 诸侯改宗：改奉从皇帝所奉宗教分出去的新教会
+#if EC_PENDING
+    private static void PrincelyReformation(Empire empire)
+    {
+        Realm core = empire.CoreKingdom;
+        Religion old = core.Religion;
+        // 只算宗教改革分出的(含剧本带的新教)，东正、科普特这类古来的分支不算
+        List<Religion> churches = PapacySystem.Reformations(old);
+        if (churches.Count == 0) return;
+        foreach (Realm member in Members(empire))
+        {
+            if (!member.HasReligion() || member.Religion != old || IsChurchEstate(member) || member.Capital == null) continue;
+            Religion church = churches.OrderByDescending(item => member.Cities.Count(city => city?.Record != null && city.Religion == item))
+                .ThenByDescending(item => NeighbourFaith(member, item)).First();
+            float floor = ConvertChance * 0.25f * (PapacySystem.Party(member) == PapacySystem.PartyPope ? 0.3f : 1f);
+            float chance = Mathf.Max(floor, PapacySystem.PrinceReformChance(member, old, church));
+            if (EcRandom.value >= chance) continue;
+            PapacySystem.AdoptReformation(member, church, old);
+        }
+    }
+#endif
+
+    private static bool NeighbourFaith(Realm kingdom, Religion religion) =>
+        EmpireWorld.Current.LiveRealms.Any(other => other?.Record != null && !other.IsGone() && other != kingdom && other.Religion == religion &&
+                                          other.IsNeighbourWith(kingdom));
+
+    private static void Convert(Realm kingdom, Religion from, Religion to)
+    {
+        kingdom.SetReligion(to);
+        foreach (City city in kingdom.Cities.ToList())
+        {
+            if (city?.Record == null || city.IsGone()) continue;
+            city.SetReligion(to);
+            foreach (Person actor in city.People.ToList())
+                if (actor?.Record != null && !actor.IsGone() && (from == null || actor.Religion == from)) actor.SetReligion(to);
+        }
+    }
+
+    private static void DeclareReligiousWar(Empire empire, HolyRomanState state, Realm head, List<Realm> dissenters)
+    {
+        Realm core = empire.CoreKingdom;
+        if (head.IsAtWarWith(core)) return;
+        War war = EmpireWorld.Current.StartWar(head, core, WarKinds.Normal);
+        if (war?.Record == null) return;
+        war.Name = string.Format(LM.Get("hre_religious_war_name"), state.league_name);
+        state.league_war_id = war.Key;
+        state.year_turmoil = true;
+        foreach (Realm member in dissenters)
+            if (member != head && !war.HasRealm(member) && !member.IsAtWarWith(head)) war.JoinAttackers(member);
+        foreach (Realm member in Members(empire))
+            if (!war.HasRealm(member) && member.Religion == core.Religion && !IsBanned(member) &&
+                EcRandom.value < CatholicLeagueChance) war.JoinDefenders(member);
+        Record(empire, string.Format(LM.Get("hre_religious_war_history"), state.league_name, head.GetKingdomName(),
+            empire.Emperor?.FullName() ?? core.GetKingdomName()));
+    }
+
+    private static void OnLeagueWarEnded(Empire empire, HolyRomanState state, War war, bool attackersWon, bool defendersWon)
+    {
+        state.league_war_id = -1L;
+        Realm core = empire.CoreKingdom;
+        List<Realm> members = LeagueMembers(empire);
+        if (defendersWon && core.HasReligion())
+        {
+            foreach (Realm member in members) Convert(member, member.Religion, core.Religion);
+            empire.AddMandate(LeagueCrushedLegitimacy);
+            ChangeAuthority(empire, AuthLeagueCrushed, "hre_auth_league_crushed", state.league_name);
+            Record(empire, string.Format(LM.Get("hre_league_crushed_history"), state.league_name, core.Religion.Name));
+            DissolveLeague(state);
+            return;
+        }
+        // 同盟胜或打成平手：订立和约，诸侯取得完全主权
+        City venue = Members(empire).Where(IsFreeCity).Select(kingdom => kingdom.Capital).FirstOrDefault(city => city != null)
+                     ?? EmpireWorld.Current.RealmByKey(state.league_leader_id)?.Capital ?? core.Capital;
+        state.sovereign_princes = true;
+        // 诸侯取得完全主权：帝国治安令作废
+        state.imperial_peace_at = -1d;
+        state.privileged_ids?.Clear();
+        state.peace_name = string.Format(LM.Get("hre_peace_name"), venue?.GetCityName() ?? empire.GetEmpireName());
+        state.peace_at = GameClock.Now;
+        foreach (Realm member in Members(empire))
+        {
+            Regime regime = member.GetRegime();
+            if (regime == null) continue;
+            regime.SetAllowDiplomacy(true);
+            regime.SetAllowSupportCenterArmy(false);
+        }
+        if (core.HasReligion()) PapacySystem.ReligiousPeace(core.Religion);
+        empire.AddMandate(PeaceLegitimacy);
+        ChangeAuthority(empire, AuthReligiousPeace, "hre_auth_religious_peace", state.peace_name);
+        Record(empire, string.Format(LM.Get("hre_peace_history"), state.peace_name, empire.GetEmpireFullName()));
+        DissolveLeague(state);
+    }
+
+    private static void DissolveLeague(HolyRomanState state)
+    {
+        state.league_leader_id = -1L;
+        state.league_member_ids?.Clear();
+        state.league_name = "";
+        state.league_formed_at = -1d;
+        state.league_war_id = -1L;
+    }
+
+    #endregion
+
+    #region 加冕远征
+
+    // 远征途中已经加冕(教廷页直接加冕，或教廷没了改自行加冕)：远征就此作罢。以前远征的记录要等"到达"才清，
+    // 而到达的判定在加冕结算里、已加冕的不再走到，这位皇帝一辈子都算远征在外(正统 -3、议会不开)
+    public static bool RomzugUnderway(Empire empire)
+    {
+        HolyRomanState state = State(empire);
+        return state != null && state.romzug_at >= 0d && empire.Emperor != null && state.romzug_emperor_id == empire.Emperor.Key &&
+               !PapacySystem.IsCrowned(empire);
+    }
+
+    // PapacySystem.Coronation 调用：没在远征 / 还在路上 / 到了
+    public static int Romzug(Empire empire)
+    {
+        HolyRomanState state = State(empire);
+        if (state == null || state.romzug_at < 0d) return RomzugNone;
+        if (empire.Emperor == null || state.romzug_emperor_id != empire.Emperor.Key)
+        {
+            state.romzug_at = -1d;
+            state.romzug_emperor_id = -1L;
+            return RomzugNone;
+        }
+        if (GameClock.YearsSince(state.romzug_at) < RomzugYears) return RomzugTravelling;
+        state.romzug_at = -1d;
+        state.romzug_emperor_id = -1L;
+        return RomzugArrived;
+    }
+
+    // 封建制帝国的皇帝去教廷受冕：先出征(花军费)，一年后到达
+    public static bool StartRomzug(Empire empire, Realm papacy)
+    {
+        if (!HasDiet(empire) || papacy == null || empire.Emperor == null) return false;
+        HolyRomanState state = State(empire);
+        Realm core = empire.CoreKingdom;
+        int cost = (int)Math.Min(Math.Max(0L, core.GetMoney()), (long)(StateDebtSystem.AnnualStableIncome(core) * RomzugCost));
+        if (cost > 0) core.SubMoney(cost, TreasuryCategory.Military);
+        state.romzug_at = GameClock.Now;
+        state.romzug_emperor_id = empire.Emperor.Key;
+        Record(empire, string.Format(LM.Get("hre_romzug_history"), empire.Emperor.FullName(), papacy.GetKingdomName(),
+            PapacySystem.HolyCity(PapacySystem.ReligionOf(empire))?.GetCityName() ?? papacy.Capital?.GetCityName() ?? ""));
+        return true;
+    }
+
+    #endregion
+}
+}

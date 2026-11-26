@@ -1,0 +1,119 @@
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/MonarchyLegitimacy.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
+// see Port/manifest.json and Tools/PortTool.
+using Mathf = EmpireCraft.Core.EcMath;
+using Time = EmpireCraft.Core.FrameClock;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace EmpireCraft.Core
+{
+
+// 前现代正统与宪政合法性采用相同的来源式模型：当前治理决定稳定性，旧天命只作为有限的法统贡献。
+public static class MonarchyLegitimacy
+{
+    private const float CacheSeconds = 1f;
+    private static readonly Dictionary<long, (bool applies, int value, float at)> Cache = new();
+    private static object _cacheWorld;
+
+    private static (bool applies, int value) Cached(Empire empire)
+    {
+        if (!ReferenceEquals(_cacheWorld, EmpireWorld.Current))
+        {
+            _cacheWorld = EmpireWorld.Current;
+            Cache.Clear();
+        }
+        float now = Time.unscaledTime;
+        if (Cache.TryGetValue(empire.Key, out var cached) && now >= cached.at && now - cached.at < CacheSeconds)
+            return (cached.applies, cached.value);
+        bool applies = UsesTraditionalModel(empire);
+        int value = applies ? Mathf.Clamp(Breakdown(empire).Sum(item => item.value), 0, 100) : empire.data.Mandate;
+        Cache[empire.Key] = (applies, value, now);
+        return (applies, value);
+    }
+
+    public static bool Applies(Empire empire) => empire?.data != null && Cached(empire).applies;
+    // 独立于数值计算，供年度积弊/苛政选择模型，不经正统来源列表，避免互相递归。
+    public static bool UsesTraditionalModel(Empire empire) => empire?.data != null && EmpireWorld.Current != null &&
+        empire.CoreKingdom != null && !empire.CoreKingdom.IsGone() && !empire.IsArchived() &&
+        !ModernLegitimacy.Applies(empire) && !WarlordEraSystem.IsProvisionalGovernment(empire) &&
+        !RepublicSystem.IsTransitioning(empire);
+    public static int Get(Empire empire) => empire?.data == null ? 0 : Cached(empire).value;
+    public static void Invalidate(Empire empire = null)
+    {
+        if (empire == null) Cache.Clear();
+        else Cache.Remove(empire.Key);
+    }
+
+    // 只读取已结算的苛政与财政数据，不在城市忠诚/外交频繁读取时扫描人口、地块或单位。
+    public static List<(string key, int value)> Breakdown(Empire empire)
+    {
+        var items = new List<(string key, int value)>();
+        if (empire?.data == null || empire.CoreKingdom == null) return items;
+        items.Add(("mandate_governance_base", MonarchyLegitimacyRules.Base));
+        bool ruler = empire.Emperor != null && !empire.Emperor.IsGone() && empire.Emperor.Alive;
+        // 君主在位：按资质(见 RulerQualitySystem)，中主 +10
+        items.Add(ruler ? RulerQualitySystem.LegitimacyItem(empire.Emperor) : ("mandate_interregnum", -20));
+        if (empire.InFoundingGrace) items.Add(("mandate_founding_order", 10));
+        else if (DynasticCycleSystem.GetAge(empire) >= 10)
+            items.Add(("mandate_established_order", 5));
+        double debtSince = empire.data.constitutional_economy?.bankrupt_since ?? -1d;
+        int debtYears = debtSince >= 0d ? GameClock.YearsSince(debtSince) : 0;
+        int fiscal = MonarchyLegitimacyRules.Treasury(empire.CurrentMoney, debtYears);
+        if (fiscal != 0) items.Add((fiscal > 0 ? "mandate_solvent_treasury" : "mandate_debt", fiscal));
+        int corruption = MonarchyLegitimacyRules.Corruption(CorruptionSystem.GetRate(empire));
+        if (corruption != 0) items.Add(("mandate_corruption", corruption));
+        int burden = MonarchyLegitimacyRules.Misrule(HarshRuleSystem.OtherGovernanceBurden(empire));
+        if (burden != 0) items.Add(("mandate_misrule", burden));
+        int dynasty = MonarchyLegitimacyRules.Dynasty(empire.data.Mandate);
+        if (dynasty != 0) items.Add(("mandate_dynastic_events", dynasty));
+        int strain = DynasticCycleRules.LegitimacyPenalty(DynasticCycleSystem.GetPressure(empire));
+        if (strain != 0) items.Add(("mandate_dynastic_strain", strain));
+        // 朝政积弊深重(六条平均过三十，见 MaladySystem)
+        int maladies = MaladySystem.LegitimacyPenalty(empire);
+        if (maladies != 0) items.Add(("mandate_maladies", maladies));
+        // 未同化的异族之地(见 ForeignLandSystem，年度快照)
+        var foreign = ForeignLandSystem.LegitimacyItem(empire);
+        if (foreign.value != 0) items.Add(foreign);
+        // 西方：教宗加冕、未加冕、绝罚(见 PapacySystem)
+        items.AddRange(PapacySystem.LegitimacyItems(empire));
+        // 奉本天下正教、教义(礼教纲常、长生天命、敬天法祖)(见 ReligionTenets，用户 2026-11-06)
+        items.AddRange(ReligionTenets.LegitimacyItems(empire));
+        // 神圣罗马式选帝制：家族领地的厚薄(见 HolyRomanSystem)
+        items.AddRange(HolyRomanSystem.LegitimacyItems(empire));
+        // 天下共主 / 失了天命(见 TianxiaSystem)
+        items.AddRange(TianxiaSystem.LegitimacyItems(empire));
+        // 以下读取年度快照(InstitutionSystem.UpdateSocialUnrest)，不在这里扫描城市
+        var institutions = empire.data.institution_state;
+        if (institutions != null)
+        {
+            // 地方治理：各城平均稳定度，50 为平，最多 +6 / -10
+            if (institutions.avg_city_stability >= 0f)
+            {
+                int local = Mathf.Clamp(Mathf.RoundToInt((institutions.avg_city_stability - 50f) / 5f), -10, 6);
+                if (local != 0) items.Add((local > 0 ? "mandate_local_order" : "mandate_local_disorder", local));
+            }
+            // 社会危机：阶层怨气超过六成开始损及正统，阶层起义进行中再 -5
+            float grievance = institutions.class_grievances?.Values.DefaultIfEmpty(0f).Max() ?? 0f;
+            int social = grievance > 60f ? -Mathf.Min(10, Mathf.RoundToInt((grievance - 60f) / 4f)) : 0;
+            if (institutions.social_rebellion_war_id > 0) social -= 5;
+            if (social != 0) items.Add(("mandate_social_crisis", social));
+            // 欠饷欠俸：累计拖欠超过半年开支
+            if (institutions.arrears_months >= 6f)
+                items.Add(("mandate_arrears", -Mathf.Min(8, Mathf.RoundToInt(institutions.arrears_months / 3f))));
+        }
+        // 国债：债务超过一年经常收入损正统，一年内违约再损
+        Realm core = empire.CoreKingdom;
+        long debt = StateDebtSystem.Outstanding(core);
+        if (debt > 0L)
+        {
+            long income = StateDebtSystem.AnnualStableIncome(core);
+            if (income > 0L && debt > income) items.Add(("mandate_state_debt", -Mathf.Min(6, (int)(debt / income) * 2)));
+            if (StateDebtSystem.DefaultedRecently(core)) items.Add(("mandate_debt_default", -5));
+        }
+        // 南渡偏安：士民仍奉为正朔，正统保底(见 SouthernRetreatSystem)
+        int retreat = SouthernRetreatSystem.LegitimacyBonus(empire, items.Sum(item => item.value));
+        if (retreat > 0) items.Add(("mandate_southern_retreat", retreat));
+        return items;
+    }
+}
+}

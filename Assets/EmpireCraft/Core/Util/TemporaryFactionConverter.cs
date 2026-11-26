@@ -1,0 +1,94 @@
+// Generated from the EmpireCraft mod: Scripts/HelperFunc/TemporaryFactionConverter.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
+// see Port/manifest.json and Tools/PortTool.
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+
+namespace EmpireCraft.Core
+{
+
+public sealed class TemporaryFactionConverter : JsonConverter
+{
+    public override bool CanConvert(Type objectType)
+        => typeof(TemporaryFaction).IsAssignableFrom(objectType);
+
+    public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer)
+    {
+        if (reader.TokenType == JsonToken.Null) return null;
+
+        var jo = JObject.Load(reader);
+        // 1) 先取 "type"，没有再兼容 "$type"
+        TemporaryFactionType typeEnum;
+        if (jo.TryGetValue("type", out var t1))
+        {
+            typeEnum = t1.ToObject<TemporaryFactionType>();
+        }
+        else if (jo.TryGetValue("$type", out var t2))  // 兼容老存档
+        {
+            var full = t2.ToString();
+            var cls  = full.Split(',')[0].Split('.').Last(); // TempFac_文化同化
+            var name = cls.StartsWith("TempFac_") ? cls.Substring("TempFac_".Length) : cls;
+            if (!Enum.TryParse(name, out typeEnum)) return null; // 跳过这一项
+        }
+        else
+        {
+            return null; // 老存档完全没有类型信息：跳过这一项（或返回某个默认实现）
+        }
+
+        // 国家层面的谋划(国_xxx)类名是 KingdomMind_xxx，其余诉求是 TempFac_xxx(与 TemporaryFaction.ResolveType 对应)
+        string enumName = typeEnum.ToString();
+        var className = enumName.StartsWith("国_", StringComparison.Ordinal)
+            ? "KingdomMind_" + enumName.Substring("国_".Length)
+            : "TempFac_" + enumName;
+        var t = SafeTypeDiscovery.GetConcreteDerivedTypes(typeof(TemporaryFaction),
+                AppDomain.CurrentDomain.GetAssemblies(), message => LogService.LogWarning(message))
+            .FirstOrDefault(x => x.Name == className);
+        // 找不到类型(已删除的旧诉求)只跳过这一条，不让整份配置读不进来
+        if (t == null)
+        {
+            LogService.LogWarning($"TemporaryFaction 反序列化：未找到类型 {className}，已跳过");
+            return null;
+        }
+
+        var inst = Activator.CreateInstance(t);
+        serializer.Populate(jo.CreateReader(), inst);
+        return inst;
+    }
+
+    public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
+    {
+        var tf = (TemporaryFaction)value;
+
+        // 手动构建 JObject，避免递归到本转换器
+        var jo = new JObject
+        {
+            ["type"]        = JToken.FromObject(tf.type, serializer),
+            ["kingdoms"]    = JArray.FromObject(tf.kingdoms ?? new List<long>(), serializer),
+            ["factionID"] = JToken.FromObject(tf.factionID, serializer),
+            ["EmpireID"]    = tf.EmpireID,
+            ["KingdomID"]   = tf.KingdomID,
+            ["targetID"]    = tf.TargetID,
+            ["targetType"]  = JToken.FromObject(tf.TargetType, serializer),
+            ["progress"]    = tf.progress,
+            ["started"]     = tf.StartedState,
+            ["Hide"]        = tf.Hide,
+            ["Active"]      = tf.Active,
+            ["ShowAsPlot"]  = tf.ShowAsPlot,
+            ["canBePushByLocal"] = tf.canBePushByLocal,
+            ["pusherType"] = JToken.FromObject(tf.pusherType, serializer),
+            ["progressMax"] = tf.progressMax,
+            ["Acc"] = tf.Acc,
+            ["CountDown"]   = tf.CountDown,
+            ["timestamp"]   = tf.timestamp,
+            ["countDownTimestamp"] = tf.countDownTimestamp,
+            // 如果子类有额外**纯数据**字段，也在这里一并手动写出；
+            // 对于会导致循环引用的对象（如 Regime/Realm/World 指针）务必不要写。
+        };
+
+        jo.WriteTo(writer);
+    }
+}
+}

@@ -1,0 +1,229 @@
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/PapacySystem.Orders.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
+// see Port/manifest.json and Tools/PortTool.
+using Mathf = EmpireCraft.Core.EcMath;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace EmpireCraft.Core
+{
+
+// 骑士团(宗教武装组织，存在宗教的 ReligionExtraData.Orders，每年随教权结算)：
+//   · 成立：圣战告捷后有一半可能成立(每个宗教最多 3 个)，驻在号召国；名号按游戏里的地名取(某某圣殿骑士团、某某医院骑士团、某某骑士团)；
+//   · 大团长：驻在国里兵略最好的成年人(不是君主)，死了另选；
+//   · 团库：同教国家每年捐献(政教合一捐年度经常收入的 1%，国教限制 0.5%)，养军花销从团库出；
+//   · 军：团库够养几支就养几支(最多 3 支，每支 2 万人)，驻在国都；攻防按 1.4 倍计、缺粮断供只受一半损耗，
+//     不随驻在国动员复员(见 CorpsSystem)；驻在国有圣战时响应概率 +40%；
+//   · 镇压：驻在国欠着国债、团库超过它两年经常收入，而教权不到 40 或教廷落在世俗强国手里，每年三成可能被镇压——
+//     团库充公、在该国的军就地解散；教权不到 30 或教廷之囚时骑士团就此解散，否则迁到教廷另起炉灶；
+//   · 骑士团国：在圣战中收复圣地而当时没有教廷，骑士团就在圣地立国，大团长为君(原型条顿骑士团)。
+public static partial class PapacySystem
+{
+    private const int MaxOrders = 3;
+    private const int MaxOrderCorps = 3;
+    private const float OrderCorpsPeople = 20000f;
+    private const float OrderFoundChance = 0.5f;
+    private const float OrderStrength = 1.4f;
+    private const float SuppressChance = 0.3f;
+
+    public static float OrderFactor(CorpsData corps) => corps != null && corps.order_id >= 0 ? OrderStrength : 1f;
+
+    public static IEnumerable<KnightOrderData> Orders(Religion religion) =>
+        religion?.data == null ? Enumerable.Empty<KnightOrderData>()
+            : (religion.GetOrCreate().Orders ??= new List<KnightOrderData>()).Where(order => !order.dissolved);
+
+    public static KnightOrderData FindOrder(long id)
+    {
+        foreach (Religion religion in EmpireWorld.Current.Religions)
+            foreach (KnightOrderData order in Orders(religion))
+                if (order.id == id) return order;
+        return null;
+    }
+
+    // 圣战告捷后成立骑士团
+    private static void TryFoundOrder(Religion religion, Realm host)
+    {
+        // 骑士团只有普世教会有(吉哈德告捷不建圣殿、医院骑士团，见 ReligionFaith)
+        if (host?.Record == null || host.IsGone() || !ReligionFaith.FoundsOrders(religion) || Orders(religion).Count() >= MaxOrders ||
+            EcRandom.value >= OrderFoundChance) return;
+        var data = religion.GetOrCreate();
+        data.Orders ??= new List<KnightOrderData>();
+        int index = data.Orders.Count % 3 + 1;
+        string place = index == 1 ? CrusadeCity(religion)?.GetCityName() ?? host.Capital?.GetCityName()
+            : host.Capital?.GetCityName() ?? host.GetKingdomName();
+        var order = new KnightOrderData
+        {
+            id = RecordIds.Next(),
+            name = string.Format(LM.Get("knight_order_name_" + index), place),
+            host_kingdom_id = host.Key,
+            founded_at = GameClock.Now
+        };
+        data.Orders.Add(order);
+        PickGrandMaster(order, host);
+        RecordReligion(host, string.Format(LM.Get("knight_order_founded_history"), order.name, host.GetKingdomName()));
+        TranslateHelper.LogEventMessage(string.Format(LM.Get("knight_order_founded_history"), order.name,
+            host.GetKingdomName()), host);
+        ReligionChronicle.Record(religion, ReligionChronicle.KindHolyWar,
+            string.Format(LM.Get("knight_order_founded_history"), order.name, host.GetKingdomName()));
+    }
+
+    private static void PickGrandMaster(KnightOrderData order, Realm host)
+    {
+        Person best = null;
+        foreach (Person actor in host.People)
+        {
+            if (actor?.Record == null || actor.IsGone() || !actor.Alive || !actor.IsAdult() || actor.IsRuler() ||
+                actor.Asset == null || !actor.Asset.Civ || CityPopulationSystem.IsVehicle(actor)) continue;
+            if (best == null || actor.Warfare > best.Warfare) best = actor;
+        }
+        order.grand_master_id = best?.Key ?? -1L;
+        best?.RecordPersonalHistory(string.Format(LM.Get("knight_order_master_history"), order.name));
+    }
+
+    public static Person GrandMaster(KnightOrderData order)
+    {
+        Person actor = order?.grand_master_id >= 0 ? EmpireWorld.Current.PersonByKey(order.grand_master_id) : null;
+        return actor?.Record != null && !actor.IsGone() && actor.Alive ? actor : null;
+    }
+
+    public static Realm Host(KnightOrderData order)
+    {
+        Realm host = order?.host_kingdom_id >= 0 ? EmpireWorld.Current.RealmByKey(order.host_kingdom_id) : null;
+        return host?.Record != null && !host.IsGone() && !host.IsWild ? host : null;
+    }
+
+    public static List<CorpsData> OrderCorps(KnightOrderData order)
+    {
+        Realm host = Host(order);
+        return host == null ? new List<CorpsData>() : CorpsSystem.Of(host).Where(corps => corps.order_id == order.id).ToList();
+    }
+
+    // 驻在国有骑士团时响应圣战更积极
+    private static float OrderHostBonus(Realm kingdom, Religion religion) =>
+        Orders(religion).Any(order => Host(order) is Realm host && ModRealm(host) == ModRealm(kingdom)) ? 0.4f : 0f;
+
+    // 每年(随教权结算)：大团长、捐献、养军、镇压
+    private static void UpdateOrders(Religion religion)
+    {
+        foreach (KnightOrderData order in Orders(religion).ToList())
+        {
+            try
+            {
+                UpdateOrder(religion, order);
+            }
+            catch (Exception exception)
+            {
+                LogService.LogWarning($"[EmpireCraft][骑士团] {order.name} 结算失败: {exception.Message}");
+            }
+        }
+    }
+
+    private static void UpdateOrder(Religion religion, KnightOrderData order)
+    {
+        if (SecularizeOrderState(order)) return;
+        Realm host = Host(order);
+        if (host == null || host.Religion != religion)
+        {
+            Realm papacy = Papacy(religion);
+            if (papacy == null || papacy == host)
+            {
+                Dissolve(religion, order, LM.Get("knight_order_dissolved_homeless"));
+                return;
+            }
+            order.host_kingdom_id = papacy.Key;
+            host = papacy;
+        }
+        if (GrandMaster(order) is not Person master || master.Realm != host) PickGrandMaster(order, host);
+        // 捐献
+        foreach (Realm kingdom in EmpireWorld.Current.LiveRealms)
+        {
+            if (kingdom?.Record == null || kingdom.IsGone() || kingdom.IsWild || kingdom.Religion != religion ||
+                ModRealm(kingdom) != kingdom) continue;
+            float rate = kingdom.GetRegime()?.GetReligionLevel() switch
+            {
+                ReligionLevel.High => 0.01f,
+                ReligionLevel.Medium => 0.005f,
+                _ => 0f
+            };
+            if (rate <= 0f) continue;
+            long gift = Math.Min(Math.Max(0L, (long)kingdom.GetMoney()), (long)(StateDebtSystem.AnnualStableIncome(kingdom) * rate));
+            if (gift <= 0) continue;
+            kingdom.SubMoney((int)gift, TreasuryCategory.Gift);
+            order.treasury += gift;
+        }
+        // 养军：每支军每年按人头付饷(同野战军)，付不起就解散一支
+        List<CorpsData> corps = OrderCorps(order);
+        bool war = CorpsSystem.IsAtWar(host);
+        long upkeep = (long)corps.Sum(item => CityStabilityRules.CorpsAnnual(item.strength, war));
+        order.treasury -= upkeep;
+        if (order.treasury < 0 && corps.Count > 0)
+        {
+            CorpsSystem.Disband(host, corps[corps.Count - 1]);
+            corps.RemoveAt(corps.Count - 1);
+            order.treasury = 0;
+        }
+        long perCorps = (long)Math.Max(1d, CityStabilityRules.CorpsAnnual(OrderCorpsPeople, false) * 2d);
+        int affordable = (int)Mathf.Clamp(order.treasury / perCorps, 0, MaxOrderCorps);
+        City seat = host.Capital;
+        if (seat != null)
+            for (int i = corps.Count; i < affordable; i++)
+                if (CorpsSystem.RaiseOrderCorps(host, seat, OrderCorpsPeople, order.id) is CorpsData raised) corps.Add(raised);
+        foreach (CorpsData item in corps)
+            if (item.strength < OrderCorpsPeople) CorpsSystem.ReinforceOrderCorps(host, item, (OrderCorpsPeople - item.strength) * 0.5f);
+        TrySuppress(religion, order, host);
+    }
+
+    private static void TrySuppress(Religion religion, KnightOrderData order, Realm host)
+    {
+        Realm realm = ModRealm(host);
+        if (realm == null || realm == Papacy(religion)) return;
+        float authority = Authority(religion);
+        bool weakChurch = authority < 40f || IsCaptive(religion);
+        long income = StateDebtSystem.AnnualStableIncome(realm);
+        if (!weakChurch || StateDebtSystem.Outstanding(realm) <= 0 || order.treasury <= income * 2 ||
+            EcRandom.value >= SuppressChance) return;
+        long seized = order.treasury;
+        order.treasury = 0;
+        if (seized > 0) realm.AddMoney((int)Math.Min(int.MaxValue, seized), TreasuryCategory.RecoveredFunds);
+        foreach (CorpsData item in OrderCorps(order)) CorpsSystem.Disband(host, item);
+        RecordReligion(realm, string.Format(LM.Get("knight_order_suppressed_history"), realm.GetKingdomName(), order.name,
+            MoneyDisplay.Format(seized)));
+        Realm papacy = Papacy(religion);
+        if (authority < 30f || IsCaptive(religion) || papacy == null || ModRealm(papacy) == realm)
+            Dissolve(religion, order, string.Format(LM.Get("knight_order_dissolved_suppressed"), order.name));
+        else order.host_kingdom_id = papacy.Key;
+    }
+
+    private static void Dissolve(Religion religion, KnightOrderData order, string text)
+    {
+        Realm host = Host(order);
+        if (host != null)
+            foreach (CorpsData item in OrderCorps(order)) CorpsSystem.Disband(host, item);
+        order.dissolved = true;
+        if (host != null) RecordReligion(host, text.Contains("{0}") ? string.Format(text, order.name) : text);
+    }
+
+    // 圣战收复圣地而当时没有教廷：骑士团在圣地立国，大团长为君
+#if EC_PENDING
+    private static bool TryFoundOrderState(Religion religion, City holy)
+    {
+        KnightOrderData order = Orders(religion).FirstOrDefault(item => item.state_kingdom_id < 0 && Host(item) != null);
+        Person master = order == null ? null : GrandMaster(order);
+        if (order == null || master == null || holy?.Record == null) return false;
+        Realm former = Host(order);
+        master.JoinCity(holy);
+        // 圣战收复圣地(战果)：不许自立的闸放行(见 SecessionGate)
+        Realm state = SecessionGate.Sanctioned(() => holy.MakeOwnRealm(master, false, false));
+        if (state?.Record == null) return false;
+        holy.SetReligion(religion);
+        state.Name = order.name;
+        order.state_kingdom_id = state.Key;
+        foreach (CorpsData item in OrderCorps(order)) CorpsSystem.Disband(former, item);
+        order.host_kingdom_id = state.Key;
+        TranslateHelper.LogEventMessage(string.Format(LM.Get("knight_order_state_history"), order.name, holy.GetCityName()), state);
+        RecordReligion(former, string.Format(LM.Get("knight_order_state_history"), order.name, holy.GetCityName()));
+        return true;
+    }
+#endif
+}
+}

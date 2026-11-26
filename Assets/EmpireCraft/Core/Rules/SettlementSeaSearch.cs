@@ -1,0 +1,249 @@
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/SettlementSeaSearch.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
+// see Port/manifest.json and Tools/PortTool.
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace EmpireCraft.Core
+{
+
+// 沿真实海面寻路，搜索队列只在运行时存在；选定的短航线以坐标保存。
+internal sealed class SettlementSeaSearch
+{
+    internal sealed class SeaNode
+    {
+        public Cell tile;
+        public SeaNode parent;
+        public City portCity;
+        public int distance;
+        public int range;
+    }
+
+    internal sealed class Candidate
+    {
+        public Cell zone;
+        public Cell landfall;
+        internal SeaNode sea;
+        public int distance => sea.distance;
+
+        public void Apply(StateSettlementProject project)
+        {
+            project.overseas = true;
+            project.embarkation_city = sea.portCity.Key;
+            project.landfall = Point(landfall);
+            project.sea_route ??= new List<SettlementRoutePoint>();
+            project.sea_route.Clear();
+            for (SeaNode node = sea; node != null; node = node.parent)
+                project.sea_route.Add(Point(node.tile));
+            project.sea_route.Reverse();
+            project.travel_months = TravelMonths(project.sea_route.Count, sea.portCity);
+        }
+
+        private static Candidate Create(Cell zone, Cell landfall, SeaNode sea) =>
+            new() { zone = zone, landfall = landfall, sea = sea };
+        internal static Candidate FromLanding(Landing landing) => Create(landing.zone, landing.landfall, landing.sea);
+    }
+
+    internal sealed class Landing
+    {
+        public Cell zone;
+        public Cell landfall;
+        internal SeaNode sea;
+        public int depth;
+
+        internal static Landing Create(Cell zone, Cell landfall, SeaNode sea, int depth) =>
+            new() { zone = zone, landfall = landfall, sea = sea, depth = depth };
+        internal Landing Next(Cell next) => Create(next, landfall, sea, depth + 1);
+    }
+
+    private const int MaxVisitedTiles = 80000;
+    // 近代以后航程很远，海面搜索上限随之放宽(仍按每帧 128 格分帧推进)
+    private const int LongRangeVisitedTiles = 400000;
+    internal const int NearSeaRange = 64;
+    // 工业化(蒸汽船)后可跨大洋，电力/机动化后不限远近
+    internal const string IndustrialNavigationTech = "industrialization";
+    private const int IndustrialSeaRange = 384;
+    private const int UnlimitedSeaRange = 100000;
+    private int maxVisited = MaxVisitedTiles;
+    internal const string OceanNavigationTech = "ocean_navigation";
+    private readonly Queue<SeaNode> seaQueue = new();
+    private readonly Queue<Landing> landQueue = new();
+    private readonly Dictionary<Cell, int> seaSeen = new();
+    private readonly HashSet<int> landSeen = new();
+    private int shortlistDistance = int.MaxValue;
+    private bool oceanAvailable;
+    private readonly City existingTarget;
+
+    public string unavailable { get; private set; } = "port";
+    public bool Finished => seaQueue.Count == 0 && landQueue.Count == 0;
+
+#if EC_PENDING
+    public SettlementSeaSearch(City source, IEnumerable<City> ports, City existingTarget = null)
+    {
+        this.existingTarget = existingTarget;
+        int count = 0;
+        foreach (City city in ports)
+        {
+            if (!EligiblePortCity(city, source)) continue;
+            Building port = Port(city);
+            if (port == null) continue;
+            if (unavailable == "port") unavailable = "navigation";
+            if (!CanTransport(city, port)) continue;
+            unavailable = "land";
+            int range = Range(city, port);
+            oceanAvailable |= range > NearSeaRange;
+            if (range > IndustrialSeaRange / 2) maxVisited = LongRangeVisitedTiles;
+            foreach (Cell tile in port.component_docks.tiles_ocean)
+                if (Navigable(tile) && Visit(tile, range))
+                    seaQueue.Enqueue(new SeaNode { tile = tile, portCity = city, range = range });
+            if (++count >= 4) break;
+        }
+    }
+#endif
+
+    // 每帧至多 128 格海面；候选陆地由调用者另外分帧检查，不在海岸线循环中做建城检查。
+#if EC_PENDING
+    public void Advance(City source)
+    {
+        for (int steps = 0; steps < 128 && seaQueue.Count > 0 && SimulationFrameBudget.HasTime; steps++)
+        {
+            SeaNode node = seaQueue.Dequeue();
+            if (!oceanAvailable && node.distance >= node.range && node.range == NearSeaRange && Navigable(node.tile))
+                unavailable = "overseas_tech";
+            if (node.distance >= node.range || node.distance - 16 > shortlistDistance || !Navigable(node.tile)) continue;
+            foreach (Cell tile in node.tile.Neighbours ?? Array.Empty<Cell>())
+            {
+                if (Navigable(tile))
+                {
+                    if (Visit(tile, node.range - node.distance - 1))
+                        seaQueue.Enqueue(new SeaNode { tile = tile, parent = node, portCity = node.portCity,
+                            distance = node.distance + 1, range = node.range });
+                }
+                else if (tile?.Type?.Ground == true && tile.region?.island != null &&
+                    !tile.IsSameIsland(source.SeatCell()) && tile.Zone != null &&
+                    (tile.Zone.City == null || tile.Zone.City == existingTarget) && landSeen.Add(tile.Zone.Index))
+                    landQueue.Enqueue(Landing.Create(tile.Zone, tile, node, 0));
+            }
+        }
+    }
+#endif
+
+    private bool Visit(Cell tile, int remaining)
+    {
+        if (seaSeen.TryGetValue(tile, out int previous) ? remaining <= previous : seaSeen.Count >= maxVisited)
+            return false;
+        seaSeen[tile] = remaining;
+        return true;
+    }
+
+#if EC_PENDING
+    public Landing NextLanding()
+    {
+        if (landQueue.Count == 0) return null;
+        Landing landing = landQueue.Dequeue();
+        if (landing.depth < 4)
+            foreach (Cell next in landing.zone.Neighbours ?? Array.Empty<Cell>())
+                if (next?.Center != null && (next.City == null || next.City == existingTarget) &&
+                    next.Center.IsSameIsland(landing.landfall) && next.Center.reachableFrom(landing.landfall) &&
+                    landSeen.Add(next.Index)) landQueue.Enqueue(landing.Next(next));
+        return landing;
+    }
+#endif
+
+    public Candidate Accept(Landing landing)
+    {
+        shortlistDistance = Math.Min(shortlistDistance, landing.sea.distance);
+        return Candidate.FromLanding(landing);
+    }
+
+    private static SettlementRoutePoint Point(Cell tile) => new() { x = tile.X, y = tile.Y };
+#if EC_PENDING
+    internal static bool Navigable(Cell tile) => tile?.Type != null && tile.isGoodForBoat();
+    internal static Building Port(City city) => city?.getBuildingOfType("type_docks", pCountOnlyFinished: true, pRandom: false);
+
+    private static bool EligiblePortCity(City city, City source) => city?.Record != null && !city.IsGone() &&
+        !AncientWarfareCompatibility.OwnsObject(city) && city.SeatCell() != null &&
+        StateSettlementSystem.FundingRealm(city.Realm) == StateSettlementSystem.FundingRealm(source.Realm) &&
+        city.SeatCell().IsSameIsland(source.SeatCell()) && city.SeatCell().reachableFrom(source.SeatCell());
+
+    private static bool CanTransport(City city, Building port)
+    {
+        if (port?.component_docks?.tiles_ocean == null || port.Asset?.boat_types == null ||
+            city.getActorAsset()?.architecture_asset == null) return false;
+        // 按本族建筑和已有科技验证运输能力；不要求实体移民或运输船完成登船任务。
+        foreach (string type in port.Asset.boat_types)
+        {
+            string id = port.Asset.getBoatAssetIDFromType(type, city);
+            if (!string.IsNullOrEmpty(id) && AssetManager.actor_library.get(id)?.is_boat_transport == true &&
+                TechnologySystem.CanSpawnUnit(id, city)) return true;
+        }
+        return false;
+    }
+#endif
+
+    // 近海小岛沿用基础运输能力；远洋必须确实完成研究，不能用旧档引导期的 CanUse 放行。
+    private static bool HasOceanNavigation(City city) =>
+        TechnologySystem.HasTech(TechnologySystem.GetCultureOf(city), OceanNavigationTech);
+    // 航程：近海 64 格；远洋航海 96 + 港口等级×32(≤192)；工业化 384 + 港口等级×64；电力或机动化后不限
+    private static int Range(City city, Building port)
+    {
+        string culture = TechnologySystem.GetCultureOf(city);
+        int level = Math.Min(3, Math.Max(0, port.Asset.UpgradeLevel));
+        if (TechnologySystem.HasTech(culture, "electricity") || TechnologySystem.HasTech(culture, "motorization"))
+            return UnlimitedSeaRange;
+        if (TechnologySystem.HasTech(culture, IndustrialNavigationTech)) return IndustrialSeaRange + level * 64;
+        return HasOceanNavigation(city) ? 96 + level * 32 : NearSeaRange;
+    }
+    // 航行月数：帆船每月 32 格，工业化(蒸汽船)96 格，电力/机动化 192 格；不知道出发港时按帆船算
+    internal static int TravelMonths(int routeLength, City port = null)
+    {
+        int speed = 32;
+        string culture = port == null ? null : TechnologySystem.GetCultureOf(port);
+        if (culture != null)
+        {
+            if (TechnologySystem.HasTech(culture, "electricity") || TechnologySystem.HasTech(culture, "motorization")) speed = 192;
+            else if (TechnologySystem.HasTech(culture, IndustrialNavigationTech)) speed = 96;
+        }
+        return Math.Max(1, (routeLength + speed - 1) / speed);
+    }
+    internal static int TransportGold(StateSettlementProject project) => project.overseas && !project.spontaneous
+        ? 50 + (project.sea_route.Count + 7) / 8 * 5 : 0;
+
+#if EC_PENDING
+    internal static bool Validate(StateSettlementProject project, City source, out Cell landfall, out string reason,
+        City existingTarget = null)
+    {
+        landfall = null;
+        reason = "route";
+        var route = project.sea_route;
+        if (route == null || route.Count == 0 || route.Count > 192 || project.landfall == null) return false;
+        City embarkation = EmpireWorld.Current.CityByKey(project.embarkation_city);
+        if (!EligiblePortCity(embarkation, source)) return false;
+        Building port = Port(embarkation);
+        reason = "port";
+        if (port == null) return false;
+        reason = "navigation";
+        if (!CanTransport(embarkation, port)) return false;
+        reason = "overseas_tech";
+        if (route.Count > NearSeaRange && !HasOceanNavigation(embarkation)) return false;
+        reason = "route";
+        if (route.Count > Range(embarkation, port)) return false;
+        Cell previous = null;
+        foreach (SettlementRoutePoint point in route)
+        {
+            if (point == null) return false;
+            Cell tile = EmpireWorld.Current.CellAt(point.x, point.y);
+            if (!Navigable(tile) || previous != null && !Adjacent(previous, tile)) return false;
+            if (previous == null && !port.component_docks.tiles_ocean.Contains(tile)) return false;
+            previous = tile;
+        }
+        landfall = EmpireWorld.Current.CellAt(project.landfall.x, project.landfall.y);
+        return landfall?.Type?.Ground == true && landfall.Zone != null &&
+            (landfall.Zone.City == null || landfall.Zone.City == existingTarget) && landfall.region?.island != null &&
+            !landfall.IsSameIsland(source.SeatCell()) && Adjacent(previous, landfall);
+    }
+#endif
+
+    private static bool Adjacent(Cell a, Cell b) => a?.Neighbours?.Contains(b) == true;
+}
+}

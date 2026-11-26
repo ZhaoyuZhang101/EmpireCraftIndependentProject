@@ -1,0 +1,170 @@
+// Generated from the EmpireCraft mod: Scripts/AI/GameAIMain.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
+// see Port/manifest.json and Tools/PortTool.
+using System;
+using System.Linq;
+using System.Reflection;
+
+namespace EmpireCraft.Core
+{
+//此处为模组AI的统一接口。通过继承ActorAI/CityAI/KingdomAI/目录下的基类并填充自己的逻辑来控制国家/城市/角色的行为
+public static class GameAIMain
+{
+#if EC_PENDING
+    public static void KingdomAIs(this BehaviourTaskKingdom t, BehaviourTaskKingdomLibrary lib)
+    {
+        t.addBeh(new KingdomBehCheckCapital());
+        var asm = Assembly.GetExecutingAssembly();
+        var types = asm.GetTypes()
+            .Where(ty =>
+                    !ty.IsAbstract
+                    && typeof(GameAIKingdomBase).IsAssignableFrom(ty)
+                    && ty.GetConstructor(Type.EmptyTypes) != null 
+            );
+        foreach (var type in types)
+        {
+            var beh = (GameAIKingdomBase) Activator.CreateInstance(type);
+            var id = beh.OriginalBeh.ToString().Split('.').Last();
+            foreach (var bt in lib.list)
+            {
+                foreach (var action in bt.list.ToList())
+                {
+                    if (action.id == id)
+                    {
+                        bt.list.Remove(action);
+                    }
+                }
+            }
+            beh.create();
+            t.addBeh(beh);
+        }
+    }
+    public static void KingdomMindAIs(this BehaviourTaskKingdom t, BehaviourTaskKingdomLibrary lib)
+    {
+        t.addBeh(new KingdomBehCheckCapital());
+        var asm = Assembly.GetExecutingAssembly();
+        var types = asm.GetTypes()
+            .Where(ty =>
+                    !ty.IsAbstract
+                    && typeof(GameAIKingdomMindBase).IsAssignableFrom(ty)
+                    && ty.GetConstructor(Type.EmptyTypes) != null 
+            );
+        foreach (var type in types)
+        {
+            var beh = (GameAIKingdomMindBase) Activator.CreateInstance(type);
+            var id = beh.OriginalBeh.ToString().Split('.').Last();
+            foreach (var bt in lib.list)
+            {
+                foreach (var action in bt.list.ToList())
+                {
+                    if (action.id == id)
+                    {
+                        bt.list.Remove(action);
+                    }
+                }
+            }
+            beh.create();
+            t.addBeh(beh);
+        }
+    }
+    public static void EmpireAIs(this BehaviourTaskKingdom t, BehaviourTaskKingdomLibrary lib)
+    {
+        t.addBeh(new KingdomBehCheckCapital());
+        var asm = Assembly.GetExecutingAssembly();
+        var types = asm.GetTypes()
+            .Where(ty =>
+                    !ty.IsAbstract
+                    && typeof(GameAIEmpireBase).IsAssignableFrom(ty)
+                    && ty.GetConstructor(Type.EmptyTypes) != null 
+            );
+        foreach (var type in types)
+        {
+            var beh = (GameAIEmpireBase) Activator.CreateInstance(type);
+            var id = beh.OriginalBeh.ToString().Split('.').Last();
+            foreach (var bt in lib.list)
+            {
+                foreach (var action in bt.list.ToList())
+                {
+                    if (action.id == id)
+                    {
+                        bt.list.Remove(action);
+                    }
+                }
+            }
+            beh.create();
+            t.addBeh(beh);
+        }
+    }
+    public static void CityAIs(this BehaviourTaskCity t, BehaviourTaskCityLibrary lib)
+    {
+        var asm = Assembly.GetExecutingAssembly();
+        var types = asm.GetTypes()
+            .Where(ty =>
+                !ty.IsAbstract
+                && typeof(GameAICityBase).IsAssignableFrom(ty)
+                && ty.GetConstructor(Type.EmptyTypes) != null
+            );
+
+        foreach (var type in types)
+        {
+            var beh = (GameAICityBase) Activator.CreateInstance(type);
+            var id = beh.OriginalBeh.ToString().Split('.').Last();
+            bool placed = false;
+            foreach (var bt in lib.list)
+            {
+                foreach (var action in bt.list.ToList())
+                {
+                    if (action.id != id) continue;
+                    // 留在原版那一步的位置上(同 addBeh 的命名与初始化)
+                    if (beh.InPlace && !placed)
+                    {
+                        bt.list[bt.list.IndexOf(action)] = beh;
+                        beh.id = beh.GetType().ToString();
+                        beh.create();
+                        placed = true;
+                        continue;
+                    }
+                    bt.list.Remove(action);
+                }
+            }
+            if (placed) continue;
+            beh.create();
+            t.addBeh(beh);
+        }
+    }
+    public static void ActorAIs(this BehaviourTaskActor t, BehaviourTaskActorLibrary lib)
+    {
+        var asm = Assembly.GetExecutingAssembly();
+        var types = asm.GetTypes()
+            .Where(ty =>
+                !ty.IsAbstract
+                && typeof(GameAIActorBase).IsAssignableFrom(ty)
+                && ty.GetConstructor(Type.EmptyTypes) != null
+            );
+        foreach (var type in types)
+        {
+            bool isReplace = false;
+            var beh = (GameAIActorBase) Activator.CreateInstance(type);
+            var id = beh.OriginalBeh.ToString().Split('.').Last();
+            foreach (var bt in lib.list)
+            {
+                foreach (var action in bt.list.ToList())
+                {
+                    if (action.id == id)
+                    {
+                        bt.list.Remove(action);
+                        beh.create();
+                        beh.id = id;
+                        bt.list.Add(beh);
+                        isReplace = true;
+                    }
+                }
+            }
+
+            if (isReplace) continue;
+            beh.create();
+            t.addBeh(beh);
+        }
+    }
+#endif
+}
+}

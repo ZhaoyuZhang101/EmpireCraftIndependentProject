@@ -1,0 +1,87 @@
+// Ported from the EmpireCraft mod: Scripts/Data/CorpsData.cs @ e770dbbe. Body kept line-for-line for three-way sync;
+// see Port/manifest.json and Tools/PortTool.
+using System.Collections.Generic;
+
+namespace EmpireCraft.Core
+{
+
+// 军团(借鉴钢铁雄心的师)：兵力只是数字，地图上最多一名统领实体代表(见 CorpsSystem、FrontSystem)。
+// 存在所属王国的 KingdomExtraData.corps 里，随存档保存
+public sealed class CorpsData
+{
+    public long id = -1L;
+    // 本国第几军(番号)
+    public int serial;
+    public long kingdom_id = -1L;
+    // 驻扎的军镇(征兵、补员、退伍回的城)
+    public long home_city_id = -1L;
+    // 军镇类别：CityPopulationSystem.ArmyPost
+    public int post;
+    // 现有兵力 / 满编兵力(人)
+    public float strength;
+    public float full;
+    // 折合旧制多少个军团(原版计兵数、战争 AI 用)
+    public int legions;
+    // 组织度 0~100：交战下降、休整恢复，归零溃退
+    public float org = 100f;
+    // 任务：reserve 预备 / march 开赴 / attack 进攻 / defend 防守 / retreat 溃退休整
+    public string task = "reserve";
+    // 进攻或防守的那座城(战线段)
+    public long sector_city_id = -1L;
+    // 所在地块(地图兵牌位置)与要开往的地块
+    public int zone_id = -1;
+    public int target_zone_id = -1;
+    // 堑壕：在同一段防守越久越高(0~0.3)
+    public float entrench;
+    // 统领实体(开关打开时才有)
+    public long general_id = -1L;
+    public double raised_at = -1d;
+    // 手动组建的军(军事页"组建新军"，见 CorpsSystem.RaiseManual)：不按军制兵额自动增减、裁撤，照常补员，可手动解散
+    public bool manual;
+    // 兵员来源：退伍时按来源还回人口，阵亡按比例扣减
+    public List<LegionPopulationContribution> population = new();
+    // 义军：起义、革命时临时武装，仗打完就地解散
+    public bool militia;
+    // 兵种(CorpsArmSystem.Arm)：成军时按本文化科技定下，之后不自动换装，换装要花钱；-1 = 还没定(旧存档首次读到时补定)
+    public int arm = -1;
+    // 骑士团的军(见 PapacySystem.Orders)：骑士团自己出钱养、自己补员，不随本国动员与复员；-1 = 不是
+    public long order_id = -1L;
+    // 后勤(见 LogisticsSystem)：补给程度 0~1、上月口粮够了几成
+    public float supply = 1f;
+    // 本月陆上走过的地块数(月底按路程收行军费，见 CorpsSystem.PayUpkeep)
+    public int march_zones;
+    // 行军进度(满 1 走一块地块，见 CorpsSystem.SecondTick)
+    public float march_progress;
+    // 禁军(见 PalaceArmySystem)：空饷比例、忠诚、本月是否不奉诏、现任统领与上任时间
+    public float phantom;
+    public float loyalty = 100f;
+    public bool refusing;
+    public long commander_seen = -1L;
+    public double commander_since = -1d;
+    public float rations = 1f;
+    // 老兵经验 0~100(见 CorpsVeterancy)：打仗涨，补新兵冲淡，太平久了回落
+    public float veterancy;
+    // 被围了几个月(见 EncirclementSystem)；0 = 没被围
+    public int pocket_months;
+    // 跨海运兵(见 CorpsSystem.Embark/Sail)：在船上、航线(海区 id)、走到第几段、计步
+    public bool embarked;
+    public List<int> sea_route;
+    public int sea_step;
+    public int sea_tick;
+    // 船走的海上路线(地块 id，第一块是所在地块；见 RoadNetwork.SeaPath)：尽量沿航线走；空表示寻不到，按海区走
+    public List<int> sea_path;
+    // 船靠岸的地块(目标所在那片陆地上最近的海滩，见 SeaLanding.Beachhead)，上岸后走陆路开往目标；-1 = 没有，直接到目标
+    public int landing_zone_id = -1;
+    // 渡海先遣军(见 FrontSystem.Assign、CorpsSystem.Detach)：整军装不下运输船时按运力分出的一支，记原军 id；-1 = 不是。
+    // 不补员、不另占兵额，原军补员时把它算在内；仗打完或回到驻地就并回原军
+    public long parent_id = -1L;
+    // 先锋营(见 CorpsSystem.EnsureVanguard)：从本军分出来的几百名突骑死士，打仗时先登、骚扰，仗打完并回原军
+    public bool vanguard;
+    // 建制(见 FormationSystem)：Formations.json 里的 id；空是旧档还没定。与兵种分开，换政体、换文化、换装都不改
+    public string formation = "";
+    // 建制番号(范围见配置)；0 是还没编。分遣队不占番号
+    public int formation_serial;
+    // 改隶、整编前的旧称(履历)
+    public List<string> former_names;
+}
+}

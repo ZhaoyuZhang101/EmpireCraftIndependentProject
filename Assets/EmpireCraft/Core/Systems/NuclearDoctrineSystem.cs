@@ -1,0 +1,355 @@
+// Generated from the EmpireCraft mod: Scripts/Compatibility/NuclearDoctrineSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
+// see Port/manifest.json and Tools/PortTool.
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+
+namespace EmpireCraft.Core
+{
+
+// 核战略：WarBox 的 AI 只在同一场战争打满 50 年(嗜血/尚武君主 25 年)后才考虑核打击，
+// 而本模组的战争节奏快得多(战争消耗、受降、开国速攻)，几乎等不到那一天。
+// 这里按战局的危急程度替 AI 决策，决定动用后调用 WarBox 自己的核打击流程
+// (NuclearStrikeSystem.TryPlayerNuclearStrike：照常花费国库、长期准备、每场战争对同一敌国只用一次)。
+// 纯净地图模式不靠 WarBox：人物、建筑都是数据，核打击自己结算(见 VirtualStrike)，没装 WarBox 也有核武器。
+//
+// 每年对每个掌握核裂变技术、正在打仗的国家评估一次"危急度"：
+//   战争已打满 10 年 +1；敌军兵力达到本国 1.5 倍 +1；本国城市不到敌国一半 +1；
+//   都城正被围攻 +2；君主嗜血或尚武、或执政理念为法西斯 +1；
+//   敌国同样拥有核武器(相互确保毁灭) -2。
+// 危急度 ≥ 3 时每年 25% 的机会下令准备核打击。
+//
+// 核威慑(影响开战)：原版 AI 只向"好感不好"的国家开战，这里给好感加一项核威慑修正——
+//   对方有核、自己没有：畏惧核报复，好感 +DeterredOpinion，基本不会主动开战；
+//   双方都有核：相互确保毁灭，好感 +MutualOpinion，开战更加谨慎；
+//   自己有核、对方没有：有恃无恐，好感 -SuperiorityOpinion，更敢开战。
+// 帝国的"对外扩张"诉求也不会挑有核而自己无核的国家下手。
+//
+// 施压弃核：每年对每个(不在战争中的)有核国家，统计国力至少是它 1.5 倍的其他有核大国
+// (与它接壤，或国力达到它 3 倍的霸权国)：
+//   · 施压国合计国力达到它 3 倍：每年 30% 的机会被迫弃核——销毁核武器、不能再动用；
+//     若它是本文化的主体(拥有本文化一半以上城市)，整个文化停止核研究；
+//   · 达到 1.5 倍：遭到制裁，国库每年损失一成；
+//   · 弃核之后再没有大国压着：每年 10% 的机会重启核计划。
+public static class NuclearDoctrineSystem
+{
+    private const string NuclearTech = "nuclear_fission";
+    private const int Threshold = 3;
+    private const float YearlyChance = 0.25f;
+
+    public const int DeterredOpinion = 150;
+    public const int MutualOpinion = 60;
+    public const int SuperiorityOpinion = 40;
+
+    private static MethodInfo _tryStrike;
+    private static bool _resolved;
+    private static object _scanWorld;
+    private static double _lastScan = -1d;
+
+#if EC_PENDING
+    private static MethodInfo TryStrike
+    {
+        get
+        {
+            if (_resolved) return _tryStrike;
+            _resolved = true;
+            _tryStrike = AccessTools.TypeByName("WarMobilization.NuclearStrikeSystem")?
+                .GetMethod("TryPlayerNuclearStrike", BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
+            return _tryStrike;
+        }
+    }
+
+    public static void TryYearlyScan()
+    {
+        if (EmpireWorld.Current?.LiveRealms == null || ModClass.IS_CLEAR || !Available) return;
+        double now = GameClock.Now;
+        if (!ReferenceEquals(_scanWorld, EmpireWorld.Current) || now < _lastScan)
+        {
+            _scanWorld = EmpireWorld.Current;
+            _lastScan = now;
+            return;
+        }
+        if (GameClock.YearsSince(_lastScan) < 1) return;
+        _lastScan = now;
+        try
+        {
+            UpdatePressure();
+        }
+        catch (Exception exception)
+        {
+            LogService.LogWarning($"[EmpireCraft] 弃核施压结算失败: {exception.Message}");
+        }
+        foreach (Realm kingdom in EmpireWorld.Current.LiveRealms.ToList())
+        {
+            try
+            {
+                Evaluate(kingdom);
+            }
+            catch (Exception exception)
+            {
+                LogService.LogWarning($"[EmpireCraft] 核战略评估失败({kingdom?.Name}): {exception.Message}");
+            }
+        }
+    }
+#endif
+
+    // 装了 WarBox(有核打击可用)，或纯净地图模式(核打击自己结算)时核武器才存在
+#if EC_PENDING
+    public static bool Available => TryStrike != null || PureMapMode.Enabled;
+#endif
+
+    // 帝国成员按帝国核心是否有核
+    private static Realm ModRealm(Realm kingdom) =>
+        kingdom != null && kingdom.IsInEmpire() ? kingdom.GetEmpire()?.CoreKingdom ?? kingdom : kingdom;
+
+#if EC_PENDING
+    public static bool IsNuclearPower(Realm kingdom)
+    {
+        Realm realm = ModRealm(kingdom);
+        return Available && realm != null && !realm.GetOrCreate().nuclear_renounced && HasNukes(realm);
+    }
+#endif
+
+    public static bool IsRenounced(Realm kingdom) => ModRealm(kingdom)?.GetOrCreate().nuclear_renounced == true;
+
+    // 文化的核研究是否被禁(本文化的主体已被迫弃核)；年度扫描时更新
+    private static readonly HashSet<string> BannedCultures = new();
+
+    public static bool IsResearchBanned(string culture, string techId) =>
+        techId == NuclearTech && !string.IsNullOrEmpty(culture) && BannedCultures.Contains(culture);
+
+    // 科技门槛(见 TechnologyPatch.ModGate)：弃核国家不能再动用核武器
+    public static bool BlocksNuclearUse(string techId, object[] args)
+    {
+        if (techId != NuclearTech || args == null) return false;
+        foreach (object arg in args)
+        {
+            Realm kingdom = arg switch
+            {
+                Person actor => actor.Realm,
+                Realm k => k,
+                City city => city.Realm,
+                _ => null
+            };
+            if (kingdom != null) return IsRenounced(kingdom);
+        }
+        return false;
+    }
+
+    // pMain 对 pTarget 的核威慑好感修正(同一帝国内不算)
+#if EC_PENDING
+    public static int DeterrenceOpinion(Realm main, Realm target)
+    {
+        if (!Available || main == null || target == null || main == target || main.IsInSameEmpire(target)) return 0;
+        bool own = IsNuclearPower(main);
+        bool theirs = IsNuclearPower(target);
+        if (theirs && own) return MutualOpinion;
+        if (theirs) return DeterredOpinion;
+        return own ? -SuperiorityOpinion : 0;
+    }
+#endif
+
+    // 进攻方无核而目标有核：被核威慑吓住
+#if EC_PENDING
+    public static bool IsDeterred(Realm attacker, Realm target) =>
+        IsNuclearPower(target) && !IsNuclearPower(attacker);
+#endif
+
+    private static bool HasNukes(Realm kingdom) =>
+        kingdom != null && (!TechnologySystem.GatesActive ||
+                              TechnologySystem.HasTech(TechnologySystem.GetCultureOf(kingdom), NuclearTech));
+
+#if EC_PENDING
+    private static void Evaluate(Realm kingdom)
+    {
+        if (kingdom?.Record == null || kingdom.IsGone() || !kingdom.IsCivilized() || !kingdom.HasRuler() ||
+            kingdom.Ruler.hasPlot() || !kingdom.HasEnemies() || !IsNuclearPower(kingdom) ||
+            AncientWarfareCompatibility.Owns(kingdom)) return;
+        // 帝国成员由帝国核心决策
+        if (kingdom.IsInEmpire() && !kingdom.IsEmpire()) return;
+
+        Realm target = null;
+        War targetWar = null;
+        int best = int.MinValue;
+        foreach (War war in kingdom.GetWars().Where(war => war != null && !war.HasEnded()))
+        {
+            Realm enemy = war.IsAttacker(kingdom) ? war.GetMainDefender() : war.GetMainAttacker();
+            if (enemy == null || enemy == kingdom || enemy.IsGone() || !enemy.IsCivilized() || enemy.Cities.Count == 0) continue;
+            int score = Desperation(kingdom, enemy, war);
+            if (score > best)
+            {
+                best = score;
+                target = enemy;
+                targetWar = war;
+            }
+        }
+        if (target == null || best < Threshold || EcRandom.value >= YearlyChance) return;
+        if (PureMapMode.Enabled || TryStrike == null)
+        {
+            VirtualStrike(kingdom, target, targetWar);
+            return;
+        }
+        object[] args = { kingdom, target, null, 0 };
+        TryStrike.Invoke(null, args);
+    }
+#endif
+
+    // 纯净地图模式的核打击：花国库 VirtualNukeCost，同一场战争对同一敌国只用一次；
+    // 落在敌国人口与兵力最集中的城——城中七成人口罹难，驻在城里的各军折损七成、组织度清零，接壤的城再死两成
+    private const int VirtualNukeCost = 3000;
+    private const float GroundZeroDeaths = 0.7f, FalloutDeaths = 0.2f, CorpsLoss = 0.7f;
+
+#if EC_PENDING
+    private static void VirtualStrike(Realm kingdom, Realm target, War war)
+    {
+        if (war?.Record == null || kingdom.GetMoney() < VirtualNukeCost) return;
+        var data = war.GetOrCreate();
+        data.nuclear_struck_kingdom_ids ??= new List<long>();
+        if (data.nuclear_struck_kingdom_ids.Contains(target.Key)) return;
+        var stationed = new Dictionary<long, float>();
+        foreach ((Realm owner, CorpsData corps) in CorpsSystem.All())
+        {
+            City at = corps.zone_id >= 0 ? CorpsSystem.Zone(corps)?.City : null;
+            if (owner == target && at != null) stationed[at.Key] = stationed.TryGetValue(at.Key, out float sum) ? sum + corps.strength : corps.strength;
+        }
+        City city = target.Cities.Where(candidate => candidate?.Record != null && !candidate.IsGone())
+            .OrderByDescending(candidate => CityPopulationSystem.Households(candidate) +
+                                            (stationed.TryGetValue(candidate.Key, out float strength) ? strength * 0.05f : 0f))
+            .FirstOrDefault();
+        if (city == null) return;
+        kingdom.SubMoney(VirtualNukeCost, TreasuryCategory.Military);
+        data.nuclear_struck_kingdom_ids.Add(target.Key);
+        int dead = ScorchedEarthSystem.Kill(city, GroundZeroDeaths);
+        foreach (City neighbour in city.NeighbourCities.ToList())
+            if (neighbour?.Record != null && !neighbour.IsGone()) dead += ScorchedEarthSystem.Kill(neighbour, FalloutDeaths);
+        var zones = new HashSet<int>(city.Zones.Where(zone => zone != null).Select(zone => zone.Index));
+        foreach ((Realm _, CorpsData corps) in CorpsSystem.All().ToList())
+        {
+            if (!zones.Contains(corps.zone_id)) continue;
+            CorpsSystem.Casualties(corps, corps.strength * CorpsLoss);
+            corps.org = 0f;
+        }
+        string text = string.Format(LM.Get("nuclear_virtual_strike"), kingdom.GetKingdomName(), target.GetKingdomName(),
+            city.GetCityName(), UIHelperShort(dead));
+        TranslateHelper.LogEventMessage(text, kingdom);
+        FrontSystem.Log(kingdom, text);
+        FrontSystem.Log(target, text);
+    }
+
+    private static string UIHelperShort(int value) => EmpireCraft.Core.UIHelper.ShortCount(value);
+#endif
+
+    #region 施压弃核
+
+    private const float PressureShare = 1.5f;
+    private const float HegemonShare = 3f;
+    private const float RenounceChance = 0.3f;
+    private const float RestartChance = 0.1f;
+    private const float SanctionLoss = 0.1f;
+
+    // 各个独立的政权：帝国按核心国，未加入帝国的王国按本国
+    private static List<Realm> Realms() => EmpireWorld.Current.LiveRealms
+        .Where(kingdom => kingdom?.Record != null && !kingdom.IsGone() && kingdom.IsCivilized() &&
+                          (kingdom.IsEmpire() || !kingdom.IsInEmpire()) && !AncientWarfareCompatibility.Owns(kingdom))
+        .ToList();
+
+    private static List<Realm> Members(Realm realm)
+    {
+        Empire empire = realm.IsEmpire() ? realm.GetEmpire() : null;
+        return empire?.kingdoms_list?.Where(kingdom => kingdom != null && !kingdom.IsGone()).ToList() ??
+               new List<Realm> { realm };
+    }
+
+    private static bool Borders(Realm a, Realm b)
+    {
+        var other = new HashSet<Realm>(Members(b));
+        return Members(a).Any(kingdom => kingdom.Cities.Any(city =>
+            city?.NeighbourCities != null && city.NeighbourCities.Any(n => n?.Realm != null && other.Contains(n.Realm))));
+    }
+
+    private static double Power(Realm realm) => Math.Max(1d, realm.GetNationalPower());
+
+#if EC_PENDING
+    private static void UpdatePressure()
+    {
+        List<Realm> realms = Realms();
+        List<Realm> nuclear = realms.Where(IsNuclearPower).ToList();
+        foreach (Realm realm in realms)
+        {
+            KingdomExtension.KingdomExtraData data = realm.GetOrCreate();
+            bool renounced = data.nuclear_renounced;
+            if (!renounced && !nuclear.Contains(realm)) continue;
+            double power = Power(realm);
+            List<Realm> pressurers = nuclear.Where(other => other != realm && !other.IsInSameEmpire(realm) &&
+                                                              Power(other) >= power * PressureShare &&
+                                                              (Power(other) >= power * HegemonShare || Borders(realm, other)))
+                .ToList();
+            string names = string.Join("、", pressurers.Take(3).Select(other => other.GetKingdomFullName()));
+            if (renounced)
+            {
+                if (pressurers.Count == 0 && EcRandom.value < RestartChance)
+                {
+                    data.nuclear_renounced = false;
+                    TranslateHelper.LogEventMessage(string.Format(LM.Get("nuclear_restart_log"),
+                        realm.GetKingdomFullName()), realm);
+                }
+                continue;
+            }
+            if (pressurers.Count == 0 || realm.HasEnemies())
+            {
+                data.nuclear_sanctioned = false;
+                continue;
+            }
+            double ratio = pressurers.Sum(Power) / power;
+            if (ratio >= HegemonShare && EcRandom.value < RenounceChance)
+            {
+                data.nuclear_renounced = true;
+                data.nuclear_renounced_at = GameClock.Now;
+                data.nuclear_sanctioned = false;
+                TranslateHelper.LogEventMessage(string.Format(LM.Get("nuclear_renounced_log"),
+                    realm.GetKingdomFullName(), names), realm);
+                continue;
+            }
+            int loss = (int)(realm.GetMoney() * SanctionLoss);
+            if (loss > 0) realm.SubMoney(loss);
+            if (data.nuclear_sanctioned) continue;
+            data.nuclear_sanctioned = true;
+            TranslateHelper.LogEventMessage(string.Format(LM.Get("nuclear_sanction_log"), names,
+                realm.GetKingdomFullName()), realm);
+        }
+
+        // 本文化的主体被迫弃核：整个文化停止核研究
+        BannedCultures.Clear();
+        foreach (IGrouping<string, Realm> culture in realms.GroupBy(TechnologySystem.GetCultureOf))
+        {
+            if (string.IsNullOrEmpty(culture.Key)) continue;
+            int total = culture.Sum(realm => Members(realm).Sum(kingdom => kingdom.Cities.Count));
+            int banned = culture.Where(realm => realm.GetOrCreate().nuclear_renounced)
+                .Sum(realm => Members(realm).Sum(kingdom => kingdom.Cities.Count));
+            if (total > 0 && banned * 2 >= total) BannedCultures.Add(culture.Key);
+        }
+    }
+#endif
+
+    #endregion
+
+#if EC_PENDING
+    private static int Desperation(Realm kingdom, Realm enemy, War war)
+    {
+        int score = 0;
+        if (GameClock.Year - war.getYearStarted() >= 10) score++;
+        int ownSoldiers = Math.Max(1, kingdom.Warriors());
+        if (enemy.Warriors() >= ownSoldiers * 1.5f) score++;
+        if (kingdom.Cities.Count * 2 < enemy.Cities.Count) score++;
+        if (kingdom.Capital != null && !kingdom.Capital.IsGone() && kingdom.Capital.isGettingCaptured()) score += 2;
+        Person king = kingdom.Ruler;
+        Empire empire = kingdom.GetEmpire();
+        if (king.HasTrait("bloodlust") || king.HasTrait("militarist") ||
+            empire != null && PartySystem.GetGovernmentParty(empire)?.Ideology == PartyIdeology.Fascism) score++;
+        if (IsNuclearPower(enemy)) score -= 2;
+        return score;
+    }
+#endif
+}
+}

@@ -1,0 +1,913 @@
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/NavySystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
+// see Port/manifest.json and Tools/PortTool.
+using Mathf = EmpireCraft.Core.EcMath;
+using Time = EmpireCraft.Core.FrameClock;
+using Vector3 = EmpireCraft.Core.EcVector3;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace EmpireCraft.Core
+{
+
+// 海军(借鉴钢铁雄心)：与军团同在无小人模式 + 帝国占领模式下运行，每月结算(先于陆上战线)。
+//   · 舰队：每个港口城(有码头)一支，战舰、运输船都只是数字；母港每月造舰，花国库，按港口数与战备定额；
+//     铁器时代(文化科技 4 级)以前没有水师——不建舰队、不造舰(也就不能跨海登陆)，已有的舰队无港可归逐月折损；
+//     舰种随科技：楼船 → 远洋帆舰(远洋航海) → 蒸汽铁甲(工业化) → 现代舰艇(电力或机动化)，战力 1 / 1.5 / 2.5 / 4；
+//   · 任务：太平驻港；交战时最强的舰队为本国登陆护航(打通航线)，其余去封锁最近的敌港，组织度太低回港休整；
+//     舰队每月沿海区航行至多 3 个海区；
+//   · 海战：同一海区敌我舰队相遇即交战，战力 = 战舰 × 舰种 × 组织度(运输船几乎没有战力)，按胜算损舰、掉组织度；
+//     运输船在败方损失最重，船上的登陆部队随之折损；
+//   · 制海权：海区里只剩一方的舰队就归它；三个月没有舰队就失效；
+//   · 运兵(硬限制，见 FrontSystem)：跨海登陆要有一条从本国港口出发、不经过敌方制海海区的航线，
+//     且运输船的总运力装得下派去登陆的军；每艘运力按时代：楼船 200 人、远洋帆船 400、蒸汽运兵船 1500、现代运兵船 3000
+//     (以前每艘 1500 × 舰种倍数，现代两艘就运 1.2 万人)；
+//   · 封锁：港口外的海区被敌方控制，港口的海上商路中断、跨海建城暂停，海外登陆部队断了补给。
+//   · 旗舰：开着「军团统领实体」时每支舰队一艘旗舰(原版运兵船，挂在母港码头)跟着兵牌走；关掉就只有兵牌。
+//   · 澳宋(见 AosongNavyRules、TransmigrantSystem.NavalState)：全军一支海军，大区、殖民地都按澳洲人的海军科技算，按阶段定额造舰。
+public static class NavySystem
+{
+    private const int MaxRegionsPerMonth = 3;
+    private const int ControlMonths = 3;
+    private const int RaidDetour = 3;
+    // 每艘运输船载多少人(按舰种，见 ShipCapacity)
+    private const float AncientCapacity = 200f, SailCapacity = 400f, SteamCapacity = 1500f, ModernCapacity = 3000f;
+    // 有跨海登陆的需要时，各港合计至少造够运下本国最大一支军的运输船，每港至多再多造几艘
+    private const int MaxLandingTransportsPerPort = 30;
+    private const float RetreatOrg = 25f;
+    private const float PortOrg = 15f;
+    private const float SeaOrg = 4f;
+    private const float FlagshipMoveInterval = 3f;
+
+    public sealed class BattleView
+    {
+        public int region_id = -1;
+        public int zone_id = -1;
+        public long attacker_id = -1L, defender_id = -1L;
+        public float ratio;
+        public int attacker_ships, defender_ships, sunk_attacker, sunk_defender;
+        public double time;
+    }
+
+    public static readonly Dictionary<int, BattleView> Battles = new();
+    private static readonly Dictionary<long, float> FlagshipMoves = new();
+    private static readonly Dictionary<long, (long kingdom, long fleet)> FlagshipIndex = new();
+    // 本国上月想登陆的敌城(由 FrontSystem 记下)，舰队据此护航
+    public static readonly Dictionary<long, long> DesiredLanding = new();
+
+    public static void ResetWorldState()
+    {
+        Battles.Clear();
+        FlagshipMoves.Clear();
+        FlagshipRetry.Clear();
+        StuckSeconds.Clear();
+        Courses.Clear();
+        FlagshipIndex.Clear();
+        DesiredLanding.Clear();
+        SeaRegionSystem.ResetWorldState();
+        SeaLanding.ResetWorldState();
+    }
+
+    #region 查询
+
+    private static readonly List<FleetData> Empty = new();
+
+    public static List<FleetData> Of(Realm kingdom)
+    {
+        if (kingdom?.Record == null || kingdom.IsGone()) return Empty;
+        return kingdom.GetOrCreate().fleets ??= new List<FleetData>();
+    }
+
+    public static IEnumerable<(Realm kingdom, FleetData fleet)> All()
+    {
+        if (EmpireWorld.Current?.LiveRealms == null) yield break;
+        foreach (Realm kingdom in EmpireWorld.Current.LiveRealms)
+        {
+            if (kingdom?.Record == null || kingdom.IsGone()) continue;
+            List<FleetData> list = kingdom.GetOrCreate().fleets;
+            if (list == null) continue;
+            foreach (FleetData fleet in list) yield return (kingdom, fleet);
+        }
+    }
+
+    public static City Home(FleetData fleet) => EmpireWorld.Current?.CityByKey(fleet.home_city_id) is City city &&
+                                                city.Record != null && !city.IsGone() ? city : null;
+
+#if EC_PENDING
+    public static Building Port(City city) => SettlementSeaSearch.Port(city);
+
+    public static IEnumerable<City> Ports(Realm kingdom) =>
+        (kingdom?.Cities ?? new List<City>()).Where(city => city?.Record != null && !city.IsGone() && Port(city) != null);
+#endif
+
+    public static bool IsFlagship(Person actor) => actor?.Record != null && FlagshipIndex.ContainsKey(actor.Key);
+
+    // 有水师的时代：本国文化到了铁器时代(科技 4 级)
+    public const int NavyEraTier = 4;
+
+    public static bool NavyEra(Realm kingdom)
+    {
+        string culture = TransmigrantSystem.NavalState(kingdom) != null ? TransmigrantSystem.Culture : TechnologySystem.GetCultureOf(kingdom);
+        return culture != null && TechnologySystem.GetEraTier(culture) >= NavyEraTier;
+    }
+
+    // 海军科技按谁算：本国都城的文化；澳宋的大区、殖民地文化多半还是当地的，军舰却是同一家造的，一律按澳洲人的
+    // (以前大区的舰队按华夏科技算，元老院有蒸汽铁甲，下面的大区全是远洋帆舰)
+    private static string NavalCulture(Realm kingdom)
+    {
+        if (TransmigrantSystem.NavalState(kingdom) != null) return TransmigrantSystem.Culture;
+        return kingdom?.Capital == null ? null : TechnologySystem.GetCultureOf(kingdom.Capital);
+    }
+
+    // 舰种(战力倍率)：楼船 1 / 远洋帆舰 1.5 / 蒸汽铁甲 2.5 / 现代舰艇 4
+    // 每艘运输船载多少人：楼船 200、远洋帆船 400、蒸汽运兵船 1500、现代运兵船 3000
+    public static float ShipCapacity(Realm kingdom) => Tier(kingdom) switch
+    {
+        >= 4f => ModernCapacity,
+        >= 2.5f => SteamCapacity,
+        >= 1.5f => SailCapacity,
+        _ => AncientCapacity
+    };
+
+    // 舰种按海军科技线(远洋航海 → 蒸汽铁甲 → 现代舰艇，见 TechTree.json 的 naval_hull)
+    public static float Tier(Realm kingdom)
+    {
+        string culture = NavalCulture(kingdom);
+        return culture == null ? 1f : TechnologySystem.NavalHull(culture);
+    }
+
+    // 海军科技给的舰船战力加成(舰炮、舰载航空、雷达……)
+    public static float PowerBonus(Realm kingdom)
+    {
+        string culture = NavalCulture(kingdom);
+        return 1f + (culture == null ? 0f : TechnologySystem.NavalPower(culture));
+    }
+
+    public static string TierKey(Realm kingdom) => Tier(kingdom) switch
+    {
+        >= 4f => "navy_tier_3",
+        >= 2.5f => "navy_tier_2",
+        >= 1.5f => "navy_tier_1",
+        _ => "navy_tier_0"
+    };
+
+    // 本国(连同宗主帝国中央)运输船能装下多少人
+    public static float TransportCapacity(Realm kingdom)
+    {
+        if (kingdom == null) return 0f;
+        float capacity = Of(kingdom).Sum(fleet => fleet.transports) * ShipCapacity(kingdom);
+        Realm realm = FrontSystem.ModRealm(kingdom);
+        if (realm != null && realm != kingdom)
+            capacity += Of(realm).Sum(fleet => fleet.transports) * ShipCapacity(realm);
+        return capacity;
+    }
+
+    private static float Power(Realm kingdom, FleetData fleet) =>
+        fleet.warships * Tier(kingdom) * PowerBonus(kingdom) * (0.3f + 0.7f * Mathf.Clamp01(fleet.org / 100f)) *
+        (TransmigrantSystem.NavalState(kingdom) != null ? AosongNavyRules.PowerEdge : 1f) + fleet.transports * 0.05f;
+
+    // 制海权在谁手里(过期的不算)
+    public static Realm Controller(SeaRegionSystem.Region region)
+    {
+        if (region == null || region.ControllerId < 0) return null;
+        if (region.ControlledAt < 0d || GameClock.MonthsSince(region.ControlledAt) > ControlMonths) return null;
+        Realm kingdom = EmpireWorld.Current.RealmByKey(region.ControllerId);
+        return kingdom?.Record != null && !kingdom.IsGone() ? kingdom : null;
+    }
+
+    private static bool HostileControl(Realm side, SeaRegionSystem.Region region)
+    {
+        Realm controller = Controller(region);
+        return controller != null && FrontSystem.Hostile(side, controller);
+    }
+
+    // 水师辐射半径(格，用户 2026-10-15："能攻打隔海相望的目标需要海军的力量能辐射到""按照海军的战斗力和辐射能力来"
+    // "距离港口多少距离为半径""通过海军军事科技的升级提高这个半径""可以加海军科技线")：以本国(连同所在帝国各成员国)的港口为圆心——
+    //   最远多少由海军科技线定：有水师(铁器时代)起 ReachBase 格，海军科技每研究一项加一截(TechTree.json 的 naval_reach)；
+    //   战舰的战力(战舰 × 舰种 × 科技加成 × 组织度，各舰队合计)定能到最远的几成：满 FullReachWarships 艘满组织度的到最远，
+    //   越少越近，最少一半；一艘战舰也没有就过不了海。
+    private const float ReachBase = 48f;
+    private const float FullReachWarships = 12f;
+    // 水师余威：战舰一时打光(海战全没、刚开战还没造)，最近一次有战舰时的辐射十年内照算(玩家反馈"两个隔海的国家一千五百年没打下来"：
+    // 以前战舰一沉光，隔海的敌城就全"够不着"，战线段一个都没有，仗只是名义上开着)
+    private const float ReachGraceYears = 10f;
+
+    // 本国科技给的最远辐射(格)；没到有水师的时代为 0
+    public static float FarthestReach(Realm kingdom)
+    {
+        if (!NavyEra(kingdom)) return 0f;
+        string culture = NavalCulture(kingdom);
+        return ReachBase + (culture == null ? 0f : TechnologySystem.NavalReach(culture));
+    }
+
+    public static float ReachRadius(IEnumerable<Realm> members)
+    {
+        float farthest = 0f, full = 0f, power = 0f, remembered = 0f;
+        double now = EmpireWorld.Current?.Now() ?? 0d;
+        foreach (Realm member in members)
+        {
+            if (member?.Record == null || member.IsGone() || !NavyEra(member)) continue;
+            float own = Tier(member) * PowerBonus(member);
+            full = Mathf.Max(full, FullReachWarships * own);
+            farthest = Mathf.Max(farthest, FarthestReach(member));
+            foreach (FleetData fleet in Of(member))
+            {
+                float live = fleet.warships * own * (0.3f + 0.7f * Mathf.Clamp01(fleet.org / 100f));
+                if (live > 0f)
+                {
+                    // 记下这支舰队最近一次有战舰时的战力(随存档保存)，战舰一时打光时按它算余威
+                    fleet.reach_power = live;
+                    fleet.reach_power_at = now;
+                }
+                else if (fleet.reach_power > 0f && fleet.reach_power_at >= 0d && now >= fleet.reach_power_at &&
+                         GameClock.YearsSince(fleet.reach_power_at) <= ReachGraceYears)
+                    remembered += fleet.reach_power;
+                power += live;
+            }
+        }
+        if (power <= 0f) power = remembered;
+        if (power <= 0f || full <= 0f) return 0f;
+        return farthest * (0.5f + 0.5f * Mathf.Clamp01(power / full));
+    }
+
+    // 远洋航程(登陆航线最多经过几个海区)：楼船只能近海，远洋帆舰起才能远航，现代舰艇不限
+    public static int MaxRange(Realm kingdom) => Tier(kingdom) switch
+    {
+        >= 4f => 999,
+        >= 2.5f => 24,
+        >= 1.5f => 10,
+        _ => 3
+    };
+
+    public static bool IsHostile(Realm side, SeaRegionSystem.Region region) => HostileControl(side, region);
+
+    // 本国(连同宗主中央)有战舰在这片海区：运兵船有护航
+    public static bool Escorted(Realm side, SeaRegionSystem.Region region)
+    {
+        if (side == null || region == null) return false;
+        Realm realm = FrontSystem.ModRealm(side);
+        return Of(side).Any(fleet => fleet.region_id == region.Id && fleet.warships > 0) ||
+               realm != null && realm != side && Of(realm).Any(fleet => fleet.region_id == region.Id && fleet.warships > 0);
+    }
+
+    // 本国(连同宗主中央)战舰总数
+    public static int Warships(Realm kingdom)
+    {
+        if (kingdom == null) return 0;
+        int total = Of(kingdom).Sum(fleet => fleet.warships);
+        Realm realm = FrontSystem.ModRealm(kingdom);
+        if (realm != null && realm != kingdom) total += Of(realm).Sum(fleet => fleet.warships);
+        return total;
+    }
+
+    // 港口被封锁：港外任一海区在敌方手里
+#if EC_PENDING
+    public static bool IsBlockaded(City city)
+    {
+        if (!CorpsSystem.Enabled || city?.Realm == null || Port(city) == null) return false;
+        return SeaRegionSystem.RegionsAround(city).Any(region => HostileControl(city.Realm, region));
+    }
+#endif
+
+    // 本国(连同宗主中央)可用的出海口
+#if EC_PENDING
+    public static List<SeaRegionSystem.Region> HomeWaters(Realm kingdom)
+    {
+        var result = new List<SeaRegionSystem.Region>();
+        Realm realm = FrontSystem.ModRealm(kingdom);
+        foreach (Realm side in realm != null && realm != kingdom ? new[] { kingdom, realm } : new[] { kingdom })
+            foreach (City port in Ports(side))
+                result.AddRange(SeaRegionSystem.RegionsAround(port));
+        return result.Distinct().ToList();
+    }
+#endif
+
+    // 跨海登陆的航线：从本国港口出发、不经过敌方制海海区到目标城外的海区；没有港口或航线被截断返回 null。
+    // 内陆的城(城外不靠海)改按它那片陆地上最近、能靠岸的海滩算(见 SeaLanding.Beachhead)——以前内陆的城一律求不出航线
+#if EC_PENDING
+    public static List<SeaRegionSystem.Region> LandingRoute(Realm side, City target)
+    {
+        if (side == null || target == null) return null;
+        List<SeaRegionSystem.Region> start = HomeWaters(side);
+        if (start.Count == 0) return null;
+        List<SeaRegionSystem.Region> goal = SeaRegionSystem.RegionsAround(target);
+        if (goal.Count == 0) return SeaLanding.Beachhead(side, target.SeatCell()?.Zone, start).route;
+        return SeaRegionSystem.Route(start, goal, region => HostileControl(side, region));
+    }
+#endif
+
+    // 海外的军(与驻地不在同一块陆地上)断了海路：所在那片陆地上沿陆路找得到的岸边，外面的海区本国的船都到不了
+    // (被敌方制海截断)。以前只看军脚下那座城临不临海，站进内陆城的地块就算断了补给
+#if EC_PENDING
+    public static bool IsCutOff(Realm kingdom, CorpsData corps)
+    {
+        if (!CorpsSystem.Enabled || kingdom == null || corps == null || corps.embarked) return false;
+        Cell zone = CorpsSystem.Zone(corps);
+        City home = CorpsSystem.Home(corps);
+        if (zone == null || home == null || SeaRegionSystem.IsSea(zone) || CorpsSystem.SameLand(zone, home.SeatCell()?.Zone))
+            return false;
+        Dictionary<int, int> reach = SeaLanding.Reachable(kingdom);
+        return !SeaLanding.Shores(zone).Take(12).Any(shore => SeaLanding.Waters(shore).Any(region => reach.ContainsKey(region.Id)));
+    }
+#endif
+
+    // 不论敌方制海、只看海路通不通(护航舰队找要打通的海区用)；内陆的城按那片陆地最近的岸边
+#if EC_PENDING
+    private static List<SeaRegionSystem.Region> AnyRoute(Realm side, City target)
+    {
+        List<SeaRegionSystem.Region> start = HomeWaters(side);
+        List<SeaRegionSystem.Region> goal = SeaRegionSystem.RegionsAround(target);
+        if (goal.Count == 0)
+            goal = SeaLanding.Shores(target?.SeatCell()?.Zone).Select(SeaLanding.Waters).FirstOrDefault(waters => waters.Count > 0) ??
+                   new List<SeaRegionSystem.Region>();
+        return start.Count == 0 || goal.Count == 0 ? null : SeaRegionSystem.Route(start, goal);
+    }
+#endif
+
+    #endregion
+
+    #region 月度
+
+#if EC_PENDING
+    public static void MonthTick(double now)
+    {
+        foreach (Realm kingdom in EmpireWorld.Current.LiveRealms.ToList())
+        {
+            if (kingdom?.Record == null || kingdom.IsGone() || kingdom.IsNeutral() ||
+                AncientWarfareCompatibility.OwnsObject(kingdom)) continue;
+            TransmigrantSystem.EnsureBases(kingdom);
+            // 铁器时代以前没有水师
+            List<City> ports = NavyEra(kingdom) ? Ports(kingdom).ToList() : new List<City>();
+            List<FleetData> list = kingdom.GetOrCreate().fleets;
+            if (ports.Count == 0 && (list == null || list.Count == 0)) continue;
+            try
+            {
+                Organize(kingdom, ports, now);
+                Build(kingdom, ports);
+                Assign(kingdom);
+                Sail(kingdom);
+                Recover(kingdom);
+            }
+            catch (Exception exception)
+            {
+                LogService.LogWarning($"[EmpireCraft][海军] {kingdom.Name} 结算失败: {exception.Message}");
+            }
+        }
+        try { Fight(now); }
+        catch (Exception exception) { LogService.LogWarning($"[EmpireCraft][海军] 海战结算失败: {exception.Message}"); }
+        UpdateControl(now);
+        foreach (int id in Battles.Where(pair => GameClock.MonthsSince(pair.Value.time) > 1).Select(pair => pair.Key).ToList())
+            Battles.Remove(id);
+    }
+#endif
+
+    // 每个港口一支舰队；港口丢了，舰队改驻别的港口，没有港口就逐月损耗
+#if EC_PENDING
+    private static void Organize(Realm kingdom, List<City> ports, double now)
+    {
+        List<FleetData> list = Of(kingdom);
+        foreach (FleetData fleet in list.ToList())
+        {
+            City home = Home(fleet);
+            if (home != null && home.Realm == kingdom && Port(home) != null) continue;
+            City other = ports.Where(port => list.All(existing => existing == fleet || existing.home_city_id != port.Key))
+                             .OrderBy(port => SeaRegionSystem.Distance(SeaRegionSystem.Get(fleet.region_id),
+                                 SeaRegionSystem.RegionsAround(port).FirstOrDefault())).FirstOrDefault()
+                         ?? ports.FirstOrDefault();
+            if (other != null)
+            {
+                fleet.home_city_id = other.Key;
+                continue;
+            }
+            // 澳宋全军一支海军：本国没港了，舰队改驻别的大区的港口
+            if (HandOver(kingdom, fleet)) continue;
+            // 无港可归：每月折损两成，打光就解散
+            fleet.warships = Mathf.FloorToInt(fleet.warships * 0.8f);
+            fleet.transports = Mathf.FloorToInt(fleet.transports * 0.8f);
+            fleet.task = "retreat";
+            if (fleet.warships + fleet.transports <= 0) Disband(kingdom, fleet);
+        }
+        // 同一港口多支舰队并成一支
+        foreach (var group in list.GroupBy(fleet => fleet.home_city_id).Where(group => group.Count() > 1).ToList())
+        {
+            FleetData keep = group.OrderByDescending(fleet => fleet.warships).First();
+            foreach (FleetData extra in group.Where(fleet => fleet != keep).ToList())
+            {
+                keep.warships += extra.warships;
+                keep.transports += extra.transports;
+                Disband(kingdom, extra);
+            }
+        }
+        foreach (City port in ports)
+        {
+            if (list.Any(fleet => fleet.home_city_id == port.Key)) continue;
+            SeaRegionSystem.Region water = SeaRegionSystem.RegionsAround(port).FirstOrDefault();
+            if (water == null) continue;
+            list.Add(new FleetData
+            {
+                id = RecordIds.Next(), serial = ++kingdom.GetOrCreate().fleet_serial,
+                kingdom_id = kingdom.Key, home_city_id = port.Key, region_id = water.Id, target_region_id = water.Id,
+                zone_id = water.Center?.Index ?? -1
+            });
+        }
+    }
+
+    private static bool HandOver(Realm kingdom, FleetData fleet)
+    {
+        foreach (Realm member in TransmigrantSystem.NavalRealm(kingdom))
+        {
+            if (member == kingdom) continue;
+            City port = Ports(member).FirstOrDefault();
+            if (port == null) continue;
+            RemoveFlagship(fleet);
+            Of(kingdom).Remove(fleet);
+            fleet.kingdom_id = member.Key;
+            fleet.home_city_id = port.Key;
+            Of(member).Add(fleet);
+            return true;
+        }
+        return false;
+    }
+#endif
+
+    // 造舰：每港定额(太平 战舰 2 + 运输 1；交战或战备 战舰 6 + 运输 4；有跨海登陆的需要时，各港合计再多造够
+    // 运下本国最大一支军的运输船，按港口数分摊，每港至多再多 MaxLandingTransportsPerPort 艘)，
+    // 港口每升一级定额 +50%；每港每月下水 0.5 艘(交战 1 艘)，先造缺得多的；钱从国库出，没钱就停
+#if EC_PENDING
+    private static void Build(Realm kingdom, List<City> ports)
+    {
+        bool war = CorpsSystem.IsAtWar(kingdom);
+        bool landing = DesiredLanding.ContainsKey(kingdom.Key);
+        float tier = Tier(kingdom);
+        // 澳宋：全军的船数、港口数合起来算定额，定额以内不走国库(见 AosongNavyRules)
+        TransmigrantState aosong = TransmigrantSystem.NavalState(kingdom);
+        int realmWar = 0, realmTransport = 0, realmPorts = ports.Count;
+        if (aosong != null)
+        {
+            realmPorts = 0;
+            foreach (Realm member in TransmigrantSystem.NavalRealm(kingdom))
+            {
+                realmWar += Of(member).Sum(fleet => fleet.warships);
+                realmTransport += Of(member).Sum(fleet => fleet.transports);
+                realmPorts += Ports(member).Count();
+            }
+        }
+        int landingExtra = 0;
+        if (landing)
+        {
+            float biggest = CorpsSystem.Of(kingdom).Select(corps => corps.strength).DefaultIfEmpty(0f).Max();
+            int ships = Mathf.CeilToInt(biggest / ShipCapacity(kingdom));
+            landingExtra = Mathf.Clamp(Mathf.CeilToInt(ships / (float)Mathf.Max(1, ports.Count)), 4, MaxLandingTransportsPerPort);
+        }
+        foreach (FleetData fleet in Of(kingdom))
+        {
+            City home = Home(fleet);
+            Building port = home == null ? null : Port(home);
+            if (port == null || fleet.task == "retreat" && fleet.region_id != HomeRegion(fleet)?.Id) continue;
+            float level = 1f + 0.5f * Mathf.Clamp(port.Asset.UpgradeLevel, 0, 3);
+            int wantWar = aosong != null ? AosongNavyRules.WantWarships(aosong.stage, war, level, realmPorts)
+                : Mathf.RoundToInt((war ? 6 : 2) * level);
+            int wantTransport = (aosong != null ? AosongNavyRules.WantTransports(aosong.stage, war, level, realmPorts)
+                : Mathf.RoundToInt((war ? 4 : 1) * level)) + landingExtra;
+            int lackWar = wantWar - fleet.warships, lackTransport = wantTransport - fleet.transports;
+            if (lackWar <= 0 && lackTransport <= 0) continue;
+            fleet.build_progress += aosong != null ? AosongNavyRules.Pace(war) : war ? 1f : 0.5f;
+            while (fleet.build_progress >= 1f && (lackWar > 0 || lackTransport > 0))
+            {
+                bool warship = lackWar >= lackTransport;
+                bool freeWar = aosong != null && lackWar > 0 && AosongNavyRules.UnderWarshipFloor(aosong.stage, realmWar);
+                bool freeTransport = aosong != null && lackTransport > 0 && AosongNavyRules.UnderTransportFloor(aosong.stage, realmTransport);
+                // 定额以内的先造：国库空了，也不让定额以外的那一艘挡住后面不花钱的
+                if (freeWar != freeTransport) warship = freeWar;
+                bool free = warship ? freeWar : freeTransport;
+                int cost = Mathf.RoundToInt((warship ? 15f : 6f) * tier);
+                if (!free && !TreasurySystem.TrySpend(kingdom, cost, TreasuryCategory.Military)) { fleet.build_progress = 0f; break; }
+                fleet.build_progress -= 1f;
+                if (warship) { fleet.warships++; lackWar--; realmWar++; }
+                else { fleet.transports++; lackTransport--; realmTransport++; }
+            }
+            if (lackWar <= 0 && lackTransport <= 0) fleet.build_progress = 0f;
+        }
+    }
+#endif
+
+    private static SeaRegionSystem.Region HomeRegion(FleetData fleet)
+    {
+        City home = Home(fleet);
+        SeaRegionSystem.Region current = SeaRegionSystem.Get(fleet.region_id);
+        return home == null ? null : SeaRegionSystem.RegionsAround(home)
+            .OrderBy(region => SeaRegionSystem.Distance(region, current)).FirstOrDefault();
+    }
+
+#if EC_PENDING
+    private static void Assign(Realm kingdom)
+    {
+        List<FleetData> list = Of(kingdom);
+        foreach (FleetData fleet in list)
+            if (fleet.org <= RetreatOrg && fleet.task != "retreat")
+            {
+                fleet.task = "retreat";
+                FrontSystem.Log(kingdom, string.Format(LM.Get("navy_log_retreat"), Name(fleet)));
+            }
+        bool war = kingdom.HasEnemies() || FrontSystem.ModRealm(kingdom)?.HasEnemies() == true;
+        var ready = list.Where(fleet => fleet.task != "retreat" && fleet.warships > 0).ToList();
+        foreach (FleetData fleet in list.Where(fleet => fleet.task == "retreat"))
+        {
+            fleet.target_region_id = HomeRegion(fleet)?.Id ?? fleet.region_id;
+            if (fleet.org >= 60f && fleet.region_id == fleet.target_region_id) fleet.task = "port";
+        }
+        if (!war)
+        {
+            DesiredLanding.Remove(kingdom.Key);
+            foreach (FleetData fleet in list.Where(fleet => fleet.task != "retreat"))
+            {
+                fleet.task = "port";
+                fleet.target_region_id = HomeRegion(fleet)?.Id ?? fleet.region_id;
+            }
+            return;
+        }
+        var assigned = new HashSet<FleetData>();
+        // ① 护航：本国要跨海登陆时，最强的舰队去打通航线(先去航线上被敌方控制的海区，没有就守在登陆点外)
+        if (DesiredLanding.TryGetValue(kingdom.Key, out long cityId) && EmpireWorld.Current.CityByKey(cityId) is City target)
+        {
+            List<SeaRegionSystem.Region> route = AnyRoute(kingdom, target);
+            if (route != null && route.Count > 0)
+            {
+                SeaRegionSystem.Region contested = route.FirstOrDefault(region => HostileControl(kingdom, region)) ?? route.Last();
+                foreach (FleetData fleet in ready.OrderByDescending(fleet => fleet.warships).Take(Mathf.Max(1, ready.Count / 2)))
+                {
+                    fleet.task = "escort";
+                    fleet.target_region_id = contested.Id;
+                    assigned.Add(fleet);
+                }
+            }
+        }
+        // ② 封锁：其余舰队去最近的敌港外
+        List<SeaRegionSystem.Region> enemyWaters = EmpireWorld.Current.LiveRealms
+            .Where(other => other?.Record != null && !other.IsGone() && FrontSystem.Hostile(kingdom, other))
+            .SelectMany(Ports).SelectMany(SeaRegionSystem.RegionsAround).Distinct().ToList();
+        // 破交：有海上商路、或连着殖民地的敌港更值得封，不比最近的敌港远出 RaidDetour 个海区就先去那里(见 CommodityMarketSystem.LaneCut)
+        List<SeaRegionSystem.Region> raidWaters = EmpireWorld.Current.LiveRealms
+            .Where(other => other?.Record != null && !other.IsGone() && FrontSystem.Hostile(kingdom, other))
+            .SelectMany(other =>
+            {
+                bool colonial = ColonySystem.IsColony(other) || ColonySystem.ColoniesOf(other).Any();
+                return Ports(other).Where(port => colonial || TradeRouteSystem.PartnerOf(port) >= 0L);
+            })
+            .SelectMany(SeaRegionSystem.RegionsAround).Distinct().ToList();
+        foreach (FleetData fleet in ready.Where(fleet => !assigned.Contains(fleet)))
+        {
+            SeaRegionSystem.Region current = SeaRegionSystem.Get(fleet.region_id);
+            List<SeaRegionSystem.Region> path = enemyWaters.Count == 0 || current == null ? null
+                : SeaRegionSystem.Route(new[] { current }, enemyWaters);
+            if (path != null && raidWaters.Count > 0 && current != null &&
+                SeaRegionSystem.Route(new[] { current }, raidWaters) is { } raid && raid.Count <= path.Count + RaidDetour)
+                path = raid;
+            if (path == null || path.Count == 0 || fleet.warships < 3 || fleet.org < 50f)
+            {
+                fleet.task = "port";
+                fleet.target_region_id = HomeRegion(fleet)?.Id ?? fleet.region_id;
+                continue;
+            }
+            fleet.task = "blockade";
+            fleet.target_region_id = path.Last().Id;
+        }
+    }
+#endif
+
+    // 每月至多航行 3 个海区
+    private static void Sail(Realm kingdom)
+    {
+        foreach (FleetData fleet in Of(kingdom))
+        {
+            SeaRegionSystem.Region current = SeaRegionSystem.Get(fleet.region_id);
+            SeaRegionSystem.Region target = SeaRegionSystem.Get(fleet.target_region_id);
+            if (current == null)
+            {
+                SeaRegionSystem.Region home = HomeRegion(fleet);
+                if (home == null) continue;
+                fleet.region_id = home.Id;
+                fleet.zone_id = home.Center?.Index ?? -1;
+                continue;
+            }
+            if (target == null || target == current) continue;
+            List<SeaRegionSystem.Region> path = SeaRegionSystem.Route(new[] { current }, new[] { target });
+            if (path == null || path.Count < 2)
+            {
+                fleet.target_region_id = current.Id;
+                continue;
+            }
+            fleet.region_id = path[Mathf.Min(MaxRegionsPerMonth, path.Count - 1)].Id;
+        }
+    }
+
+    private static void Recover(Realm kingdom)
+    {
+        foreach (FleetData fleet in Of(kingdom))
+        {
+            bool inPort = fleet.region_id == HomeRegion(fleet)?.Id;
+            fleet.org = Mathf.Min(100f, fleet.org + (inPort ? PortOrg : SeaOrg));
+        }
+    }
+
+    // 海战：同一海区里敌对的两方(各取与主力友好的舰队)交战
+    private static void Fight(double now)
+    {
+        var byRegion = All().Where(entry => entry.fleet.warships + entry.fleet.transports > 0 && entry.fleet.region_id >= 0)
+            .GroupBy(entry => entry.fleet.region_id).ToList();
+        foreach (var group in byRegion)
+        {
+            var entries = group.ToList();
+            if (entries.Count < 2) continue;
+            var lead = entries.OrderByDescending(entry => Power(entry.kingdom, entry.fleet)).First();
+            var enemies = entries.Where(entry => FrontSystem.Hostile(lead.kingdom, entry.kingdom)).ToList();
+            if (enemies.Count == 0) continue;
+            var foe = enemies.OrderByDescending(entry => Power(entry.kingdom, entry.fleet)).First();
+            var sideA = entries.Where(entry => !FrontSystem.Hostile(lead.kingdom, entry.kingdom) &&
+                                               FrontSystem.Hostile(foe.kingdom, entry.kingdom)).ToList();
+            var sideB = entries.Where(entry => FrontSystem.Hostile(lead.kingdom, entry.kingdom) &&
+                                               !FrontSystem.Hostile(foe.kingdom, entry.kingdom)).ToList();
+            if (sideA.Count == 0 || sideB.Count == 0) continue;
+            float a = sideA.Sum(entry => Power(entry.kingdom, entry.fleet));
+            float b = sideB.Sum(entry => Power(entry.kingdom, entry.fleet));
+            float ratio = a + b <= 0f ? 0.5f : a / (a + b);
+            int shipsA = sideA.Sum(entry => entry.fleet.warships + entry.fleet.transports);
+            int shipsB = sideB.Sum(entry => entry.fleet.warships + entry.fleet.transports);
+            int sunkA = Damage(sideA, 1f - ratio), sunkB = Damage(sideB, ratio);
+            SeaRegionSystem.Region region = SeaRegionSystem.Get(group.Key);
+            Battles[group.Key] = new BattleView
+            {
+                region_id = group.Key, zone_id = region?.Center?.Index ?? -1, attacker_id = lead.kingdom.Key,
+                defender_id = foe.kingdom.Key, ratio = ratio, attacker_ships = shipsA, defender_ships = shipsB,
+                sunk_attacker = sunkA, sunk_defender = sunkB, time = now
+            };
+            Realm winner = ratio >= 0.5f ? lead.kingdom : foe.kingdom, loser = winner == lead.kingdom ? foe.kingdom : lead.kingdom;
+            string text = string.Format(LM.Get("navy_log_battle"), winner.GetKingdomName(), loser.GetKingdomName(),
+                ratio >= 0.5f ? sunkB : sunkA, ratio >= 0.5f ? sunkA : sunkB);
+            FrontSystem.Log(winner, text);
+            FrontSystem.Log(loser, text);
+        }
+    }
+
+    // 一方按"对方占优程度"损舰、掉组织度；运输船损失加倍，船上的登陆部队随之折损。返回沉没的船数
+    private static int Damage(List<(Realm kingdom, FleetData fleet)> side, float enemyEdge)
+    {
+        int sunk = 0;
+        foreach ((Realm kingdom, FleetData fleet) in side)
+        {
+            int lostWar = Mathf.Min(fleet.warships, Mathf.RoundToInt(fleet.warships * 0.3f * enemyEdge + (enemyEdge > 0.6f ? 1 : 0)));
+            int lostTransport = Mathf.Min(fleet.transports, Mathf.RoundToInt(fleet.transports * 0.6f * enemyEdge));
+            if (lostTransport > 0 && fleet.transports > 0) SinkTroops(kingdom, lostTransport / (float)fleet.transports);
+            fleet.warships -= lostWar;
+            fleet.transports -= lostTransport;
+            fleet.org = Mathf.Max(0f, fleet.org - (10f + 30f * enemyEdge));
+            sunk += lostWar + lostTransport;
+        }
+        return sunk;
+    }
+
+    // 运兵船沉没：还在海上的登陆部队按比例折损
+    private static void SinkTroops(Realm kingdom, float share)
+    {
+        foreach (CorpsData corps in CorpsSystem.Of(kingdom))
+        {
+            Cell zone = CorpsSystem.Zone(corps);
+            if (corps.task != "attack" || !SeaRegionSystem.IsSea(zone)) continue;
+            CorpsSystem.Casualties(corps, corps.strength * Mathf.Clamp01(share) * 0.5f);
+            corps.org = Mathf.Max(0f, corps.org - 20f);
+        }
+    }
+
+    // 制海权：海区里只剩一方(及其友方)的舰队就归它(记在帝国中央名下)
+    private static void UpdateControl(double now)
+    {
+        foreach (var group in All().Where(entry => entry.fleet.warships > 0 && entry.fleet.region_id >= 0)
+                     .GroupBy(entry => entry.fleet.region_id))
+        {
+            var entries = group.ToList();
+            var lead = entries.OrderByDescending(entry => Power(entry.kingdom, entry.fleet)).First();
+            if (entries.Any(entry => FrontSystem.Hostile(lead.kingdom, entry.kingdom))) continue;
+            SeaRegionSystem.Region region = SeaRegionSystem.Get(group.Key);
+            if (region == null) continue;
+            region.ControllerId = FrontSystem.ModRealm(lead.kingdom)?.Key ?? lead.kingdom.Key;
+            region.ControlledAt = now;
+        }
+    }
+
+    // 关闭占领模式：舰队留着(船不是人口)，旗舰实体撤编
+    public static void RemoveAllFlagships()
+    {
+        foreach ((Realm _, FleetData fleet) in All().ToList()) RemoveFlagship(fleet);
+    }
+
+    private static void Disband(Realm kingdom, FleetData fleet)
+    {
+        RemoveFlagship(fleet);
+        Of(kingdom).Remove(fleet);
+    }
+
+    #endregion
+
+    #region 旗舰与航行动画
+
+    private static readonly Dictionary<long, int> StuckSeconds = new();
+    // 旗舰下水失败(港外没有可用海面等)后隔一阵再试
+    private static readonly Dictionary<long, float> FlagshipRetry = new();
+    private const float FlagshipRetryInterval = 30f;
+
+    // beats：这一趟结几拍(世界过了几秒，见 CorpsSystem.Update)；每支舰队连走几拍，清单与旗舰只过一回
+#if EC_PENDING
+    public static void SecondTick(int beats = 1)
+    {
+        // 纯净地图模式关掉了统领实体，但船保留
+        bool flagships = CorpsSystem.GeneralUnits || PureMapMode.Enabled;
+        foreach ((Realm kingdom, FleetData fleet) in All().ToList())
+        {
+            for (int beat = 0; beat < beats; beat++) StepZone(fleet);
+            if (flagships) EnsureFlagship(kingdom, fleet);
+            else RemoveFlagship(fleet);
+            MoveFlagship(fleet);
+        }
+    }
+#endif
+
+    // 兵牌在海上每秒三块挪向所在海区的中心：按海上路线走，尽量沿航线(见 RoadNetwork.SeaPath)，
+    // 路线按目标缓存，走偏了再重算；寻不到路线就朝中心就近挪
+    private const int FleetZonesPerSecond = 3;
+    private static readonly Dictionary<long, (int target, List<int> path)> Courses = new();
+
+    // 舰队兵牌画在哪：沿缓存的海上路线，从所在地块往前走 每秒块数 × 这一拍过了几成(见 CorpsSystem.TickFraction)，
+    // 下一拍结算正好走到新的所在地块，逐帧匀速、顺着航线拐弯。sailing：正在航行
+    // (没有路线的就近挪、卡住直接到位这些跳着走的，由兵牌那边滑过去)
+#if EC_PENDING
+    public static Vector3 DrawPosition(FleetData fleet, out bool sailing)
+    {
+        sailing = false;
+        Cell current = CorpsSystem.ZoneById(fleet.zone_id);
+        Vector3 here = current?.Center?.PosV ?? Vector3.zero;
+        if (current == null || !Courses.TryGetValue(fleet.id, out var course) || course.path == null ||
+            course.path.Count < 2 || course.path[0] != current.Index ||
+            SeaRegionSystem.Get(fleet.region_id)?.Center?.Index != course.target)
+            return here;
+        float steps = FleetZonesPerSecond * CorpsSystem.TickFraction();
+        int index = Mathf.Min(Mathf.FloorToInt(steps), course.path.Count - 1);
+        Cell from = CorpsSystem.ZoneById(course.path[index]);
+        if (from?.Center == null) return here;
+        if (index + 1 >= course.path.Count) return from.Center.PosV;
+        Cell to = CorpsSystem.ZoneById(course.path[index + 1]);
+        if (to?.Center == null) return from.Center.PosV;
+        sailing = true;
+        return Vector3.Lerp(from.Center.PosV, to.Center.PosV, steps - index);
+    }
+#endif
+
+    private static void StepZone(FleetData fleet)
+    {
+        SeaRegionSystem.Region region = SeaRegionSystem.Get(fleet.region_id);
+        Cell target = region?.Center;
+        if (target == null) return;
+        Cell current = CorpsSystem.ZoneById(fleet.zone_id);
+        if (current == null || !SeaRegionSystem.IsSea(current))
+        {
+            fleet.zone_id = target.Index;
+            Courses.Remove(fleet.id);
+            return;
+        }
+        if (current == target) return;
+        if (!Courses.TryGetValue(fleet.id, out var course) || course.target != target.Index ||
+            course.path != null && (course.path.Count < 2 || course.path[0] != current.Index))
+        {
+            course = (target.Index, RoadNetwork.SeaPath(current, target)?.Select(zone => zone.Index).ToList());
+            Courses[fleet.id] = course;
+        }
+        if (course.path != null && course.path.Count >= 2)
+        {
+            for (int step = 0; step < FleetZonesPerSecond && course.path.Count >= 2; step++) course.path.RemoveAt(0);
+            fleet.zone_id = course.path[0];
+            return;
+        }
+        for (int step = 0; step < FleetZonesPerSecond && current != target; step++)
+        {
+            Cell best = null;
+            float bestDistance = CorpsSystem.ZoneDistance(current, target);
+            foreach (Cell next in current.NeighboursAll ?? Array.Empty<Cell>())
+            {
+                if (!SeaRegionSystem.IsSea(next)) continue;
+                float distance = CorpsSystem.ZoneDistance(next, target);
+                if (distance < bestDistance)
+                {
+                    best = next;
+                    bestDistance = distance;
+                }
+            }
+            if (best == null)
+            {
+                // 绕不过去(半岛、海峡)：卡住几秒就直接到位
+                StuckSeconds.TryGetValue(fleet.id, out int stuck);
+                StuckSeconds[fleet.id] = ++stuck;
+                if (stuck >= 4) { current = target; StuckSeconds.Remove(fleet.id); }
+                break;
+            }
+            current = best;
+        }
+        fleet.zone_id = current.Index;
+    }
+
+#if EC_PENDING
+    private static void EnsureFlagship(Realm kingdom, FleetData fleet)
+    {
+        if (fleet.flagship_id >= 0)
+        {
+            Person existing = EmpireWorld.Current.PersonByKey(fleet.flagship_id);
+            if (existing?.Record != null && !existing.IsGone() && existing.Alive) return;
+            FlagshipIndex.Remove(fleet.flagship_id);
+            fleet.flagship_id = -1L;
+        }
+        if (fleet.warships <= 0) return;
+        float clock = Time.unscaledTime;
+        if (FlagshipRetry.TryGetValue(fleet.id, out float retryAt) && clock < retryAt) return;
+        FlagshipRetry[fleet.id] = clock + FlagshipRetryInterval;
+        City home = Home(fleet);
+        Building building = home == null ? null : Port(home);
+        Docks docks = building?.component_docks;
+        if (docks == null || home.Realm != kingdom) return;
+        if (docks.tiles_ocean == null || docks.tiles_ocean.Count() == 0)
+        {
+            docks.recalculateOceanTiles();
+            return;
+        }
+        // 旗舰按本国舰种：楼船 / 远洋帆舰 / 蒸汽铁甲 / 现代舰艇(见 EmpireCraftWarshipLibrary)；缺资源时退回原版运兵船
+        string assetId = EmpireCraftWarshipLibrary.IdFor(Tier(kingdom));
+        if (AssetManager.actor_library.get(assetId) == null)
+            assetId = building.Asset.getBoatAssetIDFromType("boat_type_transport", home);
+        if (string.IsNullOrEmpty(assetId)) return;
+        try
+        {
+            Person boat = EmpireWorld.Current.Living.createNewUnit(assetId, docks.tiles_ocean.GetRandom());
+            if (boat == null) return;
+            docks.addBoatToDock(boat);
+            fleet.flagship_id = boat.Key;
+            FlagshipIndex[boat.Key] = (kingdom.Key, fleet.id);
+        }
+        catch (Exception exception)
+        {
+            LogService.LogWarning($"[EmpireCraft][海军] 旗舰下水失败: {exception.Message}");
+        }
+    }
+#endif
+
+    private static void RemoveFlagship(FleetData fleet)
+    {
+        if (fleet.flagship_id < 0) return;
+        Person boat = EmpireWorld.Current?.PersonByKey(fleet.flagship_id);
+        FlagshipIndex.Remove(fleet.flagship_id);
+        fleet.flagship_id = -1L;
+        if (boat?.Record == null || boat.IsGone() || !boat.Alive) return;
+        try { boat.Die(true, DeathCause.Other, false, false); }
+        catch (Exception exception) { LogService.LogWarning($"[EmpireCraft][海军] 旗舰撤编失败: {exception.Message}"); }
+    }
+
+    // 旗舰沉没：组织度大挫，下个月补上
+    public static void OnFlagshipDied(Person actor)
+    {
+        if (actor?.Record == null || !FlagshipIndex.TryGetValue(actor.Key, out var key)) return;
+        FlagshipIndex.Remove(actor.Key);
+        Realm kingdom = EmpireWorld.Current.RealmByKey(key.kingdom);
+        FleetData fleet = kingdom == null ? null : Of(kingdom).FirstOrDefault(entry => entry.id == key.fleet);
+        if (fleet == null) return;
+        fleet.flagship_id = -1L;
+        fleet.org = Mathf.Max(0f, fleet.org - 15f);
+        FrontSystem.Log(kingdom, string.Format(LM.Get("navy_log_flagship_lost"), Name(fleet)));
+    }
+
+#if EC_PENDING
+    private static void MoveFlagship(FleetData fleet)
+    {
+        if (fleet.flagship_id < 0) return;
+        Person boat = EmpireWorld.Current.PersonByKey(fleet.flagship_id);
+        Cell zone = CorpsSystem.ZoneById(fleet.zone_id);
+        if (boat?.Record == null || boat.IsGone() || !boat.Alive || zone?.Center == null || boat.Cell == null) return;
+        float now = Time.unscaledTime;
+        if (FlagshipMoves.TryGetValue(boat.Key, out float next) && now < next) return;
+        FlagshipMoves[boat.Key] = now + FlagshipMoveInterval;
+        if (boat.Cell.Zone == zone) return;
+        try { boat.GoTo(zone.Center, pPathOnWater: true); }
+        catch (Exception exception) { LogService.LogWarning($"[EmpireCraft][海军] 旗舰航行失败: {exception.Message}"); }
+    }
+#endif
+
+    #endregion
+
+    #region 名称
+
+    public static string Name(FleetData fleet)
+    {
+        City city = Home(fleet);
+        string format = LM.Get(TransmigrantSystem.NavalState(city?.Realm) != null ? "navy_fleet_name_aosong" : "navy_fleet_name");
+        string home = city?.GetCityName() ?? "";
+        return string.Format(format, home);
+    }
+
+    #endregion
+}
+}
