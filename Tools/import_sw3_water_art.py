@@ -4,7 +4,7 @@ import tarfile
 
 root = Path(__file__).resolve().parents[1]
 package = Path('D:/BaiduNetdiskDownload/Stylized Water 3 v3.0.1.unitypackage')
-selected = {'SmoothWaves.png', 'SharpWaves.png', 'OceanFoam.png', 'DirectionalFoam.png'}
+selected = {'SmoothWaves.png', 'SharpWaves.png', 'RoughWaves.png', 'OceanFoam.png', 'DirectionalFoam.png', 'Foam1.png'}
 target = root / 'Assets/ThirdParty/Resources/ORBISVendor/SW3'
 target.mkdir(parents=True, exist_ok=True)
 with tarfile.open(package) as archive:

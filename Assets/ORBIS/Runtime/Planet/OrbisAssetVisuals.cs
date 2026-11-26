@@ -7,12 +7,16 @@ namespace Orbis.Planet
         static bool loaded;static Texture2D stream,ocean,lake,smoothLake,oceanFoam,riverFoam;
         static bool celestialLoaded;static Texture2D sunArt,moonArt;
         static void Load(){if(loaded&&stream&&ocean&&lake&&smoothLake&&oceanFoam&&riverFoam)return;loaded=true;
-            stream=Resources.Load<Texture2D>("ORBISVendor/SW3/StreamWaves");ocean=Resources.Load<Texture2D>("ORBISVendor/SW3/OceanWaves");
+            stream=Resources.Load<Texture2D>("ORBISVendor/SW3/RoughWaves");
+            if(!stream)stream=Resources.Load<Texture2D>("ORBISVendor/SW3/StreamWaves");
+            ocean=Resources.Load<Texture2D>("ORBISVendor/SW3/OceanWaves");
             lake=Resources.Load<Texture2D>("ORBISVendor/SW3/SharpWaves");
             smoothLake=Resources.Load<Texture2D>("ORBISVendor/SW3/SmoothWaves");
             if(!lake)lake=smoothLake;
             if(!smoothLake)smoothLake=lake;
-            oceanFoam=Resources.Load<Texture2D>("ORBISVendor/SW3/OceanFoam");riverFoam=Resources.Load<Texture2D>("ORBISVendor/SW3/DirectionalFoam");
+            oceanFoam=Resources.Load<Texture2D>("ORBISVendor/SW3/OceanFoam");
+            riverFoam=Resources.Load<Texture2D>("ORBISVendor/SW3/Foam1");
+            if(!riverFoam)riverFoam=Resources.Load<Texture2D>("ORBISVendor/SW3/DirectionalFoam");
         }
         public static void BindWater(Material m)
         {

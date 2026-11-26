@@ -232,5 +232,49 @@ namespace Orbis.Editor
                 differences[i]=Mathf.Max(Mathf.Abs(a[i].r-b[i].r),Mathf.Max(Mathf.Abs(a[i].g-b[i].g),Mathf.Abs(a[i].b-b[i].b)));
             Array.Sort(differences);return differences[(int)((differences.Length-1)*quantile)];
         }
+
+        [MenuItem("Tools/ORBIS/Local Planet/Validate all water and river optics")]
+        public static void RunAll()
+        {
+            Run();
+            WaterOpticsRegression.Run();
+            WaterCoastRegression.Run();
+            WaterCloudRegression.Run();
+            WaterSunGlitterRegression.Run();
+            string[] shaders =
+            {
+                "Assets/ORBIS/Resources/ORBIS/Surface.shader",
+                "Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatMap.shader",
+                "Assets/ORBIS/Resources/ORBIS/FlatWorld/LocalSurface.shader",
+                "Assets/ORBIS/Resources/ORBIS/ScrollSurface.shader",
+            };
+            bool prevAsync = ShaderUtil.allowAsyncCompilation;
+            ShaderUtil.allowAsyncCompilation = false;
+            try
+            {
+                foreach (string rawPath in shaders)
+                {
+                    string path = rawPath.Replace("ORBIS/ScrollSurface.shader", "ORBIS/FlatWorld/ScrollSurface.shader");
+                    var s = AssetDatabase.LoadAssetAtPath<Shader>(path);
+                    if (!s || !s.isSupported || ShaderUtil.ShaderHasError(s))
+                        throw new InvalidOperationException("Shader error or unsupported: " + path);
+                    var m = new Material(s);
+                    try
+                    {
+                        for (int p = 0; p < m.passCount; p++)
+                        {
+                            ShaderUtil.CompilePass(m, p, true);
+                            if (!ShaderUtil.IsPassCompiled(m, p))
+                                throw new InvalidOperationException($"Uncompiled pass {p} in {path}");
+                        }
+                    }
+                    finally { UnityEngine.Object.DestroyImmediate(m); }
+                    if (ShaderUtil.ShaderHasError(s))
+                        throw new InvalidOperationException("Shader compilation error in " + path);
+                }
+            }
+            finally { ShaderUtil.allowAsyncCompilation = prevAsync; }
+            Debug.Log("[RiverOpticsRegression.RunAll] ALL 5 WATER/RIVER REGRESSION SUITES + PRODUCTION D3D11 SHADERS PASSED.");
+        }
     }
 }

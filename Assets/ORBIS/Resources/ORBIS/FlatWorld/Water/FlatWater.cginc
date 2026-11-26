@@ -724,14 +724,14 @@ float3 FlatWaterShadeCore(float2 cell,float4 mixing,float4 field,float3 bottom,f
         float2 vendorSlope=0;
         if(river>.001)
         {
+            // SW3 Realistic dual-layer isotropic ripples (RoughWaves + SharpWaves)
+            // with zero extra texture samples, keeping calm reaches limpid and stripe-free.
             float streamLOD=max(0,log2(max(.0001,channelUV.footprint*max(_VendorStreamNormal_TexelSize.z,_VendorStreamNormal_TexelSize.w))));
             float2 n=FlatRiverSW3NormalDual(_VendorStreamNormal,channelUV,phase0,phase1,blend,travel,streamLOD,right,up);
-            vendorSlope=n*(.22+.12*riffle)*river*channelUV.resolved;
-            // Short capillary crests have a spread of orientations even in a
-            // straight pool. Geographic SW3 detail resolves these specular
-            // facets independently of the long waves aligned to the channel.
             float sharpLOD=max(0,log2(max(.0001,footprint*max(_VendorLakeNormal_TexelSize.z,_VendorLakeNormal_TexelSize.w)/12)));
-            microSlopes=FlatDetailNormalDual(_VendorLakeNormal,artwork*.5,-drift*.70,phase0,phase1,blend,weights,sharpLOD,right,up)*(.28+.10*riffle)*river;
+            float2 sharp=FlatDetailNormalDual(_VendorLakeNormal,artwork*.5,-drift*.70,phase0,phase1,blend,weights,sharpLOD,right,up);
+            vendorSlope=(n*.76+sharp*.24)*(.155+.145*riffle)*river*channelUV.resolved;
+            microSlopes=sharp*(.26+.11*riffle)*river;
         }
         if(river<.999)
         {
@@ -797,8 +797,10 @@ float3 FlatWaterShadeCore(float2 cell,float4 mixing,float4 field,float3 bottom,f
     float fresh=lerp(mixing.b,1,max(river,inundated*step(.5,1.5-swe.hazardKind)));
     float3 absorption=lerp(float3(.24,.07,.035),float3(.09,.035,.018),fresh);
     float3 scattering=lerp(float3(.005,.025,.038),float3(.004,.019,.022),fresh);
-    absorption=lerp(absorption,float3(.22,.076,.047),river);
-    scattering=lerp(scattering,float3(.014,.041,.038),river);
+    // Clear freshwater rivers: pure-water red attenuation yields natural aqua-jade
+    // depth cues while high green/blue transmission and clean cyan scatter reveal the bed.
+    absorption=lerp(absorption,float3(.225,.042,.018),river);
+    scattering=lerp(scattering,float3(.004,.024,.034),river);
     if(swe.turbidity>.001)
     {
         float isRainFlood=step(.5,swe.hazardKind)*step(swe.hazardKind,1.5);
@@ -844,8 +846,15 @@ float3 FlatWaterShadeCore(float2 cell,float4 mixing,float4 field,float3 bottom,f
         float focus=lerp(FlatBedCaustic(p0*.6+sunWarp),FlatBedCaustic(p1*.6+sunWarp),blend);
         float caustic=focus*saturate(localLight.z)*waveStrength;
         caustic*=exp(-depth*.12)*(1-exp(-depth*.7))*smoothstep(.03,.18,clearance)*(1-smoothstep(.2,1,footprint));
-        bottom=FlatBedColor(bedCell,1-river)*lerp(.72,.85,river);
+        bottom=FlatBedColor(bedCell,1-river)*lerp(.72,.92,river);
         if(depth<35&&footprint<1.5)bottom=lerp(bottom,FlatBedArtwork(bedPosition,bottom,footprint),1-smoothstep(18,35,depth));
+        if(river>.001)
+        {
+            // Water-washed river shingle/sand shifts terrestrial brown soil toward
+            // cool clear-water mineral tones before point-bar sorting is applied.
+            float bedLuma=dot(bottom,float3(.299,.587,.114));
+            bottom=lerp(bottom,FlatColor(float3(.28,.55,.62))*(.42+.85*bedLuma),river*.48);
+        }
         if(river>.001&&(abs(channel.bend)>.06||channel.grade>.001))
         {
             float bedAcross=channel.across+dot(bedCell-cell,channel.lateralGradient)/max(.0001,channel.width);
@@ -860,7 +869,7 @@ float3 FlatWaterShadeCore(float2 cell,float4 mixing,float4 field,float3 bottom,f
             sediment=FlatCoastArtwork(bedPosition,coast.seaward,bedShore,0,coast.mud,footprint/6,_WaterClock).albedo;
         }
         bottom=lerp(bottom,sediment*(1+.13*shoal),coast.coverage*ocean);
-        bottom*=(1+caustic*.65)*depthRelief;
+        bottom*=(1+caustic*lerp(.65,1.05,river))*depthRelief;
         // Preserve drowned fields, vegetation and terrain relief beneath shallow floodwater via HPWaterOptics transmission.
         bottom=lerp(bottom,submergedGround*(.80+.40*caustic),inundated*(1-smoothstep(1.6,4.8,depth)));
     }
@@ -870,8 +879,9 @@ float3 FlatWaterShadeCore(float2 cell,float4 mixing,float4 field,float3 bottom,f
     float3 scatteringLight=OrbisHPScatter(light,absorption,scattering,opticalDepth/refractedCos,transmission);
     float fresnel=OrbisHPSchlick(nv);
     // The Clear preset uses a fourth-power reflection response. Retain the
-    // air/water reflectance at normal incidence on the Built-in sky path.
-    fresnel=lerp(fresnel,.02037+.97963*pow(1-nv,4),lakeOptics);
+    // air/water reflectance at normal incidence on lakes and clear rivers.
+    float clearFresnel=max(lakeOptics,river*(1-inundated)*(1-saturate(swe.turbidity*1.5)));
+    fresnel=lerp(fresnel,.02037+.97963*pow(1-nv,4),clearFresnel);
     float3 sky=light*float3(.34,.48,.58);
     float3 body=bottom*light*transmission+scatteringLight;
     if(lakeOptics>0)body=lerp(body,light*FlatLakeWaterColumn(depth/refractedCos,bedPosition,footprint/6,kilometresPerCell),lakeOptics);
@@ -885,6 +895,7 @@ float3 FlatWaterShadeCore(float2 cell,float4 mixing,float4 field,float3 bottom,f
     float3 depthColor=lerp(FlatColor(float3(.20,.65,.65)),FlatColor(float3(.045,.34,.54)),smoothstep(1,7.5,logDepth));
     depthColor=lerp(depthColor,FlatColor(float3(.015,.10,.25)),smoothstep(7.5,11.97,logDepth));
     depthColor=lerp(depthColor,FlatColor(float3(.19,.48,.48)),fresh*.12);
+    depthColor=lerp(depthColor,FlatColor(float3(.15,.56,.66)),river*.36);
     // Wider shelf and continental-slope colour intervals make submerged banks,
     // ridges and depressions legible after the natural optical signal is lost.
     float3 marineChart=lerp(FlatColor(float3(.28,.64,.64)),FlatColor(float3(.12,.52,.61)),smoothstep(1.6,7.4,logDepth));
@@ -892,7 +903,8 @@ float3 FlatWaterShadeCore(float2 cell,float4 mixing,float4 field,float3 bottom,f
     marineChart=lerp(marineChart,FlatColor(float3(.025,.15,.32)),smoothstep(10.15,11.97,logDepth));
     depthColor=lerp(depthColor,marineChart,ocean*saturate(_FieldReady));
     float lakeDepth=lerp(.30,.62,smoothstep(2,30,depth));
-    float chartDepth=lerp(lerp(.70,lakeDepth,lake),.18,river)*(1-inundated)+inundated*.32*smoothstep(.38,2.3,depth);
+    float riverChart=lerp(.20,.34,smoothstep(1.2,10,depth));
+    float chartDepth=lerp(lerp(.70,lakeDepth,lake),riverChart,river)*(1-inundated)+inundated*.32*smoothstep(.38,2.3,depth);
     chartDepth*=1-.91*coast.coverage*ocean*(1-smoothstep(.5,24,depth));
     result=lerp(result,depthColor*light*depthRelief,saturate(_Bathymetry)*chartDepth);
     // At ordinary inland viewing angles the sharp solar glint rarely enters
@@ -933,7 +945,7 @@ float3 FlatWaterShadeCore(float2 cell,float4 mixing,float4 field,float3 bottom,f
             float channelLOD=max(0,log2(max(.0001,channelUV.footprint*max(_VendorRiverFoam_TexelSize.z,_VendorRiverFoam_TexelSize.w))));
             float a=FlatRiverSW3Foam(_VendorRiverFoam,channelUV,phase0*travel,channelLOD);
             float b=FlatRiverSW3Foam(_VendorRiverFoam,channelUV,phase1*travel,channelLOD);
-            riverFoam=smoothstep(.36,.66,lerp(a,b,blend))*riffle*.57*river;
+            riverFoam=smoothstep(.28,.54,lerp(a,b,blend))*riffle*.48*river;
         }
         if(river<.999)
         {
@@ -948,7 +960,7 @@ float3 FlatWaterShadeCore(float2 cell,float4 mixing,float4 field,float3 bottom,f
         foam+=(basinFoam+riverFoam)*waveStrength*(1-smoothstep(1,4,footprint));
     }
     surface.normal=normal;
-    surface.lake=lakeOptics;
+    surface.lake=max(lakeOptics,river*(1-inundated)*(1-saturate(swe.turbidity*1.5))*.55);
     surface.visible=1-saturate(foam);
     surface.skyWeight=fresnel*(1-saturate(_Bathymetry)*chartDepth)*surface.visible;
     return lerp(result,light*FlatColor(float3(.82,.90,.86)),saturate(foam));
