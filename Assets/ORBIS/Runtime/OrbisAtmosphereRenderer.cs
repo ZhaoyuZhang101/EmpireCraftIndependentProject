@@ -47,7 +47,7 @@ namespace Orbis
 
         static readonly Vector2[] MapUV={new Vector2(0,0),new Vector2(0,1),new Vector2(1,1),new Vector2(1,0)};
         static readonly float[] Scale={.56f,.68f,.80f,1f},RefScale={.65f,.78f,.86f,1f};
-        static readonly float[] TemporalBlend={.84f,.82f,.78f,0f};
+        static readonly float[] TemporalBlend={.72f,.68f,.62f,0f};
         static readonly int[] CloudSteps={26,36,48,64},RefCloudSteps={32,48,64,64};
         static readonly int[] AirSteps={10,14,20,48},RefAirSteps={16,24,32,48};
         static readonly int[] LightSteps={3,4,5,8},RefLightSteps={4,6,8,8},CloudRefinement={1,2,2,3};
@@ -221,6 +221,20 @@ namespace Orbis
         {
             if(scroll)
             {
+                Vector4 c0=Vector4.zero,c1=Vector4.zero,c2=Vector4.zero,c3=Vector4.zero;
+                var world=view.world.FlatSource;
+                for(int i=0;i<4;i++)
+                {
+                    Vector2 screen=cameraComponent.pixelRect.min+Vector2.Scale(MapUV[i],cameraComponent.pixelRect.size);
+                    if(!scroll.TryProjectionPoint(screen,out Vector2 tile))
+                    {
+                        m.SetFloat(IdLocalCloudMap,0);m.SetFloat(IdMarkleyMap,0);
+                        return false;
+                    }
+                    Vector4 v=new Vector4(tile.x/world.Width,tile.y/scroll.MapHeight,0,0);
+                    if(i==0)c0=v;else if(i==1)c1=v;else if(i==2)c2=v;else c3=v;
+                }
+                m.SetVector(MapIds[0],c0);m.SetVector(MapIds[1],c1);m.SetVector(MapIds[2],c2);m.SetVector(MapIds[3],c3);
                 bool local=!scroll.IsAtlas;
                 if(m==view.CloudMaterial?HasMarkleyProperty(m):m.HasTexture(IdMarkleyDirections))Orbis.Planet.MarkleyProjection.Bind(m);
                 m.SetFloat(IdMarkleyMap,local?0:1);
@@ -232,20 +246,12 @@ namespace Orbis
                     m.SetVector(IdCloudLocalUp,new Vector4((float)frame.Up.X,(float)frame.Up.Y,(float)frame.Up.Z,0));
                     m.SetVector(IdCloudLocalEast,new Vector4((float)frame.East.X,(float)frame.East.Y,(float)frame.East.Z,0));
                     m.SetVector(IdCloudLocalNorth,new Vector4((float)frame.North.X,(float)frame.North.Y,(float)frame.North.Z,0));
-                    // Smoothly distribute wheel travel across the actual 560-2,500 m LCL cloud-base zone
-                    // so crossing Trade-Cu (1,020 m base) and Marine-Sc (560 m base) spans ~15 frames gradually.
-                    float upper=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.46f,.74f,scroll.Morph));
-                    float lower=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.64f,.98f,scroll.Morph));
-                    const float aboveClouds=14500,lowerDeck=2500,belowClouds=200;
+                    // Smoothly distribute wheel travel across the LCL cloud-base zone (58..99%) with linear descent slope so base exit stays <15 DN/frame.
+                    float upper=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.42f,.68f,scroll.Morph));
+                    float lower=Mathf.InverseLerp(.58f,.99f,scroll.Morph);
+                    const float aboveClouds=14500,lowerDeck=2600,belowClouds=220;
                     float height=belowClouds+(lowerDeck-belowClouds)*(1-lower)+(aboveClouds-lowerDeck)*(1-upper);
                     m.SetFloat(IdCloudCameraHeight,height);
-                }
-                for(int i=0;i<4;i++)
-                {
-                    Vector2 screen=cameraComponent.pixelRect.min+Vector2.Scale(MapUV[i],cameraComponent.pixelRect.size);
-                    if(!scroll.TryProjectionPoint(screen,out Vector2 tile))return false;
-                    var world=view.world.FlatSource;
-                    m.SetVector(MapIds[i],new Vector4(tile.x/world.Width,tile.y/scroll.MapHeight,0,0));
                 }
                 if(!view||m!=view.CloudMaterial)m.SetFloat(IdScrollCloudSource,1);return true;
             }
@@ -319,8 +325,8 @@ namespace Orbis
             {
                 if(cameraComponent.orthographic&&(!scroll||scroll.Morph>=1)){DisplayOnly(source,destination);return;}
                 SetRays(m);
-                if(scroll&&!scroll.IsAtlas&&scroll.Morph>.12f&&SetAtlasRays(m))
-                    m.SetFloat(IdCloudViewBlend,Mathf.SmoothStep(0,1,Mathf.InverseLerp(.12f,.78f,scroll.Morph)));
+                if(scroll&&!scroll.IsAtlas&&scroll.Morph>.002f&&SetAtlasRays(m))
+                    m.SetFloat(IdCloudViewBlend,Mathf.SmoothStep(0,1,Mathf.InverseLerp(.01f,.46f,scroll.Morph)));
             }
             Vector4 lensSun=Vector4.zero;
             if(!map)
@@ -398,7 +404,7 @@ namespace Orbis
                (currCycNorth-prevCycloneNorth).sqrMagnitude<1e-4f&&
                (currCycSouth-prevCycloneSouth).sqrMagnitude<1e-4f&&
                Vector3.Dot(currSunLocal,prevSunLocal)>.9994f&&
-               Mathf.Abs(currMorph-prevMorph)<=.10f&&
+               Mathf.Abs(currMorph-prevMorph)<.0008f&&
                Vector3.Dot(currCamFwd,prevCamFwd)>.90f)
             {
                 float altScale=Mathf.Max(.05f,currCamLocal.magnitude-.99f);

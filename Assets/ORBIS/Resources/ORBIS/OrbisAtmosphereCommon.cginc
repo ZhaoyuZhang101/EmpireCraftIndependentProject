@@ -605,37 +605,40 @@ OrbisVolumeResult OrbisMarchRayFootprintEx(float3 ro,float3 rd,float endDistance
      crustStart=lerp(cursor,probeDist,saturate(1.0-probeSum*5.5));
      prevHit=true;
     }
-    float refine=lerp(clamp(_CloudRefinement,1,4),1.25,unfoldCol);
+    float refine=lerp(clamp(_CloudRefinement,1,4),1.40,unfoldCol);
     if(_CloudLightSimple>.5)refine=lerp(lerp(1.0,refine,insideShell*.5),refine,smoothstep(.12,.64,maxTrans));
     float baseFine=min(ds,cap)*rcp(refine);
-    float nearWeight=saturate(max(grazing,closeCam*.65)*(1.0-unfoldCol*.65));
+    float nearWeight=saturate(max(max(grazing,closeCam*.65)*(1.0-unfoldCol*.55),unfoldCol*.60));
     float refineTier=saturate((_CloudRefinement-1.0)+.45);
-    float tropoDiv=lerp(15.0,lerp(18.0,24.0,nearWeight),refineTier);
+    float tropoDiv=lerp(16.0,lerp(19.0,25.0,nearWeight),refineTier);
     float tropoFineCap=actualSlab/tropoDiv;
     float crustBoost=max(grazing,nearWeight*.45)*smoothstep(.20,.82,maxTrans);
-    float crustCap=lerp(actualSlab/24.0,actualSlab/6.0,pow(saturate((cursor-crustStart)/.032),1.35));
+    float crustCap=lerp(actualSlab/25.0,actualSlab/6.0,pow(saturate((cursor-crustStart)/.032),1.35));
     float fineStep=min(min(baseFine,tropoFineCap),lerp(baseFine,crustCap,crustBoost));
 
     if(_CloudLightSimple>.5)
     {
-     float denseGrow=lerp(2.25,1.0,smoothstep(.08,.48,maxTrans));
-     float maxAllowed=lerp(ds*1.85,ds,baseDescent);
-     fineStep=min(maxAllowed,max(fineStep*denseGrow,min(ds,actualSlab*lerp(.026,.008,insideShell))));
+     float denseGrow=lerp(2.15,1.0,smoothstep(.08,.48,maxTrans));
+     float maxAllowed=lerp(ds*1.65,ds,baseDescent);
+     fineStep=min(maxAllowed,max(fineStep*denseGrow,min(ds,actualSlab*lerp(.024,.008,insideShell))));
     }
     float fineTail=smoothstep((float)sampleCount-14.0,(float)sampleCount-4.0,(float)sampleIndex);
-    float allowFine=saturate(max(smoothstep(.02,.15,crustBoost),max(insideShell,closeCam*.55*(1.0-unfoldCol*.80))));
+    float allowFine=saturate(max(smoothstep(.02,.15,crustBoost),max(insideShell,closeCam*.55*(1.0-unfoldCol*.65))));
     float safeMinStep=minStep*lerp(1.0,fineTail,allowFine);
     stepSize=min(remSpan,max(fineStep,safeMinStep));
 
-    float phaseOffset=_CloudTemporalActive>.5?((temporalPhase-.5)*.45):0.0;
+    float phaseOffset=_CloudTemporalActive>.5?((temporalPhase-.5)*.38):((jitter-.5)*.30*unfoldCol);
     float sampleDistance=clamp(cursor+stepSize*(.5+phaseOffset),cursor+.05*stepSize,segmentEnd-.05*stepSize);
     sampleDistOverride=sampleDistance;
     float sampleFoot=baseFoot+sampleDistance*pixelAngle;
     float3 samplePos=ro+rd*sampleDistance;
     float radialCos=dot(normalize(samplePos),rd);
     float isoStride=stepSize*sqrt(1.0+.36*radialCos*radialCos);
-    float opaqueBlur=(1.0-smoothstep(.12,.42,maxTrans))*actualSlab*.09;
-    float rayFoot=min(actualSlab*.20,1.08*isoStride+opaqueBlur);
+    float opaqueBlur=(1.0-smoothstep(.12,.42,maxTrans))*actualSlab*.07;
+    // Only filter by ray step on grazing oblique rays (|radialCos| < 0.78); on top-down/steep zoomed views,
+    // sample horizontal cloud detail at full screen-pixel sharpness (fp) so cloud shapes never mip-blur!
+    float grazingMipW=1.0-smoothstep(.32,.78,abs(radialCos));
+    float rayFoot=min(actualSlab*.18,(1.02*isoStride+opaqueBlur)*grazingMipW);
     density=OrbisCloudDensitiesMip(samplePos,false,sampleFoot,rayFoot);
    }
    else
@@ -706,13 +709,32 @@ OrbisVolumeResult OrbisMarchPixel(float2 uv,float2 pixelPos)
   float3 upDy=OrbisLocalCloudDirection(uv+float2(0,texel.y))-up;
   float localFoot=max(length(upDx),length(upDy));
   float ground=ScrollCloudGround(OrbisWeatherUV(up));
-  float3 end=lerp(ro+rd*distance,up*ground,_CloudViewBlend);
-  ro=lerp(ro,up*(ground+max(0,_CloudCameraHeight)*_CloudHeightScale),_CloudViewBlend);
-  float3 delta=end-ro;distance=length(delta);rd=delta/max(1e-7,distance);
-  float foot0=lerp(baseFoot,localFoot,_CloudViewBlend);
-  float foot1=lerp(baseFoot+perspDist*pixelAngle,localFoot,_CloudViewBlend);
-  baseFoot=foot0;
-  pixelAngle=max(0.0,(foot1-foot0)/max(1e-5,distance));
+
+  // Local 3D perspective-tilted ray anchored strictly to spherical ground (up * ground) across all 4 screen corners:
+  // completely eliminates the circular cloud cutoff outside OrbisSphere(ro, rd, 1.0) during wheel zoom-in!
+  float hLocal=max(0,_CloudCameraHeight)*_CloudHeightScale;
+  float3 toCenter=_CloudLocalUp-up*dot(_CloudLocalUp,up);
+  float tcLen=length(toCenter);
+  if(tcLen>.55)toCenter*=.55/tcLen;
+  float3 roLocal=up*(ground+hLocal)+toCenter*(hLocal*(1.0-saturate(_CloudProjectionBlend))*.55);
+  float3 endLocal=up*ground;
+
+  bool hitsWorld=eye<_ProjectionParams.z*.995;
+  float bSphere=dot(ro,rd);
+  float sphereDisc=bSphere*bSphere-dot(ro,ro)+1.0;
+  float insideSphere=smoothstep(.015,.14,sphereDisc)*(planet.x>0?1.0:0.0);
+  float wLocal=hitsWorld?lerp(1.0,_CloudViewBlend,insideSphere):0.0;
+  if(wLocal>1e-4)
+  {
+   float3 perspSurf=(insideSphere>1e-4)?(normalize(ro+rd*max(0.0,planet.x))*ground):endLocal;
+   float3 end=normalize(lerp(perspSurf,up,wLocal))*ground;
+   ro=lerp(ro,roLocal,wLocal);
+   float3 delta=end-ro;distance=length(delta);rd=delta/max(1e-7,distance);
+   float foot0=lerp(baseFoot,localFoot,wLocal);
+   float foot1=lerp(baseFoot+perspDist*pixelAngle,localFoot,wLocal);
+   baseFoot=foot0;
+   pixelAngle=max(0.0,(foot1-foot0)/max(1e-5,distance));
+  }
  }
  #endif
  return OrbisMarchRayFootprintEx(ro,rd,distance,eye,OrbisIGN(pixelPos),pixelAngle,baseFoot);
