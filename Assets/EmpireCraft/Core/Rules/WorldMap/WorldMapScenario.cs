@@ -371,7 +371,7 @@ public static class WorldMapScenario
                     actor.SetRealm(polity.kingdom);
                     if (founder?.Language != null) actor.SetLanguage(founder.Language);
                     if (founder?.Religion != null) actor.SetReligion(founder.Religion);
-                    planned.city = EmpireWorld.Current.Cities.buildNewCity(actor, zone);
+                    planned.city = WorldActions.BuildNewCity(actor, zone);
                     actor.JoinCity(planned.city);
                     PrepareName(actor, planned.culture);
                     planned.city.setUnitMetas(actor);

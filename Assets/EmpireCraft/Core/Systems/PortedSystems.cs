@@ -100,6 +100,9 @@ namespace EmpireCraft.Core
 
             // The skeleton's changes to head counts go into the population groups first (see PopulationBridge).
             Run("population in", () => PopulationBridge.Before(w));
+            // Wilderness: barren land (mountains, deserts, tundra, rainforest, marsh) gathered into regions that belong to the
+            // nearest city's title; it keeps cities from spreading into it and lets realms meet across it.
+            Run("wilderness", WildernessSystem.Tick);
 
             // Each realm's own routine: is it an empire, should it proclaim one (which starts the plot that prepares it).
             Run("realm empire check", () =>

@@ -126,6 +126,10 @@ namespace EmpireCraft.Core
         public Cell Record => this;
         // Drawing helpers belong to the client; there is nothing to reset here.
         public void ResetRenderHelpers() { }
+        // Free land a city may take: ground no city holds yet.
+        public bool CanBeClaimedByCity(City city) => World.TileCity[Index] < 0 && World.Claimable(Index);
+        // Ground here is never frozen for a season.
+        public bool IsTemporaryFrozen() => false;
         public CellRegion Region => new CellRegion(World.IslandObject(Index));
         // Trees, deposits, ruins standing on the cell: none, nothing is built or grows here as an object.
         static readonly HashSet<Building> NoBuildings = new HashSet<Building>();

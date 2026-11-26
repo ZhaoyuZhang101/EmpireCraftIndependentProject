@@ -575,9 +575,9 @@ public static partial class SmoothBorders
 
     private static readonly List<int> RefreshList = new();
     private static readonly HashSet<int> ShapeZones = new(), OwnerZones = new(), PaintZones = new(), LeadZones = new();
-#if EC_PENDING
-    private static readonly Dictionary<int, Color32[]> OldFaces = new();
+    private static readonly Dictionary<int, EcColor32[]> OldFaces = new();
 
+#if EC_PENDING
     private static void CanvasProcess(ZoneGrid calc, MetaTypeAsset layer, int option)
     {
         if (CanvasDirty.Count == 0) return;
@@ -632,7 +632,7 @@ public static partial class SmoothBorders
             {
                 Cell zone = calc.Get(id % _zonesX, id / _zonesX);
                 if (zone == null || !InFlipView(zone)) continue;
-                Color32[] face = CanvasFace(zone);
+                EcColor32[] face = CanvasFace(zone);
                 if (face != null) OldFaces[id] = face;
             }
         foreach (int id in ShapeZones) BuildCityShape(id % _zonesX, id / _zonesX);
@@ -660,16 +660,16 @@ public static partial class SmoothBorders
 
     // 这块地眼下看到的样子(正在翻的取看到的那一面)
 #if EC_PENDING
-    private static Color32[] CanvasFace(Cell zone) =>
+    private static EcColor32[] CanvasFace(Cell zone) =>
         Transitions.ContainsKey(zone.Index) ? Capture(zone)?.oldPixels : BaseFace(zone);
 #endif
 
     // 这块地刚画好的样子(不提亮的底色)
 #if EC_PENDING
-    private static Color32[] BaseFace(Cell zone)
+    private static EcColor32[] BaseFace(Cell zone)
     {
         int[] ids = PixelIds(zone);
-        var face = new Color32[ids.Length];
+        var face = new EcColor32[ids.Length];
         for (int i = 0; i < ids.Length; i++)
         {
             int id = ids[i];
@@ -1049,16 +1049,12 @@ public static partial class SmoothBorders
     #region 上色
 
     // 各方的颜色(同原版 colorZone 与 ZonePaintBudget.BeforeSelectionColors 的选中变淡)、所属帝国(金边)：一轮里按编号记一次
-#if EC_PENDING
-    private static Color32[] _palIn = Array.Empty<Color32>(), _palOut = Array.Empty<Color32>();
-#endif
+    private static EcColor32[] _palIn = Array.Empty<EcColor32>(), _palOut = Array.Empty<EcColor32>();
     private static Empire[] _palEmpire = Array.Empty<Empire>();
     private static int[] _palEpoch = Array.Empty<int>();
     private static int _canvasEpoch;
     private static readonly Dictionary<long, bool> CanvasHostility = new(EmpireCraft.Core.PackedKeyComparer.Instance);
-#if EC_PENDING
-    private static readonly Dictionary<City, Color32[]> CanvasStripes = new();
-#endif
+    private static readonly Dictionary<City, EcColor32[]> CanvasStripes = new();
     private static bool _canvasFront, _canvasGold, _canvasPure, _canvasUnitSet;
     private static object _canvasUnitMeta;
 
@@ -1105,18 +1101,18 @@ public static partial class SmoothBorders
         }
         catch (Exception)
         {
-            _palIn[owner] = _palOut[owner] = new Color32(0, 0, 0, 0);
+            _palIn[owner] = _palOut[owner] = new EcColor32(0, 0, 0, 0);
             _palEmpire[owner] = null;
         }
     }
 
-    private static void CanvasColors(IMetaObject meta, out Color32 inside, out Color32 outside)
+    private static void CanvasColors(IMetaObject meta, out EcColor32 inside, out EcColor32 outside)
     {
         ZoneGrid calc = EmpireWorld.Current.Zones;
         Tint color = SafeColor(meta);
         if (color == null)
         {
-            inside = outside = new Color32(0, 0, 0, 0);
+            inside = outside = new EcColor32(0, 0, 0, 0);
             return;
         }
         outside = color.getColorMainSecond32();
@@ -1141,11 +1137,11 @@ public static partial class SmoothBorders
 
     // 一块地各格上色：边框、战线、金边、兼属斜纹，存底色后按高亮提亮
 #if EC_PENDING
-    private static void ColorZone(Color32[] pixels, int zx, int zy)
+    private static void ColorZone(EcColor32[] pixels, int zx, int zy)
     {
         int zoneId = zy * _zonesX + zx;
         int native = _zoneShade[zoneId];
-        Color32[] stripes = null;
+        EcColor32[] stripes = null;
         if (_canvasPure && _zoneCity[zoneId] != 0)
         {
             City city = CityTable[_zoneCity[zoneId]];
@@ -1157,10 +1153,10 @@ public static partial class SmoothBorders
         {
             int t = y * width + x;
             int owner = _owner[t];
-            Color32 color;
+            EcColor32 color;
             bool edge = false;
             if (owner == 0)
-                color = new Color32(0, 0, 0, 0);
+                color = new EcColor32(0, 0, 0, 0);
             else
             {
                 Palette(owner);
@@ -1186,8 +1182,8 @@ public static partial class SmoothBorders
                         int band = (x + y) / 2 % (stripes.Length + 1);
                         if (band > 0)
                         {
-                            Color32 stripe = stripes[band - 1];
-                            color = new Color32(stripe.r, stripe.g, stripe.b, color.a);
+                            EcColor32 stripe = stripes[band - 1];
+                            color = new EcColor32(stripe.r, stripe.g, stripe.b, color.a);
                         }
                     }
                 }
@@ -1244,9 +1240,9 @@ public static partial class SmoothBorders
         var groups = new Dictionary<(int owner, int key), List<Cell>>();
         foreach (int id in LeadZones)
         {
-            if (!OldFaces.TryGetValue(id, out Color32[] old)) continue;
+            if (!OldFaces.TryGetValue(id, out EcColor32[] old)) continue;
             Cell zone = calc.Get(id % _zonesX, id / _zonesX);
-            Color32[] fresh = zone == null ? null : BaseFace(zone);
+            EcColor32[] fresh = zone == null ? null : BaseFace(zone);
             if (fresh == null || Same(old, fresh)) continue;
             leads[id] = new Transition { oldPixels = old, newPixels = fresh, created = now };
             var key = (_zoneOwner[id], _zoneOwnerKey[id]);
@@ -1262,7 +1258,7 @@ public static partial class SmoothBorders
             WriteFlip(calc.pixels, zone, pair.Value, now);
         }
         // 跟着换的邻块：挨着的换主块里最早翻到一半的那一刻直接换
-        foreach (KeyValuePair<int, Color32[]> pair in OldFaces)
+        foreach (KeyValuePair<int, EcColor32[]> pair in OldFaces)
         {
             int id = pair.Key;
             if (leads.ContainsKey(id)) continue;
@@ -1277,7 +1273,7 @@ public static partial class SmoothBorders
                 if (leads.TryGetValue(ny * _zonesX + nx, out Transition lead)) at = Mathf.Min(at, lead.flipAt + lead.duration / 2f);
             }
             if (at == float.MaxValue) continue;
-            Color32[] fresh = BaseFace(zone);
+            EcColor32[] fresh = BaseFace(zone);
             if (fresh == null || Same(pair.Value, fresh)) continue;
             var follower = new Transition { oldPixels = pair.Value, newPixels = fresh, created = now, follow = true, planned = true, flipAt = at };
             Transitions[id] = follower;
@@ -1407,18 +1403,18 @@ public static partial class SmoothBorders
             transition.planned = true;
         }
     }
+#endif
 
-    private static bool Same(Color32[] a, Color32[] b)
+    private static bool Same(EcColor32[] a, EcColor32[] b)
     {
         if (a.Length != b.Length) return false;
         for (int i = 0; i < a.Length; i++)
         {
-            Color32 x = a[i], y = b[i];
+            EcColor32 x = a[i], y = b[i];
             if (x.r != y.r || x.g != y.g || x.b != y.b || x.a != y.a) return false;
         }
         return true;
     }
-#endif
 
     #endregion
 }

@@ -56,8 +56,8 @@ public static class MarketMap
 #if EC_PENDING
     private static readonly TerritoryLabelStyle LabelStyle = new TerritoryLabelStyle
     {
-        text_color = new Color32(255, 236, 170, 220),
-        outline_color = new Color32(54, 34, 8, 210),
+        text_color = new EcColor32(255, 236, 170, 220),
+        outline_color = new EcColor32(54, 34, 8, 210),
         size_multiplier = 0.85f,
         territory_padding = 0.92f,
         min_font_size = 6,

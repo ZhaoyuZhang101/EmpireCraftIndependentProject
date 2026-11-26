@@ -190,7 +190,7 @@ public static partial class TransmigrantSystem
         try
         {
             kingdom = EmpireWorld.Current.LiveRealms.makeNewCivKingdom(founder);
-            city = EmpireWorld.Current.Cities.buildNewCity(founder, zone);
+            city = WorldActions.BuildNewCity(founder, zone);
             founder.JoinCity(city);
             // 新建的城不自动当都城：组建政府(称帝)时要读都城，没有就报"读取帝国首都失败"
             if (kingdom.Capital == null) kingdom.SetCapital(city);

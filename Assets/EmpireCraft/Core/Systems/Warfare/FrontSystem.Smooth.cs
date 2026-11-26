@@ -311,7 +311,7 @@ public static partial class FrontSystem
     }
 
     private static Vector2 ZoneCenter(Cell zone) =>
-        new((zone.X + 0.5f) * Land.ZoneSize, (zone.Y + 0.5f) * Land.ZoneSize);
+        new((zone.X + 0.5f) * EmpireCraft.Core.Land.ZoneSize, (zone.Y + 0.5f) * EmpireCraft.Core.Land.ZoneSize);
 
     #endregion
 

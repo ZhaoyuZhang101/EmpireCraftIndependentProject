@@ -865,7 +865,7 @@ public static class ColonySystem
         Founding = true;
         try
         {
-            city = EmpireWorld.Current.Cities.buildNewCity(founder, zone);
+            city = WorldActions.BuildNewCity(founder, zone);
         }
         finally
         {

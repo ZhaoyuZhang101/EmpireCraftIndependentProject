@@ -498,9 +498,9 @@ public static class ScenarioWorldExport
         int width = EmpireWorld.Current.Width, height = EmpireWorld.Current.Height;
         int shrink = Math.Max(1, (int)Math.Ceiling(Math.Max(width, height) / (double)MaxSide));
         int cols = Pad(width / shrink), rows = Pad(height / shrink);
-        Color32 sea = EarthTerrain.PreviewColorOf("deep_ocean");
-        var pixels = new Color32[cols * rows];
-        var colors = new Dictionary<(object, object), Color32>();
+        EcColor32 sea = EarthTerrain.PreviewColorOf("deep_ocean");
+        var pixels = new EcColor32[cols * rows];
+        var colors = new Dictionary<(object, object), EcColor32>();
         for (int row = 0; row < rows; row++)
         for (int col = 0; col < cols; col++)
         {
@@ -512,7 +512,7 @@ public static class ScenarioWorldExport
                 continue;
             }
             var key = ((object)tile.MainType, (object)tile.TopType);
-            if (!colors.TryGetValue(key, out Color32 color)) colors[key] = color = EarthTerrain.PreviewColorOf(TypeOf(tile));
+            if (!colors.TryGetValue(key, out EcColor32 color)) colors[key] = color = EarthTerrain.PreviewColorOf(TypeOf(tile));
             pixels[row * cols + col] = color;
         }
         var texture = new Texture2D(cols, rows, TextureFormat.RGBA32, false);

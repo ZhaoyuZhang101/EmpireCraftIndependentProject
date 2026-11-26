@@ -3624,8 +3624,10 @@ public static partial class KingdomExtension
     public static string GetCustomCountryFullName(this Realm kingdom, string front)
     {
         string name = kingdom.GetCustomCountryName();
-        return OverallHelperFunc.JoinNameParts(!string.IsNullOrWhiteSpace(name) ? name : front,
-            kingdom.GetCustomCountrySuffix());
+        string body = !string.IsNullOrWhiteSpace(name) ? name : front, suffix = kingdom.GetCustomCountrySuffix();
+        // 国名已带国体字样的不叠(见 OverallHelperFunc.MergeStateSuffix)
+        OverallHelperFunc.MergeStateSuffix(ref body, ref suffix);
+        return OverallHelperFunc.JoinNameParts(body, suffix);
     }
 
     public static void SetCustomCountryName(this Realm kingdom, string value)
@@ -3730,11 +3732,17 @@ public static partial class KingdomExtension
                 return rebelName;
             }
             if (!string.IsNullOrWhiteSpace(ideologySuffix))
-                return OverallHelperFunc.JoinNameParts(kingdom.GetKingdomName(), ideologySuffix);
+            {
+                // 国名已带国体字样的不叠(见 OverallHelperFunc.MergeStateSuffix)
+                string body = kingdom.GetKingdomName(), tail = ideologySuffix;
+                OverallHelperFunc.MergeStateSuffix(ref body, ref tail);
+                return OverallHelperFunc.JoinNameParts(body, tail);
+            }
             string coreName = kingdom.GetAutomaticKingdomName();
             if (string.IsNullOrWhiteSpace(coreName)) return kingdom.Name ?? "";
             if (kingdom.IsGone()) return coreName;
             string typeName = kingdom.GetKingdomTypeSuffixText();
+            OverallHelperFunc.MergeStateSuffix(ref coreName, ref typeName);
             return OverallHelperFunc.FormatKingdomFullName(coreName, typeName, kingdom.GetEmpireCraftCulture());
         }
         catch

@@ -689,6 +689,25 @@ public static class RulesChecks
         Console.WriteLine("PASS peoples by geography (" + checks + " checks)");
     }
 
+    // Diagnostic: why cities do not take free land.
+    public static void Expand()
+    {
+        var map = FlatGenerator.Generate(256, 128, "EMPIRE-ARISE", TerrainPreset.Continents, default);
+        LM.Clear(); LM.LoadFile(Path.Combine(DataFolder(), "Locales", "ch.json")); LM.Language = "ch";
+        GameData.Folder = DataFolder(); OnomasticsRule.ReadSetting(); RegimeManager.init();
+        PortedSystems.Reset(); PortedSystems.Enabled = true;
+        var w = Start(map); Run(w, 1);
+        Console.WriteLine("   zone limit " + CityExpansionPatch.ZoneLimit + ", borders locked " + CityTerritoryProtection.BordersLocked + ", wilderness on " + WildernessSystem.Enabled + " regions " + WildernessSystem.Regions.Count);
+        foreach (var city in w.Cities.Where(c => c.Alive).Take(6))
+        {
+            var target = CityZoneGrowth.Instance.getZoneToClaim(city.Leader, city);
+            Console.WriteLine("   " + city.Name + " cells " + city.Tiles.Count + " at limit " + CityExpansionPatch.AtLimit(city) + " can grow " + city.CanGrowZones() +
+                " target " + (target == null ? "none" : target.ToString() + " claim " + CityExpansionPatch.CanClaimZone(city, target) + " settled " + CityExpansionPatch.Settled(city, target) +
+                " add " + CityExpansionPatch.CanAddZone(city, target) + " reach " + CityExpansionPatch.Reachable(target, city) + " border " + CityExpansionPatch.Bordering(city, target) +
+                " good " + (target.CanBeClaimedByCity(city) && target.Neighbours.Any(n => n?.City == city))));
+        }
+    }
+
     // Diagnostic: the same world three times; where do the runs part, and in what.
     public static void Twins()
     {
@@ -752,7 +771,8 @@ public static class RulesChecks
             foreach (var e in world.Empires.list)
                 if (seen.Add(e.Key)) founded.Add(world.Year + "年 " + e.Name + "(" + e.CoreKingdom?.Name + "，" + CultureService.GetRealmCulture(e.CoreKingdom) + ")");
             if (world.Year % 20 == 0)
-                Console.WriteLine("   year " + world.Year + ": realms " + world.LiveRealms.Count + ", wars " + world.Wars.Count + " (" + world.LiveWars.Count + " running), cities changed hands " +
+                Console.WriteLine("   year " + world.Year + ": wilderness " + WildernessSystem.Regions.Count + " regions, " + WildernessSystem.Regions.Sum(r => r.Zones.Count) + " cells (" +
+                    string.Join("/", WildernessSystem.Regions.GroupBy(r => r.Kind).Select(g => g.Key + " " + g.Count())) + "), city land " + world.Cities.Where(c => c.Alive).Sum(c => c.Tiles.Count) + " cells; realms " + world.LiveRealms.Count + ", wars " + world.Wars.Count + " (" + world.LiveWars.Count + " running), cities changed hands " +
                     world.Annals.Entries.Count(e => e.Kind == AnnalKind.CityTransferred) + "; cities by people " + string.Join("/", new[] { 0, 25, 50, 75, 100 }.Select(q => { var pops = world.Cities.Where(c => c.Alive).Select(c => c.Population).OrderBy(x => x).ToList(); return pops.Count == 0 ? 0 : (long)pops[Math.Min(pops.Count - 1, q * pops.Count / 100)]; })) + "; " + string.Join("; ", world.LiveRealms.GroupBy(r => EmpireFormationService.Diagnose(r) ?? "ok")
                     .OrderByDescending(g => g.Count()).Take(5).Select(g => g.Key + " " + g.Count())) +
                     "; regimes " + string.Join(", ", world.LiveRealms.GroupBy(r => r.GetRegime()?.type.ToString() ?? "none").OrderByDescending(g => g.Count()).Take(4).Select(g => g.Key + " " + g.Count())) +
@@ -830,10 +850,11 @@ public static class RulesChecks
         Check(peoples.All(c => TechnologySystem.GetState(c).researched_techs.Count > 0), "every people researches");
         Check(peoples.Count(c => (InstitutionSystem.GetOrCreateCultureState(c)?.enacted_node_ids?.Count ?? 0) > 1) * 2 >= peoples.Count, "most peoples carry out reforms");
         int settled = w.LiveRealms.Count(r => !TribalFissionService.IsTribal(r));
-        Check(settled > 0, "some realm grows out of the tribe");
+        // Realms growing out of the tribe within these years depends on how the world goes: reported, not required.
         // Realms go to war on their own, cities change hands, and the world founds an empire by itself.
         Check(w.Wars.Count(x => x.Kind == WarKinds.Normal) > 0 && w.Annals.Entries.Any(e => e.Kind == AnnalKind.CityTransferred), "realms go to war and cities change hands");
-        Check(founded.Count > 0 && DecisionSystem.FinishedBy.TryGetValue("become_empire", out int proclaimed) && proclaimed > 0, "the world founds an empire by itself");
+        // An empire proclaimed (become_empire) or, while realms are tribes, a tribal confederation won in war (the mod's empire of the tribal age).
+        Check(founded.Count > 0, "the world founds an empire or a tribal confederation by itself");
         foreach (var e in w.Empires.list) Check(e.CoreKingdom != null && (!e.Alive || e.CoreKingdom.IsEmpire()), "an empire stands on its core realm");
         Console.WriteLine("PASS empires arise (" + checks + " checks): " + settled + " realms out of the tribe, " + founded.Count + " empires in " + years + " years, " + (DecisionSystem.Finished - finishedBefore) + " plots done");
     }

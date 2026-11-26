@@ -83,7 +83,7 @@ public class WildDevelopmentEdict
     public int done;
 }
 
-public static class WildernessDevelopmentSystem
+public static partial class WildernessDevelopmentSystem
 {
     public const string Plot = "develop_wilderness";
     public const float Full = 100f, Half = 50f;
@@ -237,7 +237,6 @@ public static class WildernessDevelopmentSystem
     #region 每帧
 
     // 每帧(WildernessSystem.Tick 里，划好区以后)：改一批格子；过了一年就分帧推进一年的开发
-#if EC_PENDING
     public static void Tick()
     {
         EmpireWorld world = EmpireWorld.Current;
@@ -268,10 +267,8 @@ public static class WildernessDevelopmentSystem
             LogService.LogWarning($"[EmpireCraft][无人区开发] 结算失败: {exception}");
         }
     }
-#endif
 
     // 一年开头：结算诏令(付钱、到期、开完)，排出这一年要看的地块(各片雨林、大泽，不含永久中立区)
-#if EC_PENDING
     private static void BeginYear()
     {
         // 县址：县城没了的回到未设县、已设县的领进开满的地块(领不下的放出县址，下面照旧归城)、可设县的排队(见 WildernessPlotSystem.Year)
@@ -300,10 +297,8 @@ public static class WildernessDevelopmentSystem
         for (; _cursor < end; _cursor++) Grow(calc.ById(_work[_cursor]));
         if (_cursor >= _work.Count) _work = null;
     }
-#endif
 
     // 一块地这一年的开发：前沿上有够格的国家就按它的速度涨(几国都够格的取最快的)
-#if EC_PENDING
     private static void Grow(Cell zone)
     {
         if (zone == null || zone.City != null) return;
@@ -317,7 +312,6 @@ public static class WildernessDevelopmentSystem
         state.by = pick.Realm.Key;
         Raise(zone, state, pick.Rate);
     }
-#endif
 
     #endregion
 
@@ -461,7 +455,6 @@ public static class WildernessDevelopmentSystem
     }
 
     // 涨开发度：排进改格子的队；过半、开满时通行与划区跟着变；诏令期间开满的记一块
-#if EC_PENDING
     private static void Raise(Cell zone, WildDevelopmentZone state, float amount)
     {
         float before = state.dev;
@@ -477,14 +470,12 @@ public static class WildernessDevelopmentSystem
             if (edict.kingdom == state.by && edict.region == region) edict.done++;
         Hand(zone, state.by);
     }
-#endif
 
     // 开满的地块归城(见类头)：挨着的城里归这块地的主人(还在无人区时按 WildernessSystem.OwnerOf，已退出的按开发它的国家；
     // 同一帝国的省也算)、地块没到上限(模组设置每城地块上限，见 CityExpansionPatch.AtLimit)的，城心离它最近的那座；
     // 挨着的城都满了、或没有挨着的城，就在这块地上建一座新城，归这个主人，挂进最近的王国法理(这块地原来挂的，没有就挨着的城的)。
     // 每年开头也把开满了还空着的地块过一遍(读档前开满的、剧本开局设满的，见 BeginYear)。
     // 划进县址的先由县址管(WildernessPlotSystem.Claim)：县城挨着就领进，没设县、挨不着的空着留给县城，不归别的城、不另立新城
-#if EC_PENDING
     private static void Hand(Cell zone, long by)
     {
         if (zone == null || zone.City != null || EmpireWorld.Current == null || !GameClock.Running || GameClock.Loading) return;
@@ -545,7 +536,6 @@ public static class WildernessDevelopmentSystem
             LogService.LogWarning($"[EmpireCraft][无人区开发] 开满的地块归城失败: {exception.Message}");
         }
     }
-#endif
 
     private static void Queue(int id)
     {
@@ -553,7 +543,6 @@ public static class WildernessDevelopmentSystem
     }
 
     // 每帧改一批格子：至多 TilesPerFrame 格、看 ReclaimZonesPerFrame 块地，每块地每回至多 TilesPerVisit 格(一批批改，看得出从城那边往里推)
-#if EC_PENDING
     private static void ReclaimStep(ZoneGrid calc)
     {
         int budget = TilesPerFrame;
@@ -571,10 +560,8 @@ public static class WildernessDevelopmentSystem
             if (done > 0 && done >= limit) Queue(id);
         }
     }
-#endif
 
     // 丛林、沼泽格改成草地，改到剩下的不多于 起头时的格数 × (1 − 开发度)；先改挨着已开发一侧的。返回改了几格
-#if EC_PENDING
     private static int Reclaim(Cell zone, WildDevelopmentZone state, int limit)
     {
         if (zone?.Tiles == null || state.wet <= 0 || limit <= 0) return 0;
@@ -600,7 +587,6 @@ public static class WildernessDevelopmentSystem
         Wet.Clear();
         return changed;
     }
-#endif
 
     private static int Near(Cell tile)
     {
@@ -644,16 +630,16 @@ public static class WildernessDevelopmentSystem
     }
 
     // 改成同一高度的草地(地面格不动：高地仍是高地、丘陵仍是丘陵)，林木伐去；不闪白点(同 FarmlandSystem 开田)
-#if EC_PENDING
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
     private static bool Clear(Cell tile)
     {
-        bool high = (tile.TopType?.Id ?? "").EndsWith("_high", StringComparison.Ordinal);
+        bool high = (tile.top_type?.id ?? "").EndsWith("_high", StringComparison.Ordinal);
         _grassLow ??= TerrainLayers.Top.get("grass_low");
         _grassHigh ??= TerrainLayers.Top.get("grass_high");
         TerrainKind grass = high && _grassHigh != null ? _grassHigh : _grassLow;
         if (grass == null) return false;
-        Building building = tile.Building;
-        if (building?.Asset != null && building.Asset.building_type == BuildingType.Building_Tree) building.startDestroyBuilding();
+        Building building = tile.building;
+        if (building?.asset != null && building.asset.building_type == BuildingType.Building_Tree) building.startDestroyBuilding();
         MapAction.terraformTop(tile, grass, TerraformLibrary.nothing);
         return true;
     }
@@ -666,7 +652,6 @@ public static class WildernessDevelopmentSystem
     // 直接设一块地的开发度(0~100；剧本按时代给初始开发度用)：雨林、大泽当场把格子改到相应比例(不分帧)；
     // 还没划区(剧本开局)的按格子里丛林、沼泽哪样多记类型，划区时开发中的照这一类留在无人区；
     // 设低了只改数，改掉的格子不复原。不是雨林、大泽(也没有丛林、沼泽格)的不记
-#if EC_PENDING
     public static void SetDevelopment(Cell zone, float value)
     {
         if (zone?.Tiles == null || zone.Index < 0) return;
@@ -687,11 +672,9 @@ public static class WildernessDevelopmentSystem
         if (before >= Full != value >= Full) WildernessSystem.OnDeveloped(zone);
         WildernessOverlay.MarkAround(zone);
     }
-#endif
 
     // 设县(见 WildernessPlotSystem)：县治那块当即算开满(治所先开：伐林筑城)，丛林、沼泽格照常一批批改成草地(见 ReclaimStep)；
     // 城已落在这块地上，开满后不再归城(见 Hand)。kind 是县址所在那一片的类型(这块地没开发过时记下)，by 记设县的国家
-#if EC_PENDING
     public static void Establish(Cell zone, WildKind kind, long by)
     {
         if (zone?.Tiles == null || zone.Index < 0) return;
@@ -706,11 +689,9 @@ public static class WildernessDevelopmentSystem
         if (by > 0) state.by = by;
         Raise(zone, state, Full);
     }
-#endif
 
     // 神力「开发」(见 SettlementPowers)：刷到的雨林、大泽无人区地块开发度涨 BrushStep(同一块隔 BrushInterval 秒)，
     // 不看科技与归属(永久中立区也刷得动)；刷了返回 true
-#if EC_PENDING
     public static bool Brush(Cell zone)
     {
         if (zone == null || zone.City != null) return false;
@@ -726,7 +707,6 @@ public static class WildernessDevelopmentSystem
         Raise(zone, state, BrushStep);
         return true;
     }
-#endif
 
     #endregion
 

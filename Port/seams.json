@@ -66,5 +66,17 @@
   ],
   "HistoryDateFormatter": [
     "TryParseTime"
+  ],
+  "CityExpansionPatch": [
+    "ZoneLimit"
+  ],
+  "EarthBeaches": [
+    "Migrate"
+  ],
+  "EarthTerrain": [
+    "RepairRiverSurfaces"
+  ],
+  "WildernessDevelopmentSystem": [
+    "Clear"
   ]
 }

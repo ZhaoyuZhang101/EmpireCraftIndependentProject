@@ -67,6 +67,8 @@ namespace EmpireCraft.Core
                 case 16: Plague(city, data); break;
                 case 17: ReadBooks(city); break;
                 case 18: GrowBackground(city, data, now); break;
+                // The town takes a cell of free land a month (the mod did it when the economy step had marked the month).
+                case 12: EmpireCraft.Core.CityExpansionPatch.GrowVirtualCity(city); break;
                 case >= 4 and <= 14: break;
                 default:
                     if (!PopulationParallelSystem.TryCompleteGrowth(city))

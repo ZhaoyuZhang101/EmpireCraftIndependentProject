@@ -77,9 +77,7 @@ public sealed class WildRegion
     public Cell Center;              // 标名字的位置(区域里最靠中间的一块)
     public int MinX, MinY, MaxX, MaxY;   // 地块坐标外框
     // 这一片的底色(显示用)：按类型定色系，按编号微调，挨着的两片不至于一个颜色；编号不变颜色就不变
-#if EC_PENDING
-    public Color32 Color;
-#endif
+    public EcColor32 Color;
     // 整片均中立的汇总；实际每块的中立状态由 WildernessSystem.IsNeutral 查询。
     public bool Neutral;
     // 周边的城全属于同一个国家时就是它(见 OwnerOf)，否则为 null；随归属一起隔几秒核一次
@@ -140,7 +138,7 @@ public static class WildernessSystem
     //   · 开过的田不算荒地(路、城墙铺在上面的看底下的地面，同 TerrainSystem)；
     //   · 已是无人区的那一类门槛降一成(Hysteresis)：草木蔓生、刷几格地，边上的地块不至于今天划进明天划出
     private const float MaxWater = 0.25f;
-    private const int MinLand = 16;
+    private const int MinLand = 1; // a cell here is one tile (the mod's zone held 64)
     private const float MountainCore = 0.5f, MountainFlank = 0.35f, MountainRugged = 0.75f;
     private const float LavaCore = 0.3f, LavaFlank = 0.15f, LavaRugged = 0.6f;
     // 高原无人区：高寒高原格至少占陆地这么多(其余是雪山、丘陵、冻土)
@@ -431,22 +429,18 @@ public static class WildernessSystem
     }
 
     // 当场整图重判重划(剧本开局按时代改过地形后，见 WorldMapDevelopment)：不等进世界安排做完、不等停手，划过的也重划
-#if EC_PENDING
     public static void BuildNow()
     {
         Apply();
         if (!_enabled || EmpireWorld.Current?.Zones?.All == null || EmpireWorld.Current.Cities == null) return;
         using (FrameProfiler.Measure("无人区·划区")) Build(true, true);
     }
-#endif
 
     // 没有历史雨林改造的剧本也要在加载收尾完成首次划分；已由开发度流程划好时不重复整图重建。
-#if EC_PENDING
     public static void EnsureBuilt()
     {
         if (!_built) BuildNow();
     }
-#endif
 
     // 一块地开发满了(或开满的又改回去，见 WildernessDevelopmentSystem)：停手后重划，开满的留给城
     public static void OnDeveloped(Cell zone)
@@ -791,7 +785,6 @@ public static class WildernessSystem
     #region 每帧
 
     // 每帧(ModClass.Update)：加载完头一帧划区；改过地形的停手后重判；村镇厂区变了一年一划；法理挂接与主人几秒一核
-#if EC_PENDING
     public static void Tick()
     {
         Apply();
@@ -863,7 +856,6 @@ public static class WildernessSystem
             LogService.LogWarning($"[EmpireCraft][无人区] 划区失败: {exception}");
         }
     }
-#endif
 
     private static bool YearPassed()
     {
@@ -902,16 +894,14 @@ public static class WildernessSystem
     // 顶层格、地面格都没动，天暖了就化回去。永冻土(biome_permafrost)、画上去的雪山雪丘不是临时冻的，照旧算冻原。
     // 以前按显示出来的冻土算：冰封纪元一来全图草地冻住，成片划成冻原无人区、从各城的版图里抠出去(群友 2026-11-16
     // "冰封时代会新增无人区，版图变得好丑")。旧档里这样划出去的，读档全图重判时退回去
-#if EC_PENDING
     private static TerrainKind SettledType(Cell tile)
     {
 #if EC_SERVER
         return tile.Type;
 #else
-        return tile.isTemporaryFrozen() ? (TerrainKind)tile.TopType ?? tile.MainType ?? tile.Type : tile.Type;
+        return tile.IsTemporaryFrozen() ? (TerrainKind)tile.TopType ?? tile.MainType ?? tile.Type : tile.Type;
 #endif
     }
-#endif
 
     private static int ComputeMarks(TerrainKind type)
     {
@@ -946,7 +936,6 @@ public static class WildernessSystem
     // 一格的地形(平滑国界下无人区按格贴着地形画，见 WildernessShape)：口径同 Classify 的格子标记——
     // 水面、开过的田什么都不算；岩浆格为熔岩(不算山地、不看地面)；路、城墙看底下的地面；rock 山地山巅，hills 丘陵石地(不是山地的)；
     // 返回地面是哪一类荒地：岩浆为熔岩，冻土雪地为冻原，沙地荒漠为沙漠，丛林为雨林，沼泽为大泽，别的为 None(雪山既是 rock 又是冻原)
-#if EC_PENDING
     public static WildKind GroundKind(Cell tile, out bool rock, out bool hills)
     {
         rock = hills = false;
@@ -968,13 +957,10 @@ public static class WildernessSystem
         if ((ground & MarkJungle) != 0) return WildKind.Jungle;
         return (ground & MarkSwamp) != 0 ? WildKind.Swamp : WildKind.None;
     }
-#endif
 
     // 剧本开局铺辖地(WorldMapZones)用：这块地按地形会不会是无人区、哪一类——两边同一套门槛，开局留空的地进世界后正好划成无人区，
     // 不会留下既不归城、也不是无人区的空地
-#if EC_PENDING
     internal static WildKind ClassifyFresh(Cell zone) => Classify(zone, WildKind.None, scenario: true);
-#endif
 
     // 这块地按地形算哪一类无人区(门槛见类头的常量)；previous 是上回判的，已是那一类的门槛降一成
     private struct Counts
@@ -987,7 +973,6 @@ public static class WildernessSystem
     }
 
     // 一块地各类格子数(水、岩浆、山地山巅、丘陵石地、冻土雪地、荒漠(沙滩不算)、丛林、沼泽)
-#if EC_PENDING
     private static Counts Count(Cell zone)
     {
         int total = 0, water = 0, rock = 0, hills = 0, frozen = 0, sand = 0, jungle = 0, swamp = 0, lava = 0, plateau = 0, harsh = 0;
@@ -1085,14 +1070,12 @@ public static class WildernessSystem
         _kind[zone.Index] = kind;
         return true;
     }
-#endif
 
     #endregion
 
     #region 划区
 
     // reclassifyAll：全图重判(读档、换世界、开关打开)，否则只重判改过格子的地块；force：类型没变也重新连片(村镇厂区变了、地块放行给了城)
-#if EC_PENDING
     private static void Build(bool reclassifyAll, bool force)
     {
         var watch = SimWatch.StartNew();
@@ -1151,12 +1134,10 @@ public static class WildernessSystem
         LogService.LogInfo($"[EmpireCraft][无人区] 划了 {_regions.Count} 片 {_regions.Sum(region => region.Zones.Count)} 块，" +
                            $"用时 {watch.Elapsed.TotalMilliseconds:0} ms");
     }
-#endif
 
     // 预设剧本(区域照史实固定)里改了地形的地块会不会让区域变(同 Regroup 的 retain 与 PresetGroups)：片里的地块够不上原来的类型就退出；
     // 片外的够得上无人区、凑够 MinZones 块才可能新添一片。都不会就不重划——草木蔓生、林火之类时时改格子，以前停手十秒就整图重划一次
     // (世界地图上一次七八十到上百毫秒，偶尔七百多，进图后隔几秒卡一下)
-#if EC_PENDING
     private static bool PresetAffected(HashSet<int> terrainChanges)
     {
         int fresh = 0;
@@ -1172,7 +1153,6 @@ public static class WildernessSystem
         }
         return false;
     }
-#endif
 
     private sealed class OldRegion
     {
@@ -1194,7 +1174,6 @@ public static class WildernessSystem
         (kind == WildKind.Mountain && other == WildKind.Lava || kind == WildKind.Lava && other == WildKind.Mountain);
 
     // 连片、对上旧区域(沿用编号名字)、起名、挂法理。
-#if EC_PENDING
     private static void Regroup(bool fromSave, HashSet<int> terrainChanges = null)
     {
         int size = _zones.Length;
@@ -1481,7 +1460,6 @@ public static class WildernessSystem
         Fill(oldOf, regionOf, oldCarved, oldParents);
         RefreshOwners();
     }
-#endif
 
     // 空地交给城(用户 2026-11-16 管理员舆图上湖广、云贵一大片"无主之地")：重划时退出了无人区的地块(雨林、山地重划后
     // 够不上、成了不到 MinZones 块的碎片、开发满了……)以前就空着，原版扩张会慢慢补回来，可开着「城市边界固定」(独立服务器、
@@ -1490,7 +1468,6 @@ public static class WildernessSystem
     // 本来就空着的地(剧本、玩家刻意留的空地)不碰——以前读档时把挨着城的空地全补一遍，连刻意留空的也并进了城(玩家 2026-11-16 反馈)
     private const int FillPasses = 64;
 
-#if EC_PENDING
     private static int Fill(int[] oldOf, int[] regionOf, City[] carved, City[] origins)
     {
         int size = _zones.Length;
@@ -1546,7 +1523,6 @@ public static class WildernessSystem
         LogService.LogInfo($"[EmpireCraft][无人区] {count} 块空地交给了 {touched.Count} 座挨着的城" + (open.Count > 0 ? $"，{open.Count} 块不挨着城、照旧空着" : ""));
         return count;
     }
-#endif
 
     // 不重新把旧区分成几个几何连通分量：城镇把一片山脉隔开，地名与编号仍是同一片山脉。
     private static List<(List<int> zones, WildKind kind)> PresetGroups(List<(List<int> zones, WildKind kind)> inferred,
@@ -1576,7 +1552,6 @@ public static class WildernessSystem
         return result;
     }
 
-#if EC_PENDING
     private static bool KeepsPresetKind(Cell zone, WildKind kind)
     {
         Counts c = Count(zone);
@@ -1593,10 +1568,8 @@ public static class WildernessSystem
         };
         return share >= c.Land * (EdgeOf(kind) - Hysteresis);
     }
-#endif
 
     // 标名字的块(区域里离边最远的一块，一样远的取离各块平均位置最近的)、外框、底色
-#if EC_PENDING
     private static void Shape(List<WildRegion> regions, int[] regionOf)
     {
         int size = _zones.Length;
@@ -1661,7 +1634,7 @@ public static class WildernessSystem
         }
     }
 
-    private static Color32 ColorOf(WildKind kind, int id)
+    private static EcColor32 ColorOf(WildKind kind, int id)
     {
         (int r, int g, int b) = kind switch
         {
@@ -1680,9 +1653,8 @@ public static class WildernessSystem
         int shade = (int)(hash % 25u) - 12;
         int tint = (int)(hash / 25u % 9u) - 4;
         byte Clamp(int value) => (byte)Mathf.Clamp(value, 0, 255);
-        return new Color32(Clamp(r + shade + tint), Clamp(g + shade), Clamp(b + shade - tint), 255);
+        return new EcColor32(Clamp(r + shade + tint), Clamp(g + shade), Clamp(b + shade - tint), 255);
     }
-#endif
 
     #endregion
 
@@ -1724,7 +1696,6 @@ public static class WildernessSystem
     // 留空恢复自动起名(附近有文明的当场按文化重起，没有的只标类型)。名字太长截到 MaxNameLength 字。有变化返回 true
     public const int MaxNameLength = 24;
 
-#if EC_PENDING
     public static bool Rename(WildRegion region, string name)
     {
         if (region == null) return false;
@@ -1749,10 +1720,8 @@ public static class WildernessSystem
         Version++;
         return true;
     }
-#endif
 
     // 给没起名(或以前没有文化时按通用词库起的)的各片起名：大的先挑；附近没有文明的不起(名字去掉)。有变化返回 true
-#if EC_PENDING
     private static bool NameAll(List<WildRegion> regions, HashSet<string> used)
     {
         List<WildRegion> pending = regions.Where(region => !region.CustomName &&
@@ -1761,7 +1730,7 @@ public static class WildernessSystem
         if (pending.Count == 0) return false;
         bool earth = WorldMapWilderness.OnEarth;
         List<(int x, int y, string culture)> seats = Seats(out string common);
-        float reach = earth ? float.MaxValue : NameReach * Land.ZoneSize;
+        float reach = earth ? float.MaxValue : NameReach * EmpireCraft.Core.Land.ZoneSize;
         bool changed = false;
         foreach (WildRegion region in pending)
         {
@@ -1788,7 +1757,6 @@ public static class WildernessSystem
         }
         return changed;
     }
-#endif
 
     // 离区域中心最近(reach 格以内)的城的主流文化；没有为 fallback
     private static string CultureNear(WildRegion region, List<(int x, int y, string culture)> seats, string fallback, float reach)

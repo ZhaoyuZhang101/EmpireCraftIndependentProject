@@ -29,9 +29,7 @@ public static partial class SmoothBorders
         public bool corps;
         public float savedAt, usedAt;
         // 有底色的格存底色(没提亮的)，其余存屏上的样子
-#if EC_PENDING
-        public Color32[] face;
-#endif
+        public EcColor32[] face;
         public ushort[] owner;
         // 1 有底色、2 边框、4 归别人
         public byte[] flags;
@@ -94,7 +92,7 @@ public static partial class SmoothBorders
     private static void SaveLayerImage(ZoneGrid calc)
     {
         MetaTypeAsset layer = _sweepLayer;
-        Color32[] pixels = calc?.pixels;
+        EcColor32[] pixels = calc?.pixels;
         List<Cell> zones = calc?.All;
         if (!Enabled || layer == null || !Smoothable(layer) || pixels == null || zones == null || pixels.Length != _base.Length ||
             _layerFlip != null && _layerFlip.Computing || CanvasHandles(layer, _sweepOption)) return;
@@ -115,7 +113,7 @@ public static partial class SmoothBorders
         int count = pixels.Length;
         if (image.face == null || image.face.Length != count)
         {
-            image.face = new Color32[count];
+            image.face = new EcColor32[count];
             image.owner = new ushort[count];
             image.flags = new byte[count];
         }
@@ -162,7 +160,7 @@ public static partial class SmoothBorders
     private static bool RestoreLayerImage(ZoneGrid calc, MetaTypeAsset layer, int option)
     {
         LayerImage image = FindImage(layer, option);
-        Color32[] pixels = calc?.pixels;
+        EcColor32[] pixels = calc?.pixels;
         List<Cell> zones = calc?.All;
         if (image == null || pixels == null || zones == null) return false;
         if (!ReferenceEquals(image.world, EmpireWorld.Current) || image.epoch != _ownerEpoch || image.corps != CorpsSystem.Enabled ||

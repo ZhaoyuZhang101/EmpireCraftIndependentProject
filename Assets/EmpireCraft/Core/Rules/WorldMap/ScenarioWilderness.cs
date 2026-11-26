@@ -229,19 +229,17 @@ public static class ScenarioWilderness
     }
 
     // 各类的底色(同 WildernessSystem.ColorOf 的色系)
-#if EC_PENDING
-    public static Color32 KindColor(WildKind kind) => kind switch
+    public static EcColor32 KindColor(WildKind kind) => kind switch
     {
-        WildKind.Mountain => new Color32(128, 112, 96, 255),
-        WildKind.Desert => new Color32(214, 190, 132, 255),
-        WildKind.Tundra => new Color32(200, 214, 224, 255),
-        WildKind.Jungle => new Color32(70, 112, 66, 255),
-        WildKind.Swamp => new Color32(104, 116, 82, 255),
-        WildKind.Lava => new Color32(156, 66, 44, 255),
-        WildKind.Plateau => new Color32(162, 152, 112, 255),
-        _ => new Color32(160, 160, 160, 255)
+        WildKind.Mountain => new EcColor32(128, 112, 96, 255),
+        WildKind.Desert => new EcColor32(214, 190, 132, 255),
+        WildKind.Tundra => new EcColor32(200, 214, 224, 255),
+        WildKind.Jungle => new EcColor32(70, 112, 66, 255),
+        WildKind.Swamp => new EcColor32(104, 116, 82, 255),
+        WildKind.Lava => new EcColor32(156, 66, 44, 255),
+        WildKind.Plateau => new EcColor32(162, 152, 112, 255),
+        _ => new EcColor32(160, 160, 160, 255)
     };
-#endif
 
     #endregion
 

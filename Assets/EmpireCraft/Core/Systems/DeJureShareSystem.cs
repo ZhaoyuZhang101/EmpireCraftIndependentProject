@@ -531,14 +531,12 @@ public static class DeJureShareSystem
     // 一帧里同一座城只算一次(平滑国界每块都要问一遍缓存键)
     private static int _stripeFrame = -1;
     private static object _stripeLayer;
-#if EC_PENDING
-    private static readonly Dictionary<long, Color32[]> StripeCache = new();
-#endif
+    private static readonly Dictionary<long, EcColor32[]> StripeCache = new();
 
     // 当前图层上这座城另画的颜色(本色之外，数量随兼属设置)；王国法理图层(按法理)看王国法理、帝国法理显示看帝国法理、天下图层看天下。
     // 别的图层、没有兼属的为空
 #if EC_PENDING
-    public static Color32[] StripeColors(City city)
+    public static EcColor32[] StripeColors(City city)
     {
         if (EmpireWorld.Current == null || !Involved(city)) return null;
         MetaTypeAsset layer = EmpireWorld.Current.Zones?._mode_asset ?? EmpireWorld.Current.getCachedMapMetaAsset();
@@ -549,38 +547,38 @@ public static class DeJureShareSystem
             _stripeLayer = layer;
             StripeCache.Clear();
         }
-        if (StripeCache.TryGetValue(city.Key, out Color32[] cached)) return cached;
-        Color32[] colors = Compute(city, layer);
+        if (StripeCache.TryGetValue(city.Key, out EcColor32[] cached)) return cached;
+        EcColor32[] colors = Compute(city, layer);
         StripeCache[city.Key] = colors;
         return colors;
     }
 
-    private static Color32[] Compute(City city, MetaTypeAsset layer)
+    private static EcColor32[] Compute(City city, MetaTypeAsset layer)
     {
         int option = layer.getZoneOptionState();
-        var colors = new List<Color32>();
-        void Put(Color32? color, Color32? own)
+        var colors = new List<EcColor32>();
+        void Put(EcColor32? color, EcColor32? own)
         {
-            if (color is not Color32 c || colors.Count >= MaxShares) return;
-            if (own is Color32 o && o.r == c.r && o.g == c.g && o.b == c.b) return;
+            if (color is not EcColor32 c || colors.Count >= MaxShares) return;
+            if (own is EcColor32 o && o.r == c.r && o.g == c.g && o.b == c.b) return;
             if (colors.Any(other => other.r == c.r && other.g == c.g && other.b == c.b)) return;
             colors.Add(c);
         }
         if (layer.map_mode == MetaTypeExtension.KingdomTitle && option == 1)
         {
-            Color32? own = Opaque(city.GetTitle());
+            EcColor32? own = Opaque(city.GetTitle());
             foreach (KingdomTitle title in SharedTitles(city)) Put(Opaque(title), own);
         }
         else if (layer.map_mode == MetaTypeExtension.KingdomTitle && option == 0)
         {
             List<EmpireCore> cores = CoresOf(city);
-            Color32? own = cores.Count > 0 && cores[0] == city.GetEmpireCore() ? Opaque(CoreMeta(cores[0])) : null;
+            EcColor32? own = cores.Count > 0 && cores[0] == city.GetEmpireCore() ? Opaque(CoreMeta(cores[0])) : null;
             for (int i = own == null ? 0 : 1; i < cores.Count; i++) Put(Opaque(CoreMeta(cores[i])), own);
         }
         else if (layer.map_mode == MetaTypeExtension.Tianxia && option == 0)
         {
             List<EmpireCore> leads = LeadsOf(city);
-            Color32? own = leads.Count > 0 ? Hex(leads[0]) : null;
+            EcColor32? own = leads.Count > 0 ? Hex(leads[0]) : null;
             for (int i = 1; i < leads.Count; i++) Put(Hex(leads[i]), own);
         }
         return colors.Count == 0 ? null : colors.ToArray();
@@ -591,28 +589,28 @@ public static class DeJureShareSystem
 #if EC_PENDING
     private static object CoreMeta(EmpireCore core) => DeJureMap.CoreMeta(core);
 
-    private static Color32? Opaque(object meta)
+    private static EcColor32? Opaque(object meta)
     {
         if (meta == null) return null;
         Tint color = CustomColorSystem.Of(meta) ?? (meta as IMetaObject)?.getColor();
         if (color == null) return null;
-        Color32 fill = color.getColorBorderInsideAlpha32();
+        EcColor32 fill = color.getColorBorderInsideAlpha32();
         fill.a = byte.MaxValue;
         return fill;
     }
 
-    private static Color32? Hex(EmpireCore lead) =>
-        lead != null && ColorUtility.TryParseHtmlString(TianxiaMap.HexOf(lead), out Color color) ? (Color32)color : null;
+    private static EcColor32? Hex(EmpireCore lead) =>
+        lead != null && ColorUtility.TryParseHtmlString(TianxiaMap.HexOf(lead), out Color color) ? (EcColor32)color : null;
 #endif
 
     // 平滑国界的上色缓存键(见 SmoothBorders.KeyOf)：斜纹的颜色变了要重画
 #if EC_PENDING
     public static int StripeKey(City city)
     {
-        Color32[] colors = StripeColors(city);
+        EcColor32[] colors = StripeColors(city);
         if (colors == null) return 0;
         int key = colors.Length << 28;
-        foreach (Color32 c in colors) key = key * 31 + (c.r | c.g << 8 | c.b << 16);
+        foreach (EcColor32 c in colors) key = key * 31 + (c.r | c.g << 8 | c.b << 16);
         return key == 0 ? 1 : key;
     }
 #endif

@@ -190,7 +190,7 @@ public static partial class TransmigrantSystem
         Landing = true;
         try
         {
-            city = EmpireWorld.Current.Cities.buildNewCity(founder, zone);
+            city = WorldActions.BuildNewCity(founder, zone);
         }
         finally
         {

@@ -111,8 +111,26 @@ namespace EmpireCraft.Core
         public readonly WorldStats game_stats=new WorldStats();
         public readonly WorldStatsData map_stats=new WorldStatsData();
         // One object per landmass, for code that tells islands apart by reference.
-        readonly Dictionary<int,object> _islands=new Dictionary<int,object>();
-        public object IslandObject(int tile){int mass=LandmassOf(tile);if(mass<0)return null;if(!_islands.TryGetValue(mass,out var island))_islands[mass]=island=new object();return island;}
+        readonly Dictionary<int,IslandInfo> _islands=new Dictionary<int,IslandInfo>();
+        public IslandInfo IslandObject(int tile)
+        {
+            if(tile<0||tile>=TileCity.Length)return null;
+            int mass=LandmassOf(tile);
+            if(mass<0)
+            {
+                var water=Map.Water[tile];
+                // Open sea is one big body; a lake or a river is a small one of its own.
+                if(water==Orbis.Flat.WaterKind.DeepOcean||water==Orbis.Flat.WaterKind.MiddleOcean||water==Orbis.Flat.WaterKind.ShallowOcean)return _sea??(_sea=new IslandInfo(TileCity.Length));
+                return new IslandInfo(1);
+            }
+            if(!_islands.TryGetValue(mass,out var island))
+            {
+                int size=0;for(int t=0;t<TileCity.Length;t++)if(LandmassOf(t)==mass)size++;
+                _islands[mass]=island=new IslandInfo(size);
+            }
+            return island;
+        }
+        IslandInfo _sea;
         // Realms a realm could turn on: every other living realm it is neither at war with nor allied to.
         public ListPool<Realm> NeutralRealms(Realm realm,bool onlyWithoutWars=false,bool onlyCivs=false)
         {

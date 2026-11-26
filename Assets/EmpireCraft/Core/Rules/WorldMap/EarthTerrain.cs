@@ -46,7 +46,7 @@ public sealed class WorldMapFrame
 
 // 地球地表网格(WorldMaps/earth.bytes，由 Tools/WorldMap/build_earth.py 从 ETOPO 高程、Natural Earth 海陆湖泊、
 // 柯本气候分区烘出；2026-10-29 改用 AWS Terrarium 高程按相对起伏重烘山、丘陵、高地，气候沿用旧网格)：每格 0.05°，存原版存档写法的地块编号；生成时按所选范围和大小逐格就近取样
-public static class EarthTerrain
+public static partial class EarthTerrain
 {
     public static readonly WorldMapFrame Eurasia = new()
     {
@@ -139,9 +139,7 @@ public static class EarthTerrain
 
     public static int CodeOf(string type) => _types == null ? -1 : Array.IndexOf(_types, type);
 
-#if EC_PENDING
-    public static Color32 PreviewColorOf(string type) => PreviewColor(type ?? "");
-#endif
+    public static EcColor32 PreviewColorOf(string type) => PreviewColor(type ?? "");
 
     public static void UseGrid(byte[] grid, int cols, int rows, float step)
     {
@@ -178,8 +176,7 @@ public static class EarthTerrain
 
     // 剧本编辑器的地形预览(见 ScenarioEditorScreen)：整张地表网格每 stride 格取一格，一格一像素(第 0 行在最下面)；
     // 另给陆地标记(铺国家颜色只铺陆地)。颜色同 Tools/WorldMap/build_earth.py 的预览图
-#if EC_PENDING
-    public static bool Preview(int stride, out Color32[] pixels, out bool[] land, out int width, out int height,
+    public static bool Preview(int stride, out EcColor32[] pixels, out bool[] land, out int width, out int height,
         out float lon0, out float lat0, out float step)
     {
         pixels = null;
@@ -192,14 +189,14 @@ public static class EarthTerrain
         lon0 = _lon0;
         lat0 = _lat0;
         step = _step * stride;
-        var lut = new Color32[_types.Length];
+        var lut = new EcColor32[_types.Length];
         var dry = new bool[_types.Length];
         for (int i = 0; i < _types.Length; i++)
         {
             lut[i] = PreviewColor(_types[i]);
             dry[i] = !_types[i].Contains("ocean") && !_types[i].Contains("waters");
         }
-        pixels = new Color32[width * height];
+        pixels = new EcColor32[width * height];
         land = new bool[width * height];
         for (int y = 0; y < height; y++)
         for (int x = 0; x < width; x++)
@@ -212,7 +209,6 @@ public static class EarthTerrain
         }
         return true;
     }
-#endif
 
     // 与 Preview 同样取样的地块编号(下标即 Types；剧本编辑器预测无人区按它判格子，见 ScenarioWilderness)
     public static byte[] PreviewCodes(int stride)
@@ -262,36 +258,34 @@ public static class EarthTerrain
         return classes;
     }
 
-#if EC_PENDING
-    private static Color32 PreviewColor(string type)
+    private static EcColor32 PreviewColor(string type)
     {
         switch (type)
         {
-            case "deep_ocean": return new Color32(40, 90, 190, 255);
-            case "close_ocean": return new Color32(55, 120, 220, 255);
-            case "shallow_waters": return new Color32(80, 170, 240, 255);
-            case "sand": return new Color32(240, 220, 150, 255);
-            case "mountains": return new Color32(90, 90, 90, 255);
-            case "mountains:snow_block": return new Color32(245, 245, 250, 255);
-            case "hills": return new Color32(130, 125, 110, 255);
-            case "hills:snow_hills": return new Color32(215, 220, 230, 255);
-            case PlateauTerrain.AlpineId: return new Color32(143, 144, 112, 255);
-            case PlateauTerrain.LoessId: return new Color32(185, 154, 104, 255);
-            case PlateauTerrain.SteppeId: return new Color32(157, 164, 85, 255);
+            case "deep_ocean": return new EcColor32(40, 90, 190, 255);
+            case "close_ocean": return new EcColor32(55, 120, 220, 255);
+            case "shallow_waters": return new EcColor32(80, 170, 240, 255);
+            case "sand": return new EcColor32(240, 220, 150, 255);
+            case "mountains": return new EcColor32(90, 90, 90, 255);
+            case "mountains:snow_block": return new EcColor32(245, 245, 250, 255);
+            case "hills": return new EcColor32(130, 125, 110, 255);
+            case "hills:snow_hills": return new EcColor32(215, 220, 230, 255);
+            case PlateauTerrain.AlpineId: return new EcColor32(143, 144, 112, 255);
+            case PlateauTerrain.LoessId: return new EcColor32(185, 154, 104, 255);
+            case PlateauTerrain.SteppeId: return new EcColor32(157, 164, 85, 255);
         }
         bool high = type.EndsWith("_high");
         string biome = type.Contains(":") ? type.Substring(type.IndexOf(':') + 1) : type;
-        if (biome.Contains("grass")) return high ? new Color32(70, 130, 45, 255) : new Color32(96, 160, 60, 255);
-        if (biome.Contains("savanna")) return high ? new Color32(180, 160, 70, 255) : new Color32(200, 190, 90, 255);
-        if (biome.Contains("jungle")) return high ? new Color32(30, 100, 30, 255) : new Color32(40, 120, 40, 255);
-        if (biome.Contains("desert")) return high ? new Color32(225, 195, 110, 255) : new Color32(245, 225, 150, 255);
-        if (biome.Contains("permafrost")) return high ? new Color32(180, 195, 210, 255) : new Color32(200, 215, 225, 255);
-        if (biome.Contains("birch")) return high ? new Color32(90, 130, 75, 255) : new Color32(110, 150, 90, 255);
-        if (biome.Contains("maple")) return high ? new Color32(110, 140, 60, 255) : new Color32(130, 160, 70, 255);
-        if (biome.Contains("swamp")) return high ? new Color32(80, 100, 50, 255) : new Color32(90, 110, 60, 255);
-        return new Color32(96, 160, 60, 255);
+        if (biome.Contains("grass")) return high ? new EcColor32(70, 130, 45, 255) : new EcColor32(96, 160, 60, 255);
+        if (biome.Contains("savanna")) return high ? new EcColor32(180, 160, 70, 255) : new EcColor32(200, 190, 90, 255);
+        if (biome.Contains("jungle")) return high ? new EcColor32(30, 100, 30, 255) : new EcColor32(40, 120, 40, 255);
+        if (biome.Contains("desert")) return high ? new EcColor32(225, 195, 110, 255) : new EcColor32(245, 225, 150, 255);
+        if (biome.Contains("permafrost")) return high ? new EcColor32(180, 195, 210, 255) : new EcColor32(200, 215, 225, 255);
+        if (biome.Contains("birch")) return high ? new EcColor32(90, 130, 75, 255) : new EcColor32(110, 150, 90, 255);
+        if (biome.Contains("maple")) return high ? new EcColor32(110, 140, 60, 255) : new EcColor32(130, 160, 70, 255);
+        if (biome.Contains("swamp")) return high ? new EcColor32(80, 100, 50, 255) : new EcColor32(90, 110, 60, 255);
+        return new EcColor32(96, 160, 60, 255);
     }
-#endif
 
     // 经纬度处的地块写法(超出网格按深海)
     public static string TypeAt(float lon, float lat)
@@ -395,18 +389,18 @@ public static class EarthTerrain
 
     // 旧版画河只换底层，草地／雪丘仍盖在浅水上。只清理现存河道的错误表层，
     // 不重新挖河：玩家已经填平的河段、渡口与地图外的地形均保持原样。
-#if EC_PENDING
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
     internal static int RepairRiverSurfaces(WorldMapFrame frame, Vector2Int size)
     {
         int changed = 0, width = EmpireWorld.Current.Width, height = EmpireWorld.Current.Height;
         RiverTiles(frame, size, (x, y) =>
         {
             if (x < 1 || y < 1 || x >= width - 1 || y >= height - 1) return;
-            Cell tile = EmpireWorld.Current.CellAt(x, y);
-            if (tile?.MainType?.Id != "shallow_waters" || tile.TopType == null || tile.TopType.Liquid ||
-                tile.TopType.Road || tile.TopType.Wall || tile.TopType.FarmField) return;
-            tile.setTileTypes(tile.MainType, null);
-            tile.Height = tile.Type.HeightMin;
+            Cell tile = EmpireWorld.Current.GetTileSimple(x, y);
+            if (tile?.main_type?.id != "shallow_waters" || tile.top_type == null || tile.top_type.liquid ||
+                tile.top_type.road || tile.top_type.wall || tile.top_type.farm_field) return;
+            tile.setTileTypes(tile.main_type, null);
+            tile.Height = tile.Type.height_min;
             changed++;
         });
         if (changed > 0) LogService.LogInfo($"[EmpireCraft][世界地图] 修复旧河道被地表遮盖 {changed} 格");

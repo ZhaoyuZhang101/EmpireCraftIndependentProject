@@ -2648,7 +2648,7 @@ public static partial class CorpsSystem
     {
         Cell start = from.Center, goal = to.Center;
         if (start == null || goal == null || EmpireWorld.Current == null) return NoLine;
-        int size = Land.ZoneSize;
+        int size = EmpireCraft.Core.Land.ZoneSize;
         int x0 = Math.Min(from.X, to.X) * size, y0 = Math.Min(from.Y, to.Y) * size;
         int w = (Math.Abs(from.X - to.X) + 1) * size, h = (Math.Abs(from.Y - to.Y) + 1) * size;
         if (w > size * 2 || h > size * 2) return NoLine;

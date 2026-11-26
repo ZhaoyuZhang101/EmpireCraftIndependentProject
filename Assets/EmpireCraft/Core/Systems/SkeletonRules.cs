@@ -28,6 +28,9 @@ namespace EmpireCraft.Core
         // True while another book keeps the population (the ported population system, see PopulationBridge): the
         // skeleton's own growth then gives way; its other rules still change head counts, which the bridge carries over.
         public static bool PopulationElsewhere;
+        // True while the ported city expansion takes free land (CityExpansionPatch, a cell a month): the skeleton's own
+        // hinterland growth then gives way.
+        public static bool TerritoryElsewhere;
 
         static void Population(EmpireWorld w)
         {
@@ -43,7 +46,7 @@ namespace EmpireCraft.Core
 
         static void Year(EmpireWorld w)
         {
-            Hinterland(w);
+            if(!TerritoryElsewhere)Hinterland(w);
             NewCities(w);
             Ageing(w);
             Families(w);

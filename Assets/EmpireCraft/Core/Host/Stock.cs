@@ -352,11 +352,56 @@ namespace EmpireCraft.Core
         public readonly List<TerrainKind> list = new List<TerrainKind>();
     }
 
-    // The landmass a cell lies on, as one object per landmass (compared by reference).
+    // The landmass (or body of water) a cell lies on, as one object per landmass (compared by reference).
     public sealed class CellRegion
     {
-        public readonly object island;
-        public CellRegion(object island) { this.island = island; }
+        public readonly IslandInfo island;
+        public CellRegion(IslandInfo island) { this.island = island; }
+    }
+    public sealed class IslandInfo
+    {
+        readonly int _size;
+        public IslandInfo(int size) { _size = size; }
+        public int getTileCount() => _size;
+    }
+
+    // A colour as four bytes (the mod's wilderness tints).
+    public readonly struct EcColor32
+    {
+        public readonly byte r, g, b, a;
+        public EcColor32(byte r, byte g, byte b, byte a) { this.r = r; this.g = g; this.b = b; this.a = a; }
+    }
+
+    // The map's wilderness overlay and the town fabric drawn by hand are the client's; nothing is drawn or hand-laid here.
+    public static class WildernessOverlay
+    {
+        public static void MarkAround(Cell zone) { }
+        public static void MarkZone(Cell zone) { }
+    }
+    public static class UrbanFabric
+    {
+        public static bool ManualGround(Cell tile) => false;
+    }
+
+    // Which free cell a city takes next as it grows: the most fertile one next to its land, within seven cells of its
+    // seat (a little less for each cell farther off). This game's rule, the same the skeleton's growth used; the mod
+    // then checks it its own way (CityExpansionPatch.GrowVirtualCity).
+    public sealed class CityZoneGrowth
+    {
+        public static readonly CityZoneGrowth Instance = new CityZoneGrowth();
+        public Cell getZoneToClaim(Person claimer, City city)
+        {
+            var w = city?.World; if (w == null || !city.Alive) return null;
+            int best = -1; float bestScore = -1f;
+            foreach (int t in city.Tiles)
+                for (int d = 0; d < 4; d++)
+                {
+                    int n = w.Map.Neighbor(t, d); if (n < 0 || w.TileCity[n] >= 0 || !w.Claimable(n)) continue;
+                    float distance = w.Distance(city.Tile, n); if (distance > 7) continue;
+                    float s = w.Map.Fertility[n] - distance * .04f; if (s > bestScore || (s == bestScore && n < best)) { bestScore = s; best = n; }
+                }
+            return best < 0 ? null : w.CellAt(best);
+        }
     }
     public sealed class ModDeclare { public string FolderPath => GameData.Folder; }
 

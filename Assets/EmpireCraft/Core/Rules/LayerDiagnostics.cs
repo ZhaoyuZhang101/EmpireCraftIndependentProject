@@ -91,7 +91,7 @@ public static class LayerDiagnostics
             StaleExamples.Clear();
         }
         ZoneGrid calc = world.Zones;
-        Color32[] pixels = calc.pixels;
+        EcColor32[] pixels = calc.pixels;
         MetaTypeAsset layer = world.getCachedMapMetaAsset();
         List<Cell> zones = calc.All;
         if (pixels == null || layer == null)
@@ -146,10 +146,12 @@ public static class LayerDiagnostics
             return null;
         }
     }
+#endif
 
-    private static string Hex(Color32 color) => $"#{color.r:X2}{color.g:X2}{color.b:X2}/{color.a}";
+    private static string Hex(EcColor32 color) => $"#{color.r:X2}{color.g:X2}{color.b:X2}/{color.a}";
 
-    private static void Check(Cell zone, Color32[] pixels, MetaTypeAsset layer, ZoneGrid calc)
+#if EC_PENDING
+    private static void Check(Cell zone, EcColor32[] pixels, MetaTypeAsset layer, ZoneGrid calc)
     {
         if (zone?.Tiles == null) return;
         CheckStale(zone, pixels, layer);
@@ -190,7 +192,7 @@ public static class LayerDiagnostics
         _repaired++;
     }
 
-    private static void CheckStale(Cell zone, Color32[] pixels, MetaTypeAsset layer)
+    private static void CheckStale(Cell zone, EcColor32[] pixels, MetaTypeAsset layer)
     {
         if (!SmoothBorders.StaleOwner(layer, zone, pixels, out string detail))
         {
@@ -204,7 +206,7 @@ public static class LayerDiagnostics
         if (_stale++ < Examples) StaleExamples.Add($"块{zone.Index}({zone.X},{zone.Y}) 城{zone.City?.Name ?? "无"} {detail}{note}");
     }
 
-    private static string Example(Cell zone, Cell tile, Color32[] pixels, IMetaObject meta)
+    private static string Example(Cell zone, Cell tile, EcColor32[] pixels, IMetaObject meta)
     {
         int id = tile.Index;
         string owner = meta is Realm kingdom ? kingdom.Name : meta is City city ? city.Name : meta?.GetType().Name ?? "无";

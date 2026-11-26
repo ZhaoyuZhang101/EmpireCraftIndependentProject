@@ -128,6 +128,15 @@ namespace EmpireCraft.Core
         public bool IsNeutral()=>false;
         // Neighbours are worked out afresh whenever the map's territory changes.
         public void RecalculateNeighbourCities(){}
+        // A living city of a realm may grow.
+        public bool CanGrowZones()=>Alive&&Realm!=null&&Realm.Alive;
+        // The cell is still worth taking: free land, settleable, next to this city's land.
+        public bool IsZoneToClaimStillGood(Person claimer,Cell zone,Cell origin)
+        {
+            if(zone==null||World==null||!zone.CanBeClaimedByCity(this)||!World.Settleable(zone.Index))return false;
+            foreach(var next in zone.Neighbours)if(next.City==this)return true;
+            return false;
+        }
         public void SetName(string name){if(!string.IsNullOrWhiteSpace(name))Name=name;}
         // A city keeps no army object (troops are numbers; corps belong to the realm) and no books.
         public Army Army=>null;

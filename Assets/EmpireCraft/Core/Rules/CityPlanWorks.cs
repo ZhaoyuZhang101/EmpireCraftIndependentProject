@@ -527,7 +527,7 @@ public static class CityPlanWorks
     {
         PureMapPatch.PlanFacts facts = PureMapPatch.FactsOf(city);
         HashSet<int> built = PureMapPatch.BuiltZones(city);
-        int size = Land.ZoneSize;
+        int size = EmpireCraft.Core.Land.ZoneSize;
         int minX = int.MaxValue, minY = int.MaxValue, maxX = int.MinValue, maxY = int.MinValue;
         foreach (Cell zone in city.Zones)
         {
@@ -752,7 +752,7 @@ public static class CityPlanWorks
     //   · 城墙：图层城墙照长城的墙身颜色；城池全图筑的那一圈平面图已经画了、关城压着的让给关城(同 MapWallOverlay)，不画。
     // 只画落在范围里的格
 #if EC_PENDING
-    public static void DrawOverPreview(Color32[] pixels, int x0, int y0, int w, int h, int scale)
+    public static void DrawOverPreview(EcColor32[] pixels, int x0, int y0, int w, int h, int scale)
     {
         Cell[] tiles = EmpireWorld.Current?.AllCells;
         if (pixels == null || tiles == null || w <= 0 || h <= 0 || scale <= 0 || pixels.Length < w * h * scale * scale) return;
@@ -796,8 +796,7 @@ public static class CityPlanWorks
 #endif
 
     // 一格(scale×scale 像素)按颜色的不透明度盖上去
-#if EC_PENDING
-    private static void Blend(Color32[] pixels, int pw, int tx, int ty, int scale, Color32 color)
+    private static void Blend(EcColor32[] pixels, int pw, int tx, int ty, int scale, EcColor32 color)
     {
         float t = color.a / 255f;
         for (int sy = 0; sy < scale; sy++)
@@ -807,13 +806,12 @@ public static class CityPlanWorks
             {
                 int i = row + sx;
                 if (i < 0 || i >= pixels.Length) continue;
-                Color32 under = pixels[i];
-                pixels[i] = new Color32((byte)(under.r + (color.r - under.r) * t), (byte)(under.g + (color.g - under.g) * t),
+                EcColor32 under = pixels[i];
+                pixels[i] = new EcColor32((byte)(under.r + (color.r - under.r) * t), (byte)(under.g + (color.g - under.g) * t),
                     (byte)(under.b + (color.b - under.b) * t), 255);
             }
         }
     }
-#endif
 
     #endregion
 }

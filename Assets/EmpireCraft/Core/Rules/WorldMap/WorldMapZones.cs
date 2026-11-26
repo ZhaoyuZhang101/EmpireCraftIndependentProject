@@ -50,7 +50,6 @@ internal static class WorldMapZones
     public const float SeaCost = 6f;
     private const float Mountain = 6f, RiverCost = TerrainResistance.RiverCrossing, NoiseCell = 4f, NoiseAmplitude = 0.25f;
 
-#if EC_PENDING
     public static void Build()
     {
         // 路口按这张图重判(上一张图、立城平谷以前算的不作数，见 Open)
@@ -92,7 +91,6 @@ internal static class WorldMapZones
         }
         BuildNoise(count);
     }
-#endif
 
     // 平滑起伏(值噪声：每 NoiseCell 块一个格点，格点间双线性插值)
     private static void BuildNoise(int count)
@@ -325,7 +323,6 @@ internal static class WorldMapZones
         return step * (b < _noise.Length ? _noise[b] : 1f);
     }
 
-#if EC_PENDING
     private static void Classify(Cell zone, out float travel, out bool claimable, out int land, out int water, out int barrenKind)
     {
         travel = SeaCost;
@@ -390,7 +387,6 @@ internal static class WorldMapZones
         if (barren && !mountainous)
             barrenKind = wild == WildKind.Desert ? BarrenLandSystem.Desert : BarrenLandSystem.Frozen;
     }
-#endif
 
     public static int IndexOf(Vector2Int tile)
     {
@@ -488,7 +484,6 @@ internal static class WorldMapZones
 
     // 随机补城至少要有一片连通的可定居腹地；冻原、山脊、河湖围住的一两块小空隙不另立国。
     // 史实城市和编辑器指定的部落不走这个筛选，仍可保留狭小河谷／岛屿上的真实聚落。
-#if EC_PENDING
     internal static HashSet<int> FillerSites(int minimumZones)
     {
         var eligible = new bool[_zones.Length];
@@ -519,7 +514,6 @@ internal static class WorldMapZones
         }
         return sites;
     }
-#endif
 
     // 补空：离已有辖地(按地形代价，含跨海)最远的无主宜居区块，一块块挑出来立新城，直到处处离辖地都不到 minCost；
     // 挑一块就从它往外重算一遍远近。usable 判断这块能不能立城(开头判一次)

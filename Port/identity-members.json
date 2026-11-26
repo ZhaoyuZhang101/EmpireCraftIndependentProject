@@ -553,5 +553,9 @@
   "Person.getMaxNutrition": "GetMaxNutrition",
   "Book.increaseReadTimes": "IncreaseReadTimes",
   "City.setName": "SetName",
-  "CultureStore.setDirtyCities": "SetDirtyCities"
+  "CultureStore.setDirtyCities": "SetDirtyCities",
+  "Cell.canBeClaimedByCity": "CanBeClaimedByCity",
+  "Cell.isTemporaryFrozen": "IsTemporaryFrozen",
+  "City.canGrowZones": "CanGrowZones",
+  "City.isZoneToClaimStillGood": "IsZoneToClaimStillGood"
 }

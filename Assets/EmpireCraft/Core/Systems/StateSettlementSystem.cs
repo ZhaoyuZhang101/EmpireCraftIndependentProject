@@ -258,7 +258,7 @@ public static partial class StateSettlementSystem
         var growth = CityPopulationSystem.GetGrowthFactors(city, population);
         bool pressure = growth.Capacity <= 0f || growth.Total >= growth.Capacity * 0.9f ||
             population.last_workforce > 0f && population.last_jobs < population.last_workforce * 0.8f;
-        if (pressure && (!city.canGrowZones() || !HasClaimableLand(city))) return true;
+        if (pressure && (!city.CanGrowZones() || !HasClaimableLand(city))) return true;
         // 区域上限关闭时仍允许富裕国家低频移民，至少间隔十年；有上限时先通过全城门槛。
         double since = state.last_completed >= 0d ? state.last_completed : city.FoundedStamp;
         return pressure && payer.GetMoney() >= Math.Max(2000L, (long)ModClass.SETTLEMENT_BASE_GOLD * 5L) &&
@@ -289,7 +289,7 @@ public static partial class StateSettlementSystem
         foreach (Cell border in city.BorderZones)
             foreach (Cell zone in border.Neighbours)
                 if (zone?.City == null && zone?.Center != null && zone.GroundCount > 0 &&
-                    zone.canBeClaimedByCity(city) && zone.checkCanSettleInThisBiomes(actor.Subspecies) &&
+                    zone.CanBeClaimedByCity(city) && zone.checkCanSettleInThisBiomes(actor.Subspecies) &&
                     zone.Center.IsSameIsland(city.SeatCell()) && zone.Center.reachableFrom(city.SeatCell())) return true;
         return false;
     }
@@ -670,7 +670,7 @@ public static partial class StateSettlementSystem
                 CreatingCity = true;
                 try
                 {
-                    city = EmpireWorld.Current.Cities.buildNewCity(actor, target);
+                    city = WorldActions.BuildNewCity(actor, target);
                     project.native_initialized = city != null;
                     if (city != null) FiscalDiagnostics.Count(project.overseas ? "跨海建城" : "官办建城");
                 }

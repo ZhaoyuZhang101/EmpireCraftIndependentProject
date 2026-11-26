@@ -210,7 +210,6 @@ public static class RuralSettlementSystem
         !FrontSystem.Battles.ContainsKey(city.Key);
 
     // 这座城这会儿能不能在城外新建村镇
-#if EC_PENDING
     public static bool MayFound(City city)
     {
         if (!MayGrow(city) || city.Realm == null || ModClass.IS_CLEAR ||
@@ -219,15 +218,12 @@ public static class RuralSettlementSystem
             return false;
         return !LastFounded.TryGetValue(city.Key, out double last) || GameClock.YearsSince(last) >= FoundYears;
     }
-#endif
 
     // 这块无主之地本城领不领得到(原版的规矩)
-#if EC_PENDING
     public static bool CanClaim(City city, Cell zone) =>
-        zone != null && zone.City == null && zone.GroundCount > 0 && zone.canBeClaimedByCity(city) &&
+        zone != null && zone.City == null && zone.GroundCount > 0 && zone.CanBeClaimedByCity(city) &&
         CityExpansionPatch.Reachable(zone, city) && !CityExpansionPatch.AtLimit(city) &&
         !CityExpansionPatch.AcrossRiver(city, zone);
-#endif
 
     // 在城外新建了一处镇村：记下，等着划地
     public static void Found(City city, RuralSettlement settlement, int gateX, int gateY, float far)
@@ -238,7 +234,6 @@ public static class RuralSettlementSystem
     }
 
     // 划地：镇村那块地，和四周离城心 far 格以内的无主之地
-#if EC_PENDING
     public static void ClaimPending()
     {
         if (Pending.Count == 0 || EmpireWorld.Current?.Cities == null) return;
@@ -251,11 +246,9 @@ public static class RuralSettlementSystem
             ClaimAround(city, settlement, gateX, gateY, far);
         }
     }
-#endif
 
     // 镇村那块地，和四周离城心 far 格以内的无主之地划进本城。四周八块不全划(整整 3×3 块，铺满了城界是一个个长方形，
     // 见 CityExpansionPatch.Jitter)：正挨着的四块多半划、斜角的四块多半留着，留着的以后照常一块块领
-#if EC_PENDING
     private static void ClaimAround(City city, RuralSettlement settlement, int gateX, int gateY, float far)
     {
         Cell seat = EmpireWorld.Current.CellAt(settlement.x, settlement.y)?.Zone;
@@ -272,7 +265,6 @@ public static class RuralSettlementSystem
         }
         Revision++;
     }
-#endif
 
     #endregion
 
@@ -808,7 +800,7 @@ public static class RuralSettlementSystem
     public static RuralSettlement LeaveOldSeat(City city, Cell zone, bool walled)
     {
         if (city?.Record == null || city.IsGone() || zone?.Tiles == null || zone.City != city) return null;
-        int gx = zone.X * Land.ZoneSize + 4, gy = zone.Y * Land.ZoneSize + 4;
+        int gx = zone.X * EmpireCraft.Core.Land.ZoneSize + 4, gy = zone.Y * EmpireCraft.Core.Land.ZoneSize + 4;
         bool yurtCity = YurtCity(city);
         int tier = walled && !yurtCity ? 2 : 1;
         RuralSettlement kept = InZone(zone).Where(settlement => !settlement.fort)
@@ -894,7 +886,6 @@ public static class RuralSettlementSystem
     }
 
     // 每月：在原址重建(见 PureMapPatch.RefreshUrbanSlice)；新建村镇的划地每次都办
-#if EC_PENDING
     public static void Tick()
     {
         ClaimPending();
@@ -915,7 +906,6 @@ public static class RuralSettlementSystem
             Revision++;
         }
     }
-#endif
 
     #endregion
 }

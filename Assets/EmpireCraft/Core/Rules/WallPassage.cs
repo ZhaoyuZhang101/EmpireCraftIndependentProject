@@ -26,7 +26,7 @@ public static class WallPassage
 {
     // 0 没算过、1 不隔墙、2 隔墙无关门、3 隔墙有关门
     private const byte Unknown = 0, Open = 1, Walled = 2, Gated = 3;
-    // 地块边长(格，Land.ZoneSize)：一块地 64 格正好一个 ulong
+    // 地块边长(格，EmpireCraft.Core.Land.ZoneSize)：一块地 64 格正好一个 ulong
     private const int Side = 8;
     private const float LogSeconds = 3f;
 

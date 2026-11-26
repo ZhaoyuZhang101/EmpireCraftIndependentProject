@@ -838,8 +838,8 @@ public static class RoadNetwork
     public static Vector2 Jittered(Cell zone)
     {
         uint hash = (uint)(zone.Index * 2654435761L);
-        return new Vector2(zone.X * Land.ZoneSize + 4 + (int)(hash % 5) - 2,
-            zone.Y * Land.ZoneSize + 4 + (int)((hash >> 8) % 5) - 2);
+        return new Vector2(zone.X * EmpireCraft.Core.Land.ZoneSize + 4 + (int)(hash % 5) - 2,
+            zone.Y * EmpireCraft.Core.Land.ZoneSize + 4 + (int)((hash >> 8) % 5) - 2);
     }
 
     private static List<Vector2> Chaikin(List<Vector2> points)

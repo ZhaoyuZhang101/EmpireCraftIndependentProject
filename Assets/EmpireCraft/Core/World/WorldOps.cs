@@ -325,6 +325,22 @@ namespace EmpireCraft.Core
                 return realm;
             }
         }
+        // A founder builds a city on a free cell: in the founder's realm, or as a realm of its own for a founder who has none.
+        // Named after the place (the ported naming systems rename it as they see fit).
+        public static City BuildNewCity(Person founder,Cell zone)
+        {
+            var w=World;if(w==null||founder==null||!founder.Alive||zone==null||w.TileCity[zone.Index]>=0||!w.Settleable(zone.Index))return null;
+            var realm=founder.Realm;
+            if(realm!=null&&realm.Alive){var city=WorldOps.FoundCity(w,zone.Index,realm,Names.Place(w,zone.Index+w.Month));if(founder.Throne==null)founder.City=city;return city;}
+            if(founder.Throne!=null)return null;
+            unchecked
+            {
+                uint h=(uint)zone.Index*2654435761u^(uint)w.Realms.Count*40503u;
+                uint color=(((h&0x7F)+0x60)<<16)|((((h>>8)&0x7F)+0x60)<<8)|(((h>>16)&0x7F)+0x60);
+                string name=Names.Place(w,zone.Index+w.Month);
+                return WorldOps.FoundRealmAt(w,name,color,zone.Index,name,founder).Capital;
+            }
+        }
         public static void JoinCity(this Person person,City city){if(person!=null&&person.Alive&&(city==null||city.Alive))person.City=city;}
         // A city changes hands. Whoever handles the change (the ported city rules: exiles, an empire's list of cities, the
         // culture of an occupier) is told first and does the move itself with SetKingdom, or turns it down; a city it is

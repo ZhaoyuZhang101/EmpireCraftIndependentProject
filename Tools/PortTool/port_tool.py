@@ -138,6 +138,15 @@ IDENTITY = [
     # Corps march one step a beat, and the mod beat once a world second, five to a month; this world's clock counts months.
     (r"\bSecondBeats\.Due\(ref _lastSecond, now\)", "SecondBeats.Due(ref _lastSecond, now * 5d)"),
     (r"\bglobal::Time\.", "FrameClock."),
+    (r"\bglobal::Mathf\.", "EcMath."),
+    # Wilderness: a zone needs a quarter of its tiles as land (16 of the mod's 64); a cell here is one tile.
+    (r"\b(private const int MinLand = )16;", r"\g<1>1; // a cell here is one tile (the mod's zone held 64)"),
+    # A zone's edge counted open passes in small tiles (2 of the 8 along a zone's side); a cell here is one tile wide.
+    (r"\bopen = OpenPairs\(a, dx, dy\) >= MinPass;", "open = OpenPairs(a, dx, dy) >= Math.Min(MinPass, EmpireCraft.Core.Land.ZoneSize);"),
+    (r"\bEmpireWorld\.Current\.(?:cities|Cities)\.buildNewCity\(", "WorldActions.BuildNewCity("),
+    (r"(?<![.\w])Color32\b", "EcColor32"),
+    # The base game's helper that picked the next cell a city takes (Core/Host/Stock.cs CityZoneGrowth).
+    (r"\bEmpireWorld\.Current\?\.city_zone_helper\?\.city_growth\b", "CityZoneGrowth.Instance"),
     # The ported systems' own time limits read the simulation's clock (Core/Host/Host.cs SimWatch).
     (r"(?<![.\w:])(?:global::)?(?:System\.Diagnostics\.)?Stopwatch\b", "SimWatch"),
     # The world's people as a plain list (the base game kept a faster copy for iteration).
@@ -194,7 +203,7 @@ IDENTITY = [
     (r"(?<![.\w])AttackType\b", "DeathCause"),
     (r"(?<![.\w])Randy\.randomChance\b", "EcRandom.Chance"),
     (r"(?<![.\w])Randy\.random(Int|Float)\b", "EcRandom.Range"),
-    (r"(?<![.\w])Config\.CITY_ZONE_SIZE\b", "Land.ZoneSize"),
+    (r"(?<![.\w])Config\.CITY_ZONE_SIZE\b", "EmpireCraft.Core.Land.ZoneSize"),
     (r"\bToolbox\.SquaredDistTile\b", "Land.SquaredDist"),
     (r"\bToolbox\.DistTile\b", "Land.Dist"),
     # Files that named the engine's random stream themselves get the host's through the alias above.

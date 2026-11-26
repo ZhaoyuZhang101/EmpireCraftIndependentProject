@@ -1,6 +1,5 @@
 // Generated from the EmpireCraft mod: Scripts/GamePatches/CityExpansionPatch.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
-using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
 using System.Collections.Generic;
 using System.Linq;
@@ -18,7 +17,7 @@ namespace EmpireCraft.Core
 // 无人区(见 WildernessSystem)与城互斥：把地给城的路子碰到无人区一律挡在 CanAddZone(原版 addZone 都经它)，新城不选在无人区里
 // (见 AfterCanStartCityHere)；神力手动营建、建城放行的那块地归城后当即退出无人区(见 AfterAddZone)。
 // 预划县址(见 WildernessPlotSystem)同样挡在这两处：县址里的地只给这一县的县城(没设县的谁也不领)，已设县的县址里不另立新城
-public class CityExpansionPatch : GamePatch
+public partial class CityExpansionPatch : GamePatch
 {
     public ModDeclare declare { get; set; }
 
@@ -26,9 +25,9 @@ public class CityExpansionPatch : GamePatch
     public void Initialize()
     {
         var harmony = new Harmony(nameof(CityExpansionPatch));
-        harmony.Patch(AccessTools.Method(typeof(City), nameof(City.canGrowZones)),
+        harmony.Patch(AccessTools.Method(typeof(City), nameof(City.CanGrowZones)),
             postfix: new HarmonyMethod(typeof(CityExpansionPatch), nameof(AfterCanGrowZones)));
-        harmony.Patch(AccessTools.Method(typeof(City), nameof(City.isZoneToClaimStillGood)),
+        harmony.Patch(AccessTools.Method(typeof(City), nameof(City.IsZoneToClaimStillGood)),
             postfix: new HarmonyMethod(typeof(CityExpansionPatch), nameof(AfterIsZoneToClaimStillGood)));
         harmony.Patch(AccessTools.Method(typeof(CityZoneGrowth), nameof(CityZoneGrowth.getZoneToClaim)),
             prefix: new HarmonyMethod(typeof(CityExpansionPatch), nameof(BeforeGetZoneToClaim)),
@@ -55,6 +54,7 @@ public class CityExpansionPatch : GamePatch
             harmony.Patch(founding, prefix: new HarmonyMethod(typeof(CityTerritoryProtection), nameof(CityTerritoryProtection.BeginFounding)),
                 finalizer: new HarmonyMethod(typeof(CityTerritoryProtection), nameof(CityTerritoryProtection.EndFounding)));
     }
+#endif
 
     public static bool AtLimit(City city)
     {
@@ -62,7 +62,6 @@ public class CityExpansionPatch : GamePatch
         int limit = ZoneLimit;
         return limit > 0 && city.Zones.Count >= limit;
     }
-#endif
 
     // 每城地块上限：直接读模组设置里的当前值(至多一秒读一次)，不只靠回调写进 ModClass.CITY_MAX_ZONES(用户 2026-11-05 转群友
     // "城市面积限制的设置失效")。加载器按"类名:方法名"找回调，类名只写了 ConfigActions、靠按名字搜所有程序集，装了别的有同名类的
@@ -70,7 +69,7 @@ public class CityExpansionPatch : GamePatch
     private static int _limit = -1;
     private static float _limitAt = -100f;
 
-#if EC_PENDING
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
     public static int ZoneLimit
     {
         get
@@ -127,7 +126,6 @@ public class CityExpansionPatch : GamePatch
     // 读档同样调用 addZone，但这里是在恢复原辖区，不能按新上限截断存档里的城市。
     // 无人区(用户 2026-10-29 "无人区层基本和城市层级同级")：扩张、村镇划地、改隶、迁城、边界画笔都领不进去；
     // 只放行神力手动立村设镇筑关、放厂区、建城与新城落脚的头一块地(见 WildernessSystem.CanTake)
-#if EC_PENDING
     public static bool CanAddZone(City city, Cell zone)
     {
         if (city == null || zone == null) return false;
@@ -143,7 +141,6 @@ public class CityExpansionPatch : GamePatch
         if (!ManualClaim && !WildernessSystem.CanTake(city) && !WildernessPlotSystem.MayTake(city, zone)) return false;
         return ManualClaim || !AtLimit(city);
     }
-#endif
 
     // 地块归了城：当即退出无人区(两者互斥；停手后重划，区域在那里断开)
     public static void AfterAddZone(City __instance, Cell pZone)
@@ -159,10 +156,8 @@ public class CityExpansionPatch : GamePatch
     }
 
     // 自动领地只领无主地；与手动村镇改隶、建城、读档的 addZone 分开。
-#if EC_PENDING
     public static bool CanClaimZone(City city, Cell zone) =>
         city != null && zone != null && zone.City == null && CanAddZone(city, zone);
-#endif
 
     // 原版按剩余建筑找连通地块，战损后会把原辖区当作弃地删除；城市格局不能因此变化。
     // 地块固定(原版"领土扩张"法则关着，世界地图剧本开局就关，见 WorldMapScenario.SetupLaws)时不弃地：扔掉的地再也领不回来，
@@ -184,19 +179,17 @@ public class CityExpansionPatch : GamePatch
     //   · 挑下一块地的打分加一点随机(见 ExpansionScore)，地形阻力仍是大头，山、河、荒漠照旧后领；
     //   · 村镇划地四周八块不再全划，斜角的多半留着(见 RuralSettlementSystem.ClaimAround)，以后照常一块块领。
     // 幅度是我定的，用户没逐条确认
-#if EC_PENDING
     internal static float Jitter(City city, Cell zone, int salt)
     {
         long seed = (city?.Key ?? 0L) * 31L + salt;
         float fx = zone.X / 3f, fy = zone.Y / 3f;
-        int x0 = global::Mathf.FloorToInt(fx), y0 = global::Mathf.FloorToInt(fy);
+        int x0 = EcMath.FloorToInt(fx), y0 = EcMath.FloorToInt(fy);
         float tx = fx - x0, ty = fy - y0;
-        float low = global::Mathf.Lerp(
-            global::Mathf.Lerp(Hash01(seed, x0, y0), Hash01(seed, x0 + 1, y0), tx),
-            global::Mathf.Lerp(Hash01(seed, x0, y0 + 1), Hash01(seed, x0 + 1, y0 + 1), tx), ty);
+        float low = EcMath.Lerp(
+            EcMath.Lerp(Hash01(seed, x0, y0), Hash01(seed, x0 + 1, y0), tx),
+            EcMath.Lerp(Hash01(seed, x0, y0 + 1), Hash01(seed, x0 + 1, y0 + 1), tx), ty);
         return 0.5f * low + 0.5f * Hash01(seed + 7L, zone.X, zone.Y);
     }
-#endif
 
     private static float Hash01(long seed, int x, int y)
     {
@@ -210,7 +203,6 @@ public class CityExpansionPatch : GamePatch
         }
     }
 
-#if EC_PENDING
     public static bool Settled(City city, Cell zone)
     {
         if (!PureMapMode.Enabled || zone == null || zone.City != null || city?.Zones == null) return true;
@@ -223,7 +215,7 @@ public class CityExpansionPatch : GamePatch
         Cell seat = city.SeatCell();
         if (seat != null && zone.Center != null)
         {
-            int tier = global::Mathf.Clamp(city.GetOrCreate().urban_tier, 0, 4);
+            int tier = EcMath.Clamp(city.GetOrCreate().urban_tier, 0, 4);
             float far = (24f + 8f * tier) * (0.85f + 0.3f * Jitter(city, zone, 2));
             float dx = zone.Center.X - seat.X, dy = zone.Center.Y - seat.Y;
             if (dx * dx + dy * dy > far * far) return false;
@@ -241,7 +233,6 @@ public class CityExpansionPatch : GamePatch
             if (Near(EmpireWorld.Current.CellAt(settlement.x, settlement.y)?.Zone)) return true;
         return false;
     }
-#endif
 
     // 夹在城与城之间的空地(用户 2026-10-19 选"夹在中间的补领"；以前城只领城心附近的地，城与城离得远，
     // 中间成片的空地永远没人领，纯净地图上一块块露着地形，像图层坏了)：往东西南北各走 SandwichReach 块地以内，
@@ -269,7 +260,6 @@ public class CityExpansionPatch : GamePatch
     }
 
     // 挨着这块空地的城里(还能扩张的)，城心离它最近的那座来领
-#if EC_PENDING
     private static bool NearestNeighbourCity(City city, Cell zone)
     {
         Cell center = zone.Center, seat = city.SeatCell();
@@ -281,13 +271,12 @@ public class CityExpansionPatch : GamePatch
             City other = neighbour?.City;
             // 领不了这块地的城(满了、没人、地貌不能定居、隔水翻山走不到)不挡别人
             if (other == null || other == city || other.Record == null || other.IsGone() || AtLimit(other) ||
-                !other.canGrowZones() || !zone.canBeClaimedByCity(other) || !Reachable(zone, other)) continue;
+                !other.CanGrowZones() || !zone.CanBeClaimedByCity(other) || !Reachable(zone, other)) continue;
             Cell otherSeat = other.SeatCell();
             if (otherSeat != null && Distance(otherSeat) < mine) return false;
         }
         return true;
     }
-#endif
 
     private static bool Enclosed(City city, Cell zone)
     {
@@ -300,7 +289,6 @@ public class CityExpansionPatch : GamePatch
         return own >= 3;
     }
 
-#if EC_PENDING
     public static void AfterCanGrowZones(City __instance, ref bool __result)
     {
         if (__result && !AncientWarfareCompatibility.OwnsObject(__instance) && (AtLimit(__instance) || CityTerritoryProtection.BordersLocked))
@@ -315,7 +303,6 @@ public class CityExpansionPatch : GamePatch
         if (__result && !AncientWarfareCompatibility.OwnsObject(__instance) &&
             (!Settled(__instance, pZone) || !Bordering(__instance, pZone) || !Reachable(pZone, __instance))) __result = false;
     }
-#endif
 
     // 走得到：原版是小人走到那块地里去领(BehActorCheckZoneTarget 在区块里找一格与自己同岛的地)，
     // 山地是阻挡层、水面是液体层，都不在地面单位的"岛"里，所以隔水、翻山的地原版领不到。
@@ -325,7 +312,6 @@ public class CityExpansionPatch : GamePatch
     // 山地区块(山地格两成以上)更严(用户 10-29 "为什么你这个城市边界总是会跨山""印度都管到西藏去了，这么大个喜马拉雅")：
     // 城心那块也照交界算，且只从本城的平地(或城心那块，山城也能领到城边一圈)往山里领一圈，不从山里接着往山里领——
     // 山腹留空，不会过几十年把整条山脉领满
-#if EC_PENDING
     public static bool Bordering(City city, Cell zone)
     {
         if (city == null || zone?.Neighbours == null) return false;
@@ -341,18 +327,14 @@ public class CityExpansionPatch : GamePatch
         }
         return false;
     }
-#endif
 
     // 大河不越过(用户 2026-11-11 "改成不越过"：要黑龙江、乌苏里江、鸭绿江、松花江自然成界，"按地势建城和拓展地块"长出雄鸡的样子)：
     // 河上的地块(见 TerrainSystem.RiverZone)从岸上照领，但岸上的地不从河上那块领过去——只挨着本城河上地块的岸是对岸，不领。
     // 城就在河上的(城心那块)两岸都领；河上那块修了路(架了桥)的照通。神力手动划地、剧本开局铺地不走这里
-#if EC_PENDING
     private static bool RiverOpen(Cell own, Cell seat) =>
         own == seat || !TerrainSystem.RiverZone(own) || RoadNetwork.IsRoad(own);
-#endif
 
     // 这块岸上的地挨着本城的只有河上地块(隔河)：村镇划地、开发无人区划给城时也不越过(同 Bordering)。斜挨着的要旁边两块里有一块不在河上
-#if EC_PENDING
     public static bool AcrossRiver(City city, Cell zone)
     {
         if (city == null || zone == null || TerrainSystem.RiverZone(zone)) return false;
@@ -370,7 +352,6 @@ public class CityExpansionPatch : GamePatch
         }
         return touches;
     }
-#endif
 
     public static bool Reachable(Cell zone, City city)
     {
@@ -382,7 +363,6 @@ public class CityExpansionPatch : GamePatch
         return false;
     }
 
-#if EC_PENDING
     public static bool BeforeGetZoneToClaim(City pCity, bool pDebug, ref Cell __result)
     {
         if (pDebug || AncientWarfareCompatibility.OwnsObject(pCity) || !AtLimit(pCity)) return true;
@@ -390,6 +370,7 @@ public class CityExpansionPatch : GamePatch
         return false;
     }
 
+#if EC_PENDING
     public static void AfterGetZoneToClaim(CityZoneGrowth __instance, Person pActor, City pCity,
         bool pDebug, ref Cell __result)
     {
@@ -400,7 +381,7 @@ public class CityExpansionPatch : GamePatch
             __result = null;
             return;
         }
-        if (!pCity.canGrowZones()) { __result = null; return; }
+        if (!pCity.CanGrowZones()) { __result = null; return; }
         Cell origin = pCity.SeatCell();
         if (origin == null) { __result = null; return; }
         Cell best = null;
@@ -410,7 +391,7 @@ public class CityExpansionPatch : GamePatch
         {
             if (candidate == null || candidate.City != null || candidate.GroundCount == 0 ||
                 !considered.Add(candidate) ||
-                !CanClaimZone(pCity, candidate) || !candidate.canBeClaimedByCity(pCity) || !Settled(pCity, candidate) ||
+                !CanClaimZone(pCity, candidate) || !candidate.CanBeClaimedByCity(pCity) || !Settled(pCity, candidate) ||
                 !Bordering(pCity, candidate) || !Reachable(candidate, pCity) ||
                 (pActor?.Subspecies != null && !candidate.checkCanSettleInThisBiomes(pActor.Subspecies))) return;
             float score = ExpansionScore(pCity, candidate);
@@ -428,6 +409,7 @@ public class CityExpansionPatch : GamePatch
         if (best == null) Consider(__instance.getRandomZone(pCity));
         __result = best;
     }
+#endif
 
     private static float ExpansionScore(City city, Cell zone)
     {
@@ -455,10 +437,9 @@ public class CityExpansionPatch : GamePatch
         float dx = target == null || origin == null ? 0f : target.X - origin.X;
         float dy = target == null || origin == null ? 0f : target.Y - origin.Y;
         // 再加一点各块固定的随机(见 Jitter)：不总是先填角、齐着边长
-        return entry + 0.6f / contacts + (dx * dx + dy * dy) * 0.002f / (Land.ZoneSize * Land.ZoneSize) +
+        return entry + 0.6f / contacts + (dx * dx + dy * dy) * 0.002f / (EmpireCraft.Core.Land.ZoneSize * EmpireCraft.Core.Land.ZoneSize) +
                0.45f * Jitter(city, zone, 3);
     }
-#endif
 
     // 无小人模式：虚拟居民每月替原版的"领地人"领一块地(BehClaimZoneForCityActorBorder)。原版选地照旧，
     // 再按原版那一趟路核对：走得到(Reachable)、原版的 isZoneToClaimStillGood(能领、地貌能定居、与本城接壤)。
@@ -466,14 +447,13 @@ public class CityExpansionPatch : GamePatch
     // 选中的地走不到时再选，至多三次(原版有好几个领地人轮流去)
     private const int VirtualClaimTries = 3;
 
-#if EC_PENDING
     public static void GrowVirtualCity(City city)
     {
         if (!CityPopulationSystem.AbstractPopulationEnabled || ModClass.IS_CLEAR ||
             city?.Record == null || city.IsGone() || AncientWarfareCompatibility.OwnsObject(city) ||
-            !WorldLaws.KingdomExpansion.IsEnabled() || !city.canGrowZones() || AtLimit(city)) return;
+            !WorldLaws.KingdomExpansion.IsEnabled() || !city.CanGrowZones() || AtLimit(city)) return;
         Cell origin = city.SeatCell();
-        CityZoneGrowth growth = EmpireWorld.Current?.city_zone_helper?.city_growth;
+        CityZoneGrowth growth = CityZoneGrowth.Instance;
         if (origin == null || growth == null || CityTerritoryProtection.BordersLocked) return;
         Person actor = city.Leader;
         if (actor?.Record == null || actor.IsGone() || !actor.Alive) actor = null;
@@ -483,14 +463,13 @@ public class CityExpansionPatch : GamePatch
             if (target == null) return;
             if (!CanClaimZone(city, target) || !Reachable(target, city) || !Bordering(city, target)) continue;
             bool good = actor != null
-                ? city.isZoneToClaimStillGood(actor, target, origin)
-                : target.canBeClaimedByCity(city) && target.Neighbours.Any(neighbour => neighbour?.City == city);
+                ? city.IsZoneToClaimStillGood(actor, target, origin)
+                : target.CanBeClaimedByCity(city) && target.Neighbours.Any(neighbour => neighbour?.City == city);
             if (!good) continue;
             city.AddZone(target);
             return;
         }
     }
-#endif
 
     // 原版的"断开的地放弃"(CityZoneAbandon)：从城里各建筑沿陆路连得到的地块才算本城，连不上的(隔水、翻山)放弃，
     // 断成几片的只留最大的一片。原版只在城失去地块时查一次；读档后每座城都查一次，

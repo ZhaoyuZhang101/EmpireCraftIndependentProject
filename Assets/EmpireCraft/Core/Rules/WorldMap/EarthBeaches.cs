@@ -11,17 +11,17 @@ namespace EmpireCraft.Core
 // 一读档就退出沙漠无人区、城扩得进去——读档头一回划区前把离水 Reach 格以外的沙地改成荒漠(同 earth.bytes 的改法)。
 // 只在世界地图开的局做(WorldMapWilderness.OnEarth，随存档)，一档只做一次(WorldMapWildSave.surface_revision)：
 // 做过以后内陆再有沙地就是画上去的，照画的留着
-public static class EarthBeaches
+public static partial class EarthBeaches
 {
     // 离水(海、湖、河)几格以内的沙地留作沙滩
     private const int Reach = 3;
 
     // 返回改了几格
-#if EC_PENDING
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
     internal static int Migrate()
     {
         EmpireWorld world = EmpireWorld.Current;
-        Cell[] tiles = world?.AllCells;
+        Cell[] tiles = world?.tiles_list;
         if (tiles == null || tiles.Length == 0) return 0;
         int width = EmpireWorld.Current.Width, height = EmpireWorld.Current.Height;
         if (width <= 0 || height <= 0 || tiles.Length < width * height) return 0;
@@ -41,7 +41,7 @@ public static class EarthBeaches
         for (int i = 0; i < width * height; i++)
         {
             TerrainKind type = tiles[i]?.Type;
-            if (type != null && type.Liquid)
+            if (type != null && type.liquid)
             {
                 distance[i] = 1;
                 queue.Enqueue(i);
@@ -71,7 +71,7 @@ public static class EarthBeaches
             if (distance[i] != 0 || !Sand(tile)) continue;
             // 同 WorldMapScenario.MakeOasis 改地表：低地荒漠，高度取那一种的下限
             tile.setTileTypes("soil_low", desert);
-            tile.Height = tile.Type.HeightMin;
+            tile.Height = tile.Type.height_min;
             changed++;
         }
         if (changed > 0) LogService.LogInfo($"[EmpireCraft][世界地图] 旧档大漠腹地的沙地 {changed} 格改成荒漠(沙地只算沙滩)");
