@@ -4,7 +4,7 @@ namespace Orbis.Planet
     // Reuses the owner's supplied artwork/noise, without importing incompatible render pipelines.
     public static class OrbisAssetVisuals
     {
-        static bool loaded;static Texture2D stream,ocean,lake,smoothLake,oceanFoam,riverFoam;
+        static bool loaded;static Texture2D stream,ocean,lake,smoothLake,oceanFoam,riverFoam,caustics;
         static bool celestialLoaded;static Texture2D sunArt,moonArt;
         static void Load(){if(loaded&&stream&&ocean&&lake&&smoothLake&&oceanFoam&&riverFoam)return;loaded=true;
             stream=Resources.Load<Texture2D>("ORBISVendor/SW3/RoughWaves");
@@ -17,6 +17,7 @@ namespace Orbis.Planet
             oceanFoam=Resources.Load<Texture2D>("ORBISVendor/SW3/OceanFoam");
             riverFoam=Resources.Load<Texture2D>("ORBISVendor/SW3/Foam1");
             if(!riverFoam)riverFoam=Resources.Load<Texture2D>("ORBISVendor/SW3/DirectionalFoam");
+            caustics=Resources.Load<Texture2D>("ORBISVendor/SW3/Caustics_1");
         }
         public static void BindWater(Material m)
         {
@@ -24,6 +25,8 @@ namespace Orbis.Planet
             if(stream)m.SetTexture("_VendorStreamNormal",stream);if(ocean)m.SetTexture("_VendorOceanNormal",ocean);
             if(lake)m.SetTexture("_VendorLakeNormal",lake);if(oceanFoam)m.SetTexture("_VendorOceanFoam",oceanFoam);if(riverFoam)m.SetTexture("_VendorRiverFoam",riverFoam);
             if(smoothLake)m.SetTexture("_VendorLakeSmoothNormal",smoothLake);
+            m.SetFloat("_VendorCausticsReady",caustics?1:0);
+            if(caustics)m.SetTexture("_VendorCaustics",caustics);
         }
         public static void BindCelestials(Material m)
         {

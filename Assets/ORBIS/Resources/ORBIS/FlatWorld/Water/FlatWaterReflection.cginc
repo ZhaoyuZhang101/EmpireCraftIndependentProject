@@ -96,8 +96,9 @@ float4 FlatWaterPropReflection(float2 cell,float waterHeight,float3 ray,float3 l
 float3 FlatReflectWater(float3 color,float2 cell,float4 field,float waterHeight,float3 view,float3 sun,
                        float3 light,FlatWaterSurfaceData surface,float clouds,float props)
 {
-    float3 ray=reflect(-view,surface.normal);
-    float nv=saturate(dot(view,surface.normal));
+    float3 reflNormal=normalize(lerp(surface.normal,surface.reflectionNormal,surface.river));
+    float3 ray=reflect(-view,reflNormal);
+    float nv=saturate(dot(view,reflNormal));
     float skyVisible=smoothstep(0,.12,ray.z);
     float weight=(.06+.45*pow(1-nv,3))*surface.visible*skyVisible;
     float3 sky=FlatWaterSkyReflection(cell,ray,sun,light,clouds);
@@ -107,13 +108,24 @@ float3 FlatReflectWater(float3 color,float2 cell,float4 field,float waterHeight,
     // The still lake has already reserved its Fresnel share of the radiance.
     // Fill that share with the geographic sky instead of dimming the bed again.
     float reflectedLake=surface.skyWeight*skyVisible;
-    color=lerp(lerp(transmitted,sky,weight),transmitted+sky*reflectedLake,surface.lake);
-    weight=lerp(weight,reflectedLake,surface.lake);
+    float3 lakeResult=transmitted+sky*reflectedLake;
+    // SW3 River-tuned reflection: steep Fresnel exponent (6.0) clears overhead
+    // sky haze so the riverbed stays crisp, while ripple facets catch sky/clouds
+    // with subtle prismatic edge dispersion.
+    float rippleTilt=saturate(length(reflNormal.xy)*1.85);
+    float riverFresnel=(.008+.58*pow(1-nv,6)+rippleTilt*rippleTilt*.078)*surface.visible*skyVisible;
+    float prismSign=clamp(dot(reflNormal.xy,float2(.78,-.62))*2.2,-1,1)*rippleTilt;
+    float3 prismTint=float3(1+.16*prismSign,1+.02*abs(prismSign),1-.16*prismSign);
+    float3 riverSky=sky*float3(.90,1.03,1.12)*prismTint;
+    float3 riverResult=transmitted*(1-riverFresnel*.28)+riverSky*riverFresnel;
+    color=lerp(lerp(transmitted,sky,weight),lakeResult,surface.lake);
+    color=lerp(color,riverResult,surface.river);
+    weight=lerp(lerp(weight,reflectedLake,surface.lake),riverFresnel,surface.river);
     #ifdef ORBIS_FLAT_PIXEL_DETAIL
     if(props>.001&&field.g<1.6&&_FieldReady>.5)
     {
         float4 reflected=FlatWaterPropReflection(cell,waterHeight,ray,light);
-        float opacity=max(.16,weight*2.5)*surface.visible*props;
+        float opacity=max(lerp(.16,.30,surface.river),weight*lerp(2.5,3.4,surface.river))*surface.visible*props;
         color=lerp(color,reflected.rgb,reflected.a*opacity);
     }
     #endif

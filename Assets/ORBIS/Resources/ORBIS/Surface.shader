@@ -35,6 +35,8 @@ Shader "ORBIS/Surface"
   [HideInInspector] _VendorLakeSmoothNormal("SW3 calm lake ripples",2D)="bump"{}
   [HideInInspector] _VendorOceanFoam("SW3 ocean foam",2D)="black"{}
   [HideInInspector] _VendorRiverFoam("SW3 river foam",2D)="black"{}
+  [HideInInspector] _VendorCausticsReady("SW3 caustics ready",Float)=0
+  [HideInInspector] _VendorCaustics("SW3 caustics",2D)="black"{}
   [HideInInspector] _FlatWorldReady("2D authoritative source",Float)=0
   [HideInInspector] _FlatDiagnosticDisplay("Shared diagnostic layer",Float)=0
   [HideInInspector] _FlatPolitical("2D political tint",Float)=0

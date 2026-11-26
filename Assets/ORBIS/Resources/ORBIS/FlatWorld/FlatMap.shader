@@ -60,6 +60,8 @@ Shader "ORBIS/FlatWorld/FlatMap"
  [HideInInspector] _VendorLakeSmoothNormal ("SW3 calm lake ripples", 2D) = "bump" {}
  [HideInInspector] _VendorOceanFoam ("SW3 ocean foam", 2D) = "black" {}
  [HideInInspector] _VendorRiverFoam ("SW3 river foam", 2D) = "black" {}
+ [HideInInspector] _VendorCausticsReady ("SW3 caustics ready", Float) = 0
+ [HideInInspector] _VendorCaustics ("SW3 caustics", 2D) = "black" {}
 
   _MainTex("Map",2D)="white"{} _OwnerTex("Ownership",2D)="black"{} _InfoTex("Semantic data",2D)="black"{}
   _HydroA("Depth flow channel width",2D)="black"{} _HydroB("Meander sediment freshwater links",2D)="black"{}

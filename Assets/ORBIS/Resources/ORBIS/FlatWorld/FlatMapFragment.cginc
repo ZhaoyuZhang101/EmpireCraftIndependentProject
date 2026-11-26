@@ -292,7 +292,8 @@
       float wetSheen=pow(saturate(dot(normalize(localSun+surfaceView),float3(0,0,1))),16)*saturate(localSun.z);
       col+=illumination*FlatColor(float3(.55,.65,.70))*wetSheen*sweWetShore*.22;
      }
-     float3 bottom=lerp(FlatMaterialColor(floor(geo.g+.5))*.72,prelitGround,inundatedWeight*naturalView);
+     float3 riverBedBase=FlatMaterialColor(floor(geo.g+.5))*lerp(.72,.88,channel.influence)*lerp(float3(1,1,1),terrainRelief.rgb,channel.influence*naturalView*.82);
+     float3 bottom=lerp(riverBedBase,prelitGround,inundatedWeight*naturalView);
      float3 waterColor=FlatColor(float3(.20,.43,.55))*illumination;
      // The uniform switch skips optics without exposing padded land under water.
      float3 waterLight=localSun,waterView=surfaceView;

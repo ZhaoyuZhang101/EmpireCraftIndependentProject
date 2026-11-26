@@ -162,6 +162,19 @@ namespace EmpireCraft.EditorTools
                         Call(app, "CancelActiveHudTool");
                         Check(!byId["brush"].IsLogicalVisible,
                             "Bottom-center contextual tool bar hides cleanly when active tool is cancelled");
+                        // Zoom close onto the river reach to capture crystal-clear riverbed, caustics & reflections
+                        var navT = typeof(FlatScrollNavigator);
+                        float minZoom = (float)navT.GetProperty("MinZoom", Private).GetValue(nav);
+                        nav.Focus(demoTile, app.CalendarDay);
+                        navT.GetField("targetZoom", Private).SetValue(nav, minZoom);
+                        navT.GetField("zoom", Private).SetValue(nav, minZoom);
+                        navT.GetField("zoomVelocity", Private)?.SetValue(nav, 0f);
+                        nav.Tick(0, app.CalendarDay);
+                        stage = 7; waitFrames = 10;
+                        break;
+                    case 7:
+                        if (--waitFrames > 0 || nav.UsingShaderPreview) return;
+                        CaptureComposite(app, cam, nav, Path.Combine(outDir, "07_river_closeup_clear.png"));
                         Check(unityErrors == 0, "Zero new Unity console errors (" + unityErrors + ")");
                         Finish(outDir, failures == 0 ? 0 : 1);
                         break;
