@@ -5,28 +5,30 @@
       when expanded. Layout and controls are managed by FlatWorldApp.EmpireHud.cs. -->
  <ui:VisualElement name="ecHud" class="ec-hud" picking-mode="Ignore">
   <ui:VisualElement name="ecEra" class="ec-frame ec-era">
-   <ui:VisualElement name="ecEraGrip" class="ec-bar-ctl"/>
-   <ui:VisualElement class="ec-era-text" picking-mode="Ignore">
+   <ui:VisualElement name="ecEraText" class="ec-era-text ec-click">
     <ui:Label name="ecDate" class="ec-date" picking-mode="Ignore"/>
     <ui:Label name="ecDateSub" class="ec-date-sub" picking-mode="Ignore"/>
    </ui:VisualElement>
    <ui:VisualElement name="ecClock" class="ec-ctl"/>
+   <ui:VisualElement name="ecEraGrip" class="ec-bar-end"/>
   </ui:VisualElement>
   <ui:VisualElement name="ecModes" class="ec-frame ec-modes">
-   <ui:VisualElement name="ecModesGrip" class="ec-bar-ctl"/>
    <ui:VisualElement name="ecModesBody" class="ec-bar-body"/>
+   <ui:VisualElement name="ecModesGrip" class="ec-bar-end"/>
   </ui:VisualElement>
   <ui:VisualElement name="ecViews" class="ec-frame ec-views">
-   <ui:VisualElement name="ecViewsGrip" class="ec-bar-ctl"/>
    <ui:VisualElement name="ecViewsBody" class="ec-bar-body"/>
+   <ui:VisualElement name="ecViewsGrip" class="ec-bar-end"/>
   </ui:VisualElement>
   <ui:VisualElement name="ecRail" class="ec-frame ec-rail">
-   <ui:VisualElement name="ecRailHead" class="ec-rail-hd"/>
+   <ui:VisualElement name="ecRailHead" class="ec-rail-hd">
+    <ui:Label name="ecRailTitle" class="ec-rail-title" picking-mode="Ignore"/>
+   </ui:VisualElement>
    <ui:VisualElement name="ecRailList"/>
   </ui:VisualElement>
   <ui:VisualElement name="ecPop" class="ec-frame ec-pop ec-hidden">
    <ui:VisualElement name="ecPopHead" class="ec-ch">
-    <ui:VisualElement name="ecPopIcon" class="ec-icon" picking-mode="Ignore"/>
+    <ui:VisualElement name="ecPopIcon" class="ec-icon ec-sm" picking-mode="Ignore"/>
     <ui:Label name="ecPopTitle" class="ec-ch-title" picking-mode="Ignore"/>
     <ui:Label name="ecPopNote" class="ec-ch-note" picking-mode="Ignore"/>
     <ui:VisualElement name="ecPopActions" class="ec-ch-actions"/>
@@ -34,9 +36,9 @@
    <ui:VisualElement name="ecPopGrid" class="ec-grid"/>
    <ui:Label name="ecPopHint" class="ec-hint" picking-mode="Ignore"/>
   </ui:VisualElement>
-  <ui:VisualElement name="ecInfo" class="ec-frame ec-info">
+  <ui:VisualElement name="ecInfo" class="ec-frame ec-info ec-hidden">
    <ui:VisualElement name="ecInfoHead" class="ec-ch">
-    <ui:VisualElement name="ecInfoIcon" class="ec-icon" picking-mode="Ignore"/>
+    <ui:VisualElement name="ecInfoIcon" class="ec-icon ec-sm" picking-mode="Ignore"/>
     <ui:Label name="ecInfoTitle" class="ec-ch-title" picking-mode="Ignore"/>
     <ui:Label name="ecInfoNote" class="ec-ch-note" picking-mode="Ignore"/>
     <ui:VisualElement name="ecInfoActions" class="ec-ch-actions"/>
@@ -56,15 +58,15 @@
   </ui:VisualElement>
   <ui:VisualElement name="ecFeed" class="ec-frame ec-feed">
    <ui:VisualElement name="ecFeedHead" class="ec-ch">
-    <ui:VisualElement name="ecFeedIcon" class="ec-icon" picking-mode="Ignore"/>
+    <ui:VisualElement name="ecFeedIcon" class="ec-icon ec-sm" picking-mode="Ignore"/>
     <ui:Label text="天下大事" class="ec-ch-title" picking-mode="Ignore"/>
     <ui:VisualElement name="ecFeedActions" class="ec-ch-actions"/>
    </ui:VisualElement>
    <ui:ScrollView name="ecFeedRows" class="ec-feed-rows" mode="Vertical"/>
   </ui:VisualElement>
   <ui:VisualElement name="ecBrush" class="ec-frame ec-brush ec-hidden">
-   <ui:VisualElement name="ecBrushGrip" class="ec-bar-ctl"/>
    <ui:VisualElement name="ecBrushBody" class="ec-bar-body"/>
+   <ui:VisualElement name="ecBrushGrip" class="ec-bar-end"/>
   </ui:VisualElement>
   <ui:VisualElement name="ecWindows" class="ec-window-layer ec-hidden"/>
  </ui:VisualElement>

@@ -6,26 +6,30 @@ using UnityEngine.UIElements;
 
 namespace Orbis.Flat
 {
-    // EmpireCraft civilization HUD over the ORBIS flat-world app: four modes
-    // (观察 / 塑造 / 文明 / 营建), a category rail per mode with a popout tool grid,
-    // tile card, legend, world chronicle, brush bar, minimap and 卷册 wide windows.
-    // Every HUD panel and window is collapsible into a draggable thumbnail pill and
-    // freely draggable when expanded. All global settings are consolidated into 设置.
+    // EmpireCraft civilization HUD over the ORBIS flat-world app:
+    //   - Clean 12px perimeter layout keeping the center viewport unobstructed;
+    //   - 观察 mode uses 4 live layer categories with auto-closing popout;
+    //   - 塑造 / 文明 / 营建 expose 1-click direct rail actions without secondary popups or dead buttons;
+    //   - Contextual tile card (auto-hidden until a tile is selected) & bottom-center active-tool bar;
+    //   - Every panel and ScrollWindow remains collapsible into a draggable pill and freely draggable.
     public sealed partial class FlatWorldApp
     {
         const string HudThemePref = "EmpireCraft.UiTheme";
         static readonly string[] HudThemes = { "star", "atlas", "slate" };
         static readonly string[] HudThemeNames = { "星图青铜", "舆图羊皮", "石青白玉" };
-        const int HudFeedRows = 6, HudCompactRows = 12;
+        const int HudFeedRows = 8, HudCompactRows = 6;
 
         VisualElement hud, hudEra, hudModes, hudModesBody, hudViews, hudViewsBody, hudRail, hudRailList,
             hudPop, hudPopGrid, hudPopIcon, hudInfo, hudInfoButtons, hudBrush, hudBrushBody,
-            hudWindows, hudLegend, hudClock, hudInfoIcon, hudDemoReturnBtn;
+            hudTerrainBrushGroup, hudActiveToolGroup, hudWindows, hudLegend, hudClock, hudInfoIcon,
+            hudDemoReturnBtn, hudLegendResetBtn, hudInfoNationBtn, hudTerrainBrushDoneBtn;
         ScrollView hudInfoRows, hudFeedRows;
-        Label hudDate, hudDateSub, hudPopTitle, hudPopNote, hudPopHint, hudInfoTitle, hudInfoNote, hudLegendTitle, hudLegendText;
+        Label hudDate, hudDateSub, hudRailTitle, hudPopTitle, hudPopNote, hudPopHint,
+            hudInfoTitle, hudInfoNote, hudLegendTitle, hudLegendText, hudActiveToolName, hudActiveToolHint;
         VisualElement hudPause, hudSpeed, hudExpand;
         readonly List<VisualElement> hudModeButtons = new List<VisualElement>(), hudRailButtons = new List<VisualElement>();
         readonly List<(VisualElement el, HudTool tool)> hudToolButtons = new List<(VisualElement, HudTool)>();
+        readonly List<(VisualElement el, HudTool tool)> hudDirectRailTools = new List<(VisualElement, HudTool)>();
         readonly List<(VisualElement el, Func<bool> on)> hudViewButtons = new List<(VisualElement, Func<bool>)>();
         readonly List<(VisualElement el, int brush)> hudBrushChips = new List<(VisualElement, int)>();
         readonly List<(VisualElement row, Label key, Label val)> hudInfoPool = new List<(VisualElement, Label, Label)>();
@@ -33,6 +37,7 @@ namespace Orbis.Flat
         readonly List<(string when, string text)> hudFeed = new List<(string, string)>();
         readonly List<HudFloatingPanel> hudFloatingPanels = new List<HudFloatingPanel>();
         readonly Dictionary<string, HudFloatingPanel> hudPanelsById = new Dictionary<string, HudFloatingPanel>();
+        readonly Dictionary<int, (string name, string hint)> hudToolPrompts = new Dictionary<int, (string, string)>();
         HudFloatingPanel hudEraPanel, hudModesPanel, hudViewsPanel, hudRailPanel, hudPopPanel,
             hudInfoPanel, hudLegendPanel, hudFeedPanel, hudBrushPanel, hudMinimapPanel;
         Label hudHeightLabel;
@@ -40,6 +45,7 @@ namespace Orbis.Flat
         int hudMode, hudCategory = -1, hudTheme;
         bool hudInfoExpanded;
         string hudLastStatus, hudInfoSource;
+        int hudInfoLastSelected = int.MinValue;
         ScrollWindow hudWindow;
         float hudWindowAge;
 
@@ -59,7 +65,7 @@ namespace Orbis.Flat
             hudEra = hud.Q("ecEra");
             hudModes = hud.Q("ecModes"); hudModesBody = hud.Q("ecModesBody");
             hudViews = hud.Q("ecViews"); hudViewsBody = hud.Q("ecViewsBody");
-            hudRail = hud.Q("ecRail"); hudRailList = hud.Q("ecRailList");
+            hudRail = hud.Q("ecRail"); hudRailList = hud.Q("ecRailList"); hudRailTitle = hud.Q<Label>("ecRailTitle");
             hudPop = hud.Q("ecPop"); hudPopGrid = hud.Q("ecPopGrid"); hudPopIcon = hud.Q("ecPopIcon");
             hudPopTitle = hud.Q<Label>("ecPopTitle"); hudPopNote = hud.Q<Label>("ecPopNote"); hudPopHint = hud.Q<Label>("ecPopHint");
             hudInfo = hud.Q("ecInfo"); hudInfoRows = hud.Q<ScrollView>("ecInfoRows"); hudInfoButtons = hud.Q("ecInfoButtons"); hudInfoIcon = hud.Q("ecInfoIcon");
@@ -74,8 +80,24 @@ namespace Orbis.Flat
             Hud.SetIcon(hudInfoIcon, "civ_surface");
             Hud.SetIcon(hud.Q("ecLegendIcon"), "nat_terrain");
 
+            var eraText = hud.Q("ecEraText");
+            if (eraText != null)
+            {
+                eraText.tooltip = "点击查看列国榜";
+                eraText.AddManipulator(new Clickable(OpenHudNations));
+            }
+
             hudPause = Hud.Button("ec-ib", null, "暂停", () => { paused = !paused; UpdateHUD(); TickEmpireHud(); });
+            hudPause.tooltip = "暂停 / 继续 (Space)";
             hudSpeed = Hud.Button("ec-ib", null, "1×", () => { speed = speed == 1 ? 4 : speed == 4 ? 12 : speed == 12 ? 20 : 1; UpdateHUD(); TickEmpireHud(); });
+            hudSpeed.tooltip = "左键加速切换，右键减速";
+            hudSpeed.RegisterCallback<PointerDownEvent>(e =>
+            {
+                if (e.button != 1) return;
+                speed = speed == 20 ? 12 : speed == 12 ? 4 : speed == 4 ? 1 : 20;
+                UpdateHUD(); TickEmpireHud();
+                e.StopPropagation();
+            });
             hudClock.Add(hudPause); hudClock.Add(hudSpeed);
 
             BuildHudViews();
@@ -94,9 +116,43 @@ namespace Orbis.Flat
             {
                 if (e.target == hudWindows && (hudWindow == null || !hudWindow.IsCollapsed)) CloseHudWindow();
             });
+            viewport.RegisterCallback<PointerDownEvent>(OnHudViewportPointerDown, TrickleDown.TrickleDown);
             root.RegisterCallback<KeyDownEvent>(HudKeys, TrickleDown.TrickleDown);
             SelectHudMode(0);
             hud.schedule.Execute(TickEmpireHud).Every(250);
+        }
+
+        void OnHudViewportPointerDown(PointerDownEvent e)
+        {
+            if (minimap != null && minimap.Frame != null && minimap.Frame.Contains(e.target as VisualElement)) return;
+            // Touching the map automatically closes any open layer popout so it never blocks sightlines.
+            if (hudCategory >= 0) ShowHudCategory(-1);
+            // Right-clicking on the map cancels any active build/edit tool (except SeaRoute, which resets its origin).
+            if (e.button == 1 && toolField != null && toolField.index != 0 && toolField.value != SeaRouteToolName)
+            {
+                CancelActiveHudTool();
+                e.StopPropagation();
+            }
+        }
+
+        void CancelActiveHudTool()
+        {
+            if (toolField == null || toolField.index == 0) return;
+            if (toolField.value == SeaRouteToolName) ResetSeaRoute();
+            toolField.index = 0;
+            navigation?.SetRoute(Array.Empty<int>());
+            SetStatus("已返回地图浏览模式。");
+            UpdateHUD();
+            TickEmpireHud();
+        }
+
+        void ClearHudSelection()
+        {
+            selected = -1;
+            map?.Select(-1);
+            if (toolField != null && toolField.index != 0) toolField.index = 0;
+            UpdateHUD();
+            TickEmpireHud();
         }
 
         void InstallFloatingPanels()
@@ -104,60 +160,68 @@ namespace Orbis.Flat
             hudFloatingPanels.Clear();
             hudPanelsById.Clear();
 
-            // Top bars: grip + collapse button on the left strip; dragging bar surface also moves.
+            // Perimeter bars: surface drag + double-click reset + unified right-side collapse button.
             hudEraPanel = RegisterBarPanel("era", hudEra, hud.Q("ecEraGrip"), "nat_daynight", "纪年", rightAligned: false, bottomAligned: false);
             hudModesPanel = RegisterBarPanel("modes", hudModes, hud.Q("ecModesGrip"), "civ_observe", "模式", rightAligned: false, bottomAligned: false);
             hudViewsPanel = RegisterBarPanel("views", hudViews, hud.Q("ecViewsGrip"), "civ_globe", "视图", rightAligned: true, bottomAligned: false);
             hudBrushPanel = RegisterBarPanel("brush", hudBrush, hud.Q("ecBrushGrip"), "nat_level", "笔刷", rightAligned: false, bottomAligned: true);
 
-            // Category rail: compact header strip with drag grip + collapse button.
+            // Left action/category rail: compact title + right-side collapse button.
             var railHead = hud.Q("ecRailHead");
-            railHead.Add(Hud.DragGrip("按住拖动分类栏"));
+            railHead.tooltip = "按住拖动侧栏；双击复位";
             hudRailPanel = RegisterPanel(new HudFloatingPanel(
-                "rail", hudRail, hud, railHead, "civ_observe", "分类",
+                "rail", hudRail, hud, railHead, "civ_observe", "侧栏",
                 rightAligned: false, bottomAligned: false, dragOnPanelSurface: true));
-            railHead.Add(hudRailPanel.CreateCollapseButton("折叠分类栏"));
+            railHead.Add(hudRailPanel.CreateCollapseButton("折叠侧栏"));
 
-            // Popout tool grid: header drag + collapse button + close button.
+            // Layer popout grid (used only in 观察 mode): header drag + collapse + close.
             var popHead = hud.Q("ecPopHead");
+            popHead.tooltip = "按住拖动选单；双击复位";
             var popActions = hud.Q("ecPopActions");
             hudPopPanel = RegisterPanel(new HudFloatingPanel(
-                "pop", hudPop, hud, popHead, "nat_terrain", "工具",
+                "pop", hudPop, hud, popHead, "nat_terrain", "图层",
                 rightAligned: false, bottomAligned: false, dragOnPanelSurface: false));
-            popActions.Add(hudPopPanel.CreateCollapseButton("折叠工具选单"));
-            popActions.Add(Hud.MiniButton("×", "关闭工具选单 (Esc)", () => ShowHudCategory(-1)));
+            popActions.Add(hudPopPanel.CreateCollapseButton("折叠图层选单"));
+            popActions.Add(Hud.MiniButton("×", "关闭选单 (Esc)", () => ShowHudCategory(-1)));
             hudPopPanel.SetLogicalVisible(false);
 
-            // Tile info card: header drag + collapse button.
+            // Contextual tile info card: hidden until a tile is selected; header has collapse + 1-click close.
             var infoHead = hud.Q("ecInfoHead");
+            infoHead.tooltip = "按住拖动地块卡；双击复位";
             var infoActions = hud.Q("ecInfoActions");
             hudInfoPanel = RegisterPanel(new HudFloatingPanel(
                 "info", hudInfo, hud, infoHead, "civ_surface", "地块",
                 rightAligned: true, bottomAligned: false, dragOnPanelSurface: false));
             infoActions.Add(hudInfoPanel.CreateCollapseButton("折叠地块信息"));
+            infoActions.Add(Hud.MiniButton("×", "取消选中并收起 (Esc)", ClearHudSelection));
+            hudInfoPanel.SetLogicalVisible(false);
 
-            // Map legend card: header + surface drag + collapse button.
+            // Map legend card: includes 1-click reset to Natural terrain + collapse button.
             var legendHead = hud.Q("ecLegendHead");
+            legendHead.tooltip = "按住拖动图例；双击复位";
             var legendActions = hud.Q("ecLegendActions");
             hudLegendPanel = RegisterPanel(new HudFloatingPanel(
                 "legend", hudLegend, hud, legendHead, "nat_terrain", "图例",
                 rightAligned: false, bottomAligned: true, dragOnPanelSurface: true));
+            hudLegendResetBtn = Hud.MiniButton("自然", "一键切回自然地表", () => { ChooseLayer(MapLayer.Natural); TickEmpireHud(); });
+            legendActions.Add(hudLegendResetBtn);
             legendActions.Add(hudLegendPanel.CreateCollapseButton("折叠图例"));
 
-            // Chronicle feed: header + non-scroll surface drag + collapse button.
+            // Compact bottom-left chronicle feed.
             var feed = hud.Q("ecFeed");
             var feedHead = hud.Q("ecFeedHead");
+            feedHead.tooltip = "按住拖动天下大事；双击复位";
             var feedActions = hud.Q("ecFeedActions");
             hudFeedPanel = RegisterPanel(new HudFloatingPanel(
                 "feed", feed, hud, feedHead, "iconHistory", "天下大事",
                 rightAligned: false, bottomAligned: true, dragOnPanelSurface: true));
             feedActions.Add(hudFeedPanel.CreateCollapseButton("折叠天下大事"));
 
-            // Minimap inside viewport: add compact draggable/collapsible header strip.
+            // Minimap inside viewport: compact draggable/collapsible header strip.
             if (minimap != null && minimap.Frame != null)
             {
                 var miniFrame = minimap.Frame;
-                var miniHead = new VisualElement { name = "ecMinimapHead", tooltip = "按住拖动小地图" };
+                var miniHead = new VisualElement { name = "ecMinimapHead", tooltip = "按住拖动小地图；双击复位" };
                 miniHead.AddToClassList("ec-mini-hd");
                 miniHead.Add(Hud.Icon("civ_atlas", "ec-sm"));
                 miniHead.Add(Hud.Text("小地图", "ec-ch-title"));
@@ -175,17 +239,16 @@ namespace Orbis.Flat
                 hudMinimapPanel.SetLogicalVisible(World != null);
             }
 
-            // Keep wide windows layer on top of regular HUD panels and pills.
             hudWindows.BringToFront();
         }
 
-        HudFloatingPanel RegisterBarPanel(string id, VisualElement panel, VisualElement gripHost, string icon, string title, bool rightAligned, bool bottomAligned)
+        HudFloatingPanel RegisterBarPanel(string id, VisualElement panel, VisualElement endHost, string icon, string title, bool rightAligned, bool bottomAligned)
         {
-            gripHost.Add(Hud.DragGrip("按住拖动「" + title + "」"));
+            panel.tooltip = "按住空白处拖动「" + title + "」；双击复位";
             var ctrl = RegisterPanel(new HudFloatingPanel(
-                id, panel, hud, gripHost, icon, title,
+                id, panel, hud, panel, icon, title,
                 rightAligned: rightAligned, bottomAligned: bottomAligned, dragOnPanelSurface: true));
-            gripHost.Add(ctrl.CreateCollapseButton("折叠「" + title + "」"));
+            endHost?.Add(ctrl.CreateCollapseButton("折叠「" + title + "」"));
             return ctrl;
         }
 
@@ -221,37 +284,68 @@ namespace Orbis.Flat
             if (e.keyCode != KeyCode.Escape) return;
             if (hudWindow != null && !hudWindow.IsCollapsed) CloseHudWindow();
             else if (hudCategory >= 0) ShowHudCategory(-1);
-            else if (toolField.index != 0) toolField.index = 0;
+            else if (toolField.index != 0) CancelActiveHudTool();
+            else if (selected >= 0) ClearHudSelection();
             else return;
             e.StopPropagation();
         }
 
-        // ---------- catalog (deduplicated; settings unified into 世界设置) ----------
+        void EnsureFlatSurfaceForTool()
+        {
+            if (World == null || Busy || !navigation || screenshotMode) return;
+            if (!navigation.IsFlat) Focus();
+        }
+
+        // ---------- catalog (zero dead placeholders; 1-click direct rails for 塑造/文明/营建) ----------
         HudTool HudLayer(string name, string icon, MapLayer layer)
         {
-            return new HudTool { Name = name, Icon = icon, Hint = "切换为「" + name + "」图层。",
-                Run = () => ChooseLayer(layer), IsOn = () => layerField.index == (int)layer };
+            return new HudTool
+            {
+                Name = name,
+                Icon = icon,
+                Hint = "切换为「" + name + "」图层。",
+                Run = () => ChooseLayer(layer),
+                IsOn = () => layerField.index == (int)layer
+            };
         }
 
-        HudTool HudEdit(string name, string icon, int tool, string hint)
+        HudTool HudEdit(string name, string icon, int tool, string hint, bool autoFocusSurface = true)
         {
-            return new HudTool { Name = name, Icon = icon, Hint = hint,
-                Run = () => toolField.index = toolField.index == tool ? 0 : tool, IsOn = () => toolField.index == tool };
+            hudToolPrompts[tool] = (name, hint);
+            return new HudTool
+            {
+                Name = name,
+                Icon = icon,
+                Hint = hint,
+                ToolIndex = tool,
+                Run = () =>
+                {
+                    bool enabling = toolField.index != tool;
+                    toolField.index = enabling ? tool : 0;
+                    if (enabling)
+                    {
+                        if (autoFocusSurface) EnsureFlatSurfaceForTool();
+                        SetStatus(name + "：" + hint);
+                    }
+                    else
+                    {
+                        navigation?.SetRoute(Array.Empty<int>());
+                        SetStatus("已返回地图浏览模式。");
+                    }
+                    TickEmpireHud();
+                },
+                IsOn = () => toolField.index == tool
+            };
         }
 
-        static HudTool HudAction(string name, string icon, Action run, string hint)
+        static HudTool HudAction(string name, string icon, Action run, string hint, bool stayOpen = false)
         {
-            return new HudTool { Name = name, Icon = icon, Hint = hint, Run = run };
+            return new HudTool { Name = name, Icon = icon, Hint = hint, Run = run, StayOpen = stayOpen };
         }
 
         static HudTool HudWindow(string name, string icon, Action open, string hint)
         {
             return new HudTool { Name = name, Icon = icon, Hint = hint, Run = open, Opener = true };
-        }
-
-        static HudTool HudLater(string name, string icon)
-        {
-            return new HudTool { Name = name, Icon = icon };
         }
 
         static HudCategory HudCat(string name, string icon, string note, params HudTool[] tools)
@@ -263,100 +357,69 @@ namespace Orbis.Flat
 
         List<HudMode> BuildHudModes()
         {
-            // 观察: map layers & geographic analysis only.
-            // Display toggles (云层/等高线/网格) live exclusively in 设置 -> 画面与显示;
-            // Religion and warfare live exclusively under 文明 -> 宗教 / 征伐.
-            var see = new HudMode { Name = "观察", Icon = "civ_observe", Legend = true };
-            see.Categories.Add(HudCat("自然", "nat_terrain", "地表图层",
+            hudToolPrompts.Clear();
+
+            // 观察: 4 live layer categories with auto-closing popout.
+            var see = new HudMode { Name = "观察", Icon = "civ_observe", RailTitle = "图层", Legend = true, DirectRail = false };
+            see.Categories.Add(HudCat("自然", "nat_terrain", "地貌与生态图层",
                 HudLayer("自然地表", "nat_terrain", MapLayer.Natural), HudLayer("20 档高度", "nat_relief", MapLayer.Height),
                 HudLayer("地貌", "iconTileLoessPlateau", MapLayer.Landforms), HudLayer("地表材料", "iconTileSteppePlateau", MapLayer.Materials),
                 HudLayer("生态植被", "nat_plants", MapLayer.Vegetation), HudLayer("土地肥力", "civ_farm", MapLayer.Fertility),
                 HudLayer("生态群系", "nat_forest", MapLayer.GlebaBiomes), HudLayer("土壤", "deposit_clear", MapLayer.GlebaSoilFertility),
                 HudLayer("基岩", "iconTileAlpinePlateau", MapLayer.GlebaBedrock), HudLayer("板块", "nat_quake", MapLayer.GlebaTectonics)));
-            see.Categories.Add(HudCat("气候", "nat_climate", "气候图层",
+            see.Categories.Add(HudCat("气候", "nat_climate", "大气与环流图层",
                 HudLayer("柯本气候", "nat_climate", MapLayer.Climate), HudLayer("本月温度", "nat_coldwave", MapLayer.Temperature),
                 HudLayer("本月降水", "nat_rainfall", MapLayer.Rain), HudLayer("土壤湿度", "nat_rain", MapLayer.Wetness),
-                new HudTool { Name = "同月对比", Icon = "nat_daynight", Hint = "温度、降水图层在今年、明年、后年同月之间切换。",
+                HudLayer("相对湿度", "nat_rain", MapLayer.RelativeHumidity), HudLayer("风带气压", "nat_cloud", MapLayer.SurfaceWinds),
+                HudLayer("洋流海温", "nat_current", MapLayer.OceanCurrents), HudLayer("高空急流", "nat_daynight", MapLayer.RossbyJets),
+                HudLayer("雨影", "nat_rainfall", MapLayer.RainShadow), HudLayer("风暴潜势", "nat_cyclone", MapLayer.ExoStormPotential),
+                new HudTool
+                {
+                    Name = "同月对比", Icon = "nat_daynight", StayOpen = true,
+                    Hint = "温度、降水图层在今年、明年、后年同月之间切换。",
                     Run = () => { climateYearField.index = (climateYearField.index + 1) % 3; SetStatus("同月对比：" + climateYearField.value + "。"); },
-                    IsOn = () => climateYearField.index > 0 },
-                HudWindow("气候统计", "iconHistory", () => ShowClimateStatistics(), "打开气候统计图集。"),
-                HudLayer("风带气压", "nat_cloud", MapLayer.SurfaceWinds), HudLayer("洋流海温", "nat_current", MapLayer.OceanCurrents),
-                HudLayer("高空急流", "nat_daynight", MapLayer.RossbyJets), HudLayer("雨影", "nat_rainfall", MapLayer.RainShadow),
-                HudLayer("相对湿度", "nat_rain", MapLayer.RelativeHumidity), HudLayer("风暴潜势", "nat_cyclone", MapLayer.ExoStormPotential)));
-            see.Categories.Add(HudCat("水文", "nat_river", "江河湖海",
+                    IsOn = () => climateYearField.index > 0
+                },
+                HudWindow("气候统计", "iconHistory", () => ShowClimateStatistics(), "打开气候统计图集。")));
+            see.Categories.Add(HudCat("水文", "nat_river", "江河与含水层",
                 HudLayer("海水与淡水", "nat_lake", MapLayer.Water), HudLayer("河网", "nat_river", MapLayer.Rivers),
                 HudLayer("河口悬沙", "deposit_clear", MapLayer.Sediment), HudLayer("含水层", "nat_lake", MapLayer.GlebaHydroGeo),
-                HudAction("寻汇流", "nat_strait", () => FocusRiver(true), "依次定位两条以上河道相汇之处。"),
-                HudAction("寻河口", "nat_find_mouth", () => FocusRiver(false), "依次定位河流入海之处。")));
-            see.Categories.Add(HudCat("政区", "iconNationLayer", "疆域与法理",
+                HudAction("寻汇流", "nat_strait", () => FocusRiver(true), "依次定位两条以上河道相汇之处。", stayOpen: true),
+                HudAction("寻河口", "nat_find_mouth", () => FocusRiver(false), "依次定位河流入海之处。", stayOpen: true)));
+            see.Categories.Add(HudCat("人文", "iconNationLayer", "政区与农耕承载",
                 HudLayer("文明版图", "iconNationLayer", MapLayer.Nations),
-                HudLater("法理版图", "iconTitleLayer"), HudLater("天下版图", "tianxia_layer"), HudLater("行政区划", "iconToolProvinceCreate"), HudLater("帝国疆域", "empire_layer")));
-            see.Categories.Add(HudCat("治理", "governance_layer", "政令与教化",
-                HudLater("政令", "governance_layer"), HudLater("教化", "edification_layer"), HudLater("城市", "city_view")));
-            see.Categories.Add(HudCat("民生", "wealth_layer", "财富与市场",
-                HudLayer("作物承载", "civ_farm", MapLayer.GlebaCrops),
-                HudLater("财富", "wealth_layer"), HudLater("市场", "market_layer"), HudLater("人口", "iconPopulation50")));
+                HudLayer("作物承载", "civ_farm", MapLayer.GlebaCrops)));
 
-            var shape = new HudMode { Name = "塑造", Icon = "nat_raise", Brush = true };
-            shape.Categories.Add(HudCat("地形", "nat_terrain", "高度与地貌",
-                HudEdit("定高笔刷", "nat_level", 3, "按笔刷大小把地块设为预设高度，随后重算排水与气候。"),
-                HudLater("抬升", "nat_raise"), HudLater("压低", "nat_lower"), HudLater("平滑", "nat_smooth"), HudLater("高原", "iconTileAlpinePlateau"),
-                HudAction("重算", "nat_rebuild", RebuildFromHud, "重新计算排水、月均气候与生物群系。")));
-            shape.Categories.Add(HudCat("水文", "nat_river", "开河造湖",
-                HudLater("开河", "nat_river"), HudLater("造湖", "nat_lake"), HudLater("海峡", "nat_strait")));
-            shape.Categories.Add(HudCat("气候", "nat_climate", "天时",
-                HudLater("降雨", "nat_rain"), HudLater("寒潮", "nat_coldwave"), HudLater("干旱", "nat_drought"), HudLater("气旋", "nat_cyclone")));
-            shape.Categories.Add(HudCat("生命", "nat_plants", "草木鸟兽",
-                HudLater("植树", "nat_forest"), HudLater("草木", "nat_plants"), HudLater("走兽", "nat_beast"), HudLater("鱼群", "nat_fish")));
-            shape.Categories.Add(HudCat("天象", "nat_meteor", "天灾地变",
-                HudLater("陨石", "nat_meteor"), HudLater("地震", "nat_quake"), HudLater("火山", "nat_volcano")));
+            // 塑造: 1-click direct rail + bottom-center terrain brush bar.
+            var shape = new HudMode { Name = "塑造", Icon = "nat_raise", RailTitle = "地形", Brush = true, DirectRail = true };
+            shape.Categories.Add(HudCat("地形", "nat_terrain", "高度编辑与重算",
+                HudEdit("定高笔刷", "nat_level", 3, "点击地块刷入目标高度（右键或 Esc 结束）"),
+                HudAction("重算", "nat_rebuild", RebuildFromHud, "重新计算全球排水、月均气候与生物群系。")));
 
-            var civ = new HudMode { Name = "文明", Icon = "civ_mode" };
-            civ.Categories.Add(HudCat("列国", "civ_nations", "立国与扩张",
-                HudEdit("建立文明", "actor_create_kingdom", 1, "点击可居住的无主区域建立文明。"),
-                HudEdit("扩张", "wild_develop", 2, "先点本国地块，再点相邻的无主区域；耗粮 60。"),
-                HudAction("播种文明", "population_add", SeedNationsFromHud, "在世界上随机新增 4 个文明。"),
-                HudWindow("列国榜", "empire_list", OpenHudNations, "各文明的疆域、人口与存粮。"),
-                HudEdit("路径", "road_connect", 7, "显示从首都到所点地块的陆路。"),
-                HudLater("立君", "civ_crown")));
-            civ.Categories.Add(HudCat("帝国", "civ_empire", "国务与从属",
-                HudWindow("国务", "TabEmpire", OpenHudState, "选中文明的国力总览。"),
-                HudLater("称帝", "create_empire"), HudLater("从属", "TabDependencies")));
-            civ.Categories.Add(HudCat("法理", "civ_claims", "法理与宣称",
-                HudLater("法理", "iconToolTitleCreate"), HudLater("核心", "iconToolCoreCreate"), HudLater("宣称", "TabClaimScale")));
-            civ.Categories.Add(HudCat("朝堂", "civ_court", "官署与制度",
-                HudLater("官署", "TabBureau"), HudLater("议会", "TabDiet"), HudLater("量刑", "TabSentencing"),
-                HudLater("宪制", "TabConstitution"), HudLater("制度", "TabInstitutions")));
-            civ.Categories.Add(HudCat("人物", "famous_talents", "宗族与名人",
-                HudWindow("宗族", "specificClanIcon", OpenHudClans, "各家门第与族人。"), HudLater("名人", "famous_talents")));
-            civ.Categories.Add(HudCat("宗教", "TabPapacy", "教会与教派", HudLater("宗教", "TabPapacy"), HudLater("圣地", "iconToolHolyCity")));
-            civ.Categories.Add(HudCat("外交", "diplomacy", "盟约与往来",
-                HudLater("外交", "diplomacy"), HudLater("结盟", "plot_kingdom_start_join_taken_alliance")));
-            civ.Categories.Add(HudCat("征伐", "TabWarfare", "战争与军团",
-                HudWindow("战争", "TabWarfare", OpenHudWar, "列出正在进行的战争。"),
-                HudLater("军团", "corps_command"), HudLater("停战", "plot_force_stop_war")));
+            // 文明: 1-click direct rail for founding, expansion, routes, and nation books.
+            var civ = new HudMode { Name = "文明", Icon = "civ_mode", RailTitle = "列国", DirectRail = true };
+            civ.Categories.Add(HudCat("列国", "civ_nations", "立国、扩张与总览",
+                HudEdit("建立文明", "actor_create_kingdom", 1, "点击无主可居住陆地建立新文明（右键或 Esc 结束）"),
+                HudEdit("扩张", "wild_develop", 2, "先选本国地块，再点相邻无主区域，耗粮 60（右键结束）"),
+                HudAction("播种文明", "population_add", SeedNationsFromHud, "立即在世界上随机新增 4 个文明。"),
+                HudEdit("路径", "road_connect", 7, "点击目标地块查看从当前国首都出发的陆路"),
+                HudWindow("列国榜", "empire_list", OpenHudNations, "查看全部文明疆域、人口与存粮排行。"),
+                HudWindow("国务", "TabEmpire", OpenHudState, "查看当前选中文明的国土与国事。")));
 
-            var build = new HudMode { Name = "营建", Icon = "civ_build" };
-            build.Categories.Add(HudCat("农桑", "civ_farm", "田亩",
-                HudEdit("农田", "civ_farm", 4, "本国可居住地块，耗粮 15，提高月产粮。")));
-            build.Categories.Add(HudCat("道路", "road_paint", "道路桥梁",
-                HudEdit("道路", "road_paint", 5, "本国地块，耗粮 15，降低通行成本。"),
-                HudEdit("桥梁", "civ_bridge", 6, "本国河流或浅湖（水深不超过 100 米），耗粮 40。"),
-                HudEdit("海上航线", "ship_1", 8, "先点出发海面，再点目的海面，查看航线；右键重选。"),
-                HudLater("官道", "road_connect")));
-            build.Categories.Add(HudCat("城池", "place_city", "城与关隘",
-                HudLater("城", "place_city"), HudLater("关城", "place_fort"), HudLater("宫殿", "build_palace"), HudLater("港口", "port")));
-            build.Categories.Add(HudCat("村镇", "place_village", "乡野聚落", HudLater("村镇", "place_village")));
-            build.Categories.Add(HudCat("厂区", "factory_medium", "工坊工厂",
-                HudLater("小厂", "factory_small"), HudLater("中厂", "factory_medium"), HudLater("大厂", "factory_large")));
-            build.Categories.Add(HudCat("无人区", "wild_title", "荒野开发",
-                HudLater("归属", "wild_title"), HudLater("开发", "wild_develop"), HudLater("名册", "wild_window")));
+            // 营建: 1-click direct rail for farms, roads, bridges, and sea routes.
+            var build = new HudMode { Name = "营建", Icon = "civ_build", RailTitle = "建设", DirectRail = true };
+            build.Categories.Add(HudCat("建设", "civ_build", "农田与水陆交通",
+                HudEdit("农田", "civ_farm", 4, "点击本国可居住地块开垦农田，耗粮 15（右键结束）"),
+                HudEdit("道路", "road_paint", 5, "点击本国地块修筑道路降低通行成本，耗粮 15"),
+                HudEdit("桥梁", "civ_bridge", 6, "点击本国河流或浅湖（≤100m）架桥，耗粮 40"),
+                HudEdit("海上航线", "ship_1", 8, "依次点击出发海面与目的海面测算航线；右键重选起点", autoFocusSurface: false)));
+
             return new List<HudMode> { see, shape, civ, build };
         }
 
         void RebuildFromHud()
         {
-            if (!Ready()) return;
+            if (World == null || Busy) { SetStatus("世界数据正在生成或重建；请稍候。"); return; }
             solarClock.Flush(simulationStep);
             var copy = World.CloneForTerrainRebuild();
             Queue(c => { FlatGenerator.Rebuild(copy, c); return copy; }, "重新计算排水、月均气候与生物群系…");
@@ -364,37 +427,70 @@ namespace Orbis.Flat
 
         void SeedNationsFromHud()
         {
-            if (!Ready()) return;
+            if (World == null || Busy || Simulation == null) { SetStatus("世界就绪后可播种文明。"); return; }
             int n = Simulation.SeedNations(4);
+            if (activeNation < 0 && World.Nations.Count > 0) activeNation = 0;
             map.Flush();
-            SetStatus("新增 " + n + " 个文明。领地按 4×4 区域扩展。");
+            UpdateHUD();
+            TickEmpireHud();
+            SetStatus("新增 " + n + " 个文明（当前共 " + World.Nations.Count + " 国）。");
         }
 
-        // ---------- modes, rail, popout ----------
+        // ---------- modes, direct rail & layer popout ----------
         void SelectHudMode(int mode)
         {
             if (mode != hudMode && toolField.index != 0) toolField.index = 0;
             hudMode = mode;
             for (int i = 0; i < hudModeButtons.Count; i++) Hud.State(hudModeButtons[i], i == mode);
-            hudRailList.Clear(); hudRailButtons.Clear();
-            var cats = hudModeList[mode].Categories;
-            for (int i = 0; i < cats.Count; i++)
+
+            var currentMode = hudModeList[mode];
+            if (hudRailTitle != null) hudRailTitle.text = currentMode.RailTitle ?? currentMode.Name;
+
+            hudRailList.Clear();
+            hudRailButtons.Clear();
+            hudDirectRailTools.Clear();
+
+            if (currentMode.DirectRail)
             {
-                int index = i;
-                var b = Hud.Button("ec-cat", cats[i].Icon, cats[i].Name, () => ShowHudCategory(hudCategory == index ? -1 : index));
-                hudRailButtons.Add(b); hudRailList.Add(b);
+                foreach (var cat in currentMode.Categories)
+                {
+                    foreach (var tool in cat.Tools)
+                    {
+                        var t = tool;
+                        var b = Hud.Button("ec-cat", t.Icon, t.Name, () => RunHudTool(t));
+                        b.tooltip = string.IsNullOrEmpty(t.Hint) ? t.Name : t.Name + "：" + t.Hint;
+                        if (t.Opener) b.AddToClassList("ec-opener");
+                        hudDirectRailTools.Add((b, t));
+                        hudRailList.Add(b);
+                    }
+                }
             }
-            hudModesPanel?.SetPillContent(hudModeList[mode].Icon, hudModeList[mode].Name);
-            hudRailPanel?.SetPillContent(hudModeList[mode].Icon, hudModeList[mode].Name + "栏");
-            hudBrushPanel?.SetLogicalVisible(hudModeList[mode].Brush);
+            else
+            {
+                var cats = currentMode.Categories;
+                for (int i = 0; i < cats.Count; i++)
+                {
+                    int index = i;
+                    var b = Hud.Button("ec-cat", cats[i].Icon, cats[i].Name, () => ShowHudCategory(hudCategory == index ? -1 : index));
+                    b.tooltip = cats[i].Name + (string.IsNullOrEmpty(cats[i].Note) ? "" : " · " + cats[i].Note);
+                    hudRailButtons.Add(b);
+                    hudRailList.Add(b);
+                }
+            }
+
+            hudModesPanel?.SetPillContent(currentMode.Icon, currentMode.Name);
+            hudRailPanel?.SetPillContent(currentMode.Icon, currentMode.Name + "栏");
             ShowHudCategory(-1);
             TickEmpireHud();
         }
 
         void ShowHudCategory(int category)
         {
+            var currentMode = hudModeList[hudMode];
+            if (currentMode.DirectRail) category = -1;
+
             hudCategory = category;
-            var cats = hudModeList[hudMode].Categories;
+            var cats = currentMode.Categories;
             for (int i = 0; i < hudRailButtons.Count; i++) Hud.State(hudRailButtons[i], i == category, false, !cats[i].AnyPorted);
             hudToolButtons.Clear(); hudPopGrid.Clear();
             if (category < 0 || category >= cats.Count)
@@ -406,13 +502,13 @@ namespace Orbis.Flat
             var cat = cats[category];
             Hud.SetIcon(hudPopIcon, cat.Icon);
             hudPopTitle.text = cat.Name; hudPopNote.text = cat.Note ?? "";
-            hudPopHint.text = cat.AnyPorted ? "悬停查看说明；标题栏可拖动或折叠；Esc 收起。" : "这一类尚未移植，图标先占位。";
+            hudPopHint.text = "点击即生效；点地图空白处或按 Esc 自动收起。";
             foreach (var tool in cat.Tools)
             {
                 var t = tool;
                 var b = Hud.Button("ec-tool", t.Icon, t.Name, () => RunHudTool(t), "ec-x2");
                 if (t.Opener) b.AddToClassList("ec-opener");
-                b.RegisterCallback<PointerEnterEvent>(_ => hudPopHint.text = t.Name + "：" + (t.Run == null ? "尚未移植。" : t.Hint ?? ""));
+                b.RegisterCallback<PointerEnterEvent>(_ => hudPopHint.text = t.Name + "：" + (t.Hint ?? ""));
                 hudToolButtons.Add((b, t)); hudPopGrid.Add(b);
             }
             hudPopPanel?.SetPillContent(cat.Icon, cat.Name);
@@ -425,11 +521,12 @@ namespace Orbis.Flat
 
         void RunHudTool(HudTool tool)
         {
-            if (tool.Run == null) { SetStatus(tool.Name + "：尚未移植，对应系统接入后启用。"); return; }
+            if (tool.Run == null) return;
             try { tool.Run(); }
             catch (Exception e) { SetStatus(e.Message); Debug.LogException(e); }
-            if (tool.Opener) ShowHudCategory(-1);
+            if (hudCategory >= 0 && !tool.StayOpen) ShowHudCategory(-1);
             RefreshHudToolStates();
+            TickEmpireHud();
         }
 
         void RefreshHudToolStates()
@@ -440,70 +537,101 @@ namespace Orbis.Flat
                 if (tool.IsOn != null) { try { on = tool.IsOn(); } catch { on = false; } }
                 Hud.State(el, false, on, tool.Run == null);
             }
+            foreach (var (el, tool) in hudDirectRailTools)
+            {
+                bool on = false;
+                if (tool.IsOn != null) { try { on = tool.IsOn(); } catch { on = false; } }
+                Hud.State(el, false, on, tool.Run == null);
+            }
         }
 
-        // ---------- top-right view buttons ----------
+        // ---------- top-right view navigation + settings ----------
         void BuildHudViews()
         {
-            AddHudView("civ_globe", "星球", Home, () => navigation && !navigation.IsFlat && !navigation.IsAtlas);
-            AddHudView("civ_atlas", "总览", ToggleMode, () => navigation && navigation.IsAtlas);
-            AddHudView("civ_surface", "地表", Focus, () => navigation && navigation.IsFlat && !navigation.IsAtlas);
-            AddHudView(null, "截图", () => { if (World != null && !Busy) StartCoroutine(Capture()); }, null);
+            AddHudView("civ_globe", "星球", Home, () => navigation && !navigation.IsFlat && !navigation.IsAtlas, "返回三维星球视图 (Home)");
+            AddHudView("civ_atlas", "总览", ToggleMode, () => navigation && navigation.IsAtlas, "展开或退出全球战略总览 (M)");
+            AddHudView("civ_surface", "地表", Focus, () => navigation && navigation.IsFlat && !navigation.IsAtlas, "进入局部地表细看 (F)");
             hudDemoReturnBtn = Hud.Button("ec-vbtn", "iconHistory", "返回原局", () => { try { ExitIsolatedDemoWorld(); } catch (Exception e) { SetStatus(e.Message); Debug.LogException(e); } });
             hudDemoReturnBtn.AddToClassList("ec-demo-return");
             hudDemoReturnBtn.AddToClassList("ec-on");
             hudDemoReturnBtn.AddToClassList("ec-hidden");
             hudViewsBody.Add(hudDemoReturnBtn);
-            AddHudView("TabColor", "设置", () => OpenHudWorld(0), () => hudWindow != null && hudWindowKey == "world");
+            AddHudView("TabColor", "设置", () => OpenHudWorld(0), () => hudWindow != null && hudWindowKey == "world", "打开世界设置中心");
         }
 
-        void AddHudView(string icon, string text, Action click, Func<bool> on)
+        void AddHudView(string icon, string text, Action click, Func<bool> on, string tooltip = null)
         {
             var b = Hud.Button("ec-vbtn", icon, text, click);
+            if (!string.IsNullOrEmpty(tooltip)) b.tooltip = tooltip;
             hudViewsBody.Add(b);
             if (on != null) hudViewButtons.Add((b, on));
         }
 
-        // ---------- tile card (deduplicated: 气候统计 lives in 观察 -> 气候) ----------
+        // ---------- contextual tile card ----------
         void BuildHudInfoButtons()
         {
-            hudInfoButtons.Add(Hud.Button("ec-btn", null, "聚焦", Focus));
-            hudExpand = Hud.Button("ec-btn", null, "展开", () => { hudInfoExpanded = !hudInfoExpanded; hudInfoSource = null; TickEmpireHud(); });
+            var focusBtn = Hud.Button("ec-btn", null, "聚焦", Focus);
+            focusBtn.tooltip = "将镜头对准此地块 (F)";
+            hudInfoButtons.Add(focusBtn);
+
+            hudExpand = Hud.Button("ec-btn", null, "详情", () => { hudInfoExpanded = !hudInfoExpanded; hudInfoSource = null; TickEmpireHud(); });
             hudInfoButtons.Add(hudExpand);
-            hudInfoButtons.Add(Hud.Button("ec-btn", null, "清除", () => { selected = -1; if (map) map.Select(-1); toolField.index = 0; UpdateHUD(); TickEmpireHud(); }));
+
+            hudInfoNationBtn = Hud.Button("ec-btn", null, "国务", () =>
+            {
+                if (World != null && selected >= 0 && selected < World.Count && World.Owner[selected] >= 0)
+                {
+                    activeNation = World.Owner[selected];
+                    OpenHudState();
+                }
+            });
+            hudInfoNationBtn.AddToClassList("ec-opener");
+            hudInfoNationBtn.AddToClassList("ec-hidden");
+            hudInfoNationBtn.tooltip = "打开此地块所属文明的国务总览";
+            hudInfoButtons.Add(hudInfoNationBtn);
         }
 
         void UpdateHudInfo()
         {
+            bool hasSelection = World != null && selected >= 0 && selected < World.Count;
+            hudInfoPanel?.SetLogicalVisible(hasSelection);
+            if (!hasSelection)
+            {
+                hudInfoLastSelected = -1;
+                hudInfoSource = null;
+                return;
+            }
+
             string source = info.text;
-            if (source == hudInfoSource) return;
+            if (source == hudInfoSource && selected == hudInfoLastSelected) return;
             hudInfoSource = source;
-            Hud.SetText(hudExpand, hudInfoExpanded ? "收起" : "展开");
-            int count = 0;
-            if (selected < 0 || World == null || selected >= World.Count)
+            hudInfoLastSelected = selected;
+
+            int owner = World.Owner[selected];
+            bool owned = owner >= 0 && owner < World.Nations.Count;
+            hudInfoTitle.text = "地块 " + selected % World.Width + ", " + selected / World.Width;
+            hudInfoNote.text = owned ? World.Nations[owner].Name : "无主";
+            hudInfoPanel?.SetPillContent("civ_surface", owned ? World.Nations[owner].Name : "地块");
+            hudInfoNationBtn?.EnableInClassList("ec-hidden", !owned);
+
+            int totalRows = 0;
+            int shown = 0;
+            var lines = source.Split('\n');
+            foreach (var raw in lines)
             {
-                hudInfoTitle.text = "地块"; hudInfoNote.text = "";
-                SetHudInfoRow(count++, "提示", "点击地图查看地块。");
-                SetHudInfoRow(count++, "区域", "每区 4×4 = 16 个地块。");
+                string line = raw.Trim();
+                if (line.Length == 0 || line.StartsWith("TILE") || line.StartsWith("ZONE")) continue;
+                totalRows++;
+                if (!hudInfoExpanded && shown >= HudCompactRows) continue;
+                int colon = line.IndexOf('：');
+                if (colon > 0) SetHudInfoRow(shown++, line.Substring(0, colon), line.Substring(colon + 1));
+                else if (line.EndsWith("以下") || line.Contains(" m · ")) SetHudInfoRow(shown++, "海拔", line);
+                else SetHudInfoRow(shown++, "", line);
             }
-            else
-            {
-                hudInfoTitle.text = "地块 " + selected % World.Width + ", " + selected / World.Width;
-                int owner = World.Owner[selected];
-                hudInfoNote.text = owner >= 0 && owner < World.Nations.Count ? World.Nations[owner].Name : "无主";
-                var lines = source.Split('\n');
-                foreach (var raw in lines)
-                {
-                    string line = raw.Trim();
-                    if (line.Length == 0 || line.StartsWith("TILE") || line.StartsWith("ZONE")) continue;
-                    if (!hudInfoExpanded && count >= HudCompactRows) break;
-                    int colon = line.IndexOf('：');
-                    if (colon > 0) SetHudInfoRow(count++, line.Substring(0, colon), line.Substring(colon + 1));
-                    else if (line.EndsWith("以下") || line.Contains(" m · ")) SetHudInfoRow(count++, "海拔", line);
-                    else SetHudInfoRow(count++, "", line);
-                }
-            }
-            for (int i = 0; i < hudInfoPool.Count; i++) hudInfoPool[i].row.EnableInClassList("ec-hidden", i >= count);
+
+            hudExpand.EnableInClassList("ec-hidden", totalRows <= HudCompactRows);
+            Hud.SetText(hudExpand, hudInfoExpanded ? "收起" : "详情 (" + totalRows + ")");
+            for (int i = 0; i < hudInfoPool.Count; i++) hudInfoPool[i].row.EnableInClassList("ec-hidden", i >= shown);
         }
 
         void SetHudInfoRow(int index, string key, string value)
@@ -519,7 +647,7 @@ namespace Orbis.Flat
             if (r.val.text != value) r.val.text = value;
         }
 
-        // ---------- chronicle ----------
+        // ---------- compact chronicle ----------
         void UpdateHudFeed()
         {
             if (status == hudLastStatus) return;
@@ -544,23 +672,67 @@ namespace Orbis.Flat
             }
         }
 
-        // ---------- brush bar (塑造) ----------
+        // ---------- bottom-center contextual brush & active-tool bar ----------
         void BuildHudBrush()
         {
-            hudBrushBody.Add(Hud.Text("笔刷", "ec-brush-lab"));
+            hudTerrainBrushGroup = new VisualElement();
+            hudTerrainBrushGroup.AddToClassList("ec-bar-body");
+            hudTerrainBrushGroup.Add(Hud.Text("范围", "ec-brush-lab"));
             string[] names = { "1 格", "1 区", "3×3", "9×9" };
             for (int i = 0; i < names.Length; i++)
             {
                 int index = i;
                 var chip = Hud.Button("ec-chip", null, names[i], () => brushField.index = index);
-                hudBrushChips.Add((chip, i)); hudBrushBody.Add(chip);
+                hudBrushChips.Add((chip, i));
+                hudTerrainBrushGroup.Add(chip);
             }
-            hudBrushBody.Add(Hud.Text("高度", "ec-brush-lab"));
-            hudBrushBody.Add(Hud.Button("ec-chip", null, "−", () => heightField.index = Math.Max(0, heightField.index - 1)));
+            hudTerrainBrushGroup.Add(Hud.Text("高度", "ec-brush-lab"));
+            hudTerrainBrushGroup.Add(Hud.Button("ec-chip", null, "−", () => heightField.index = Math.Max(0, heightField.index - 1)));
             hudHeightLabel = Hud.Text("", "ec-label");
-            hudHeightLabel.style.minWidth = 118;
-            hudBrushBody.Add(hudHeightLabel);
-            hudBrushBody.Add(Hud.Button("ec-chip", null, "+", () => heightField.index = Math.Min(heightField.choices.Count - 1, heightField.index + 1)));
+            hudHeightLabel.style.minWidth = 108;
+            hudTerrainBrushGroup.Add(hudHeightLabel);
+            hudTerrainBrushGroup.Add(Hud.Button("ec-chip", null, "+", () => heightField.index = Math.Min(heightField.choices.Count - 1, heightField.index + 1)));
+            hudTerrainBrushDoneBtn = Hud.Button("ec-chip", null, "完成", CancelActiveHudTool);
+            hudTerrainBrushDoneBtn.tooltip = "退出定高笔刷 (右键 / Esc)";
+            hudTerrainBrushGroup.Add(hudTerrainBrushDoneBtn);
+            hudBrushBody.Add(hudTerrainBrushGroup);
+
+            hudActiveToolGroup = new VisualElement();
+            hudActiveToolGroup.AddToClassList("ec-bar-body");
+            hudActiveToolGroup.AddToClassList("ec-hidden");
+            hudActiveToolName = Hud.Text("", "ec-ch-title");
+            hudActiveToolHint = Hud.Text("", "ec-brush-hint");
+            var done = Hud.Button("ec-chip", null, "完成", CancelActiveHudTool);
+            done.tooltip = "结束当前地图操作 (右键 / Esc)";
+            hudActiveToolGroup.Add(hudActiveToolName);
+            hudActiveToolGroup.Add(hudActiveToolHint);
+            hudActiveToolGroup.Add(done);
+            hudBrushBody.Add(hudActiveToolGroup);
+        }
+
+        void UpdateHudBrushBar()
+        {
+            int activeTool = toolField != null ? toolField.index : 0;
+            bool showTerrainBrush = hudModeList[hudMode].Brush || activeTool == 3;
+            bool showToolBanner = !showTerrainBrush && activeTool != 0;
+            hudBrushPanel?.SetLogicalVisible(showTerrainBrush || showToolBanner);
+            if (!showTerrainBrush && !showToolBanner) return;
+
+            hudTerrainBrushGroup.EnableInClassList("ec-hidden", !showTerrainBrush);
+            hudActiveToolGroup.EnableInClassList("ec-hidden", !showToolBanner);
+            if (showTerrainBrush)
+            {
+                foreach (var (el, brush) in hudBrushChips) Hud.State(el, false, brushField.index == brush);
+                if (hudHeightLabel != null) hudHeightLabel.text = heightField.value;
+                hudTerrainBrushDoneBtn?.EnableInClassList("ec-hidden", activeTool != 3);
+                hudBrushPanel?.SetPillContent("nat_level", "笔刷");
+            }
+            else if (hudToolPrompts.TryGetValue(activeTool, out var info))
+            {
+                hudActiveToolName.text = info.name;
+                hudActiveToolHint.text = info.hint;
+                hudBrushPanel?.SetPillContent("civ_build", info.name);
+            }
         }
 
         // ---------- periodic refresh (4 Hz, UI scheduler) ----------
@@ -588,8 +760,7 @@ namespace Orbis.Flat
             if (hudDemoReturnBtn != null) hudDemoReturnBtn.EnableInClassList("ec-hidden", !IsDemoWorldActive);
             foreach (var (el, on) in hudViewButtons) Hud.State(el, false, on());
             RefreshHudToolStates();
-            foreach (var (el, brush) in hudBrushChips) Hud.State(el, false, brushField.index == brush);
-            if (hudHeightLabel != null) hudHeightLabel.text = heightField.value;
+            UpdateHudBrushBar();
 
             bool legendOn = hudModeList[hudMode].Legend && !string.IsNullOrEmpty(legend.text);
             hudLegendPanel?.SetLogicalVisible(legendOn);
@@ -598,6 +769,7 @@ namespace Orbis.Flat
                 string layerName = layerField.value;
                 hudLegendTitle.text = layerName;
                 if (hudLegendText.text != legend.text) hudLegendText.text = legend.text;
+                hudLegendResetBtn?.EnableInClassList("ec-hidden", layerField.index == (int)MapLayer.Natural);
                 hudLegendPanel?.SetPillContent("nat_terrain", string.IsNullOrEmpty(layerName) ? "图例" : layerName);
             }
             hudMinimapPanel?.SetLogicalVisible(World != null && minimap != null && minimap.Bound);

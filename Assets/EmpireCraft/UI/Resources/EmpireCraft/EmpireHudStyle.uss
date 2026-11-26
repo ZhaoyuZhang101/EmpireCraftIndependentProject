@@ -47,10 +47,10 @@
 .theme-star.ec-hud-on .minimap-frame { background-image: resource("EmpireCraft/Frames/Frame2_star"); }
 .theme-atlas.ec-hud-on .minimap-frame { background-image: resource("EmpireCraft/Frames/Frame2_atlas"); }
 .theme-slate.ec-hud-on .minimap-frame { background-image: resource("EmpireCraft/Frames/Frame2_slate"); }
-.ec-hud-on .map-scale { left: auto; right: 276px; bottom: 16px; }
+.ec-hud-on .map-scale { left: auto; right: 262px; bottom: 16px; }
 /* classic ORBIS sidebar as a drawer, opened from the world settings window */
 .ec-hud-on.ec-classic .sidebar {
-    display: flex; left: 102px; top: 70px; bottom: 12px; width: 300px;
+    display: flex; left: 104px; top: 68px; bottom: 12px; width: 300px;
     border-width: 1px; border-color: var(--ec-line);
 }
 
@@ -58,7 +58,7 @@
 .ec-hud { position: absolute; left: 0; right: 0; top: 0; bottom: 0; color: var(--ec-val); font-size: 13px; }
 .ec-hidden { display: none; }
 .ec-icon { width: 28px; height: 28px; flex-shrink: 0; -unity-background-scale-mode: scale-to-fit; }
-.ec-icon.ec-x2 { width: 56px; height: 56px; }
+.ec-icon.ec-x2 { width: 44px; height: 44px; }
 .ec-icon.ec-sm { width: 20px; height: 20px; }
 .ec-label { color: var(--ec-sub); -unity-text-align: middle-center; white-space: nowrap; }
 .ec-click:hover > .ec-label { color: var(--ec-val); }
@@ -69,32 +69,26 @@
 .ec-off:hover > .ec-label { color: var(--ec-sub); }
 
 /* ---------- drag handle, collapse button, draggable pill ---------- */
-.ec-drag-handle:hover { background-color: rgba(255, 255, 255, 0.04); }
-.ec-bar-ctl {
-    flex-direction: column; align-items: center; justify-content: center;
-    margin-right: 4px; padding: 1px 3px; flex-shrink: 0;
-    border-right-width: 1px; border-right-color: var(--ec-line);
+.ec-drag-handle:hover { background-color: rgba(255, 255, 255, 0.03); }
+.ec-bar-end {
+    flex-direction: row; align-items: center; justify-content: center;
+    margin-left: 4px; padding-left: 4px; flex-shrink: 0;
+    border-left-width: 1px; border-left-color: var(--ec-line);
 }
 .ec-bar-body { flex-direction: row; align-items: center; }
-.ec-grip {
-    align-items: center; justify-content: center;
-    padding: 1px 2px; min-width: 16px; min-height: 16px;
-}
-.ec-grip-dots { color: var(--ec-grey); font-size: 10px; -unity-text-align: middle-center; margin: 0; padding: 0; }
-.ec-grip:hover > .ec-grip-dots { color: var(--ec-gold); }
 .ec-min-btn {
-    width: 20px; height: 18px; align-items: center; justify-content: center;
+    min-width: 20px; height: 18px; padding: 0 4px; align-items: center; justify-content: center;
     background-color: var(--ec-ins); border-width: 1px; border-color: var(--ec-line);
     border-radius: 2px; margin-left: 3px; flex-shrink: 0;
 }
-.ec-bar-ctl > .ec-min-btn { margin-left: 0; margin-top: 2px; width: 18px; height: 16px; }
+.ec-bar-end > .ec-min-btn { margin-left: 0; }
 .ec-min-btn:hover { border-color: var(--ec-gold); background-color: var(--ec-title); }
-.ec-min-btn-text { color: var(--ec-sub); font-size: 12px; -unity-font-style: bold; -unity-text-align: middle-center; margin: 0; padding: 0; }
+.ec-min-btn-text { color: var(--ec-sub); font-size: 11px; -unity-font-style: bold; -unity-text-align: middle-center; margin: 0; padding: 0; }
 .ec-min-btn:hover > .ec-min-btn-text { color: var(--ec-gold); }
 
 .ec-pill {
     position: absolute; flex-direction: row; align-items: center;
-    height: 36px; padding: 4px 10px 4px 8px;
+    height: 34px; padding: 4px 10px 4px 8px;
 }
 .ec-pill:hover > .ec-pill-label { color: var(--ec-val); }
 .ec-pill > .ec-icon { margin-right: 5px; }
@@ -104,13 +98,13 @@
 /* card header */
 .ec-ch {
     flex-direction: row; align-items: center; flex-shrink: 0;
-    border-bottom-width: 1px; border-bottom-color: var(--ec-line); padding: 1px 2px 4px 2px; margin-bottom: 4px;
+    border-bottom-width: 1px; border-bottom-color: var(--ec-line); padding: 0 2px 4px 2px; margin-bottom: 4px;
 }
 .ec-ch > .ec-icon { margin-right: 5px; }
-.ec-ch-title { color: var(--ec-gold); -unity-font-style: bold; font-size: 14px; white-space: nowrap; }
+.ec-ch-title { color: var(--ec-gold); -unity-font-style: bold; font-size: 13px; white-space: nowrap; }
 .ec-ch-note { margin-left: 6px; color: var(--ec-sub); font-size: 11px; white-space: nowrap; }
 .ec-ch-actions { flex-direction: row; align-items: center; margin-left: auto; flex-shrink: 0; }
-.ec-hint { color: var(--ec-grey); font-size: 11px; white-space: normal; margin-top: 5px; }
+.ec-hint { color: var(--ec-grey); font-size: 11px; white-space: normal; margin-top: 4px; }
 
 /* minimap header inside HUD mode */
 .ec-mini-hd {
@@ -120,65 +114,70 @@
 }
 .ec-mini-hd > .ec-ch-title { font-size: 12px; }
 
-/* ---------- top bar ---------- */
-.ec-era { position: absolute; left: 8px; top: 8px; height: 56px; flex-direction: row; align-items: center; padding: 4px 8px 4px 6px; }
-.ec-era-text { margin-right: 10px; }
-.ec-date { color: var(--ec-gold); -unity-font-style: bold; font-size: 15px; margin: 0; padding: 0; }
+/* ---------- top perimeter bar (12px margin grid) ---------- */
+.ec-era { position: absolute; left: 12px; top: 10px; height: 50px; flex-direction: row; align-items: center; padding: 4px 8px; }
+.ec-era-text { margin-right: 8px; padding: 1px 4px; border-radius: 2px; }
+.ec-era-text:hover { background-color: rgba(255, 255, 255, 0.05); }
+.ec-date { color: var(--ec-gold); -unity-font-style: bold; font-size: 14px; margin: 0; padding: 0; }
 .ec-date-sub { color: var(--ec-sub); font-size: 11px; margin: 0; padding: 0; }
 .ec-ctl { flex-direction: row; }
-.ec-ib { flex-direction: row; align-items: center; justify-content: center; min-width: 40px; height: 34px; padding: 4px 8px; margin-left: 3px; }
-.ec-ib > .ec-label { font-size: 13px; }
+.ec-ib { flex-direction: row; align-items: center; justify-content: center; min-width: 38px; height: 32px; padding: 3px 7px; margin-left: 3px; }
+.ec-ib > .ec-label { font-size: 12px; }
 
-.ec-modes { position: absolute; left: 50%; translate: -50% 0; top: 8px; flex-direction: row; align-items: center; padding: 6px; }
-.ec-mode { flex-direction: row; align-items: center; height: 44px; padding: 6px 14px 6px 10px; margin: 0 2px; }
+.ec-modes { position: absolute; left: 50%; translate: -50% 0; top: 10px; height: 50px; flex-direction: row; align-items: center; padding: 5px 7px; }
+.ec-mode { flex-direction: row; align-items: center; height: 38px; padding: 4px 12px 4px 9px; margin: 0 2px; }
 .ec-mode > .ec-icon { margin-right: 5px; }
-.ec-mode > .ec-label { font-size: 15px; }
+.ec-mode > .ec-label { font-size: 14px; }
 
-.ec-views { position: absolute; right: 8px; top: 8px; flex-direction: row; align-items: center; padding: 6px; }
-.ec-vbtn { flex-direction: row; align-items: center; height: 40px; padding: 5px 10px 5px 7px; margin: 0 2px; }
+.ec-views { position: absolute; right: 12px; top: 10px; height: 50px; flex-direction: row; align-items: center; padding: 5px 7px; }
+.ec-vbtn { flex-direction: row; align-items: center; height: 38px; padding: 4px 10px 4px 7px; margin: 0 2px; }
 .ec-vbtn > .ec-icon { margin-right: 4px; }
-.ec-vbtn.ec-iconly { padding: 5px 7px; }
+.ec-vbtn.ec-iconly { padding: 4px 7px; }
 .ec-vbtn.ec-iconly > .ec-icon { margin-right: 0; }
 .ec-vbtn.ec-demo-return > .ec-label { color: var(--ec-gold); -unity-font-style: bold; }
 
-/* ---------- category rail + popout grid ---------- */
-.ec-rail { position: absolute; left: 8px; top: 70px; width: 88px; padding: 6px 7px 7px 7px; }
+/* ---------- left perimeter rail + compact layer popout ---------- */
+.ec-rail { position: absolute; left: 12px; top: 68px; width: 84px; padding: 6px 6px 6px 6px; }
 .ec-rail-hd {
     flex-direction: row; align-items: center; justify-content: space-between;
     border-bottom-width: 1px; border-bottom-color: var(--ec-line);
-    padding-bottom: 3px; margin-bottom: 4px;
+    padding: 0 1px 3px 2px; margin-bottom: 4px;
 }
-.ec-cat { align-items: center; padding: 7px 2px 6px 2px; margin-bottom: 2px; }
-.ec-cat > .ec-label { font-size: 12px; margin-top: 1px; }
+.ec-rail-title { color: var(--ec-grey); font-size: 11px; -unity-font-style: bold; white-space: nowrap; }
+.ec-cat { align-items: center; padding: 5px 2px 4px 2px; margin-bottom: 2px; }
+.ec-cat > .ec-label { font-size: 11px; margin-top: 1px; }
+.ec-cat.ec-opener > .ec-label { color: var(--ec-gold); }
 
-.ec-pop { position: absolute; left: 102px; top: 70px; width: 392px; padding: 9px 10px 10px 10px; }
+.ec-pop { position: absolute; left: 102px; top: 68px; width: 348px; padding: 8px 9px 9px 9px; }
 .ec-grid { flex-direction: row; flex-wrap: wrap; }
-.ec-tool { width: 86px; height: 96px; align-items: center; justify-content: center; padding: 6px 2px; margin: 0 3px 3px 0; }
-.ec-tool > .ec-label { font-size: 12px; margin-top: 2px; }
+.ec-tool { width: 78px; height: 80px; align-items: center; justify-content: center; padding: 4px 2px; margin: 0 3px 3px 0; }
+.ec-tool > .ec-label { font-size: 11px; margin-top: 2px; }
 .ec-tool.ec-opener > .ec-label { color: var(--ec-gold); }
 
-/* ---------- tile card ---------- */
-.ec-info { position: absolute; right: 8px; top: 70px; width: 304px; max-height: 520px; padding: 9px 10px 10px 10px; }
+/* ---------- right perimeter contextual tile card ---------- */
+.ec-info { position: absolute; right: 12px; top: 68px; width: 292px; max-height: 456px; padding: 8px 10px 9px 10px; }
 .ec-info-rows { flex-shrink: 1; min-height: 0; }
-.ec-row { flex-direction: row; align-items: center; padding: 2px 5px; min-height: 20px; }
+.ec-row { flex-direction: row; align-items: center; padding: 2px 5px; min-height: 19px; }
 .ec-row.ec-alt { background-color: var(--ec-ins); }
-.ec-row-key { color: var(--ec-grey); font-size: 12px; min-width: 86px; }
+.ec-row-key { color: var(--ec-grey); font-size: 12px; min-width: 82px; }
 .ec-row-val { color: var(--ec-val); font-size: 12px; white-space: normal; flex-shrink: 1; margin-left: auto; -unity-text-align: middle-right; }
-.ec-btns { flex-direction: row; flex-wrap: wrap; margin-top: 6px; flex-shrink: 0; }
-.ec-btn { flex-grow: 1; flex-direction: row; align-items: center; justify-content: center; height: 34px; padding: 4px 8px; margin-right: 3px; margin-bottom: 3px; }
+.ec-btns { flex-direction: row; flex-wrap: wrap; margin-top: 5px; flex-shrink: 0; }
+.ec-btn { flex-grow: 1; flex-direction: row; align-items: center; justify-content: center; height: 32px; padding: 3px 8px; margin-right: 3px; margin-bottom: 2px; }
 .ec-btn > .ec-label { font-size: 12px; }
+.ec-btn.ec-opener > .ec-label { color: var(--ec-gold); -unity-font-style: bold; }
 
-/* ---------- chronicle, legend, brush (strictly non-overlapping defaults) ---------- */
-.ec-feed { position: absolute; left: 102px; bottom: 8px; width: 420px; max-height: 184px; padding: 9px 10px 8px 10px; }
-.ec-feed-rows { flex-shrink: 1; min-height: 0; max-height: 132px; }
-.ec-feed .ec-row-key { min-width: 74px; font-size: 11px; }
-.ec-feed .ec-row-val { margin-left: 0; -unity-text-align: middle-left; flex-grow: 1; }
-.ec-legend { position: absolute; left: 102px; bottom: 200px; width: 290px; max-height: 140px; padding: 9px 10px; }
-.ec-legend-scroll { flex-shrink: 1; min-height: 0; max-height: 92px; }
-.ec-legend-text { color: var(--ec-sub); font-size: 11px; white-space: normal; margin-top: 2px; }
-.ec-brush { position: absolute; left: 532px; bottom: 8px; flex-direction: row; align-items: center; padding: 6px 10px 6px 6px; }
+/* ---------- bottom-left compact chronicle & legend + bottom-center active tool dock ---------- */
+.ec-feed { position: absolute; left: 12px; bottom: 10px; width: 344px; max-height: 118px; padding: 7px 9px 7px 9px; }
+.ec-feed-rows { flex-shrink: 1; min-height: 0; max-height: 74px; }
+.ec-feed .ec-row-key { min-width: 68px; font-size: 11px; }
+.ec-feed .ec-row-val { margin-left: 0; -unity-text-align: middle-left; flex-grow: 1; font-size: 11px; }
+.ec-legend { position: absolute; left: 12px; bottom: 136px; width: 320px; max-height: 112px; padding: 7px 9px; }
+.ec-legend-scroll { flex-shrink: 1; min-height: 0; max-height: 68px; }
+.ec-legend-text { color: var(--ec-sub); font-size: 11px; white-space: normal; margin-top: 1px; }
+.ec-brush { position: absolute; left: 50%; translate: -50% 0; bottom: 10px; flex-direction: row; align-items: center; padding: 5px 8px; }
 .ec-brush-lab { color: var(--ec-grey); font-size: 12px; margin: 0 6px 0 4px; }
-.ec-chip { flex-direction: row; align-items: center; height: 34px; padding: 4px 9px; margin-right: 2px; }
+.ec-brush-hint { color: var(--ec-sub); font-size: 12px; margin: 0 8px 0 4px; max-width: 280px; white-space: nowrap; overflow: hidden; }
+.ec-chip { flex-direction: row; align-items: center; height: 32px; padding: 3px 8px; margin-right: 2px; }
 .ec-chip > .ec-label { font-size: 12px; }
 
 /* ---------- 卷册 wide window ---------- */

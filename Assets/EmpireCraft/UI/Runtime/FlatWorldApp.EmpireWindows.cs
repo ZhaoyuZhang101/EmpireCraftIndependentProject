@@ -270,6 +270,8 @@ namespace Orbis.Flat
         void BuildHudViewPage(VisualElement page)
         {
             page.Add(Hud.Header("画面与显示", "所有图面与气象显示开关统一在此管理"));
+            var two = new VisualElement(); two.AddToClassList("ec-two");
+
             var card = Hud.Card("云层与图面显示", "nat_cloud", null, true);
             card.Add(HudMirror("画面与云层质量", cloudQuality));
             card.Add(HudMirror("云层与云影", cloudToggle));
@@ -277,12 +279,18 @@ namespace Orbis.Flat
             card.Add(HudMirror("等高线 (快捷键 C)", contourToggle));
             card.Add(HudMirror("地块网格 (快捷键 G)", gridToggle));
             if (hazardLiveWeatherToggle != null) card.Add(HudMirror("接通实时台风与暴雨事件", hazardLiveWeatherToggle));
-            page.Add(card);
+            two.Add(card);
 
-            var sky = Hud.Card("天空与水面状态", "nat_daynight");
+            var sky = Hud.Card("实时状态与工具", "nat_daynight");
             sky.Add(Hud.Text(string.IsNullOrEmpty(skyStatus.text) ? "天空系统待命。" : skyStatus.text, "ec-text"));
             sky.Add(Hud.Text(string.IsNullOrEmpty(waterStatus.text) ? "局部水面待命。" : waterStatus.text, "ec-text"));
-            page.Add(sky);
+            var actions = new VisualElement(); actions.AddToClassList("ec-btns");
+            actions.Add(Hud.Button("ec-btn", null, "无UI截图", () => { if (World != null && !Busy) { CloseHudWindow(); StartCoroutine(Capture()); } }));
+            actions.Add(Hud.Button("ec-btn", "iconHistory", "打开气候统计", () => { CloseHudWindow(); ShowClimateStatistics(); }));
+            sky.Add(actions);
+            two.Add(sky);
+
+            page.Add(two);
         }
 
         void BuildHudGeneratePage(VisualElement page)
@@ -406,14 +414,17 @@ namespace Orbis.Flat
         void BuildHudFilesPage(VisualElement page)
         {
             page.Add(Hud.Header("存档与高度图", Application.persistentDataPath));
+            var two = new VisualElement(); two.AddToClassList("ec-two");
+
             var save = Hud.Card("世界存档", "iconHistory", null, true);
-            save.Add(Hud.Row("存档位置", SavePath, false));
+            save.Add(Hud.Row("存档文件", Path.GetFileName(SavePath), false));
             var b = new VisualElement(); b.AddToClassList("ec-btns");
             b.Add(Hud.Button("ec-btn", null, "保存", Save));
             b.Add(Hud.Button("ec-btn", null, "读取", () => { Load(); CloseHudWindow(); }));
-            b.Add(Hud.Button("ec-btn", null, "打开文件夹", () => Application.OpenURL(new Uri(Application.persistentDataPath + Path.DirectorySeparatorChar).AbsoluteUri)));
+            b.Add(Hud.Button("ec-btn", null, "打开目录", () => Application.OpenURL(new Uri(Application.persistentDataPath + Path.DirectorySeparatorChar).AbsoluteUri)));
             save.Add(b);
-            page.Add(save);
+            two.Add(save);
+
             var raster = Hud.Card("高度图导入 / 导出", "nat_relief");
             var path = new TextField("文件路径") { value = pathField.value };
             path.AddToClassList("ec-field");
@@ -423,14 +434,16 @@ namespace Orbis.Flat
             var r = new VisualElement(); r.AddToClassList("ec-btns");
             r.Add(Hud.Button("ec-btn", null, "导出", () =>
             {
-                if (!Ready()) return;
+                if (World == null || Busy) return;
                 FlatRasterIO.Export(World, HeightPath);
                 SetStatus("已导出高度、水体预览和河网图：" + Path.ChangeExtension(HeightPath, "rivers.png"));
             }));
             r.Add(Hud.Button("ec-btn", null, "导入为新世界", () => { Import(); CloseHudWindow(); }));
             raster.Add(r);
             raster.Add(Hud.Text("灰度高度图：黑 −4000 米，白 4000 米。", "ec-text"));
-            page.Add(raster);
+            two.Add(raster);
+
+            page.Add(two);
         }
     }
 }

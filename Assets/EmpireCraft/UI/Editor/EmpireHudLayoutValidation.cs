@@ -141,14 +141,27 @@ namespace EmpireCraft.EditorTools
                         if (--waitFrames > 0) return;
                         VerifyAllCollapsedState(app);
                         CaptureComposite(app, cam, nav, Path.Combine(outDir, "05_all_collapsed_pills.png"));
-                        // Reset cleanly without corrupting user PlayerPrefs
+                        // Reset cleanly and verify 1-click DirectRail + unselected auto-hide tile card
                         Call(app, "CloseHudWindow");
                         Call(app, "ResetHudLayout", false);
+                        Call(app, "SelectHudMode", 2); // 文明 1-click direct rail
+                        Call(app, "ClearHudSelection"); // unselected -> ecInfo auto-hidden
+                        var toolField = Get<DropdownField>(app, "toolField");
+                        if (toolField != null) toolField.index = 1; // 建立文明 active -> bottom-center banner
                         Call(app, "TickEmpireHud");
-                        stage = 6; waitFrames = 4;
+                        stage = 6; waitFrames = 5;
                         break;
                     case 6:
                         if (--waitFrames > 0) return;
+                        var byId = Get<Dictionary<string, HudFloatingPanel>>(app, "hudPanelsById");
+                        Check(!byId["info"].IsLogicalVisible && byId["info"].Panel.ClassListContains("ec-hidden"),
+                            "Contextual ecInfo auto-hides cleanly when no tile is selected");
+                        Check(byId["brush"].IsLogicalVisible && !byId["brush"].Panel.ClassListContains("ec-hidden"),
+                            "Bottom-center contextual tool bar appears automatically when a map tool is active");
+                        CaptureComposite(app, cam, nav, Path.Combine(outDir, "06_civ_direct_rail_clean.png"));
+                        Call(app, "CancelActiveHudTool");
+                        Check(!byId["brush"].IsLogicalVisible,
+                            "Bottom-center contextual tool bar hides cleanly when active tool is cancelled");
                         Check(unityErrors == 0, "Zero new Unity console errors (" + unityErrors + ")");
                         Finish(outDir, failures == 0 ? 0 : 1);
                         break;
@@ -213,16 +226,20 @@ namespace EmpireCraft.EditorTools
             var modes = Get<List<HudMode>>(app, "hudModeList");
             var seenTools = new Dictionary<string, string>();
             var dupes = new List<string>();
+            var deadItems = new List<string>();
             bool hasScatteredDisplayToggle = false;
 
             foreach (var m in modes)
             {
+                if (m.Categories.Count == 0) deadItems.Add($"Empty mode {m.Name}");
                 foreach (var c in m.Categories)
                 {
+                    if (!c.AnyPorted) deadItems.Add($"Dead category {m.Name}/{c.Name}");
                     if (m.Name == "观察" && (c.Name == "舆图" || c.Name == "信仰" || c.Name == "军情"))
                         dupes.Add($"Redundant category {m.Name}/{c.Name}");
                     foreach (var t in c.Tools)
                     {
+                        if (t.Run == null) deadItems.Add($"Unported dead button {m.Name}/{c.Name}/{t.Name}");
                         if (m.Name == "观察" && (t.Name == "云层" || t.Name == "网格" || t.Name == "等高线" || t.Name == "聚焦地块"))
                             hasScatteredDisplayToggle = true;
                         string loc = $"{m.Name}/{c.Name}/{t.Name}";
@@ -234,7 +251,12 @@ namespace EmpireCraft.EditorTools
                 }
             }
             Check(dupes.Count == 0, "Zero duplicate tools/categories across all 4 modes" + (dupes.Count > 0 ? " -> " + string.Join("; ", dupes) : ""));
+            Check(deadItems.Count == 0, "Zero dead/unported placeholder buttons across all 4 modes" + (deadItems.Count > 0 ? " -> " + string.Join("; ", deadItems) : ""));
             Check(!hasScatteredDisplayToggle, "Display settings (云层/网格/等高线/聚焦地块) removed from 观察 mode and unified in 设置");
+
+            // Verify 1-click DirectRail on 塑造 / 文明 / 营建 (zero secondary popout required)
+            Check(!modes[0].DirectRail && modes[1].DirectRail && modes[2].DirectRail && modes[3].DirectRail,
+                "塑造 / 文明 / 营建 use 1-click DirectRail while 观察 uses 4-category layer popout");
 
             // Tile info card should no longer duplicate 气候统计 button
             var infoButtons = Get<VisualElement>(app, "hudInfoButtons");
@@ -265,7 +287,7 @@ namespace EmpireCraft.EditorTools
             Check(!era.worldBound.Overlaps(modes.worldBound) && !modes.worldBound.Overlaps(views.worldBound),
                 $"Top bars non-overlapping (eraX={era.worldBound.xMax:F0}, modesX={modes.worldBound.xMin:F0}..{modes.worldBound.xMax:F0}, viewsX={views.worldBound.xMin:F0})");
             Check(!rail.worldBound.Overlaps(legend.worldBound) && !rail.worldBound.Overlaps(feed.worldBound),
-                $"Left rail disjoint from legend & feed (railXMax={rail.worldBound.xMax:F0}, feedXMin={feed.worldBound.xMin:F0})");
+                $"Left rail disjoint from legend & feed (railYMax={rail.worldBound.yMax:F0}, legendYMin={legend.worldBound.yMin:F0}, feedYMin={feed.worldBound.yMin:F0})");
             Check(!info.worldBound.Overlaps(views.worldBound),
                 $"Tile card disjoint from top-right views bar (viewsYMax={views.worldBound.yMax:F0}, infoYMin={info.worldBound.yMin:F0})");
         }

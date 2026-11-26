@@ -13,7 +13,8 @@ namespace EmpireCraft.UI
         public string Name, Icon, Hint;
         public Action Run;
         public Func<bool> IsOn;
-        public bool Opener;
+        public bool Opener, StayOpen;
+        public int ToolIndex;
     }
 
     public sealed class HudCategory
@@ -25,8 +26,8 @@ namespace EmpireCraft.UI
 
     public sealed class HudMode
     {
-        public string Name, Icon;
-        public bool Brush, Legend;
+        public string Name, Icon, RailTitle;
+        public bool Brush, Legend, DirectRail;
         public readonly List<HudCategory> Categories = new List<HudCategory>();
     }
 
@@ -492,6 +493,12 @@ namespace EmpireCraft.UI
             {
                 if (e.button != 0 || panelDragPointer >= 0) return;
                 if (Hud.IsInteractiveElement(e.target as VisualElement, target)) return;
+                if (e.clickCount >= 2 && hasCustomPos)
+                {
+                    ResetLayout(save: persist);
+                    e.StopPropagation();
+                    return;
+                }
                 panelDragPointer = e.pointerId;
                 panelDragged = false;
                 panelDownPointer = e.position;
