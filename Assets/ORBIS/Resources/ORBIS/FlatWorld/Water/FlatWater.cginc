@@ -388,7 +388,7 @@ float2 FlatCausticMirrorUV(float2 uv)
 {
     return 1-abs(frac(uv*.5)*2-1);
 }
-float3 FlatRiverSW3Caustics(float3 bedPos,float3 sunWarp,float3 drift,float2 rippleSlope,float phase0,float phase1,float blend,float footprint)
+float FlatRiverSW3Caustics(float3 bedPos,float3 sunWarp,float3 drift,float phase0,float phase1,float blend,float footprint)
 {
     float3 p=bedPos*2.6+sunWarp*.35;
     if(_VendorCausticsReady>.5)
@@ -396,24 +396,17 @@ float3 FlatRiverSW3Caustics(float3 bedPos,float3 sunWarp,float3 drift,float2 rip
         float2 baseUV=float2(dot(p,float3(.85,.12,-.51)),dot(p,float3(.31,.88,.36)))*.34;
         float2 flowStep=float2(dot(drift,float3(.85,.12,-.51)),dot(drift,float3(.31,.88,.36)))*.24;
         float lod=clamp(log2(max(1,footprint*38)),0,5);
-        float3 c1=lerp(FlatPresentationSample(_VendorCaustics,FlatCausticMirrorUV(baseUV-flowStep*phase0),lod).rgb,
-                       FlatPresentationSample(_VendorCaustics,FlatCausticMirrorUV(baseUV-flowStep*phase1),lod).rgb,blend);
+        float c1=lerp(FlatPresentationSample(_VendorCaustics,FlatCausticMirrorUV(baseUV-flowStep*phase0),lod).g,
+                      FlatPresentationSample(_VendorCaustics,FlatCausticMirrorUV(baseUV-flowStep*phase1),lod).g,blend);
         float2 counterUV=baseUV*.80+float2(.37,.61);
-        float3 c2=lerp(FlatPresentationSample(_VendorCaustics,FlatCausticMirrorUV(counterUV+flowStep*phase0*.72),lod).rgb,
-                       FlatPresentationSample(_VendorCaustics,FlatCausticMirrorUV(counterUV+flowStep*phase1*.72),lod).rgb,blend);
+        float c2=lerp(FlatPresentationSample(_VendorCaustics,FlatCausticMirrorUV(counterUV+flowStep*phase0*.72),lod).g,
+                      FlatPresentationSample(_VendorCaustics,FlatCausticMirrorUV(counterUV+flowStep*phase1*.72),lod).g,blend);
         #ifdef UNITY_COLORSPACE_GAMMA
-        c1=GammaToLinearSpace(c1);c2=GammaToLinearSpace(c2);
+        c1=pow(max(0,c1),2.2);c2=pow(max(0,c2),2.2);
         #endif
-        float3 rawRGB=min(c1,c2)*1.85;
-        float mono=min(c1.g,c2.g)*1.85;
-        // Keep SW3 chromance subtle (.22) and attenuate red by underwater spectral
-        // extinction so caustics read as crisp sunlit aqua-white without red/magenta blotches.
-        float chromance=.22*(1-smoothstep(.08,.30,footprint));
-        float3 caustics=lerp(mono.xxx,rawRGB,chromance)*float3(.64,.98,1.06);
-        return max(0,caustics);
+        return max(0,min(c1,c2)*1.85);
     }
-    float g=lerp(FlatBedCaustic(p*2.4-drift*phase0*2),FlatBedCaustic(p*2.4-drift*phase1*2),blend);
-    return g*float3(.68,.98,1.05);
+    return lerp(FlatBedCaustic(p*2.4-drift*phase0*2),FlatBedCaustic(p*2.4-drift*phase1*2),blend);
 }
 float FlatRiverCobbleRelief(float3 p,float cobbleFade,float pebbleFade)
 {
@@ -422,17 +415,13 @@ float FlatRiverCobbleRelief(float3 p,float cobbleFade,float pebbleFade)
     float pebble=smoothstep(.48,.78,FlatDetailNoise(p*28.0+41))*pebbleFade;
     return bar*.36+cobble*.42+pebble*.22;
 }
-float3 FlatRiverClearBed(float3 baseBed,float3 bedPos,FlatRiverSection r,float3 chromaVec,float3 right,float3 up,float2 lightXY,float footprint)
+float3 FlatRiverClearBed(float3 baseBed,float3 bedPos,FlatRiverSection r,float3 right,float3 up,float2 lightXY,float footprint)
 {
     float cobbleFade=1-smoothstep(.24,1.05,footprint);
     float pebbleFade=1-smoothstep(.08,.36,footprint);
     float barFade=1-smoothstep(.65,2.2,footprint);
     float hBase=FlatRiverCobbleRelief(bedPos,cobbleFade,pebbleFade);
-    // Fine-pebble-only optical dispersion (never shifts broad sandbars, never boosts red > green).
-    float finePebblePlus=smoothstep(.48,.78,FlatDetailNoise((bedPos+chromaVec)*28.0+41))*pebbleFade;
-    float finePebbleMinus=smoothstep(.48,.78,FlatDetailNoise((bedPos-chromaVec)*28.0+41))*pebbleFade;
-    float dispDelta=(finePebblePlus-finePebbleMinus)*.08;
-    float3 stoneShade=(.76+.46*hBase)+float3(dispDelta*.35,dispDelta*.65,-dispDelta);
+    float stoneShade=.76+.46*hBase;
     // Sunlit 3D bevel on submerged river cobbles.
     float4 gradNoise=FlatDetailNoiseWithGradient(bedPos*13.5+23);
     float2 stoneGrad=float2(dot(gradNoise.yzw,right),dot(gradNoise.yzw,up));
@@ -924,18 +913,12 @@ float3 FlatWaterShadeCore(float2 cell,float4 mixing,float4 field,float3 bottom,f
         caustic*=exp(-depth*.12)*(1-exp(-depth*.7))*smoothstep(.03,.18,clearance)*(1-smoothstep(.2,1,footprint));
         bottom=FlatBedColor(bedCell,1-river)*lerp(.72,.96,river);
         if(depth<35&&footprint<1.5)bottom=lerp(bottom,FlatBedArtwork(bedPosition,bottom,footprint),1-smoothstep(18,35,depth));
-        float3 riverCausticRGB=caustic;
+        float riverCaustic=caustic;
         if(river>.001)
         {
-            // Subtle fine-pebble underwater refraction dispersion + crisp aqua-white SW3 caustics.
-            float2 wavePrism=(slopes+microSlopes*.45)*min(depth,4)*.005*saturate(waveStrength);
-            float2 disp2D=refractOffset*.85+wavePrism;
-            float dispLimit=min(.012,max(0,clearance)*.14);
-            disp2D*=min(1,dispLimit/max(1e-6,length(disp2D)));
-            float3 chromaVec=(right*disp2D.x*max(.04,cos(lat))+up*disp2D.y)*(_MapSize.x/6.283185307);
-            bottom=lerp(bottom,FlatRiverClearBed(bottom,bedPosition,channel,chromaVec,right,up,localLight.xy,footprint/2.4),river);
+            bottom=lerp(bottom,FlatRiverClearBed(bottom,bedPosition,channel,right,up,localLight.xy,footprint/2.4),river);
             float causticFade=exp(-depth*.11)*(1-exp(-depth*1.1))*smoothstep(.02,.16,clearance)*(1-smoothstep(.18,.78,footprint));
-            riverCausticRGB=FlatRiverSW3Caustics(bedPosition,sunWarp,drift,slopes+microSlopes*.35,phase0*travel,phase1*travel,blend,footprint/6)*saturate(localLight.z)*saturate(waveStrength)*causticFade;
+            riverCaustic=FlatRiverSW3Caustics(bedPosition,sunWarp,drift,phase0*travel,phase1*travel,blend,footprint/6)*saturate(localLight.z)*saturate(waveStrength)*causticFade;
         }
         if(river>.001&&(abs(channel.bend)>.06||channel.grade>.001))
         {
@@ -951,8 +934,8 @@ float3 FlatWaterShadeCore(float2 cell,float4 mixing,float4 field,float3 bottom,f
             sediment=FlatCoastArtwork(bedPosition,coast.seaward,bedShore,0,coast.mud,footprint/6,_WaterClock).albedo;
         }
         bottom=lerp(bottom,sediment*(1+.13*shoal),coast.coverage*ocean);
-        float3 causticGain=lerp(caustic.xxx*.65,riverCausticRGB*.95,river);
-        bottom=(bottom*(1+causticGain)+riverCausticRGB*.06*river)*depthRelief;
+        float causticGain=lerp(caustic*.65,riverCaustic*.90,river);
+        bottom=(bottom*(1+causticGain)+riverCaustic*.05*river)*depthRelief;
         // Preserve drowned fields, vegetation and terrain relief beneath shallow floodwater via HPWaterOptics transmission.
         bottom=lerp(bottom,submergedGround*(.80+.40*caustic),inundated*(1-smoothstep(1.6,4.8,depth)));
     }
