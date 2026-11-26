@@ -234,8 +234,8 @@ namespace Orbis.Flat
             var area=maps.LocalEditFootprint;
             var footprint=new Vector4(area.x,area.y,area.width,area.height);
             var focus=ComputeSelectionFocus(area,relief);
-            plantHeights.Bind(surface,maps.VisualTexture,Sectors,Rings);
             ApplyProjectionProperties(surface,radius,relief,mapSize,riverNarrowing,footprint,focus);
+            plantHeights.Bind(surface,maps.VisualTexture,Sectors,Rings);
 #if UNITY_EDITOR
             if(terrain&&terrain.sharedMaterial&&terrain.sharedMaterial!=surface)
                 ApplyProjectionProperties(terrain.sharedMaterial,radius,relief,mapSize,riverNarrowing,footprint,focus);
