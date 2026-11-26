@@ -1260,6 +1260,8 @@ namespace Orbis.Editor.CloudVisualQA
 
             try
             {
+                camera.targetTexture = rt;
+                nav.SetViewport(new Rect(0, 0, W, H));
                 PublishSkyExact(map, world, ClimateCloudQaScenarios.DefaultVisualClock, 1024, world.Day + 0.25);
 
                 // ============================================================
