@@ -290,6 +290,16 @@ namespace EmpireCraft.EditorTools
                 $"Left rail disjoint from legend & feed (railYMax={rail.worldBound.yMax:F0}, legendYMin={legend.worldBound.yMin:F0}, feedYMin={feed.worldBound.yMin:F0})");
             Check(!info.worldBound.Overlaps(views.worldBound),
                 $"Tile card disjoint from top-right views bar (viewsYMax={views.worldBound.yMax:F0}, infoYMin={info.worldBound.yMin:F0})");
+
+            // Ensure ecFeed vertical scroller & internal slider input stay strictly inside the gold frame border
+            var feedScroll = hud.Q<ScrollView>("ecFeedRows");
+            var vScroller = feedScroll?.verticalScroller;
+            var sliderInput = vScroller?.Q(className: "unity-base-field__input");
+            float maxChildX = vScroller != null ? vScroller.worldBound.xMax : feed.worldBound.xMin;
+            if (sliderInput != null && sliderInput.worldBound.xMax > maxChildX) maxChildX = sliderInput.worldBound.xMax;
+            float rightInset = feed.worldBound.xMax - maxChildX;
+            Check(rightInset >= 6f,
+                $"ecFeed vertical scrollbar strictly contained inside gold frame (feedXMax={feed.worldBound.xMax:F1}, scrollerMaxX={maxChildX:F1}, inset={rightInset:F1}px)");
         }
 
         static void VerifyUnifiedSettingsPages(FlatWorldApp app)
