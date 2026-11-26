@@ -253,7 +253,6 @@ public class EmpireCraftActorCheckWarriorMoveAdvanced : GameAIActorBase
         return zones;
     }
 
-#if EC_PENDING
     private static List<Cell> GetCachedOccupiedOwnZones(Realm kingdom)
     {
         int frame = Time.frameCount;
@@ -277,6 +276,7 @@ public class EmpireCraftActorCheckWarriorMoveAdvanced : GameAIActorBase
         return zones;
     }
 
+#if EC_PENDING
     private static Cell FindNearbyRetakeZoneForActor(Person actor)
     {
         if (actor == null || actor.Realm == null || actor.Cell == null || actor.Cell.Zone == null)
@@ -472,6 +472,7 @@ public class EmpireCraftActorCheckWarriorMoveAdvanced : GameAIActorBase
 
         return bestZone;
     }
+#endif
 
     private static List<Cell> GetOccupiedOwnZones(Realm kingdom)
     {
@@ -570,6 +571,7 @@ public class EmpireCraftActorCheckWarriorMoveAdvanced : GameAIActorBase
         return false;
     }
 
+#if EC_PENDING
     private static Cell FindTargetFrontZoneForActor(Person actor)
     {
         if (actor == null || actor.Realm == null || actor.Cell == null || actor.Cell.Zone == null)
@@ -877,12 +879,14 @@ public class EmpireCraftActorCheckWarriorMoveAdvanced : GameAIActorBase
 
         return null;
     }
+#endif
 
     private static bool ShouldRetreat(Person actor)
     {
-        return actor?.Record != null && actor.Record.health <= RetreatHealthThreshold;
+        return actor?.Record != null && actor.Record.Health <= RetreatHealthThreshold;
     }
 
+#if EC_PENDING
     private static Cell FindRetreatTileForActor(Person actor)
     {
         if (actor == null || actor.Realm == null)
@@ -931,7 +935,7 @@ public class EmpireCraftActorCheckWarriorMoveAdvanced : GameAIActorBase
 
             int enemyNeighbours = CountEnemyNeighbours(actorKingdom, neighbour);
             int friendlyNeighbours = CountFriendlyControlledNeighbours(actorKingdom, neighbour) + CountFriendlyOccupiedNeighbours(actorKingdom, neighbour);
-            float distanceToCapital = Toolbox.SquaredDist(neighbour.Center.posV3.x, neighbour.Center.posV3.y, capitalCenter.x, capitalCenter.y);
+            float distanceToCapital = EcMath.SquaredDist(neighbour.Center.posV3.x, neighbour.Center.posV3.y, capitalCenter.x, capitalCenter.y);
             int score = friendlyNeighbours * 100 - enemyNeighbours * 250;
 
             if (score > bestScore || (score == bestScore && distanceToCapital < bestDistance))

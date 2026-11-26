@@ -85,7 +85,6 @@ public class TemporaryPushProgress
     /// 开始推动
     /// </summary>
     /// <param name="pActor"></param>
-#if EC_PENDING
     public void StartToPush(Person pActor, TemporaryFactionType tfType)
     {
         if (StartedToPushTf || !IsLocalPusher(pActor)) return;
@@ -106,7 +105,6 @@ public class TemporaryPushProgress
         StartedToPushTf = true;
         Progress = 0;
     }
-#endif
     /// <summary>
     /// 推动诉求
     /// </summary>
@@ -180,7 +178,7 @@ public class TemporaryPushProgress
         if (empire.RunningTemporaryFaction?.IsStarted() == true || claim.IsStarted() || claim.CountDown > 0) return;
         var factions = empire.CoreKingdom?.GetRegime()?.GetPlayerFactions();
         if (factions == null || factions.Any(f => f?.TemporaryFactions?.Any(tf => tf?.IsStarted() == true) == true)) return;
-        if (claim.ShowAsPlot && empire.Emperor?.plot?.isActive() == true) return;
+        if (claim.ShowAsPlot && empire.Emperor?.Plot?.IsActive() == true) return;
         claim.SetEmpire(empire);
         claim.SetKingdom(kingdom);
         claim.pusherType = EntityKind.Realm;
@@ -219,7 +217,6 @@ public class TemporaryPushProgress
             kingdom.Ruler == actor && !kingdom.IsAtWarWith(empire.CoreKingdom);
     }
 
-#if EC_PENDING
     private bool ValidateRequest()
     {
         var actor = GetPusher();
@@ -232,6 +229,7 @@ public class TemporaryPushProgress
         return PendingClaim.CheckLocalContinue(actor.Realm) && PendingClaim.CheckContinue() && PendingClaim.CheckTarget();
     }
 
+#if EC_PENDING
     public static void TrySubmitReadyRequests(Empire empire)
     {
         foreach (var request in empire.kingdoms_list.Where(k => k != null && !k.IsGone() && k != empire.CoreKingdom)
@@ -251,7 +249,7 @@ public class TemporaryPushProgress
         return "";
     }
 }
-public static class KingdomExtension
+public static partial class KingdomExtension
 {
     public static readonly SemaphoreSlim _sem = new SemaphoreSlim(Environment.ProcessorCount);
     public class KingdomExtraData: ExtraDataBase
@@ -309,6 +307,12 @@ public static class KingdomExtension
         public double emirate_hereditary_at = -1d;
         // 分裂进程里割据(见 SchismSystem，用户 2026-10-21 选"先割据后独立")：割据起始时间与所属帝国；-1 = 没割据。
         // 割据的成员仍在帝国里、地图颜色不变，但不向中央缴税、不随征、不奉诏；进程化解或收场时清掉
+        // 近代国家成员的自主度(见 ModernAutonomySystem)：-1 还没定档，0 直辖、1 地方实力派、2 割据；
+        // years 连着过线的年数(往上正、往下负)，score 去年的离心，since 定这一档的时刻
+        public int autonomy_tier = -1;
+        public int autonomy_years;
+        public float autonomy_score;
+        public double autonomy_since = -1d;
         public double schism_breakaway_at = -1d;
         public long schism_breakaway_empire_id = -1L;
         // 去留冷却(见 MembershipCooldown)：神力从哪个帝国、哪位宗主放出，何时；神力拉入哪个帝国、归哪位宗主，何时；
@@ -1474,7 +1478,6 @@ public static class KingdomExtension
         return at >= 0d && EmpireWorld.Current != null && GameClock.Now >= at && GameClock.YearsSince(at) < ScriptedTributeYears;
     }
 
-#if EC_PENDING
     public static void StartToTaken(this Realm k)
     {
         Empire empire = k.GetTakenAllianceEmpire();
@@ -1487,7 +1490,7 @@ public static class KingdomExtension
         if (fiscal) k.GetOrCreate().last_taken_time = GameClock.Now;
         // 贡金按人口(无小人模式按户，和单位个数同一量级)
         bool abstracted = CityPopulationSystem.AbstractPopulationEnabled;
-        int population = abstracted ? CityPopulationSystem.Households(k) : k.PopulationCount();
+        int population = abstracted ? CityPopulationSystem.Households(k) : k.People.Count;
         var value = population / 2;
         if (fiscal) value = Math.Min(value, Math.Max(0, k.GetMoney()));
         k.SubMoney(value, TreasuryCategory.Tribute);
@@ -1549,7 +1552,6 @@ public static class KingdomExtension
         if (attackerStrength <= 0 || defenderStrength <= 0) return false;
         return attackerStrength >= Math.Ceiling(defenderStrength * Math.Max(1f, minimumAdvantage));
     }
-#endif
 
     private static bool HasAnyActiveEmpireWar(Empire empire)
     {
@@ -1575,14 +1577,13 @@ public static class KingdomExtension
         return total;
     }
 
-#if EC_PENDING
     private static long CountEffectiveDefenderWarriors(Realm target, Empire attackingEmpire)
     {
         long strength = Math.Max(0, target.Warriors());
         if (target.HasAlliance())
         {
             Alliance alliance = target.GetAlliance();
-            if (alliance != null) strength = Math.Max(strength, alliance.countWarriors());
+            if (alliance != null) strength = Math.Max(strength, alliance.CountWarriors());
         }
 
         if (target.IsInEmpire())
@@ -1614,7 +1615,6 @@ public static class KingdomExtension
         }
         return false;
     }
-#endif
     /// <summary>
     /// 获取当前国家退出朝贡联盟的倾向
     /// </summary>
@@ -1683,7 +1683,6 @@ public static class KingdomExtension
 
     private const int TributarySwitchYears = 20;
 
-#if EC_PENDING
     public static void JoinTakenAlliance(this Realm k, Empire empire, bool pForce = false)
     {
         if (EmpireCraft.Core.AncientWarfareCompatibility.Owns(k) ||
@@ -1743,7 +1742,6 @@ public static class KingdomExtension
             ["empire"] = empire.GetEmpireFullName()
         }, kingdomId: k.Key);
     }
-#endif
 
     public static bool CanVoluntarilyBecomeTributaryOf(this Realm kingdom, Empire empire)
     {
@@ -1780,7 +1778,6 @@ public static class KingdomExtension
             }, kingdomId: k.Key);
         }
     }
-#if EC_PENDING
     public static bool NeedToRemoveTakenAlliance(this Realm k)
     {
         if (!k.HasTakenAlliance()) return false;
@@ -1789,7 +1786,6 @@ public static class KingdomExtension
         return empire == null||k.IsInEmpire()||!RealmDiplomacySystem.CanChooseOverlord(k) || TributaryRelations.IsWestern(empire) ||
                TributaryRelations.DriftedAway(k, empire);
     }
-#endif
 
     // updateColor is used by older releases when a tributary joins. Restore the persistent
     // pre-existing kingdom color rather than generating a new random one when it leaves.
@@ -2199,16 +2195,25 @@ public static class KingdomExtension
         if (k.IsGone()) return 0;
         return TreasuryRules.QuoteBalance(k.GetTreasuryBalance());
     }
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
     public static long GetTreasuryBalance(this Realm k) => k.IsGone() ? 0L : k.GetOrCreate().Money;
+#endif
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
     public static void AddMoney(this Realm k, int money)
         => AddMoney(k, money, TreasuryCategory.Other);
+#endif
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
     public static void AddMoney(this Realm k, int money, TreasuryCategory category)
     {
         long change = TreasuryRules.ChangeBalance(ref k.GetOrCreate().Money, money);
         TreasurySystem.Record(k, change, category);
     }
+#endif
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
     public static void SubMoney(this Realm k, int money)
         => SubMoney(k, money, TreasuryCategory.Other);
+#endif
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
     public static void SubMoney(this Realm k, int money, TreasuryCategory category)
     {
         long before = k.GetOrCreate().Money;
@@ -2216,6 +2221,7 @@ public static class KingdomExtension
         TreasurySystem.Record(k, change, category);
         FiscalDiagnostics.LargeDrain(k, before, money, category);
     }
+#endif
     
     public static double GetLastTaxTime(this Realm k)
     {
@@ -3515,11 +3521,13 @@ public static class KingdomExtension
 
         return candidate.Key < incumbent.Key;
     }
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
     public static KingdomExtraData GetOrCreate(this Realm a, bool isSave = false)
     {
         var ed = a.GetOrCreate<Realm, KingdomExtraData>(isSave);
         return ed;
     }
+#endif
 
     public static double GetFiedTimestamp(this Realm k)
     {
@@ -4082,7 +4090,6 @@ public static class KingdomExtension
         return emp != null && !emp.IsArchived() && !emp.IsGone() &&
             !EmpireCraft.Core.AncientWarfareCompatibility.Owns(emp.CoreKingdom);
     }
-#if EC_PENDING
     public static void EndWarWith(this Realm kingdom, Realm kingdom2)
     {
         var wars = kingdom.GetWarsCached(false);
@@ -4097,10 +4104,9 @@ public static class KingdomExtension
             {
                 for (int d = 0; d < defenders.Length; d++) { if (defenders[d] == kingdom2) { has = true; break; } }
             }
-            if (has) w.lostWar(kingdom2);
+            if (has) w.Lost(kingdom2);
         }
     }
-#endif
 
     public static List<War> GetWarsCached(this Realm kingdom, bool pRandom = false)
     {

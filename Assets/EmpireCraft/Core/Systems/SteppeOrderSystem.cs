@@ -34,7 +34,6 @@ public static partial class SteppeOrderSystem
     }
 
     // 每年：nomads 是算过草原压力的有劫掠传统的国家
-#if EC_PENDING
     public static void Yearly(List<Realm> nomads)
     {
         try
@@ -62,7 +61,6 @@ public static partial class SteppeOrderSystem
             LogService.LogWarning($"{LogTag} 朝贡换赏赐结算失败: {exception.Message}");
         }
     }
-#endif
 
     public static void Monthly()
     {

@@ -64,7 +64,6 @@ public static class TerrainResistance
         return impassable ? Ridge : Base(terrain);
     }
 
-#if EC_PENDING
     public static float Step(Cell zone, Realm traveller = null, Realm other = null)
     {
         if (zone == null || zone.OnEdge || SeaRegionSystem.IsSea(zone)) return -1f;
@@ -79,14 +78,12 @@ public static class TerrainResistance
             cost += WallCrossing;
         return road ? cost * RoadFactor : cost;
     }
-#endif
 
     // 两块地之间沿直线走过去的阻力(按一块地一步取样，各取 Step)：开战够不够得着、陆路不通的飞地、开战定目标的估算用(见 WarReach、
     // AdministrativeControlSystem)。中间的海面按一步 SeaStep 算(近岸行船)；traveller 过关门同 Step。
     // 直线穿过对 traveller 过不去的无人区：调用方先确认绕得过去(见 WildernessPassage.Reachable)，这里每块按地形阻力的两倍估绕路
     public const float SeaStep = 1f;
 
-#if EC_PENDING
     public static float LineCost(Cell from, Cell to, Realm traveller = null)
     {
         if (from == null || to == null) return 0f;
@@ -114,15 +111,11 @@ public static class TerrainResistance
     }
 
     public static bool HasWall(Cell zone) => WallState(zone) > 0;
-#endif
 
     // 城墙情况(通达层取快照用，见 ConnectivitySystem)：-1 没有、1 有城墙、2 有城墙且有关门
-#if EC_PENDING
     public static int WallLevel(Cell zone) => WallState(zone);
-#endif
 
     // -1 没有城墙、1 有城墙、2 有城墙且有关门(缓存里 0 是还没查过)
-#if EC_PENDING
     private static sbyte WallState(Cell zone)
     {
         if (zone?.Tiles == null) return -1;
@@ -150,6 +143,5 @@ public static class TerrainResistance
         }
         return state;
     }
-#endif
 }
 }

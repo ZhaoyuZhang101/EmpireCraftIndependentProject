@@ -111,7 +111,6 @@ public static class BiographySystem
     }
 
     // 登记死因后让他死
-#if EC_PENDING
     public static void Kill(Person victim, string causeText, Person killer = null, bool executed = false, bool destroy = false,
         bool countDeath = true)
     {
@@ -122,7 +121,6 @@ public static class BiographySystem
         NoteDeath(victim, causeText, killer, executed);
         victim.Die(destroy, DeathCause.Other, countDeath, countDeath);
     }
-#endif
 
     public static bool WasExecuted(Person actor) =>
         actor?.Record != null && PendingDeaths.TryGetValue(actor.Key, out Pending pending) && pending.Executed;

@@ -444,6 +444,7 @@ public static partial class HolyRomanSystem
             item.Item2 != null && item.Item2.is_alive && item.Item2.CanHeir() && item.Item2.age >= 18);
         return Math.Max(living, all) == 0 ? "皇帝没有成年可继位的子嗣" : $"成年子嗣{Math.Max(living, all)}人，每年两成可能";
     }
+#endif
 
     private static string ReformStatus(Empire empire, HolyRomanState state)
     {
@@ -463,7 +464,6 @@ public static partial class HolyRomanSystem
             text += "：" + string.Join("、", missing);
         return reason == "institution_reform_low_mandate" ? $"{text}(正统{empire.Legitimacy}，要{node.research.mandate_required})" : text;
     }
-#endif
 
     private static string LeagueStatus(Empire empire, HolyRomanState state)
     {

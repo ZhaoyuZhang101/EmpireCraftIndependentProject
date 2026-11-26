@@ -61,7 +61,6 @@ public static partial class FrontSystem
     }
 
     // 行军(见 CorpsSystem.StepTowardTarget)：去打登陆战线、已在那座城那片陆地上的军，要不要先去港口坐船
-#if EC_PENDING
     public static bool MustSail(CorpsData corps, Cell current, Cell target)
     {
         if (corps == null || corps.embarked || corps.task != "attack" || current == null || target == null) return false;
@@ -72,7 +71,6 @@ public static partial class FrontSystem
         return city?.Record != null && SailsAround(corps, current, city, overland) &&
                CorpsSystem.EmbarkZone(EmpireWorld.Current.RealmByKey(corps.kingdom_id), corps) != null;
     }
-#endif
 
     // 已在登陆那座城那片陆地上的军还要不要坐船：陆路走不通(隔着第三国)、还没上岸的坐；走得通的走陆路
     private static bool SailsAround(CorpsData corps, Cell at, City city, bool overland)
@@ -100,7 +98,6 @@ public static partial class FrontSystem
     }
 
     // 上船的地方(按这次分派缓存)
-#if EC_PENDING
     private static Cell EmbarkPoint(Realm kingdom, CorpsData corps)
     {
         if (EmbarkPoints.TryGetValue(corps.id, out Cell zone)) return zone;
@@ -108,7 +105,6 @@ public static partial class FrontSystem
         EmbarkPoints[corps.id] = zone;
         return zone;
     }
-#endif
 
     // 这一段的守势(上月守军 + 团练)，与 Score 同一套
     private static float DefenseOf(Realm kingdom, Sector sector)
@@ -124,7 +120,6 @@ public static partial class FrontSystem
     private static int LandOffensives(Dictionary<Sector, float> attackOn) => attackOn.Keys.Count(sector => !sector.Landing);
 
     // 守城分兵之后、陆上攻势之前：为各路登陆抽兵渡海(见文件头)。strained：守城吃紧；focus：军令集中攻打的一段
-#if EC_PENDING
     private static void CommitLandings(Realm kingdom, List<Sector> sectors, List<CorpsData> ready, HashSet<CorpsData> assigned,
         Dictionary<Sector, float> attackOn, Dictionary<int, int> attackLoad, Sector focus, bool strained, ref float shipping)
     {
@@ -188,13 +183,11 @@ public static partial class FrontSystem
             SeaLandingDiagnostics.Landing(kingdom, sector.City.Realm, sent, going > 0f, sent > 0 ? null : why);
         }
     }
-#endif
 
     // 拟派的军：离上船的港口不过 EmbarkReachZones 块的，由近及远(上月正在陆上交战的算远几块，不轻易把正打着的仗抽空)；
     // 义军守土不出海，飞机不坐船(见 CorpsSystem.StepTowardTarget)，都不派；整军装得进限额的整军上；
     // 一支整军都装不进时，排头的一支按限额分出先遣军(先遣军至少一千人或半军，见 Shippable)，分不出来又装得下船、
     // 不超过限额两倍的整军上
-#if EC_PENDING
     private static List<(CorpsData corps, float amount)> PlanLanding(Realm kingdom, Sector sector, List<CorpsData> free,
         HashSet<CorpsData> assigned, float budget, float shipping, out string why)
     {
@@ -239,7 +232,6 @@ public static partial class FrontSystem
         else why = "可派的兵力不够一支先遣军";
         return plan;
     }
-#endif
 
     // 派去打这一路登陆(与陆上攻势同样落位)：要上船的占运力
     private static void Dispatch(CorpsData corps, Sector sector, HashSet<CorpsData> assigned, Dictionary<Sector, float> attackOn,
@@ -257,7 +249,6 @@ public static partial class FrontSystem
     }
 
     // 运力为什么不够(诊断)
-#if EC_PENDING
     private static string ShippingShortage(Realm kingdom)
     {
         if (!NavySystem.NavyEra(kingdom) && !NavySystem.NavyEra(ModRealm(kingdom))) return "缺运力(还没到有水师的时代)";
@@ -268,7 +259,6 @@ public static partial class FrontSystem
         if (ports.All(NavySystem.IsBlockaded)) return "缺运力(港口被封锁，新船出港就被击沉)";
         return "缺运力(运输船还没造够)";
     }
-#endif
 
     // 本月有登陆战线却一支军都派不出(都在溃退休整、在动员范围外)：各路登陆记下原因
     private static void NoteLandingIdle(Realm kingdom, List<Sector> sectors, string why)

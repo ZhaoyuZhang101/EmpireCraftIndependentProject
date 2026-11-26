@@ -15,7 +15,6 @@ namespace EmpireCraft.Core
 // 独立王国走原版挑宣战对象(见 WarTargetPatch)，兵力自有比较，只用 Forbidden 避开这些不该打的关系。
 public static class WarGate
 {
-#if EC_PENDING
     public static bool CanDeclare(Realm attacker, Realm target, bool ownTributary = false)
     {
         if (attacker?.Record == null || target?.Record == null || attacker == target || attacker.IsGone() || !target.Alive)
@@ -31,10 +30,9 @@ public static class WarGate
             ColonySystem.ForeignAffairsByMetropole(attacker)) return false;
         if (Forbidden(attacker, target, ownTributary)) return false;
         double lastWarEnded = EmpireWorld.Current?.Diplomacy?.GetRelation(attacker, target)?.Record?.LastWarEnded ?? -1d;
-        if (lastWarEnded >= 0d && GameClock.YearsSince(lastWarEnded) < SimGlobals.m.minimum_years_between_wars) return false;
+        if (lastWarEnded >= 0d && GameClock.YearsSince(lastWarEnded) < WorldRules.m.minimum_years_between_wars) return false;
         return FeudalVassalService.CanDeclareExternalWar(attacker, target, includeImperialMembers: attacker.IsEmpire());
     }
-#endif
 
     // 不论强弱都不打的关系：统一战线、兄弟之国、共主与共事部落、跨文明通好、扶立、同一帝国、岁币与朝贡、同盟、
     // 姻亲、封建上下级、保护约、同一位君主。ownTributary：攻方打自己帝国的朝贡国不算"朝贡两头都不打"(只给共主平定，见类头)

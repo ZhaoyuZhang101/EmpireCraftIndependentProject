@@ -162,7 +162,7 @@ namespace EmpireCraft.Core
         public static bool TryGetFinance(Realm realm, out bool crisis, out float unemployment) { crisis = false; unemployment = 0f; return false; }
         public static void CountProtests(object empire, out int demonstrating, out int striking) { demonstrating = 0; striking = 0; }
         public static void SweepVehicles() { }
-        public static void VirtualVehicles(Realm realm) { }
+        public static int VirtualVehicles(Realm realm) => 0;
         public static void LoseVehicles(object side, double loss) { }
     }
 
@@ -216,5 +216,159 @@ namespace EmpireCraft.Core
         internal ZoneLookup(EmpireWorld world) { _world = world; }
         public bool TryGetValue(long id, out Cell cell) { cell = _world == null || id < 0 || id >= _world.TileCity.Length ? null : _world.CellAt((int)id); return cell != null; }
         public bool ContainsKey(long id) => _world != null && id >= 0 && id < _world.TileCity.Length;
+    }
+
+    // Kinds of goods. The table is empty for now: the systems that trade, store and grow goods
+    // ask it and find nothing, until this game brings its own list of goods.
+    public enum ResType { Currency, Strategic, Ingredient, Ingredient_Food, Food }
+
+    public sealed class ResourceKind
+    {
+        public string id;
+        public ResType type;
+        public bool food;
+        public int supply_give;
+        public string getTranslatedName() => LM.Get(id);
+    }
+
+    public sealed class ResourceKinds
+    {
+        public static readonly ResourceKinds Table = new ResourceKinds();
+        public readonly List<ResourceKind> list = new List<ResourceKind>();
+        public readonly Dictionary<string, ResourceKind> dict = new Dictionary<string, ResourceKind>();
+        public ResourceKind get(string id) => id != null && dict.TryGetValue(id, out ResourceKind kind) ? kind : null;
+        // A copy of a kind under a new id (none is made while the table is empty).
+        public ResourceKind clone(string id, string from)
+        {
+            ResourceKind source = get(from);
+            if (source == null || id == null) return null;
+            var made = new ResourceKind { id = id, type = source.type, food = source.food, supply_give = source.supply_give };
+            dict[id] = made; list.Add(made);
+            return made;
+        }
+    }
+
+    // Tuning numbers of the world the ported diplomacy reads. This game's own values.
+    public sealed class WorldRules
+    {
+        public static readonly WorldRules m = new WorldRules();
+        public int minimum_years_between_wars = 5;        // a truce after a war has ended
+        public int diplomacy_years_war_timeout = 3;       // a realm waits this long after its last war before starting another
+        public int diplomacy_years_war_min_warriors = 50; // troops a realm needs before it goes to war
+        public int minimum_kingdom_age_for_attack = 5;    // a new realm is left alone this many years
+        public int alliance_timeout = 5;                  // years between joining and leaving alliances
+        public int rebellions_min_age = 10;               // a city rises only after this many years under its realm
+        public int rebellions_min_warriors = 50;
+        public float rebellions_unhappy_multiplier = 0.1f;
+    }
+
+    // Arms and armour: nobody carries any (soldiers are counted, persons on record do not fight as units).
+    public sealed class Equipment { }
+    public static class ItemCrafting
+    {
+        public static bool tryToCraftRandomWeapon(Person person, City city) => false;
+        public static bool tryToCraftRandomArmor(Person person, City city) => false;
+    }
+
+    // Tips flashed on the screen are the client's; the world's news (WorldNews) is what it reads.
+    public static class WorldTip
+    {
+        public static void showNow(string text, bool translate = true, string position = "top", float seconds = 3f) { }
+    }
+
+    // The mod switched some of its game patches on lazily; this game has no patches to switch.
+    public static class TechnologyPatch
+    {
+        public static void EnsureModPatches() { }
+    }
+
+    // Whether a realm is minded to go to war at all (before it picks a target): it has a ruler and a capital,
+    // is not already at war, its last war began long enough ago, and it has the troops. This game's own rule.
+    public static class DiplomacyHelpers
+    {
+        public static bool isWarNeeded(Realm realm)
+        {
+            if (realm == null || !realm.Alive || realm.Ruler == null || realm.Capital == null || realm.Wars.Count > 0) return false;
+            if (realm.LastWarAt >= 0 && GameClock.YearsSince(realm.LastWarAt) <= WorldRules.m.diplomacy_years_war_timeout) return false;
+            return realm.Warriors() > WorldRules.m.diplomacy_years_war_min_warriors;
+        }
+    }
+
+    // Counts of what has happened in a world (cities conquered, cities that rebelled ...). Not saved.
+    public sealed class WorldStatsData
+    {
+        public string name;
+        public long citiesConquered, citiesRebelled, citiesCreated, citiesDestroyed, kingdomsCreated, kingdomsDestroyed;
+        public void initNewWorld() { citiesConquered = citiesRebelled = citiesCreated = citiesDestroyed = kingdomsCreated = kingdomsDestroyed = 0; }
+    }
+    public sealed class WorldStats { public readonly WorldStatsData data = new WorldStatsData(); }
+
+    // The mod's game patches derive from these; there is no game to patch here.
+    public interface GamePatch { }
+
+    // The mod's slow-step warnings (a step that took long is logged). Here they only measure.
+    public static class PerfTimer
+    {
+        public static long Begin() => System.Diagnostics.Stopwatch.GetTimestamp();
+        public static bool Slow(long started, out double milliseconds)
+        {
+            milliseconds = (System.Diagnostics.Stopwatch.GetTimestamp() - started) * 1000d / System.Diagnostics.Stopwatch.Frequency;
+            return false;
+        }
+        public static void Warn(string label, double milliseconds) { }
+    }
+
+    // The mod's patch on commoners (its index of who lives where on the map): no map units here, nothing to index.
+    public static class NoCommonersPatch
+    {
+        public static void ResetPopulationIndex() { }
+    }
+
+    // The phone terminal (a player seat steering a ruler) is not part of this game yet: nobody campaigns in person.
+    public static class TerminalHost
+    {
+        public static float CampaignFactor(Realm realm) => 1f;
+    }
+
+    // The mod's city plans (built-up cells of a town) belong to its map drawing; a city here has no plan,
+    // so only its seat counts as built up.
+    public static class PureMapPatch
+    {
+        public static HashSet<int> BuiltZones(City city) => null;
+    }
+
+    // How corps are drawn on the map is the client's business.
+    public static class CorpsMapRenderer
+    {
+        public static void EnsureHost() { }
+        public static void ClearLocate() { }
+        public static void ResetWorldState() { }
+    }
+
+    // Things laid over the ground (walls, roads as tiles): none here.
+    public sealed class TerrainLayers
+    {
+        public static readonly TerrainLayers Top = new TerrainLayers();
+        public readonly List<TerrainKind> list = new List<TerrainKind>();
+    }
+
+    // The landmass a cell lies on, as one object per landmass (compared by reference).
+    public sealed class CellRegion
+    {
+        public readonly object island;
+        public CellRegion(object island) { this.island = island; }
+    }
+    public sealed class ModDeclare { public string FolderPath => GameData.Folder; }
+
+    // A row of cards on a screen of the mod; screens are the client's business here.
+    public sealed class AutoHoriLayoutGroup { }
+
+    // Name plates on the map belong to the client. The ported code asks them for a realm's
+    // display name and tells them to refresh; the name is the realm's own and nothing is drawn.
+    public static class EmpireCraftNamePlateLibrary
+    {
+        public static string GetDisplayName(Realm realm) => realm?.Name ?? "";
+        public static void RequestRefresh() { }
+        public static void ResetWorldState() { }
     }
 }

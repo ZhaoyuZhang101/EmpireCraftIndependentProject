@@ -93,7 +93,6 @@ public static class StateModernization
     #region 共和革命(独立君主国)
 
     // 本国条件下今年起共和革命的机会
-#if EC_PENDING
     public static float RevolutionChance(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || kingdom.Cities == null || kingdom.Cities.Count == 0) return 0f;
@@ -109,7 +108,6 @@ public static class StateModernization
         return ModernizationRules.RevolutionChance(Math.Min(1f, republican), unrest / (float)kingdom.Cities.Count, republicanNeighbours,
             kingdom.GetOrCreate().scenario_monarchy);
     }
-#endif
 
     // 独立君主国的共和革命(用户 2026-11-24 "政权更替大多数情况下都是自发的")：以前每年按机会掷一次，掷中当场改现代政体。
     // 现在同帝国的革命(见 RevolutionSystem)一样有先后：
@@ -122,7 +120,6 @@ public static class StateModernization
     private const float IncidentChance = 0.15f, UprisingBase = 0.3f, UprisingPerChance = 0.4f, CrushedTension = 30f;
     private const int NotableCities = 3, MinorAge = 16;
 
-#if EC_PENDING
     public static bool TryRevolution(Realm kingdom)
     {
         // 时代锁在工业时代以前(见 TechnologySystem.EraLock)：君主国不再新起共和革命
@@ -175,7 +172,6 @@ public static class StateModernization
         LogService.LogInfo($"[EmpireCraft][近代化] {name} 共和革命(本国条件 {chance:P1}，{(concedes ? "逊位" : "起事成功")})");
         return true;
     }
-#endif
 
     private static void Convert(Realm kingdom, KingdomExtension.KingdomExtraData data)
     {

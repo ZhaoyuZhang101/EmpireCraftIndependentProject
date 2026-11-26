@@ -147,10 +147,8 @@ public class Regime
     public bool era_name;
     [JsonIgnore]
     public long control_kingdom_id;
-#if EC_PENDING
     [JsonIgnore] 
     public AutoHoriLayoutGroup FactionSpace;
-#endif
     public LeaderSelectMethod leader_select_method; 
     public bool centre_empire_separate;
     // 政体行为开关(用户 2026-10-19 选"挪进配置"；以前写死在代码里)，各政体 SystemConfig.json 写明，读模板(GetTemplate)：

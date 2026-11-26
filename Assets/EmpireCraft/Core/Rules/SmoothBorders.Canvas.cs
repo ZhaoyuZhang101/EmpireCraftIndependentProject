@@ -89,7 +89,9 @@ public static partial class SmoothBorders
 #if EC_PENDING
     private static bool CanvasHandles(MetaTypeAsset layer, int option) =>
         Enabled && !_canvasBroken && layer != null && Smoothable(layer);
+#endif
 
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
     internal static bool CanvasActive => _canvasLayer != null && _canvasReady;
 #endif
 
@@ -157,7 +159,6 @@ public static partial class SmoothBorders
         CanvasDirty.Add(zone.Index);
     }
 
-#if EC_PENDING
     private static int CityOf(City city)
     {
         if (city == null || !city.Alive) return 0;
@@ -188,7 +189,6 @@ public static partial class SmoothBorders
         Array.Resize(ref _citySeen, size);
         Array.Resize(ref _cityPass, size);
     }
-#endif
 
     #region 每帧
 
@@ -256,7 +256,7 @@ public static partial class SmoothBorders
 #if EC_PENDING
     private static void CanvasBuild(ZoneGrid calc, MetaTypeAsset layer, int option)
     {
-        long started = Stopwatch.GetTimestamp();
+        long started = SimWatch.GetTimestamp();
         _canvasW = EmpireWorld.Current.Width;
         _canvasH = EmpireWorld.Current.Height;
         _zonesX = calc.Width;
@@ -346,7 +346,7 @@ public static partial class SmoothBorders
         calc.MarkDirty();
         // 无人区图层看画布上各格归了谁(并进国土、挨着国土不描边)：整张画过，有无人区格的那些块都重画
         if (WildernessShape.Active) WildernessOverlay.CanvasRebuilt();
-        double ms = (Stopwatch.GetTimestamp() - started) * 1000d / Stopwatch.Frequency;
+        double ms = (SimWatch.GetTimestamp() - started) * 1000d / SimWatch.Frequency;
         LogService.LogInfo($"[EmpireCraft][全图换色] {layer.id}：整图画布{(geometry ? "连同城的轮廓" : "")}整张画好，用了 {ms:0} 毫秒");
     }
 #endif

@@ -20,7 +20,7 @@ namespace EmpireCraft.Core
 public static class WarBalanceDiagnostics
 {
     private const int MaxBattleLines = 6, MaxRealmLines = 8, CooldownMonths = 12;
-    private const double SecondsPerMonth = 5d;
+    private const double SecondsPerMonth = 1d; // world time counts months here
     // 四路诊断：0 游牧、1 阿拉伯、2 罗马、3 华夏
     private const int NomadChannel = 0, ArabicChannel = 1, RomaChannel = 2, HuaxiaChannel = 3, Channels = 4;
     private static readonly string[] Tags = { "游牧平衡", "阿拉伯平衡", "罗马平衡", "华夏平衡" };
@@ -139,7 +139,6 @@ public static class WarBalanceDiagnostics
     }
 
     // 每月交战结算后(FrontSystem.ResolveCity)
-#if EC_PENDING
     public static void Battle(City city, Realm attacker, Realm owner, List<(Realm kingdom, CorpsData corps)> attackers,
         List<(Realm kingdom, CorpsData corps)> holders, FrontTerrain terrain, float ground, bool landing, bool breach,
         float remnant, float militia, float fort, float attack, float defend, float ratio)
@@ -185,7 +184,6 @@ public static class WarBalanceDiagnostics
                     $"雄主×{Weighted(side, entry => RulerTraitSystem.FounderCombat(entry.kingdom)):0.00} " +
                     $"八旗×{Weighted(side, entry => BannerSystem.CombatFactor(entry.kingdom, entry.corps)):0.00}");
     }
-#endif
 
     private static float Weighted(List<(Realm kingdom, CorpsData corps)> side, global::System.Func<CorpsData, float> value) =>
         Weighted(side, entry => value(entry.corps));

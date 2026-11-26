@@ -178,7 +178,6 @@ public static class PrivyPurse
         city?.Record != null && !city.IsGone() && city.Realm == realm && realm?.Ruler?.GetSpecificClan() != null &&
         CityPopulationSystem.AbstractPopulationEnabled && LandEconomySystem.IsLandMarketOpen(realm);
 
-#if EC_PENDING
     public static string BuyLand(Realm realm, City city)
     {
         Person king = realm?.Ruler;
@@ -188,11 +187,10 @@ public static class PrivyPurse
         float got = LandEconomySystem.AnnexForClan(city, king.GetSpecificClan(), BuyPoints);
         if (got <= 0f) return "purse_land_none";
         int paid = Mathf.CeilToInt(LandEconomySystem.LandPrice(got));
-        king.spendMoney(paid);
+        king.SpendMoney(paid);
         LandEconomySystem.PaySellers(city, paid);
         return null;
     }
-#endif
 
     // 卖官：中枢空着的官，价钱 = 上月岁入的两成，至少 OfficeFloor
     public const int OfficeFloor = 40;
@@ -215,7 +213,6 @@ public static class PrivyPurse
         return list;
     }
 
-#if EC_PENDING
     public static string SellOffice(Empire empire, int slot, out string buyer)
     {
         buyer = null;
@@ -231,14 +228,13 @@ public static class PrivyPurse
         int price = OfficePrice(realm);
         office.SetActor(pick);
         if (office.GetActor() != pick) return "purse_no_buyer";
-        pick.spendMoney(Math.Min(pick.Money, price));
+        pick.SpendMoney(Math.Min(pick.Money, price));
         Credit(realm, Offices, price);
         realm.AddCorruptionRate(0.02d);
         foreach (FixedFaction faction in CourtSystem.Factions(empire)) CourtSystem.AdjustFaction(empire, faction, "grievance", 3f);
         buyer = pick.FullName();
         return null;
     }
-#endif
 
     // 动用公帑：拿可支配的 share；察觉了返回 true
     // 挪用不管留存，按国库现银拿

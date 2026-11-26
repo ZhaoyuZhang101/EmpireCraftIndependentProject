@@ -9,13 +9,11 @@ public class EmpireCraftActorCheckEmpireLaw : GameAIActorBase
 {
     public override Type OriginalBeh => GetType();
 
-#if EC_PENDING
     public override BehResult Execute(Person pActor)
     {
         if (pActor == null || pActor.IsGone()) return BehResult.Continue;
         EmpireLawSystem.CheckAutomaticLawTriggers(pActor);
         return BehResult.Continue;
     }
-#endif
 }
 }

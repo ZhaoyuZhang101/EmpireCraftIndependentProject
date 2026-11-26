@@ -110,7 +110,6 @@ public static class PersonalTieSystem
 
     #region 年度结算
 
-#if EC_PENDING
     public static void Yearly()
     {
         if (EmpireWorld.Current?.Living == null) return;
@@ -131,7 +130,6 @@ public static class PersonalTieSystem
         }
         if (acted < 12) VirtualRevenge(12 - acted);
     }
-#endif
 
     // 记着杀亲之仇的人(族谱身份)：读档后头一回年结扫一遍族谱，之后结仇时补记
     private static HashSet<long> Avengers;
@@ -140,7 +138,6 @@ public static class PersonalTieSystem
 
     // 报杀亲之仇的多是死者的子与兄弟，纯净地图下多是虚拟族人(以前年结只看地图上的人，仇结了永远报不了)：
     // 族谱里在世、仇人也在世的照样按 RevengeChance 掷，掷中了才把两人落成、照常报仇
-#if EC_PENDING
     private static void VirtualRevenge(int budget)
     {
         if (Avengers == null)
@@ -194,7 +191,6 @@ public static class PersonalTieSystem
         }
         return false;
     }
-#endif
 
     // 构陷：使宿敌去职
     private static bool Frame(Person actor, Person rival)
@@ -211,7 +207,6 @@ public static class PersonalTieSystem
     }
 
     // 复仇：遣刺客
-#if EC_PENDING
     private static bool Revenge(Person actor, Person rival)
     {
         float chance = RevengeSuccess * (rival.IsRuler() ? 0.5f : 1f);
@@ -231,7 +226,6 @@ public static class PersonalTieSystem
         }
         return true;
     }
-#endif
 
     // 投敌：与本国君主有仇，投奔正与本国交战的敌国
     private static bool Defect(Person actor, Person ruler)

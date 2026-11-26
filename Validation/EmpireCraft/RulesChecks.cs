@@ -217,7 +217,12 @@ public static class RulesChecks
         var map = FlatGenerator.Generate(256, 128, "EMPIRE-PEOPLE", TerrainPreset.Continents, default);
         var w = Start(map); w.Activate();
         Person ruler = w.LiveRealms[0].Ruler, other = w.LiveRealms[1].Ruler;
-        Check(ruler.Renown == 0 && ruler.TraitCount == 0 && !ruler.HasTrait("wise") && ruler.Stats["warfare"] == 0f, "people start without standing, traits or talents");
+        Check(ruler.Renown == 0 && ruler.TraitCount == 0 && !ruler.HasTrait("wise"), "people start without standing or traits");
+        // Talents are drawn at birth: 1 to 19 each, fixed by the world and the person, and not all alike.
+        var talents = w.People.SelectMany(p => new[] { p.Stewardship, p.Warfare, p.Intelligence, p.Diplomacy }).ToList();
+        Check(talents.All(v => v >= 1 && v <= 19) && talents.Distinct().Count() > 10 && Math.Abs(talents.Average() - 10) < 1.5 && ruler.Stats["warfare"] == ruler.Warfare &&
+              Start(map).People.Select(p => p.Warfare).SequenceEqual(w.People.Select(p => p.Warfare)), "talents are drawn at birth, the same for the same world");
+        w.Activate();
         ruler.AddRenown(40); ruler.AddRenown(-100); ruler.AddRenown(25); ruler.AddMoney(300); ruler.AddMoney(-50);
         ruler.Stewardship = 7; ruler.Warfare = 3; ruler.Intelligence = 9; ruler.Diplomacy = 5;
         Check(ruler.Renown == 25 && ruler.Money == 250 && ruler.Stats["intelligence"] == 9f && ruler.Stats["nonsense"] == 0f, "renown does not go below zero; talents read by name");
@@ -345,7 +350,8 @@ public static class RulesChecks
         Check(empire.Emperor == ruler && w.Empires.Get(empire.Key) == empire, "an empire on record with its core realm and emperor");
         for (int month = 0; month < 12; month++) { EmpireSimulation.Month(w); realm.AddMoney(1000, TreasuryCategory.LandTax); }
         long income = StateDebtSystem.AnnualStableIncome(realm); int before = realm.GetMoney();
-        Check(before == 12000 && income > 0, "a year of land tax on the realm's own books");
+        // One treasury: what the ported systems add and spend is the balance on the world's ledger, beside the skeleton's own taxes.
+        Check(before == (int)w.Ledger.Realm(realm.Id).Treasury && before >= 12000 && income >= 12000, "a year of land tax on the realm's one treasury");
         Check(RulerQualitySystem.Of(ruler) == RulerQualitySystem.Grade.Average, "an ungraded ruler is average");
         RulerQualitySystem.Yearly(empire);
         Check(realm.GetMoney() == before, "an average ruler's palace costs nothing extra");
@@ -469,6 +475,7 @@ public static class RulesChecks
     {
         checks = 0;
         var map = FlatGenerator.Generate(256, 128, "EMPIRE-ALLIES", TerrainPreset.Continents, default);
+        PortedSystems.Enabled = false;   // the skeleton's alliances and truces by hand: the ported wars would settle the war themselves
         var w = Start(map); w.Activate();
         Realm a = w.LiveRealms[0], b = w.LiveRealms[1], c = w.LiveRealms[2], d = w.LiveRealms[3];
         Check(!a.HasAlliance() && a.GetAlliance() == null && !w.AnyAlliances() && w.NewAlliance(a, a) == null, "nobody is allied at first");
@@ -522,6 +529,7 @@ public static class RulesChecks
               PersonSorts.AttributeDice(null, 1) == 0 && ((EcVector2)(EcVector3)new EcVector2(3f, 4f)).y == 4f && EcVector3.Distance(new EcVector3(0f, 0f), new EcVector3(3f, 4f)) == 5f, "seniority, a roll that favours the able, a list for a while, vectors");
         pool.Dispose();
         EmpireWorld.Current = null;
+        PortedSystems.Enabled = true;
         Console.WriteLine("PASS alliances (" + checks + " checks)");
     }
 
@@ -553,8 +561,9 @@ public static class RulesChecks
         PortedSystems.Reset();
         var again = Start(map); Run(again, 40);
         Check(EmpireSave.Encode(again).SequenceEqual(bytes), "the same seed gives the same world with the ported systems running");
-        PortedSystems.Enabled = false; var bare = Start(map); Run(bare, 40); PortedSystems.Enabled = true;
-        Check(EmpireSave.Encode(bare, 2).SequenceEqual(EmpireSave.Encode(w, 2)) && bare.Living.All(p => p.Renown == 0), "switched off, the world is the skeleton's alone; switched on, the skeleton's part is unchanged");
+        PortedSystems.Enabled = false; var bare = Start(map); Run(bare, 40); var bareTwin = Start(map); Run(bareTwin, 40); PortedSystems.Enabled = true;
+        // Switched on, the ported systems now keep the population and wage the wars, so the skeleton's part changes with them.
+        Check(EmpireSave.Encode(bare).SequenceEqual(EmpireSave.Encode(bareTwin)) && bare.Living.All(p => p.Renown == 0), "switched off, the world is the skeleton's alone, the same for the same seed");
         EmpireWorld.Current = null;
         Console.WriteLine("PASS ported systems running 40 years (" + checks + " checks): " + PortedSystems.Slots.Count + " systems, standing " + total + " in all, the greatest ruler " + great.Renown + " (earns " + income + " a year)");
     }
@@ -680,6 +689,155 @@ public static class RulesChecks
         Console.WriteLine("PASS peoples by geography (" + checks + " checks)");
     }
 
+    // Diagnostic: the same world three times; where do the runs part, and in what.
+    public static void Twins()
+    {
+        var map = FlatGenerator.Generate(256, 128, "EMPIRE-RUNNING", TerrainPreset.Continents, default);
+        PortedSystems.Reset(); PortedSystems.Enabled = true;
+        List<string[]> RunOnce()
+        {
+            var w = Start(map); var rows = new List<string[]>();
+            Run(w, 40, x => rows.Add(new[] {
+                "people " + x.Cities.Where(c => c.Alive).Sum(c => (long)c.Population),
+                "groups " + x.Cities.Where(c => c.Alive).Sum(c => (double)CityPopulationSystem.GetTotal(c)).ToString("0"),
+                "treasury " + x.Ledger.Realms.Sum(r => r.Treasury),
+                "wars " + x.Wars.Count, "persons " + x.People.Count, "realms " + x.LiveRealms.Count, "cities " + x.Cities.Count,
+                "renown " + x.Living.Sum(p => (long)p.Renown), "plots " + DecisionSystem.Started, "corps " + CorpsSystem.All().Count() }));
+            return rows;
+        }
+        var a = RunOnce(); var b = RunOnce(); var c = RunOnce();
+        string Part(List<string[]> x, List<string[]> y)
+        {
+            for (int i = 0; i < x.Count; i++)
+                for (int k = 0; k < x[i].Length; k++)
+                    if (x[i][k] != y[i][k]) return "year " + (i + 1) + ": " + x[i][k] + " vs " + y[i][k];
+            return "same";
+        }
+        Console.WriteLine("   first vs second: " + Part(a, b));
+        Console.WriteLine("   second vs third: " + Part(b, c));
+    }
+
+    // Empires the world founds by itself: a realm's empire check starts the plot that prepares a proclamation,
+    // the decision system carries it through, and the ported founding code makes the empire.
+    public static void EmpiresArise(int width = 256, int years = 150)
+    {
+        checks = 0;
+        LM.Clear(); LM.LoadFile(Path.Combine(DataFolder(), "Locales", "ch.json")); LM.Language = "ch";
+        GameData.Folder = DataFolder(); OnomasticsRule.ReadSetting(); RegimeManager.init();
+        PortedSystems.Reset(); PortedSystems.Enabled = true;
+        var map = FlatGenerator.Generate(width, width / 2, "EMPIRE-ARISE", TerrainPreset.Continents, default);
+        // What the ported systems write to the log (several catch their own errors and only log them).
+        var logged = new Dictionary<string, int>();
+        // The institution system's yearly line per people (where its reforms stand and what holds them up): the last one kept.
+        var progress = new Dictionary<string, string>();
+        LogService.Sink = (level, message) =>
+        {
+            if (level == LogLevel.Info)
+            {
+                int at = message.IndexOf("[制度进度]", StringComparison.Ordinal);
+                if (at >= 0) { string rest = message.Substring(at + 6).Trim(); int cut = rest.IndexOfAny(new[] { ' ', '：', ':' }); progress[cut > 0 ? rest.Substring(0, cut) : rest] = rest; }
+                return;
+            }
+            string key = level + ": " + (message.Length > 300 ? message.Substring(0, 300) : message).Replace('\n', ' ');
+            logged[key] = logged.TryGetValue(key, out int n) ? n + 1 : 1;
+        };
+        var w = Start(map);
+        int startedBefore = DecisionSystem.Started, finishedBefore = DecisionSystem.Finished;
+        var founded = new List<string>();
+        var seen = new HashSet<long>();
+        Run(w, years, world =>
+        {
+            var bad = EmpireInvariants.Check(world, 1);
+            Check(bad.Count == 0, "the world stays consistent while empires may arise" + (bad.Count > 0 ? ": " + bad[0] : ""));
+            foreach (var e in world.Empires.list)
+                if (seen.Add(e.Key)) founded.Add(world.Year + "年 " + e.Name + "(" + e.CoreKingdom?.Name + "，" + CultureService.GetRealmCulture(e.CoreKingdom) + ")");
+            if (world.Year % 20 == 0)
+                Console.WriteLine("   year " + world.Year + ": realms " + world.LiveRealms.Count + ", wars " + world.Wars.Count + " (" + world.LiveWars.Count + " running), cities changed hands " +
+                    world.Annals.Entries.Count(e => e.Kind == AnnalKind.CityTransferred) + "; cities by people " + string.Join("/", new[] { 0, 25, 50, 75, 100 }.Select(q => { var pops = world.Cities.Where(c => c.Alive).Select(c => c.Population).OrderBy(x => x).ToList(); return pops.Count == 0 ? 0 : (long)pops[Math.Min(pops.Count - 1, q * pops.Count / 100)]; })) + "; " + string.Join("; ", world.LiveRealms.GroupBy(r => EmpireFormationService.Diagnose(r) ?? "ok")
+                    .OrderByDescending(g => g.Count()).Take(5).Select(g => g.Key + " " + g.Count())) +
+                    "; regimes " + string.Join(", ", world.LiveRealms.GroupBy(r => r.GetRegime()?.type.ToString() ?? "none").OrderByDescending(g => g.Count()).Take(4).Select(g => g.Key + " " + g.Count())) +
+                    "; peoples (era, institutions) " + string.Join(", ", world.LiveRealms.Select(r => CultureService.GetRealmCulture(r)).Distinct().OrderBy(c => c)
+                        .Select(c => c + " " + TechnologySystem.GetEraTier(c) + "/" + (InstitutionSystem.GetOrCreateCultureState(c)?.enacted_node_ids?.Count ?? 0) +
+                            " t" + TechnologySystem.GetState(c).researched_techs.Count + " p" + TechnologySystem.GetState(c).last_yearly_points.ToString("0") + (TechnologySystem.GetState(c).auto_research ? "" : " manual"))));
+        });
+        string faults = string.Join("; ", PortedSystems.Slots.Where(s => s.Faults > 0).Select(s => s.Name + " x" + s.Faults + " " + s.LastFault));
+        LogService.Sink = null;
+        foreach (var entry in logged.OrderByDescending(p => p.Value).Take(12)) Console.WriteLine("   log x" + entry.Value + " " + entry.Key);
+        foreach (var entry in progress.OrderBy(p => p.Key)) Console.WriteLine("   institutions: " + entry.Value);
+        // Where research stands for the people furthest ahead: what holds its next technologies.
+        string ahead = w.LiveRealms.Select(r => CultureService.GetRealmCulture(r)).Distinct().OrderByDescending(c => TechnologySystem.GetState(c).researched_techs.Count).ThenBy(c => c).FirstOrDefault();
+        if (ahead != null)
+        {
+            TechnologySystem.EnsureLoaded();
+            var open = TechnologySystem.Config.techs.Where(t => !TechnologySystem.HasTech(ahead, t.id)).ToList();
+            Console.WriteLine("   research of " + ahead + ": culture level " + TechnologySystem.GetCultureLevel(ahead) + ", max tier " + TechnologySystem.GetMaxTierForCulture(ahead) +
+                ", era " + TechnologySystem.GetEraTier(ahead) + "; not yet: " + string.Join(", ", open.GroupBy(t => TechnologySystem.GetTechStatus(ahead, t)).Select(g => g.Key + " " + g.Count())) +
+                "; lowest: " + string.Join(", ", open.OrderBy(t => t.tier).Take(8).Select(t => t.id + "(t" + t.tier + " " + TechnologySystem.GetTechStatus(ahead, t) + ")")));
+        }
+        Console.WriteLine("   slowest systems: " + string.Join(", ", PortedSystems.Slots.OrderByDescending(s => s.TotalMs).Take(8).Select(s => s.Name + " " + (s.TotalMs / Math.Max(1, s.Runs)).ToString("0.0") + " ms avg, worst " + s.WorstMs.ToString("0") + " ms")));
+        Console.WriteLine("   " + DecisionSystem.Summary());
+        var rulersNow = w.LiveRealms.Where(r => r.Ruler != null).Select(r => r.Ruler).ToList();
+        Console.WriteLine("   decisions weighed: planned " + DecisionSystem.Planned + ", with options " + DecisionSystem.Weighed + "; rulers' talents (stewardship/warfare/intelligence/diplomacy, best) " +
+            rulersNow.Max(p => p.Stewardship) + "/" + rulersNow.Max(p => p.Warfare) + "/" + rulersNow.Max(p => p.Intelligence) + "/" + rulersNow.Max(p => p.Diplomacy) +
+            ", renown " + rulersNow.Min(p => p.Renown) + ".." + rulersNow.Max(p => p.Renown) + ", realm renown up to " + w.LiveRealms.Max(r => r.GetRenown()));
+        Console.WriteLine("   empires founded: " + (founded.Count == 0 ? "none" : string.Join("; ", founded)));
+        // Why realms do not go to war: the war plot's own conditions in their order, the first that fails (test-only, by reflection).
+        var plots = typeof(EmpireCraftPlotsAddition);
+        System.Reflection.MethodInfo Private(string name) => plots.GetMethod(name, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
+        var needed = Private("IsWarNeededForPlot"); var canStart = Private("CanStartModWar");
+        string Gate(Realm r)
+        {
+            var king = r.Ruler; if (king == null) return "no ruler";
+            if (r.GetRegime()?.IsAllowDiplomacy() == false) return "regime allows no diplomacy";
+            if (DiplomacyLaws.WarBlocked) return "war blocked by law";
+            if (CorpsSystem.CannotFundWar(r)) return "cannot fund a war";
+            if (!(bool)needed.Invoke(null, new object[] { r })) return "no war needed (troops " + r.Warriors() + ", wars " + r.Wars.Count + ")";
+            if (EmpireCraftPlotsAddition.GetWarTarget(r) == null) return "no target among " + w.NeutralRealms(r).Count + " neutral realms";
+            return (bool)canStart.Invoke(null, new object[] { king, null }) ? "could start" : "other condition";
+        }
+        string Target(Realm a, Realm b)
+        {
+            if (NationalSentimentSystem.InSameUnitedFront(a, b)) return "united front";
+            if (EmpirePartitionSystem.InAmity(a, b)) return "amity";
+            if (TribalFissionService.Bound(a, b)) return "bound tribes";
+            if (!b.HasCities() || b.GetAge() < WorldRules.m.minimum_kingdom_age_for_attack) return "too young";
+            if (!a.Capital.ReachableFrom(b.Capital) && !StraitReach.Across(a, b)) return "not reachable";
+            if (!SteppeOrderSystem.PeacetimeWarAllowed(a, b)) return "steppe peace";
+            if (!WarReach.WarNear(a, b)) return a.Cities.Any(c => c.NeighbourRealms.Contains(b)) ? "not near (cities touch)" : "not near (" + (int)a.Cities.Min(x => b.Cities.Min(y => w.Distance(x.Tile, y.Tile))) + " cells apart, wilderness between " + a.Cities.Sum(c => WildernessNeighbours.Of(c).Count()) + ")";
+            if (WarSituation.Power(a) <= WarSituation.Power(b)) return "not stronger";
+            if (!WarGate.CanDeclare(a, b)) return "war gate";
+            return "valid";
+        }
+        Console.WriteLine("   war targets (pairs): " + string.Join("; ", w.LiveRealms.SelectMany(a => w.NeutralRealms(a).Select(b => Target(a, b))).GroupBy(x => x).OrderByDescending(g => g.Count()).Select(g => g.Key + " " + g.Count())));
+        // A war declared by hand between the two nearest realms of one landmass: do corps march, fight, take cities?
+        var pair = w.LiveRealms.SelectMany(a => w.LiveRealms.Where(b => b.Id > a.Id && a.Capital.ReachableFrom(b.Capital)).Select(b => (a, b)))
+            .OrderBy(x => w.Distance(x.a.Capital.Tile, x.b.Capital.Tile)).FirstOrDefault();
+        if (pair.a != null)
+        {
+            var (strong, weak) = WarSituation.Power(pair.a) >= WarSituation.Power(pair.b) ? (pair.a, pair.b) : (pair.b, pair.a);
+            int handsBefore = w.Annals.Entries.Count(e => e.Kind == AnnalKind.CityTransferred);
+            var trial = w.StartWar(strong, weak, WarKinds.Normal);
+            int corpsSeen = 0;
+            for (int m = 0; m < 120 && trial != null && trial.Alive; m++) { EmpireSimulation.Month(w); corpsSeen = Math.Max(corpsSeen, CorpsSystem.All().Count()); }
+            Console.WriteLine("   trial war " + strong.Name + " (" + strong.Cities.Count + " cities, power " + WarSituation.Power(strong) + ") on " + weak.Name + " (" + weak.Cities.Count + ", " + WarSituation.Power(weak) + "), " +
+                (int)w.Distance(strong.Capital.Tile, weak.Capital.Tile) + " cells apart: " + (trial == null ? "not declared" : trial.Alive ? "still on after 10 years" : "ended " + trial.Outcome + " after " + trial.DurationMonths() + " months") +
+                ", corps up to " + corpsSeen + ", cities changed hands " + (w.Annals.Entries.Count(e => e.Kind == AnnalKind.CityTransferred) - handsBefore));
+        }
+        Console.WriteLine("   war gates: " + string.Join("; ", w.LiveRealms.GroupBy(Gate).OrderByDescending(g => g.Count()).Select(g => g.Key + " " + g.Count())));
+        Check(PortedSystems.TotalFaults == 0, "no ported system fails while realms weigh empires: " + faults);
+        // The path runs: research and reforms move every people on, and realms grow out of the tribe.
+        var peoples = w.LiveRealms.Select(r => CultureService.GetRealmCulture(r)).Distinct().ToList();
+        Check(peoples.All(c => TechnologySystem.GetState(c).researched_techs.Count > 0), "every people researches");
+        Check(peoples.Count(c => (InstitutionSystem.GetOrCreateCultureState(c)?.enacted_node_ids?.Count ?? 0) > 1) * 2 >= peoples.Count, "most peoples carry out reforms");
+        int settled = w.LiveRealms.Count(r => !TribalFissionService.IsTribal(r));
+        Check(settled > 0, "some realm grows out of the tribe");
+        // Realms go to war on their own, cities change hands, and the world founds an empire by itself.
+        Check(w.Wars.Count(x => x.Kind == WarKinds.Normal) > 0 && w.Annals.Entries.Any(e => e.Kind == AnnalKind.CityTransferred), "realms go to war and cities change hands");
+        Check(founded.Count > 0 && DecisionSystem.FinishedBy.TryGetValue("become_empire", out int proclaimed) && proclaimed > 0, "the world founds an empire by itself");
+        foreach (var e in w.Empires.list) Check(e.CoreKingdom != null && (!e.Alive || e.CoreKingdom.IsEmpire()), "an empire stands on its core realm");
+        Console.WriteLine("PASS empires arise (" + checks + " checks): " + settled + " realms out of the tribe, " + founded.Count + " empires in " + years + " years, " + (DecisionSystem.Finished - finishedBefore) + " plots done");
+    }
+
     // The grid as the ported systems see it: cells, terrain, a city's territory and neighbours.
     public static void Grid()
     {
@@ -690,7 +848,7 @@ public static class RulesChecks
         var west = w.CellAt(0, 40); var east = w.CellAt(255, 40);
         Check(Land.SquaredDist(west, east) == 1 && Land.SquaredDist(w.CellAt(10, 10), w.CellAt(13, 14)) == 25 && Land.Dist(w.CellAt(10, 10), w.CellAt(13, 14)) == 5f &&
               Land.SquaredDist(w.CellAt(0, 0), w.CellAt(128, 0)) == 128 * 128 && Land.SquaredDist(west, null) == int.MaxValue, "cell distances go the short way round");
-        Check(ReferenceEquals(w.CellAt(256, 40), west) && west.Left == east && east.Right == west && west.Neighbours.Count == 4 && west.NeighboursAll.Count == 8 && w.CellAt(10, 0).Neighbours.Count == 3 && w.CellAt(10, 0).OnEdge && !west.OnEdge, "the grid wraps east-west and ends at the polar rows");
+        Check(ReferenceEquals(w.CellAt(256, 40), west) && west.Left == east && east.Right == west && west.Neighbours.Length == 4 && west.NeighboursAll.Length == 8 && w.CellAt(10, 0).Neighbours.Length == 3 && w.CellAt(10, 0).OnEdge && !west.OnEdge, "the grid wraps east-west and ends at the polar rows");
         Check(ReferenceEquals(west.Zone, west) && ReferenceEquals(west.Center, west) && west.Tiles.Count == 1 && west.Pos.x == 0 && west.PosV.y == 40f, "a cell is its own zone, centre and tile");
         Check(w.Zones.All.Count == w.Zones.Count && ReferenceEquals(w.Zones.All[41], w.CellAt(41)) && w.AllCells.Length == w.Zones.Count && w.Zones.Lookup.TryGetValue(41, out Cell found) && found == w.CellAt(41) &&
               !w.Zones.Lookup.TryGetValue(-1, out found) && found == null, "all cells as a list, an array, and by number");
@@ -813,6 +971,8 @@ public static class RulesChecks
     {
         checks = 0;
         var map = FlatGenerator.Generate(256, 128, "EMPIRE-ACCOUNTS", TerrainPreset.Continents, default);
+        // The skeleton's books, saved and loaded: the ported systems' own state is not in the save yet, so they stay off here.
+        PortedSystems.Enabled = false;
         var a = Start(map); Consistent(a, "opening");
         var treasuryBefore = new Dictionary<int, long>();
         Run(a, 60, w =>
@@ -843,6 +1003,7 @@ public static class RulesChecks
         var plain = Start(map); var same = Start(map);
         for (int m = 0; m < 240; m++) { SkeletonRules.Month(plain); EmpireSimulation.Month(same); }
         Check(plain.Annals.Entries.Count == same.Annals.Entries.Count && plain.Cities.Count == same.Cities.Count && plain.People.Count == same.People.Count, "books must not change the course of the world yet");
+        PortedSystems.Enabled = true;
         Console.WriteLine("PASS realm accounts 60+15 years (" + checks + " checks): " + Summary(a));
     }
 

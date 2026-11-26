@@ -32,7 +32,6 @@ public static class ForeignLandSystem
 
     private static bool Alive(Realm kingdom) => kingdom?.Record != null && !kingdom.IsGone();
 
-#if EC_PENDING
     public static void Tick()
     {
         EmpireWorld world = EmpireWorld.Current;
@@ -62,7 +61,6 @@ public static class ForeignLandSystem
             LogService.LogWarning($"[EmpireCraft][异族之地] 结算失败: {exception.Message}");
         }
     }
-#endif
 
     // 这座城对这个帝国是异族之地：主流文化与统治文化不同族，复合帝国也不是制度文化那一族
     public static bool IsForeign(City city, Empire empire)
@@ -163,7 +161,6 @@ public static class ForeignLandSystem
 
     #region 胡无百年
 
-#if EC_PENDING
     private static void CheckBreakaways(double now)
     {
         foreach (long id in Overdue.ToList())
@@ -188,7 +185,6 @@ public static class ForeignLandSystem
             Overdue.Remove(id);
         }
     }
-#endif
 
     private static bool Suppressed(Empire empire, double now)
     {
@@ -226,7 +222,6 @@ public static class ForeignLandSystem
     }
 
     // 全部自立：都城是三代未附之地的成员国离开，中央直辖的(京城所在的王国法理除外)按王国法理各自立国
-#if EC_PENDING
     private static void Break(Empire empire, List<City> cities, int legitimacy)
     {
         // 不许自立(见 SecessionGate)：异族之地不自立(不记叛离，Empire.leave 那道门拦不到)
@@ -278,7 +273,6 @@ public static class ForeignLandSystem
         ProvincialCollapseSystem.Absorb(empire, null, "[EmpireCraft][异族之地]");
         ModClass.EMPIRE_MANAGER?.dissolveEmpire(empire);
     }
-#endif
 
     #endregion
 }

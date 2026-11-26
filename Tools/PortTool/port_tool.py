@@ -84,6 +84,8 @@ IDENTITY = [
     (r"(?<![.\w])Realm\b", "ModRealm"),
     # Several systems also have a helper method of that name; calls through the class follow the declaration.
     (r"(?<=\.)Realm(?=\()", "ModRealm"),
+    # ... except the one helper ported before the identity rewrite, which kept its name.
+    (r"\bCorruptionRules\.ModRealm\(", "CorruptionRules.Realm("),
     (r"\bWorld\.world\.getCurWorldTime\(\)", "GameClock.Now"),
     (r"\bWorld\.world\b", "EmpireWorld.Current"),
     (r"(?<![.\w])Kingdom\b", "Realm"),
@@ -105,6 +107,58 @@ IDENTITY = [
     (r"(?<![.\w])AssetManager\.buildings\b", "BuildingKinds.Table"),
     (r"(?<![.\w])BuildingAsset\b", "BuildingKind"),
     (r"(?<![.\w])PlotAsset\b", "PlotKind"),
+    # The kinds of plot are a table of this game (Core/Entities/Works.cs).
+    (r"(?<![.\w])AssetManager\.plots_library\b", "PlotKinds.Library"),
+    # Tuning numbers of the world (Core/Host/Stock.cs WorldRules); goods kinds (an empty table for now).
+    (r"(?<![.\w])SimGlobals\.m\b", "WorldRules.m"),
+    (r"(?<![.\w])AssetManager\.resources\b", "ResourceKinds.Table"),
+    (r"(?<![.\w])ResourceAsset\b", "ResourceKind"),
+    (r"(?<![.\w])WorldTileData\b", "Cell"),
+    (r"\bEmpireWorld\.Current\.alliances\.forceAlliance\(", "EmpireWorld.Current.ForceAlliance("),
+    (r"(?<![.\w])ModClass\._declare\?\.FolderPath\b", "GameData.Folder"),
+    (r"(?<![.\w])Toolbox\.SquaredDist\(", "EcMath.SquaredDist("),
+    (r"(?<![.\w])Toolbox\.DistVec2Float\(", "EcVector2.Distance("),
+    # Counting soldiers or grown-ups among a city's units: soldiers and the population are numbers here.
+    (r"\b(\w+)\.units\.Count\(\s*(\w+)\s*=>\s*\2 != null && \2\.isAlive\(\) && \2\.isWarrior\(\)\)", r"\1.Warriors()"),
+    (r"\b(\w+)\.units\.Count\(\s*(\w+)\s*=>\s*\2 != null && \2\.isAlive\(\) && \2\.isAdult\(\)\)", r"\1.PopulationCount()"),
+    # A loop bound over units (i < city.units.Count, then city.units[i]) counts the persons on record it indexes,
+    # not the population the bare count stands for elsewhere.
+    (r"(?<=< )(\w+)\.units\.Count\b(?!\()", r"\1.People.Count"),
+    # Research (TechnologySystem): no buildings here, so a city's own levels go by its people (Core/Seams/CityAnswers.cs);
+    # no goods in store, so a material is found where the city's land yields it.
+    (r"(int cityLevels = )(city\.buildings\.Where\()", r"\1CityAnswers.CityLevel(city) + \2"),
+    (r"\bcity\.getResourcesAmount\(requirement\.id\) >= requirement\.amount\b",
+     r"(city.getResourcesAmount(requirement.id) >= requirement.amount || CityAnswers.LandYields(city, requirement.id))"),
+    # War targets (EmpireCraftPlotsAddition): realms a realm could turn on, and how far apart two realms lie.
+    (r"\b(?:EmpireWorld\.Current|DiplomacyHelpers|World\.world)\.wars\.getNeutralKingdoms\(", "EmpireWorld.Current.NeutralRealms("),
+    # The base game could lock its city list mid-update; this world's never is.
+    (r"\bEmpireWorld\.Current\.cities\.isLocked\(\)", "false"),
+    (r"\bRealm\.distanceBetweenKingdom\(", "Realm.DistanceBetween("),
+    # Colours in text are this game's colour type; things laid over the ground are a table of this game (empty).
+    # Corps march one step a beat, and the mod beat once a world second, five to a month; this world's clock counts months.
+    (r"\bSecondBeats\.Due\(ref _lastSecond, now\)", "SecondBeats.Due(ref _lastSecond, now * 5d)"),
+    (r"\bglobal::Time\.", "FrameClock."),
+    # The ported systems' own time limits read the simulation's clock (Core/Host/Host.cs SimWatch).
+    (r"(?<![.\w:])(?:global::)?(?:System\.Diagnostics\.)?Stopwatch\b", "SimWatch"),
+    # The world's people as a plain list (the base game kept a faster copy for iteration).
+    (r"\.units\.getSimpleList\(\)", ".units"),
+    (r"(?<![.\w])UnityEngine\.Color\b", "EcColor"),
+    (r"(?<![.\w])AssetManager\.top_tiles\b", "TerrainLayers.Top"),
+    (r"(?<![.\w])LocalizedTextManager\.instance\?\.language\b", "LM.Language"),
+    (r"(?<![.\w])new PerfTimer\(", "FrameProfiler.Measure("),
+    # World time counts months here, the mod's counted seconds (5 a month, 60 a year): its named constants follow.
+    (r"\b(const double SecondsPerYear = )60d;", r"\g<1>12d; // world time counts months here"),
+    (r"\b(const double FirstYearSpreadSeconds = )60d;", r"\g<1>12d; // world time counts months here"),
+    (r"\b(private const double MonthLength = )5d;", r"\g<1>GameClock.MonthLength;"),
+    # ... and its inline ones: a number of years times 60, a span divided by 60, months times 5 (all seconds there).
+    (r"(?<=[\w)]) \* 60d\b", " * 12d"),
+    (r"(\(now - [\w.]+\)) / 60d\b", r"\1 / 12d"),
+    (r"\b12 \* 5d\b", "12d"),
+    (r"\b(\w*Months) \* 5d\b", r"\1 * 1d"),
+    (r"\bRange\(0, 12\) \* 5d\b", "Range(0, 12) * 1d"),
+    (r"\(6 \+ distance / 40\) \* 5d\b", "(6 + distance / 40) * 1d"),
+    (r"\((_kernelNow - known\.at)\) / 5\.0\b", r"(\1) / 1.0"),
+    (r"((?:\bconst (?:double|float) |, )SecondsPerMonth = )5(d|f);", r"\g<1>1\2; // world time counts months here"),
     (r"(?<![.\w])(?:EmpireCraft\.Core\.)?EmpireCraftMetaTypeLibrary\.selected_empire\b", "GameView.SelectedEmpire"),
     (r"(?<![.\w])(?:EmpireCraft\.Core\.)?PureMapPatch\.Redraw\b", "GameView.Redraw"),
     (r"(?<![.\w])CitizenJobAsset\b", "JobKind"),
@@ -190,7 +244,8 @@ IDENTITY = [
     (r"\bDate\.getCurrentMonth\(\)", "GameClock.Month"),
 ]
 IDENTITY = [(re.compile(pattern), replacement) for pattern, replacement in IDENTITY]
-DROPPED_USINGS = ("UnityEngine", "NeoModLoader", "HarmonyLib", "ai", "EpPathFinding")
+# System.IO.Ports and System.Security.Policy: stray usings in the mod that Unity's .NET profile does not have.
+DROPPED_USINGS = ("UnityEngine", "NeoModLoader", "HarmonyLib", "ai", "EpPathFinding", "System.IO.Ports", "System.Security.Policy")
 
 
 def git(mod, *args, check=True):

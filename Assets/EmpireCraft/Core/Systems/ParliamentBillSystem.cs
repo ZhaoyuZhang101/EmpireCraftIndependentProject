@@ -201,7 +201,6 @@ public static class ParliamentBillSystem
     }
 
     // 下一件议案的预估(诉求天平页)：照眼下由谁提、提哪一条、表决会怎样
-#if EC_PENDING
     public static (FixedFaction sponsor, TemporaryFaction claim, Tally tally) Preview(Empire empire)
     {
         if (!Applies(empire)) return (null, null, null);
@@ -218,7 +217,6 @@ public static class ParliamentBillSystem
             .FirstOrDefault(tf => tf.CheckCondition() && tf.CheckTarget());
         return (leader, claim, claim == null ? null : Count(empire, claim, leader));
     }
-#endif
 
     private static void Archive(ConstitutionalEconomyState state, ParliamentBillRecord record)
     {

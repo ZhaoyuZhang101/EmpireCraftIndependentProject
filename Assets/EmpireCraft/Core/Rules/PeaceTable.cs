@@ -114,7 +114,6 @@ public static class PeaceTable
 
     #region 台子(神在议和页上摆的)
 
-#if EC_PENDING
     public static PeaceDeal Draft(War war)
     {
         long id = Id(war);
@@ -124,12 +123,10 @@ public static class PeaceTable
     }
 
     public static void ResetToOffer(War war) => Drafts[Id(war)] = Offer(war);
-#endif
 
     public static void Clear(War war) => Drafts[Id(war)] = new PeaceDeal();
 
     // 点一项：在台上就撤下，不在就加上(同一方出的同类条款换掉)
-#if EC_PENDING
     public static void Toggle(War war, PeaceTerm term)
     {
         PeaceDeal deal = Draft(war);
@@ -141,20 +138,16 @@ public static class PeaceTable
     }
 
     public static void Remove(War war, PeaceTerm term) => Draft(war).terms.RemoveAll(item => item.Key == term.Key);
-#endif
 
     // 撮合：凑到两国都肯；凑不拢就停在两边最接近的地方。不动主城池
-#if EC_PENDING
     public static bool Mediate(War war)
     {
         PeaceDeal deal = Draft(war);
         if (deal.terms.Count == 0) Drafts[Id(war)] = deal = Offer(war);
         return Balance(war, deal, lockMain: true, markAdded: true);
     }
-#endif
 
     // 签约：forced = 强令(不看意愿)；否则两国都肯才签。上帝视角不受最短战期限制(见 WarPeaceRules)
-#if EC_PENDING
     public static bool Sign(War war, bool forced)
     {
         if (!Usable(war)) return false;
@@ -175,17 +168,14 @@ public static class PeaceTable
         Drafts.Remove(id);
         return true;
     }
-#endif
 
     // 君主自己摆的台子(手机终端，见 TerminalHost.Peace)：撮合同 Mediate，只是撮的是这一张，不动神在议和页上那张
-#if EC_PENDING
     public static bool MediateDeal(War war, PeaceDeal deal)
     {
         if (!Usable(war)) return false;
         if (deal.terms.Count == 0) deal.terms.AddRange(Offer(war).terms);
         return Balance(war, deal, lockMain: true, markAdded: true);
     }
-#endif
 
     // 君主签约：mustAccept = 由朝廷自己裁的那一国(它肯才签；君主这一边他自己拿主意，不看天平)；
     // 为空是两位君主当面谈成的，不再看天平。最短战期照常(WarPeaceRules)
@@ -227,16 +217,13 @@ public static class PeaceTable
 
     // 开战一方罢兵的代价：照败方赔款，就是标准一档(国库四分之一，另三年分付，同 WarReparationsSystem.Impose 的默认)；
     // 国库制度没开的返回 null(罢兵不赔)
-#if EC_PENDING
     public static PeaceTerm WithdrawTerm(War war)
     {
         var pay = new PeaceTerm { kind = PeaceTermKind.Indemnity, by_attacker = true, tier = PeaceTermRules.StandardIndemnity };
         return Usable(war) && Unavailable(war, pay) == null ? pay : null;
     }
-#endif
 
     // 两国谈不拢时攻方肯不肯罢兵：照罢兵的代价算它的意愿(打不动、疲敝重的宁可赔钱收兵)
-#if EC_PENDING
     private static bool WouldWithdraw(War war, PeaceBasis basis)
     {
         var deal = new PeaceDeal();
@@ -244,19 +231,15 @@ public static class PeaceTable
         (PeaceOpinion attacker, PeaceOpinion _) = Evaluate(war, deal, basis);
         return attacker.Accepts;
     }
-#endif
 
     // 去掉已经不成立的(城换了主、条件不再可行)
-#if EC_PENDING
     private static void Prune(War war, PeaceDeal deal) => deal.terms.RemoveAll(term => Unavailable(war, term) != null);
-#endif
 
     #endregion
 
     #region 照目标开价
 
     // 主攻方照战争目标开的价：割目标城、吞并全境、收复法理城、称臣、扶立、改宗、通商、赔款
-#if EC_PENDING
     public static PeaceDeal Offer(War war)
     {
         var deal = new PeaceDeal();
@@ -326,7 +309,6 @@ public static class PeaceTable
         }
         return deal;
     }
-#endif
 
     // 主城池那一项(守方出)：撮合时不动它
     private static string MainKey(War war)
@@ -346,7 +328,6 @@ public static class PeaceTable
     #region 能出什么
 
     // byAttacker 一方能出的条件，连同出不了的(reason 为原因键)；nearOnly = 城只列对方占着的、挨着对方的(撮合用)
-#if EC_PENDING
     public static List<(PeaceTerm term, string reason)> Options(War war, bool byAttacker, bool nearOnly = false)
     {
         var list = new List<(PeaceTerm, string)>();
@@ -380,7 +361,6 @@ public static class PeaceTable
 
         void Add(PeaceTerm term) => list.Add((term, Unavailable(war, term)));
     }
-#endif
 
     // 出的一方的城：对方占着的在前，再是挨着对方的，再按户数
     private static List<City> CityOptions(War war, Realm giver, Realm receiver, bool receiverAttacks, bool nearOnly)
@@ -402,7 +382,6 @@ public static class PeaceTable
     }
 
     // 出的一方有、收的一方没有的矿，挑最值钱的几种
-#if EC_PENDING
     private static List<string> TributeResources(Realm giver, Realm receiver)
     {
         var ours = new HashSet<string>();
@@ -421,10 +400,8 @@ public static class PeaceTable
         }
         return theirs.OrderByDescending(WarObjective.Value).Take(TributeChoices).ToList();
     }
-#endif
 
     // 这一项出不了的原因键；出得了返回 null
-#if EC_PENDING
     public static string Unavailable(War war, PeaceTerm term)
     {
         Realm giver = Giver(war, term), receiver = Receiver(war, term);
@@ -472,7 +449,6 @@ public static class PeaceTable
         }
         return null;
     }
-#endif
 
     #endregion
 
@@ -633,7 +609,6 @@ public static class PeaceTable
     #region 撮合
 
     // 返回两国是不是都肯了。lockMain：不动主城池(两国自己谈、神点撮合)；强制收场的折中可以动
-#if EC_PENDING
     private static bool Balance(War war, PeaceDeal deal, bool lockMain, bool markAdded = false)
     {
         if (!Usable(war)) return false;
@@ -646,7 +621,6 @@ public static class PeaceTable
             return (a.Total, d.Total);
         }, term => Value(war, term, basis));
     }
-#endif
 
     // 撮合的搜索(不碰游戏对象，回归测试直接跑这一段)：一项一项地撤、添(同一方的同类换掉)，每步挑两国"还差多少"合计最少的一步，
     // 一样少的挑两国里更不肯的那一方更肯的，再一样挑变动小的；直到两国都肯，或者再怎么动都不更近为止。locked 那一项不撤。
@@ -706,7 +680,6 @@ public static class PeaceTable
 
     // 每场仗每年一次(WarPatch.update)：满最短战期、不是打到底的仗，主攻方照目标开价、撮合到两国都肯就签；
     // 顺手记下这一年的本钱，下一年算势头
-#if EC_PENDING
     public static void Talks(War war)
     {
         if (!Usable(war) || EmpireWorld.Current == null) return;
@@ -733,7 +706,6 @@ public static class PeaceTable
         data.peace_momentum_attacker = attacker.Cities;
         data.peace_momentum_defender = defender.Cities;
     }
-#endif
 
     private static bool TalksAllowed(War war)
     {
@@ -745,7 +717,6 @@ public static class PeaceTable
     }
 
     // 以议和收场时结算(WarGoalSystem.Settle)：签下的照台上的条款；别的路子(强制停战、罢兵、外交面板停战)照目标开价后撮合出折中
-#if EC_PENDING
     public static void Conclude(War war, Realm attacker, Realm defender)
     {
         long id = Id(war);
@@ -858,7 +829,6 @@ public static class PeaceTable
         WarChronicle.Record(war, WarChronicle.End, line);
         LogService.LogInfo($"[EmpireCraft][议和台] {line}");
     }
-#endif
 
     #endregion
 
@@ -980,7 +950,6 @@ public static class PeaceTable
         deal.terms.Count == 0 ? LM.Get("peace_deal_white") : Clauses(war, deal.terms);
 
     // 概况页"若此刻议和"一行：两国肯不肯、照目标开的什么价
-#if EC_PENDING
     public static (string text, string hex) Preview(War war)
     {
         if (!Usable(war)) return (null, null);
@@ -992,7 +961,6 @@ public static class PeaceTable
         Realm refusing = a.Accepts ? war.MainDefender : war.MainAttacker;
         return (string.Format(LM.Get("peace_preview_refuse"), refusing.GetKingdomName(), summary), "#E9A85B");
     }
-#endif
 
     // 议和页天平下的一行提示：(左、右)
     public static (string left, string right) Hint(War war, PeaceDeal deal, PeaceBasis basis, PeaceOpinion a, PeaceOpinion d)

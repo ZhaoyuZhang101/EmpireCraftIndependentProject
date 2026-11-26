@@ -38,14 +38,14 @@ public static partial class TransmigrantSystem
         return realm;
     }
 
-#if EC_PENDING
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
     public static void EnsureBases(Realm kingdom)
     {
-        if (NavalState(kingdom) == null || kingdom.Cities == null) return;
-        foreach (City city in kingdom.Cities.ToList())
+        if (NavalState(kingdom) == null || kingdom.cities == null) return;
+        foreach (City city in kingdom.cities.ToList())
         {
-            if (city?.Record == null || city.IsGone() || NavySystem.Port(city) != null ||
-                !city.Zones.Any(zone => zone != null && zone.LiquidCount > 0)) continue;
+            if (city?.data == null || city.IsGone() || NavySystem.Port(city) != null ||
+                !city.zones.Any(zone => zone != null && zone.tiles_with_liquid > 0)) continue;
             try
             {
                 Building dock = city.getBuildingOfType("type_docks", pCountOnlyFinished: false, pRandom: false);
@@ -56,9 +56,9 @@ public static partial class TransmigrantSystem
                     if (tile == null) continue;
                     dock = EmpireWorld.Current.buildings.addBuilding(asset, tile);
                 }
-                if (dock?.Asset != null && dock.IsUnderConstruction())
+                if (dock?.asset != null && dock.isUnderConstruction())
                 {
-                    dock.updateBuild(Mathf.Max(1, dock.Asset.ConstructionProgressNeeded + 1 - dock.getConstructionProgress()));
+                    dock.updateBuild(Mathf.Max(1, dock.asset.construction_progress_needed + 1 - dock.getConstructionProgress()));
                     if (city.under_construction_building == dock) city.under_construction_building = null;
                 }
                 LogService.LogInfo($"[EmpireCraft][穿越] {city.GetCityName()} 设海军基地");

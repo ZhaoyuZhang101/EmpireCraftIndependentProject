@@ -13,7 +13,7 @@ using Random = System.Random;
 
 namespace EmpireCraft.Core
 {
-    public static class EmpireCraftPlotsAddition
+    public static partial class EmpireCraftPlotsAddition
     {
         // 派系首领插手地方、国君邀别国入派花的名望(以前 50，邀人门槛 300；名望开销按身份年入的新名望重定(用户 2026-11-10 "名望开销也可以调整"；稳态皇帝八九百、一品大员五百上下、封君五百、五品一两百))
         private const int FactionLeaderLocalInfluenceCost = 30;
@@ -112,11 +112,10 @@ namespace EmpireCraft.Core
 
         // 世界规则"禁止原版结盟"(默认开启)：原版的建盟/入盟决议不再发起，也不再继续推进。
         // 模组自己建的同盟(共主联盟、城邦同盟、反帝同盟等)直接调用接口，不受影响。
-#if EC_PENDING
         private static void BlockVanillaAlliancePlots()
         {
             foreach (PlotKind plot in new[]
-                     { PlotsLibrary.alliance_create, AssetManager.plots_library.get("alliance_join") })
+                     { PlotsLibrary.alliance_create, PlotKinds.Library.get("alliance_join") })
             {
                 if (plot == null) continue;
                 var possible = plot.check_is_possible;
@@ -138,14 +137,13 @@ namespace EmpireCraft.Core
                     plot.action = pActor => !IsVanillaAllianceBlocked() && action(pActor);
             }
         }
-#endif
 
         private static bool IsVanillaAllianceBlocked() => ModAllianceService.IsVanillaAllianceBanned();
 
 #if EC_PENDING
         private static void GuardAllPlotAssets()
         {
-            foreach (var asset in AssetManager.plots_library.getList())
+            foreach (var asset in PlotKinds.Library.getList())
             {
                 var plotAsset = (PlotKind)asset;
                 GuardPlotAsset(plotAsset);
@@ -235,21 +233,23 @@ namespace EmpireCraft.Core
                 return false;
             }
         }
+#endif
 
         private static bool TryStartSimplePlot(Person actor, PlotKind plotAsset, bool forced)
         {
             if (actor == null || actor.IsGone() || plotAsset == null || EmpireWorld.Current?.Plots == null ||
-                actor.plot?.isActive() == true) return false;
+                actor.Plot?.IsActive() == true) return false;
             return EmpireWorld.Current.Plots.newPlot(actor, plotAsset, forced) != null;
         }
 
+#if EC_PENDING
         private static void LogPlotGuardException(string plotId, string stage, Person actor, Exception ex)
         {
             string actorName = actor?.Name ?? "unknown_actor";
             // A failed plot may already have changed state; stop it instead of retrying it every AI tick.
-            if (actor?.plot?.name == plotId)
+            if (actor?.Plot?.Name == plotId)
             {
-                actor.plot.setAlive(false);
+                actor.Plot.SetAlive(false);
             }
 
             string errorKey = $"{plotId}:{stage}";
@@ -316,7 +316,6 @@ namespace EmpireCraft.Core
             return result;
         }
 
-#if EC_PENDING
         private static Empire FindTakenAllianceEmpireCandidate(Realm kingdom, bool requireGoodOpinion)
         {
             if (kingdom == null)
@@ -355,6 +354,7 @@ namespace EmpireCraft.Core
             return null;
         }
 
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
         public static void init()
         {
             s_guardedPlotIds.Clear();
@@ -366,9 +366,9 @@ namespace EmpireCraft.Core
                 show_counter = true,
                 plot_retry_action = new PlotRetryAction(PlotCategoryLibrary.diplomacyRetryAction)
             });
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "feudal_offer_vassalage",
+                id = "feudal_offer_vassalage",
                 path_icon = "ui/icons/plots/plot_feudal_offer_vassalage",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -383,9 +383,9 @@ namespace EmpireCraft.Core
                     FeudalVassalService.Bind(actor.kingdom,
                         FeudalVassalService.FindPeacefulSubmissionTarget(actor.kingdom))
             });
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "feudal_tighten_vassalage",
+                id = "feudal_tighten_vassalage",
                 path_icon = "ui/icons/plots/plot_feudal_tighten_vassalage",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -400,9 +400,9 @@ namespace EmpireCraft.Core
                     FeudalVassalService.IncreaseControl(actor.kingdom,
                         FeudalVassalService.FindControlTarget(actor.kingdom))
             });
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "feudal_annex_vassal",
+                id = "feudal_annex_vassal",
                 path_icon = "ui/icons/plots/plot_feudal_annex_vassal",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -417,9 +417,9 @@ namespace EmpireCraft.Core
                     FeudalVassalService.Annex(actor.kingdom,
                         FeudalVassalService.FindAnnexTarget(actor.kingdom))
             });
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "feudal_independence_war",
+                id = "feudal_independence_war",
                 path_icon = "ui/icons/plots/plot_feudal_independence_war",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -433,9 +433,9 @@ namespace EmpireCraft.Core
                 action = actor => actor?.kingdom?.king == actor &&
                     FeudalVassalService.StartIndependenceWar(actor.kingdom)
             });
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "become_empire",
+                id = "become_empire",
                 path_icon = "ui/icons/plots/plot_become_empire",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -452,9 +452,9 @@ namespace EmpireCraft.Core
                 check_should_continue = EmpireFormationService.ShouldContinuePreparation,
                 action = BecomeEmpireAndStartEnfeoff
             });
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "usurp_imperial_legitimacy",
+                id = "usurp_imperial_legitimacy",
                 path_icon = "ui/icons/plots/plot_usurp_imperial_legitimacy",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -468,9 +468,9 @@ namespace EmpireCraft.Core
                 check_should_continue = ImperialLegitimacyChallengeService.CanContinueChallenge,
                 action = ImperialLegitimacyChallengeService.StartChallenge
             });
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "adopt_central_plains_institutions",
+                id = "adopt_central_plains_institutions",
                 path_icon = "ui/icons/plots/plot_adopt_central_plains_institutions",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -484,9 +484,9 @@ namespace EmpireCraft.Core
                 check_should_continue = CompositeEmpireService.CanAdoptCentralInstitutions,
                 action = CompositeEmpireService.AdoptCentralInstitutions
             });
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "combine_kingdom",
+                id = "combine_kingdom",
                 path_icon = "ui/icons/plots/plot_combine_kingdom",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -496,7 +496,7 @@ namespace EmpireCraft.Core
                 can_be_done_by_king = true,
                 check_is_possible = delegate(Person pActor)
                 {
-                    if (!pActor.IsRuler()) return false;
+                    if (!pActor.isKing()) return false;
                     var allKingdoms = GetKingdomsRuledByActor(pActor);
                     // 推恩令下不允许统合封国(一人本就不得兼领两国)
                     if (allKingdoms.Any(k => GraceEdictService.IsActive(k.GetEmpire()))) return false;
@@ -506,13 +506,13 @@ namespace EmpireCraft.Core
                     if (allKingdoms.Any(k => PersonalUnionService.IsUnionRegime(k) && !FeudalVassalService.HasDirectAdministration(k)))
                         return false;
                     if (!pActor.HasTitle()) return false;
-                    if (ModClass.KINGDOM_TITLE_MANAGER.Get(pActor.GetOwnedTitle()[0])?.title_capital?.Realm?.Ruler !=
+                    if (ModClass.KINGDOM_TITLE_MANAGER.get(pActor.GetOwnedTitle()[0])?.title_capital?.kingdom?.king !=
                         pActor) return false;
                     return allKingdoms.Count > 1;
                 },
                 check_should_continue = delegate(Person pActor)
                 {
-                    if (!pActor.IsRuler()) return false;
+                    if (!pActor.isKing()) return false;
                     var allKingdoms = GetKingdomsRuledByActor(pActor);
                     if (allKingdoms.Any(k => GraceEdictService.IsActive(k.GetEmpire()))) return false;
                     if (allKingdoms.Any(BannerSystem.LeagueBound)) return false;
@@ -524,7 +524,7 @@ namespace EmpireCraft.Core
                 },
                 action = delegate(Person pActor)
                 {
-                    if (!pActor.IsRuler()) return false;
+                    if (!pActor.isKing()) return false;
                     
                     var allKingdoms = GetKingdomsRuledByActor(pActor);
                     if (allKingdoms.Count < 2) return false;
@@ -542,17 +542,17 @@ namespace EmpireCraft.Core
                         // 2. Fallback to Primary Title
                         if (pActor.HasTitle())
                         {
-                            var title = ModClass.KINGDOM_TITLE_MANAGER.Get(pActor.GetOwnedTitle()[0]);
-                            if (title?.title_capital?.Realm?.Ruler == pActor)
+                            var title = ModClass.KINGDOM_TITLE_MANAGER.get(pActor.GetOwnedTitle()[0]);
+                            if (title?.title_capital?.kingdom?.king == pActor)
                             {
-                                mainKingdom = title.title_capital.Realm;
+                                mainKingdom = title.title_capital.kingdom;
                             }
                         }
                         
                         // 3. Fallback to current kingdom
                         if (mainKingdom == null)
                         {
-                            mainKingdom = pActor.Realm;
+                            mainKingdom = pActor.kingdom;
                         }
                     }
 
@@ -561,19 +561,19 @@ namespace EmpireCraft.Core
                     foreach (var kingdom in allKingdoms)
                     {
                         if (kingdom == mainKingdom) continue;
-                        List<City> citiesSnapshot = new List<City>(kingdom.Cities);
+                        List<City> citiesSnapshot = new List<City>(kingdom.cities);
                         for (int i = 0; i < citiesSnapshot.Count; i++)
                         {
-                            citiesSnapshot[i]?.JoinRealm(mainKingdom);
+                            citiesSnapshot[i]?.joinAnotherKingdom(mainKingdom);
                         }
                     }
                     TranslateHelper.LogCombineKingdom(pActor);
                     return true;
                 }
             });            
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "empire_plots",
+                id = "empire_plots",
                 path_icon = "ui/icons/plots/plot_empire_plots",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -585,14 +585,14 @@ namespace EmpireCraft.Core
                 check_can_be_forced = (Person pActor) => true,
                 try_to_start_advanced = delegate(Person pActor, PlotKind pPlotAsset, bool pForced)
                 {
-                    var kingdom = pActor.Realm;
+                    var kingdom = pActor.kingdom;
                     var regime = kingdom?.GetRegime();
                     if (regime == null) return false;
                     var run = kingdom.GetEmpire()?.RunningTemporaryFaction;
                     if (run == null) return false;
-                    foreach (Plot plot3 in EmpireWorld.Current.Plots)
+                    foreach (Plot plot3 in EmpireWorld.Current.plots)
                     {
-                        if (plot3 == pActor.plot && plot3.IsActive() && plot3.isSameType(pPlotAsset))
+                        if (plot3 == pActor.plot && plot3.isActive() && plot3.isSameType(pPlotAsset))
                         {
                             pActor.setPlot(plot3);
                             plot3._plot_asset.progress_needed = run.progressMax - run.acceleration;
@@ -600,14 +600,14 @@ namespace EmpireCraft.Core
                             return true;
                         }
                     }
-                    var newPlot = EmpireWorld.Current.Plots.newPlot(pActor, pPlotAsset, pForced);
+                    var newPlot = EmpireWorld.Current.plots.newPlot(pActor, pPlotAsset, pForced);
                     newPlot._plot_asset.progress_needed = run.progressMax - run.acceleration;
                     newPlot.setName(run.type.ToString());
                     return true;
                 },
                 check_should_continue = delegate(Person pActor)
                 {
-                    var kingdom = pActor.Realm;
+                    var kingdom = pActor.kingdom;
                     var regime = kingdom?.GetRegime();
                     if (regime == null) return false;
                     var run = kingdom.GetEmpire()?.RunningTemporaryFaction;
@@ -620,7 +620,7 @@ namespace EmpireCraft.Core
                 },
                 action = delegate(Person pActor)
                 {
-                    var kingdom = pActor.Realm;
+                    var kingdom = pActor.kingdom;
                     var regime = kingdom?.GetRegime();
                     var run = kingdom?.GetEmpire()?.RunningTemporaryFaction;
                     if (run == null) return false;
@@ -639,9 +639,9 @@ namespace EmpireCraft.Core
                     return true;
                 }
             });
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
 		    {
-			    Id = "force_stop_war",
+			    id = "force_stop_war",
 			    is_basic_plot = true,
 			    path_icon = "ui/icons/plots/plot_force_stop_war",
 			    group_id = "empirecraft_diplomacy",
@@ -655,13 +655,13 @@ namespace EmpireCraft.Core
 			    check_is_possible = (Person pActor) => false,
 			    try_to_start_advanced = delegate(Person pActor, PlotKind pPlotAsset, bool pForced)
 			    {
-				    Realm kingdom = pActor.Realm;
+				    Realm kingdom = pActor.kingdom;
 				    War war = null;
                     var warsList1 = KingdomExtension.GetWarsCached(kingdom, true);
 				    for (int wi = 0; wi < warsList1.Count; wi++)
 				    {
                         var war3 = warsList1[wi];
-					    if (war3.IsAttacker(kingdom)&&war3.DurationMonths()>=ModClass.WAR_END_YEAR&&
+					    if (war3.isAttacker(kingdom)&&war3.getDuration()>=ModClass.WAR_END_YEAR&&
 					        !EmpireCraft.Core.RulerTraitSystem.IsFounderUnificationWar(war3))
 					    {
 							war = war3;
@@ -672,15 +672,15 @@ namespace EmpireCraft.Core
 				    {
 					    return false;
 				    }
-				    foreach (Plot plot3 in EmpireWorld.Current.Plots)
+				    foreach (Plot plot3 in EmpireWorld.Current.plots)
 				    {
-					    if (plot3.IsActive() && plot3.isSameType(pPlotAsset) && plot3.target_war == war)
+					    if (plot3.isActive() && plot3.isSameType(pPlotAsset) && plot3.target_war == war)
 					    {
 						    pActor.setPlot(plot3);
 						    return true;
 					    }
 				    }
-				    Plot plot = EmpireWorld.Current.Plots.newPlot(pActor, pPlotAsset, pForced);
+				    Plot plot = EmpireWorld.Current.plots.newPlot(pActor, pPlotAsset, pForced);
 				    plot.target_war = war;
 				    if (!plot.checkInitiatorAndTargets())
 				    {
@@ -689,7 +689,7 @@ namespace EmpireCraft.Core
 				    }
 				    return true;
 			    },
-			    check_can_be_forced = (Person pActor) => pActor.Realm.HasEnemies() ? true : false,
+			    check_can_be_forced = (Person pActor) => pActor.kingdom.hasEnemies() ? true : false,
 			    check_should_continue = delegate(Person pActor)
 			    {
 				    Plot plot = pActor.plot;
@@ -707,7 +707,7 @@ namespace EmpireCraft.Core
 				    {
 					    return false;
 				    }
-				    EmpireWorld.Current.EndWar(plot.target_war, WarOutcome.Peace);
+				    EmpireWorld.Current.wars.endWar(plot.target_war, WarOutcome.Peace);
 				    return true;
 			    }
 		    });
@@ -722,8 +722,8 @@ namespace EmpireCraft.Core
                 if (core?.empire_history_ids == null || clan <= 0) return false;
                 foreach (long id in core.empire_history_ids)
                 {
-                    if (id == empire.Key) continue;
-                    Empire previous = ModClass.EMPIRE_MANAGER.Get(id);
+                    if (id == empire.id) continue;
+                    Empire previous = ModClass.EMPIRE_MANAGER.get(id);
                     if (previous?.data != null && previous.data.empire_specific_clan == clan) return true;
                 }
                 return false;
@@ -733,16 +733,16 @@ namespace EmpireCraft.Core
                 Empire empire = kingdom?.GetEmpire();
                 if (empire == null || !kingdom.IsEmpire()) return null;
                 City core = EmpireCoreManager.Get(empire)?.GetCoreCapital();
-                if (core != null && !core.IsGone() && core.Realm == kingdom)
-                    return core == kingdom.Capital ? null : core;
+                if (core != null && !core.IsGone() && core.kingdom == kingdom)
+                    return core == kingdom.capital ? null : core;
                 City original = empire.OriginalCapital;
-                if (original == null || original.IsGone() || original.Realm != kingdom || original == kingdom.Capital)
+                if (original == null || original.IsGone() || original.kingdom != kingdom || original == kingdom.capital)
                     return null;
                 return original;
             }
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "empire_move_back_to_capital",
+                id = "empire_move_back_to_capital",
                 path_icon = "ui/icons/plots/plot_empire_move_back_to_capital",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -752,26 +752,26 @@ namespace EmpireCraft.Core
                 // 迁都：建国后优先迁往帝国核心的核心首都(历代定都之地)，本国没占着核心首都时迁回建国时的旧都
                 check_is_possible = delegate (Person pActor)
                 {
-                    Realm kingdom = pActor.Realm;
+                    Realm kingdom = pActor.kingdom;
                     if (!pActor.IsEmperor()) return false;
-                    if (!pActor.IsRuler()) return false;
+                    if (!pActor.isKing()) return false;
                     if (!kingdom.IsEmpire()) return false;
                     return CapitalToMoveTo(kingdom) != null;
                 },
                 check_should_continue = delegate (Person actor)
                 {
                     if (!actor.IsEmperor()) return false;
-                    if (!actor.IsRuler()) return false;
-                    return CapitalToMoveTo(actor.Realm) != null;
+                    if (!actor.isKing()) return false;
+                    return CapitalToMoveTo(actor.kingdom) != null;
                 },
                 action = delegate (Person pActor)
                 {
-                    Realm kingdom = pActor.Realm;
+                    Realm kingdom = pActor.kingdom;
                     Empire empire = kingdom.GetEmpire();
                     City target = CapitalToMoveTo(kingdom);
                     if (empire == null || target == null) return false;
                     bool returning = IsReturningCapital(empire, target, pActor);
-                    kingdom.SetCapital(target);
+                    kingdom.setCapital(target);
                     // 迁都营建宫室、官署，征发民力：记工役，算大兴土木；还于旧都宫室尚在，减半(见 CorveeSystem)
                     CorveeSystem.Add(kingdom, returning ? CorveeSystem.CapitalMove * 0.5f : CorveeSystem.CapitalMove, true);
                     EventRecorder.Record(empire, string.Format(LM.Get(returning ? "empire_return_capital_history"
@@ -779,9 +779,9 @@ namespace EmpireCraft.Core
                     return true;
                 }
             });
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "kingdom_petition_title",
+                id = "kingdom_petition_title",
                 path_icon = "ui/icons/plots/plot_kingdom_petition_title",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -793,15 +793,15 @@ namespace EmpireCraft.Core
                 action = delegate(Person pActor)
                 {
                     if (!CanRunTributaryTitlePetition(pActor)) return false;
-                    Realm kingdom = pActor.Realm;
+                    Realm kingdom = pActor.kingdom;
                     Empire empire = kingdom.GetTakenAllianceEmpire();
                     KingdomTitle title = empire?.GetTributaryPetitionTitle(kingdom);
                     return empire?.GrantTributaryPetitionTitle(kingdom, title) == true;
                 }
             });
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "kingdom_start_join_taken_alliance",
+                id = "kingdom_start_join_taken_alliance",
                 path_icon = "ui/icons/plots/plot_kingdom_start_join_taken_alliance",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -810,15 +810,15 @@ namespace EmpireCraft.Core
                 can_be_done_by_king = true,
                 check_is_possible = delegate (Person pActor)
                 {
-                    Realm kingdom = pActor.Realm;
-                    if (!pActor.IsRuler()) return false;
+                    Realm kingdom = pActor.kingdom;
+                    if (!pActor.isKing()) return false;
                     if (kingdom.IsInEmpire()) return false;
                     if (kingdom.HasTakenAlliance()) return false;
                     return FindTakenAllianceEmpireCandidate(kingdom, true) != null;
                 },
                 action = delegate (Person pActor)
                 {
-                    Realm kingdom = pActor.Realm;
+                    Realm kingdom = pActor.kingdom;
                     Empire empire = FindTakenAllianceEmpireCandidate(kingdom, false);
                     if (empire == null)
                     {
@@ -830,9 +830,9 @@ namespace EmpireCraft.Core
                     return true;
                 }
             });
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "kingdom_start_invite_to_faction",
+                id = "kingdom_start_invite_to_faction",
                 path_icon = "ui/icons/plots/plot_kingdom_start_invite_to_faction",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -842,8 +842,8 @@ namespace EmpireCraft.Core
                 can_be_done_by_king = true,
                 check_is_possible = delegate (Person pActor)
                 {
-                    Realm kingdom = pActor.Realm;
-                    if (!pActor.IsRuler()) return false;
+                    Realm kingdom = pActor.kingdom;
+                    if (!pActor.isKing()) return false;
                     if (!kingdom.IsInEmpire()) return false;
                     Empire empire = kingdom.GetEmpire();
                     if (empire == null) return false;
@@ -853,17 +853,17 @@ namespace EmpireCraft.Core
                 check_should_continue = actor => FindLocalFactionInfluenceTarget(actor) != null,
                 action = delegate (Person pActor)
                 {
-                    Realm kingdom = pActor.Realm;
+                    Realm kingdom = pActor.kingdom;
                     Realm target = FindLocalFactionInfluenceTarget(pActor);
                     if (target == null || !target.TryIncreaseFactionRatio(pActor.GetFaction(), 1)) return false;
-                    pActor.Renown -= InviteToFactionCost;
+                    pActor.data.renown -= InviteToFactionCost;
                     TranslateHelper.LogInviteIntoFaction(kingdom, target, pActor.GetFaction());
                     return true;
                 }
             });
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "faction_leader_influence_local_kingdom",
+                id = "faction_leader_influence_local_kingdom",
                 path_icon = "ui/icons/plots/plot_faction_leader_influence_local_kingdom",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -878,9 +878,9 @@ namespace EmpireCraft.Core
                 {
                     Realm target = FindFactionLeaderLocalInfluenceTarget(actor);
                     if (target == null) return false;
-                    Plot plot = EmpireWorld.Current.Plots.newPlot(actor, plotAsset, forced);
-                    plot.TargetRealm = target;
-                    plot.setName($"{actor.FullName()}正在扩大派系对{target.Name}的影响");
+                    Plot plot = EmpireWorld.Current.plots.newPlot(actor, plotAsset, forced);
+                    plot.target_kingdom = target;
+                    plot.setName($"{actor.getName()}正在扩大派系对{target.name}的影响");
                     return true;
                 },
                 check_should_continue = actor => actor?.plot != null &&
@@ -898,9 +898,9 @@ namespace EmpireCraft.Core
             });
             // 城市主流文化不再随占比自动切换：占比超过阈值后，由城主（或没有单独领主时的国王）
             // 发起这条决议来正式把挑战文化定为城市主流文化。
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "empirecraft_city_culture_shift",
+                id = "empirecraft_city_culture_shift",
                 path_icon = "ui/icons/plots/plot_empirecraft_city_culture_shift",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -909,24 +909,24 @@ namespace EmpireCraft.Core
                 can_be_done_by_leader = true,
                 check_is_possible = delegate (Person pActor)
                 {
-                    City city = pActor?.City;
+                    City city = pActor?.city;
                     if (city == null || city.IsGone()) return false;
-                    Person cityLeader = city.Leader ?? city.Realm?.Ruler;
+                    Person cityLeader = city.leader ?? city.kingdom?.king;
                     if (cityLeader != pActor) return false;
                     return CultureService.FindCityCultureShiftCandidate(city, out _);
                 },
                 check_should_continue = delegate (Person pActor)
                 {
-                    City city = pActor?.City;
+                    City city = pActor?.city;
                     if (city == null || city.IsGone()) return false;
-                    Person cityLeader = city.Leader ?? city.Realm?.Ruler;
+                    Person cityLeader = city.leader ?? city.kingdom?.king;
                     return cityLeader == pActor && CultureService.FindCityCultureShiftCandidate(city, out _);
                 },
                 action = delegate (Person pActor)
                 {
-                    City city = pActor?.City;
+                    City city = pActor?.city;
                     if (city == null || city.IsGone()) return false;
-                    Person cityLeader = city.Leader ?? city.Realm?.Ruler;
+                    Person cityLeader = city.leader ?? city.kingdom?.king;
                     if (cityLeader != pActor) return false;
                     if (!CultureService.FindCityCultureShiftCandidate(city, out string candidate)) return false;
                     string previous = CultureService.GetMainCulture(city);
@@ -937,9 +937,9 @@ namespace EmpireCraft.Core
             });
             // 帝国内的法理文化转换由“文治”派系推动；独立国家没有帝国临时派系实例，
             // 因而由实际控制法理首都的国王自行发起同等条件的国家决议。
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "empirecraft_independent_title_culture_conversion",
+                id = "empirecraft_independent_title_culture_conversion",
                 path_icon = "ui/icons/plots/plot_empirecraft_independent_title_culture_conversion",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -961,9 +961,9 @@ namespace EmpireCraft.Core
                     return CultureService.ConvertTitleCulture(title, candidate);
                 }
             });
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "empirecraft_restore_native_culture",
+                id = "empirecraft_restore_native_culture",
                 path_icon = "ui/icons/plots/plot_empirecraft_restore_native_culture",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -981,13 +981,13 @@ namespace EmpireCraft.Core
                 action = delegate (Person pActor)
                 {
                     if (!FindCultureRestorationCity(pActor, out City city, out _)) return false;
-                    return CultureService.RestoreCityCulture(city, pActor.Realm);
+                    return CultureService.RestoreCityCulture(city, pActor.kingdom);
                 }
             });
             // 通路之约(见 RoadTreatySystem)：与有过友好时期的邻国议定修通两国之间的道路，造价各出一半
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "empirecraft_road_treaty",
+                id = "empirecraft_road_treaty",
                 path_icon = "ui/icons/plots/plot_empirecraft_road_treaty",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -996,15 +996,15 @@ namespace EmpireCraft.Core
                 can_be_done_by_king = true,
                 check_is_possible = delegate (Person pActor)
                 {
-                    return pActor.IsRuler() && RoadTreatySystem.Partner(pActor.Realm) != null;
+                    return pActor.isKing() && RoadTreatySystem.Partner(pActor.kingdom) != null;
                 },
                 check_should_continue = delegate (Person pActor)
                 {
-                    return pActor.IsRuler() && RoadTreatySystem.Partner(pActor.Realm) != null;
+                    return pActor.isKing() && RoadTreatySystem.Partner(pActor.kingdom) != null;
                 },
                 action = delegate (Person pActor)
                 {
-                    return pActor.IsRuler() && RoadTreatySystem.Sign(pActor.Realm);
+                    return pActor.isKing() && RoadTreatySystem.Sign(pActor.kingdom);
                 }
             });
             // 行政区（道/军/都护府，见 KingdomExtension.GetAdministrativeTitle）长官
@@ -1015,9 +1015,9 @@ namespace EmpireCraft.Core
             // 原本这里专指都护府（culture_explicit 判定），现已合并为通用的
             // "同化职责"逻辑，覆盖所有行政区类型，见 CultureService.
             // FindCulturalAssimilationDutyCandidate/ApplyCulturalAssimilationDuty。
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "empirecraft_cultural_assimilation_duty",
+                id = "empirecraft_cultural_assimilation_duty",
                 path_icon = "ui/icons/plots/plot_empirecraft_cultural_assimilation_duty",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -1026,32 +1026,32 @@ namespace EmpireCraft.Core
                 can_be_done_by_leader = true,
                 check_is_possible = delegate (Person pActor)
                 {
-                    City city = pActor?.City;
+                    City city = pActor?.city;
                     if (city == null || city.IsGone()) return false;
-                    Person cityLeader = city.Leader ?? city.Realm?.Ruler;
+                    Person cityLeader = city.leader ?? city.kingdom?.king;
                     if (cityLeader != pActor) return false;
-                    if (pActor.Record == null || pActor.Renown < CultureService.CulturalAssimilationDutyInfluenceCost) return false;
+                    if (pActor.data == null || pActor.data.renown < CultureService.CulturalAssimilationDutyInfluenceCost) return false;
                     return CultureService.FindCulturalAssimilationDutyCandidate(city, out _);
                 },
                 check_should_continue = delegate (Person pActor)
                 {
-                    City city = pActor?.City;
+                    City city = pActor?.city;
                     if (city == null || city.IsGone()) return false;
-                    Person cityLeader = city.Leader ?? city.Realm?.Ruler;
+                    Person cityLeader = city.leader ?? city.kingdom?.king;
                     if (cityLeader != pActor) return false;
-                    if (pActor.Record == null || pActor.Renown < CultureService.CulturalAssimilationDutyInfluenceCost) return false;
+                    if (pActor.data == null || pActor.data.renown < CultureService.CulturalAssimilationDutyInfluenceCost) return false;
                     return CultureService.FindCulturalAssimilationDutyCandidate(city, out _);
                 },
                 action = delegate (Person pActor)
                 {
-                    City city = pActor?.City;
+                    City city = pActor?.city;
                     if (city == null || city.IsGone()) return false;
-                    Person cityLeader = city.Leader ?? city.Realm?.Ruler;
+                    Person cityLeader = city.leader ?? city.kingdom?.king;
                     if (cityLeader != pActor) return false;
-                    if (pActor.Record == null || pActor.Renown < CultureService.CulturalAssimilationDutyInfluenceCost) return false;
+                    if (pActor.data == null || pActor.data.renown < CultureService.CulturalAssimilationDutyInfluenceCost) return false;
                     if (!CultureService.FindCulturalAssimilationDutyCandidate(city, out string candidate)) return false;
                     if (!CultureService.ApplyCulturalAssimilationDuty(city, candidate)) return false;
-                    pActor.Renown -= CultureService.CulturalAssimilationDutyInfluenceCost;
+                    pActor.data.renown -= CultureService.CulturalAssimilationDutyInfluenceCost;
                     TranslateHelper.LogCulturalAssimilationDuty(city, candidate, CultureService.CulturalAssimilationDutyInfluenceCost);
                     return true;
                 }
@@ -1061,9 +1061,9 @@ namespace EmpireCraft.Core
             // 这里补上后续的手动转变路径：当一个帝国成员国的王城和至少 2/3 的城市
             // 主流文化都已经变成帝国官方文化后，该国国王可以发起这条决议，
             // 正式把国家政体（以及 realm_culture）转变为帝国官方文化对应的政体。
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "empirecraft_kingdom_regime_conversion",
+                id = "empirecraft_kingdom_regime_conversion",
                 path_icon = "ui/icons/plots/plot_empirecraft_kingdom_regime_conversion",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -1072,31 +1072,31 @@ namespace EmpireCraft.Core
                 can_be_done_by_king = true,
                 check_is_possible = delegate (Person pActor)
                 {
-                    if (!pActor.IsRuler()) return false;
-                    Realm kingdom = pActor.Realm;
+                    if (!pActor.isKing()) return false;
+                    Realm kingdom = pActor.kingdom;
                     if (kingdom == null || kingdom.IsGone()) return false;
                     return CultureService.FindRegimeConversionCandidate(kingdom, out _, out _);
                 },
                 check_should_continue = delegate (Person pActor)
                 {
-                    if (!pActor.IsRuler()) return false;
-                    Realm kingdom = pActor.Realm;
+                    if (!pActor.isKing()) return false;
+                    Realm kingdom = pActor.kingdom;
                     if (kingdom == null || kingdom.IsGone()) return false;
                     return CultureService.FindRegimeConversionCandidate(kingdom, out _, out _);
                 },
                 action = delegate (Person pActor)
                 {
-                    if (!pActor.IsRuler()) return false;
-                    Realm kingdom = pActor.Realm;
+                    if (!pActor.isKing()) return false;
+                    Realm kingdom = pActor.kingdom;
                     if (kingdom == null || kingdom.IsGone()) return false;
                     if (!CultureService.FindRegimeConversionCandidate(kingdom, out string culture, out RegimeType regimeType)) return false;
                     return CultureService.ConvertKingdomRegime(kingdom, culture, regimeType);
                 }
             });
             // 易俗改制(如北魏孝文帝改革)：君主改从治下多数百姓之俗，王族改姓，政体随之更易(见 CultureReformSystem)
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = CultureReformSystem.Plot,
+                id = CultureReformSystem.Plot,
                 path_icon = "ui/icons/plots/plot_" + CultureReformSystem.Plot,
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -1109,9 +1109,9 @@ namespace EmpireCraft.Core
                 action = CultureReformSystem.Enact
             });
             // 改建城池：文化变了，城市照旧按原风格建；君主下令出钱，各城才按现文化风格逐年拆旧建新(见 CityStyleSystem)
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = CityStyleSystem.Plot,
+                id = CityStyleSystem.Plot,
                 path_icon = "ui/icons/plots/plot_" + CityStyleSystem.Plot,
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -1125,9 +1125,9 @@ namespace EmpireCraft.Core
             });
             // 开发边地(秦戍五岭、汉魏屯田)：国君对一片本国前沿的雨林、大泽下诏，每年出钱，这一片开发加快(见 WildernessDevelopmentSystem)；
             // AI 在国库宽裕、前沿的城人多地少、科技够时下诏，玩家可从原版谋划强行发起(只看有没有够格的前沿、国库够不够一年)
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = WildernessDevelopmentSystem.Plot,
+                id = WildernessDevelopmentSystem.Plot,
                 path_icon = "ui/icons/plots/plot_" + WildernessDevelopmentSystem.Plot,
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -1140,9 +1140,9 @@ namespace EmpireCraft.Core
                 action = WildernessDevelopmentSystem.Decree
             });
             // 成员向中央求援、驰援邻近成员(见 MemberWarAid)：中央与别的成员不再自动插手成员的仗
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = MemberWarAid.RequestPlot,
+                id = MemberWarAid.RequestPlot,
                 path_icon = "ui/icons/plots/plot_" + MemberWarAid.RequestPlot,
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -1155,9 +1155,9 @@ namespace EmpireCraft.Core
                 check_should_continue = MemberWarAid.RequestContinues,
                 action = MemberWarAid.AnswerRequest
             });
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = MemberWarAid.NeighbourPlot,
+                id = MemberWarAid.NeighbourPlot,
                 path_icon = "ui/icons/plots/plot_" + MemberWarAid.NeighbourPlot,
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -1171,9 +1171,9 @@ namespace EmpireCraft.Core
                 action = MemberWarAid.AidNeighbour
             });
             // 就地征粮：战时统帅的决议(见 LogisticsSystem)，由后勤月结在缺粮或大军深入敌境时发起
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = LogisticsSystem.ForagePlot,
+                id = LogisticsSystem.ForagePlot,
                 path_icon = "ui/icons/plots/plot_" + LogisticsSystem.ForagePlot,
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -1187,9 +1187,9 @@ namespace EmpireCraft.Core
                 action = LogisticsSystem.Forage
             });
             // 发兵勤王：中央与外敌交战吃紧时，成员发兵赴援(见 MemberWarAid、WarScopeSystem)
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = MemberWarAid.CenterPlot,
+                id = MemberWarAid.CenterPlot,
                 path_icon = "ui/icons/plots/plot_" + MemberWarAid.CenterPlot,
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -1202,9 +1202,9 @@ namespace EmpireCraft.Core
                 check_should_continue = MemberWarAid.CenterContinues,
                 action = MemberWarAid.AidCenter
             });
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "kingdom_expose_crime",
+                id = "kingdom_expose_crime",
                 path_icon = "ui/icons/plots/plot_kingdom_expose_crime",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -1218,7 +1218,7 @@ namespace EmpireCraft.Core
                 check_should_continue = actor => FindCrimeExposureTarget(actor) != null,
                 action = delegate (Person pActor)
                 {
-                    Realm kingdom = pActor?.Realm;
+                    Realm kingdom = pActor?.kingdom;
                     Empire empire = kingdom?.GetEmpire();
                     if (pActor == null || kingdom == null || empire == null || !pActor.HasFaction()) return false;
                     Realm target = FindCrimeExposureTarget(pActor);
@@ -1226,8 +1226,8 @@ namespace EmpireCraft.Core
                     {
                         return false;
                     }
-                    Person targetKing = target.Ruler;
-                    pActor.Renown -= targetKing.Renown / 2;
+                    Person targetKing = target.king;
+                    pActor.data.renown -= targetKing.renown / 2;
                     targetKing.AddTyrantValue(30);
                     if (targetKing.GetViolateValue() >= 100)
                     {
@@ -1246,22 +1246,22 @@ namespace EmpireCraft.Core
                         if (!targetKing.TryTriggerProbabilisticLaw(crime, 1f, _ => { })) return false;
                         bool crimeConfirmed = false;
                         double rebellingPossibility = 0.2f;
-                        if (!target.IsOpinionGood(empire.CoreKingdom))
+                        if (!target.isOpinionTowardsKingdomGood(empire.CoreKingdom))
                         {
-                            rebellingPossibility = Math.Min(1d, target.Warriors() /
+                            rebellingPossibility = Math.Min(1d, target.countTotalWarriors() /
                                 (double)Math.Max(1, empire.countWarriors())) * 0.5d +
                                 Math.Max(0d, 100d - empire.Legitimacy) / 200d;
                         }
                         Random rand = new Random();
                         rebellingPossibility *= RebellionSystem.ChanceFactor(target);
-                        if (RebellionSystem.CanAttempt(target) && CityStabilitySystem.CanRise(target.Capital) &&
+                        if (RebellionSystem.CanAttempt(target) && CityStabilitySystem.CanRise(target.capital) &&
                             rand.NextDouble() < rebellingPossibility)
                         {
-                            RebellionCauseData cause = RebellionSystem.Capture(target, target.Capital,
+                            RebellionCauseData cause = RebellionSystem.Capture(target, target.capital,
                                 "rebellion_reason_crime", crime.ToString());
-                            var war = EmpireWorld.Current.StartWar(target, kingdom, WarKinds.Normal);
+                            var war = EmpireWorld.Current.wars.newWar(target, kingdom, WarKinds.normal);
                             if (war == null) return false;
-                            war.SetEmpireWarType(EmpireWarType.地方叛乱, pre: kingdom.Name, nanoObject:empire, belongingFaction:target.Ruler?.GetFaction());
+                            war.SetEmpireWarType(EmpireWarType.地方叛乱, pre: kingdom.name, nanoObject:empire, belongingFaction:target.king?.GetFaction());
                             empire.leave(target, true, true);
                             target.StartLocalRebelling(EmpireWarType.地方叛乱);
                             RebellionSystem.Record(target, war, cause);
@@ -1274,7 +1274,7 @@ namespace EmpireCraft.Core
                             var context = EmpireLawSystem.PrepareEnforcement(targetKing, crime, kingdom);
                             if (context == null) return false;
                             //当影响力小于两百, 或者脱罪次数达到2的上限则进行惩罚
-                            if (targetKing.Renown <= 200 && targetKing.EscapeFromPunishment(true))
+                            if (targetKing.renown <= 200 && targetKing.EscapeFromPunishment(true))
                             {
                                 var punishments = new List<PunishmentLevel>()
                                 {
@@ -1288,7 +1288,7 @@ namespace EmpireCraft.Core
                             }
                             else
                             {
-                                targetKing.AddRenown(-200);
+                                targetKing.addRenown(-200);
                                 EmpireLawSystem.ApplyPunishment(context, PunishmentLevel.无罪);
                                 targetKing.AddTyrantValue(-30);
                                 context.AppliedPunishments = new List<PunishmentLevel>() {PunishmentLevel.无罪};
@@ -1299,9 +1299,9 @@ namespace EmpireCraft.Core
                         }
                         TranslateHelper.LogExposeCrime(kingdom, target, crime.ToString());
                         // Attach a confirmed offence to its ruler, not to the accuser; acquittal is not a conviction.
-                        if (crimeConfirmed && target.Ruler == targetKing && target.GetEmpire() == empire)
+                        if (crimeConfirmed && target.king == targetKing && target.GetEmpire() == empire)
                             target.SetMainCrime(crime);
-                        else if (!crimeConfirmed && target.Ruler == targetKing && target.HasMainCrime() &&
+                        else if (!crimeConfirmed && target.king == targetKing && target.HasMainCrime() &&
                                  target.GetMainCrime() == crime)
                             target.RemoveMainCrime();
                     }
@@ -1312,9 +1312,9 @@ namespace EmpireCraft.Core
                     return true;
                 }
             });
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "kingdom_start_religion_war",
+                id = "kingdom_start_religion_war",
                 path_icon = "ui/icons/plots/plot_kingdom_start_religion_war",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -1323,13 +1323,13 @@ namespace EmpireCraft.Core
                 can_be_done_by_king = true,
                 check_is_possible = delegate (Person pActor)
                 {
-                    Realm kingdom = pActor.Realm;
-                    if (!pActor.IsRuler()) return false;
+                    Realm kingdom = pActor.kingdom;
+                    if (!pActor.isKing()) return false;
                     Regime regime = kingdom.GetRegime();
                     if (regime == null) return false;
                     if (kingdom.GetKingdomType() != KingdomType.Feudalism_papal_state) return false;
                     if (regime.religion_point<1000) return false;
-                    if (kingdom.HasEnemies()) return false;
+                    if (kingdom.hasEnemies()) return false;
                     var warsList2 = KingdomExtension.GetWarsCached(kingdom, false);
                     for (int wi = 0; wi < warsList2.Count; wi++)
                     {
@@ -1337,43 +1337,43 @@ namespace EmpireCraft.Core
                     }
                     if (regime.type != RegimeType.Feudalism || regime.GetReligionLevel() != ReligionLevel.High)
                         return false;
-                    if (kingdom.HasReligion() && kingdom.Religion.GetCity() == kingdom.Capital && !ReligionSphere.IsBranch(kingdom.Religion))
+                    if (kingdom.hasReligion() && kingdom.religion.GetCity() == kingdom.capital && !ReligionSphere.IsBranch(kingdom.religion))
                     {
-                        Religion religion = kingdom.Religion;
+                        Religion religion = kingdom.religion;
                         
                         // 圣战对象要与本国(或本国所在帝国)接壤：以前只要与任一同教国家接壤就行，会隔着半张地图开战
-                        if (EmpireWorld.Current.LiveRealms.ToList().Any(k =>
-                                !religion.Realms.Contains(k) && HolyWarNeighbour(kingdom, k))) return true;
+                        if (EmpireWorld.Current.kingdoms.ToList().Any(k =>
+                                !religion.kingdoms.Contains(k) && HolyWarNeighbour(kingdom, k))) return true;
                     }
                     return false;
                 },
                 action = delegate (Person pActor)
                 {                    
-                    Realm kingdom = pActor.Realm;
-                    if (!pActor.IsRuler()) return false;
+                    Realm kingdom = pActor.kingdom;
+                    if (!pActor.isKing()) return false;
                     Regime regime = kingdom.GetRegime();
                     if (regime == null) return false;
                     if (regime.type != RegimeType.Feudalism || regime.GetReligionLevel() != ReligionLevel.High)
                         return false;
-                    if (kingdom.HasReligion() && kingdom.Religion.GetCity() == kingdom.Capital && !ReligionSphere.IsBranch(kingdom.Religion))
+                    if (kingdom.hasReligion() && kingdom.religion.GetCity() == kingdom.capital && !ReligionSphere.IsBranch(kingdom.religion))
                     {
-                        Religion religion = kingdom.Religion;
+                        Religion religion = kingdom.religion;
 
-                        var target = EmpireWorld.Current.LiveRealms.ToList().Find(k =>
-                            !religion.Realms.Contains(k) && HolyWarNeighbour(kingdom, k));
+                        var target = EmpireWorld.Current.kingdoms.ToList().Find(k =>
+                            !religion.kingdoms.Contains(k) && HolyWarNeighbour(kingdom, k));
                         if (target == null) return false;
-                        var war = EmpireWorld.Current.StartWar(kingdom, target, WarKinds.Normal);
+                        var war = EmpireWorld.Current.wars.newWar(kingdom, target, WarKinds.normal);
                         if (war == null) return false;
-                        war.SetEmpireWarType(EmpireWarType.神圣, pre:religion.Name);
+                        war.SetEmpireWarType(EmpireWarType.神圣, pre:religion.name);
                         regime.religion_point -= 1000;
                         return true;
                     }
                     return false;
                 }
             });
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "new_empire_royal",
+                id = "new_empire_royal",
                 path_icon = "ui/icons/plots/plot_new_empire_royal",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -1382,12 +1382,12 @@ namespace EmpireCraft.Core
                 progress_needed = 60f,
                 check_is_possible = delegate (Person pActor)
                 {
-                    Realm kingdom = pActor.Realm;
-                    if (!pActor.IsRuler()) return false;
+                    Realm kingdom = pActor.kingdom;
+                    if (!pActor.isKing()) return false;
                     if (!kingdom.IsInEmpire()) return false;
                     if (!pActor.HasSpecificClan()) return false;
                     if (!kingdom.IsEmpire()) return false;
-                    if (kingdom.HasEnemies()) return false;
+                    if (kingdom.hasEnemies()) return false;
                     if (ConstitutionalSuccessionSystem.ThroneBound(kingdom.GetEmpire())) return false;
                     if (!kingdom.GetEmpire().IsRoyalBeenChanged()) return false;
                     if (GameClock.YearsSince(kingdom.GetEmpire().data.original_royal_been_changed_timestamp)<=5) return false;
@@ -1395,9 +1395,9 @@ namespace EmpireCraft.Core
                 },
                 action = delegate (Person pActor)
                 {
-                    if (ConstitutionalSuccessionSystem.ThroneBound(pActor.Realm?.GetEmpire())) return false;
+                    if (ConstitutionalSuccessionSystem.ThroneBound(pActor.kingdom?.GetEmpire())) return false;
                     pActor.CheckSpecificClan();
-                    Realm kingdom = pActor.Realm;
+                    Realm kingdom = pActor.kingdom;
                     Empire empire = kingdom.GetEmpire();
                     empire.data.original_royal_been_changed = false;
                     empire.data.empire_specific_clan = pActor.GetSpecificClan().id;
@@ -1410,26 +1410,26 @@ namespace EmpireCraft.Core
                             // 帝国内改朝换代：用新皇族之主的封国名，没有封国用美号(见 RealmNamingSystem.Founding)；天下之名关着时照旧随机起名
                             if (!RealmNamingSystem.NameUsurper(empire, pActor))
                             {
-                                string new_name = pActor.GenerateName(EntityKind.Realm, RecordIds.Next());
+                                string new_name = pActor.generateName(EntityKind.Kingdom, RecordIds.Next());
                                 LogService.LogInfo($"New Empire Name：{new_name}，Original Empire Name：{empire.GetEmpireName()}");
                                 string[] nameParts = new_name.SplitNameParts();
                                 empire.SetEmpireName(nameParts.Length > 0 ? nameParts[0] : new_name);
                             }
                             LogService.LogInfo($"Empire Name has been changed to：{empire.GetEmpireName()}");
-                            empire.data.dynasty_founder_actor_id = pActor.Key;
+                            empire.data.dynasty_founder_actor_id = pActor.id;
                             empire.data.currentHistory.is_first = true;
                             empire.data.currentHistory.empire_name = empire.GetEmpireName();
                         }
                     }
-                    pActor.GetSpecificClan()?.RecordHistoryEmpire(empire, empire.CoreKingdom.Capital);
+                    pActor.GetSpecificClan()?.RecordHistoryEmpire(empire, empire.CoreKingdom.capital);
                     empire.data.created_time = GameClock.Now;
-                    empire.CoreKingdom.SetRuler(pActor);
+                    empire.CoreKingdom.setKing(pActor);
                     if (empire.HasYearName())
                     {
                         empire.RecordHistory(EmpireHistoryType.new_empire_history, new Dictionary<string, string>()
                         {
-                            ["actor"] = pActor.FullName(),
-                            ["place"] = empire.CoreKingdom.Capital.GetCityName(),
+                            ["actor"] = pActor.getName(),
+                            ["place"] = empire.CoreKingdom.capital.GetCityName(),
                             ["name"] = empire.GetEmpireName(),
                         });
                     }
@@ -1437,17 +1437,17 @@ namespace EmpireCraft.Core
                     {
                         empire.RecordHistory(EmpireHistoryType.new_empire_history_west, new Dictionary<string, string>()
                         {
-                            ["actor"] = pActor.FullName(),
-                            ["place"] = empire.CoreKingdom.Capital.GetCityName(),
+                            ["actor"] = pActor.getName(),
+                            ["place"] = empire.CoreKingdom.capital.GetCityName(),
                             ["name"] = empire.GetEmpireName(),
                         });
                     }
                     return true;
                 }
             });
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "emperor_year_name",
+                id = "emperor_year_name",
                 path_icon = "ui/icons/plots/plot_emperor_year_name",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -1456,8 +1456,8 @@ namespace EmpireCraft.Core
                 can_be_done_by_king = true,
                 check_is_possible = delegate (Person pActor)
                 {
-                    Realm kingdom = pActor.Realm;
-                    if (!pActor.IsRuler()) return false;
+                    Realm kingdom = pActor.kingdom;
+                    if (!pActor.isKing()) return false;
                     if (!kingdom.IsEmpire()) return false;
                     if (!kingdom.IsInEmpire()) return false;
                     if (!kingdom.GetEmpire().IsAllowToMakeYearName()) return false;
@@ -1467,7 +1467,7 @@ namespace EmpireCraft.Core
                 },
                 action = delegate(Person pActor) 
                 {
-                    Realm kingdom = pActor.Realm;
+                    Realm kingdom = pActor.kingdom;
                     Empire empire = kingdom?.GetEmpire();
                     if (empire == null) return false;
 
@@ -1478,9 +1478,9 @@ namespace EmpireCraft.Core
                     return true;
                 }
             });
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "kingdom_allow_army",
+                id = "kingdom_allow_army",
                 path_icon = "ui/icons/plots/plot_kingdom_allow_army",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -1489,8 +1489,8 @@ namespace EmpireCraft.Core
                 can_be_done_by_king = true,
                 check_is_possible = delegate (Person pActor)
                 {
-                    Realm kingdom = pActor.Realm;
-                    if (!pActor.IsRuler()) return false;
+                    Realm kingdom = pActor.kingdom;
+                    if (!pActor.isKing()) return false;
                     if (kingdom.IsCountingSelfPlot()) return false;
                     if (kingdom.IsEmpire()) return false;
                     if (!kingdom.IsInEmpire()) return false;
@@ -1499,21 +1499,21 @@ namespace EmpireCraft.Core
                     if (empire.Legitimacy > 60) return false;
                     if (regime == null) return false;
                     if (regime.IsAllowArmy()) return false;
-                    if (kingdom.IsOpinionGood(empire.CoreKingdom)) return false;
+                    if (kingdom.isOpinionTowardsKingdomGood(empire.CoreKingdom)) return false;
                     return true;
                 },
                 action = delegate(Person pActor) 
                 {
-                    Realm kingdom = pActor.Realm;
+                    Realm kingdom = pActor.kingdom;
                     kingdom.FinishedSelfPlot();
                     Regime regime = kingdom.GetRegime();
                     regime.SetAllowArmy(true);
                     return true;
                 }
             });
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "kingdom_allow_diplomacy",
+                id = "kingdom_allow_diplomacy",
                 path_icon = "ui/icons/plots/plot_kingdom_allow_diplomacy",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -1522,8 +1522,8 @@ namespace EmpireCraft.Core
                 can_be_done_by_king = true,
                 check_is_possible = delegate (Person pActor)
                 {
-                    Realm kingdom = pActor.Realm;
-                    if (!pActor.IsRuler()) return false;
+                    Realm kingdom = pActor.kingdom;
+                    if (!pActor.isKing()) return false;
                     if (kingdom.IsCountingSelfPlot()) return false;
                     if (kingdom.IsEmpire()) return false;
                     if (!kingdom.IsInEmpire()) return false;
@@ -1537,21 +1537,21 @@ namespace EmpireCraft.Core
                     // 以前藩镇这一步正统跌到 30 以下才迈得出去(用户 2026-10-21 选"华夏有真乱世")
                     if (empire.CoreKingdom?.GetRegime()?.type == RegimeType.LvLing
                             ? RebellionSystem.SecessionAllegiance(kingdom, empire) >= 0
-                            : kingdom.IsOpinionGood(empire.CoreKingdom)) return false;
+                            : kingdom.isOpinionTowardsKingdomGood(empire.CoreKingdom)) return false;
                     return true;
                 },
                 action = delegate(Person pActor) 
                 {
-                    Realm kingdom = pActor.Realm;
+                    Realm kingdom = pActor.kingdom;
                     kingdom.FinishedSelfPlot();
                     Regime regime = kingdom.GetRegime();
                     regime.SetAllowDiplomacy(true);
                     return true;
                 }
             });
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "kingdom_allow_succession",
+                id = "kingdom_allow_succession",
                 path_icon = "ui/icons/plots/plot_kingdom_allow_succession",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -1560,8 +1560,8 @@ namespace EmpireCraft.Core
                 can_be_done_by_king = true,
                 check_is_possible = delegate (Person pActor)
                 {
-                    Realm kingdom = pActor.Realm;
-                    if (!pActor.IsRuler()) return false;
+                    Realm kingdom = pActor.kingdom;
+                    if (!pActor.isKing()) return false;
                     if (kingdom.IsEmpire()) return false;
                     if (kingdom.IsCountingSelfPlot()) return false;
                     if (!kingdom.IsInEmpire()) return false;
@@ -1571,21 +1571,21 @@ namespace EmpireCraft.Core
                     if (!regime.IsAllowArmy()) return false;
                     if (!regime.IsAllowDiplomacy()) return false;
                     if (regime.GetLeaderSelectMethod() == LeaderSelectMethod.Succession) return false;
-                    if (kingdom.IsOpinionGood(empire.CoreKingdom)) return false;
+                    if (kingdom.isOpinionTowardsKingdomGood(empire.CoreKingdom)) return false;
                     return true;
                 },
                 action = delegate(Person pActor) 
                 {
-                    Realm kingdom = pActor.Realm;
+                    Realm kingdom = pActor.kingdom;
                     kingdom.FinishedSelfPlot();
                     Regime regime = kingdom.GetRegime();
                     regime.SetLeaderSelectMethod(LeaderSelectMethod.Succession);
                     return true;
                 }
             });
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "kingdom_allow_self_army",
+                id = "kingdom_allow_self_army",
                 path_icon = "ui/icons/plots/plot_kingdom_allow_self_army",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -1594,8 +1594,8 @@ namespace EmpireCraft.Core
                 can_be_done_by_king = true,
                 check_is_possible = delegate (Person pActor)
                 {
-                    Realm kingdom = pActor.Realm;
-                    if (!pActor.IsRuler()) return false;
+                    Realm kingdom = pActor.kingdom;
+                    if (!pActor.isKing()) return false;
                     if (kingdom.IsEmpire()) return false;
                     if (kingdom.IsCountingSelfPlot()) return false;
                     if (!kingdom.IsInEmpire()) return false;
@@ -1606,21 +1606,21 @@ namespace EmpireCraft.Core
                     if (!regime.IsAllowDiplomacy()) return false;
                     if (regime.GetLeaderSelectMethod() != LeaderSelectMethod.Succession) return false;
                     if (!regime.IsAllowSupportCenterArmy()) return false;
-                    if (kingdom.IsOpinionGood(empire.CoreKingdom)) return false;
+                    if (kingdom.isOpinionTowardsKingdomGood(empire.CoreKingdom)) return false;
                     return true;
                 },
                 action = delegate(Person pActor) 
                 {
-                    Realm kingdom = pActor.Realm;
+                    Realm kingdom = pActor.kingdom;
                     kingdom.FinishedSelfPlot();
                     Regime regime = kingdom.GetRegime();
                     regime.SetAllowSupportCenterArmy(false);
                     return true;
                 }
             });
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "kingdom_allow_independent",
+                id = "kingdom_allow_independent",
                 path_icon = "ui/icons/plots/plot_kingdom_allow_independent",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -1629,8 +1629,8 @@ namespace EmpireCraft.Core
                 can_be_done_by_king = true,
                 check_is_possible = delegate (Person pActor)
                 {
-                    Realm kingdom = pActor.Realm;
-                    if (!pActor.IsRuler()) return false;
+                    Realm kingdom = pActor.kingdom;
+                    if (!pActor.isKing()) return false;
                     if (kingdom.IsEmpire()) return false;
                     if (kingdom.IsCountingSelfPlot()) return false;
                     if (!kingdom.IsInEmpire()) return false;
@@ -1638,7 +1638,7 @@ namespace EmpireCraft.Core
                     Regime regime = kingdom.GetRegime();
                     // 正统门槛 40；汗国连吃败仗时抬高(兵败离心，见 NomadCycleSystem.SecessionGate)
                     if (empire.Legitimacy > NomadCycleSystem.SecessionGate(kingdom) || !RebellionSystem.CanAttempt(kingdom) ||
-                        !CityStabilitySystem.CanRise(kingdom.Capital)) return false;
+                        !CityStabilitySystem.CanRise(kingdom.capital)) return false;
                     // 外藩有姻亲、或八旗战力尚在，不自立(见 BannerSystem.Frontier)
                     if (BannerSystem.LeagueRestrains(kingdom)) return false;
                     if (regime == null) return false;
@@ -1663,17 +1663,17 @@ namespace EmpireCraft.Core
                     RebellionSystem.CanAttempt(actor.kingdom) && CityStabilitySystem.CanRise(actor.kingdom.capital),
                 action = delegate(Person pActor) 
                 {
-                    Realm kingdom = pActor.Realm;
+                    Realm kingdom = pActor.kingdom;
                     Empire empire = kingdom.GetEmpire();
                     if (empire == null || empire.IsGone() || empire.Legitimacy > NomadCycleSystem.SecessionGate(kingdom) ||
-                        !RebellionSystem.CanAttempt(kingdom) || !CityStabilitySystem.CanRise(kingdom.Capital)) return false;
+                        !RebellionSystem.CanAttempt(kingdom) || !CityStabilitySystem.CanRise(kingdom.capital)) return false;
                     // 退出帝国、与中央开战(与汗位更替之乱共用，见 NomadCycleSystem.DeclareIndependence)
                     return NomadCycleSystem.DeclareIndependence(kingdom, empire, "rebellion_reason_secession");
                 }
             });
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "empire_take_back_title",
+                id = "empire_take_back_title",
                 path_icon = "ui/icons/plots/plot_empire_take_back_title",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -1682,7 +1682,7 @@ namespace EmpireCraft.Core
                 can_be_done_by_king = true,
                 check_is_possible = delegate (Person pActor)
                 {
-                    Realm kingdom = pActor.Realm;
+                    Realm kingdom = pActor.kingdom;
                     if (!kingdom.IsEmpire()) return false;
                     var empire = kingdom.GetEmpire();
                     if (empire==null) return false;
@@ -1693,27 +1693,27 @@ namespace EmpireCraft.Core
                     FindTitleReclamationTarget(pActor.kingdom.GetEmpire()) != null,
                 action = delegate(Person pActor) 
                 {
-                    Realm kingdom = pActor.Realm;
+                    Realm kingdom = pActor.kingdom;
                     if (!kingdom.IsEmpire()) return false;
                     var empire = kingdom.GetEmpire();
                     if (empire==null) return false;
                     var k = FindTitleReclamationTarget(empire);
                     if (k == null) return false;
                     var crime = k.GetMainCrime().ToString();
-                    Person formerHolder = k.Ruler;
+                    Person formerHolder = k.king;
                     var titles = formerHolder.GetOwnedTitle();
-                    var kingdomTitles = titles?.Select(t => ModClass.KINGDOM_TITLE_MANAGER.Get(t))?.ToList()
+                    var kingdomTitles = titles?.Select(t => ModClass.KINGDOM_TITLE_MANAGER.get(t))?.ToList()
                         .FindAll(kt => kt != null && !kt.IsGone() && kt.owner == formerHolder);
                     if (kingdomTitles == null || kingdomTitles.Count == 0) return false;
-                    string titleText = string.Join(",", kingdomTitles.Select(kt=>kt.Name));
+                    string titleText = string.Join(",", kingdomTitles.Select(kt=>kt.name));
                     if (empire.ReclaimTitles(k, kingdomTitles) <= 0) return false;
                     TranslateHelper.LogEmpireTakeBackTitle(formerHolder, titleText, crime);
                     return true;
                 }
             });
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "emperor_posthumous_name",
+                id = "emperor_posthumous_name",
                 path_icon = "ui/icons/plots/plot_emperor_posthumous_name",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -1722,8 +1722,8 @@ namespace EmpireCraft.Core
                 can_be_done_by_king = true,
                 check_is_possible = delegate (Person pActor)
                 {
-                    Realm kingdom = pActor.Realm;
-                    if (!pActor.IsRuler()) return false;
+                    Realm kingdom = pActor.kingdom;
+                    if (!pActor.isKing()) return false;
                     if (!kingdom.IsEmpire()) return false;
                     if (!kingdom.IsInEmpire()) return false;
                     if (!kingdom.GetEmpire().IsNeedToSetPosthumous()) return false;
@@ -1731,9 +1731,9 @@ namespace EmpireCraft.Core
                 },
                 check_should_continue = delegate (Person pActor)
                 {
-                    if (!pActor.IsRuler()) return false;
-                    if (!pActor.HasRealm()) return false;
-                    Realm kingdom = pActor.Realm;
+                    if (!pActor.isKing()) return false;
+                    if (!pActor.hasKingdom()) return false;
+                    Realm kingdom = pActor.kingdom;
                     if (!kingdom.Alive) return false;
                     if (!kingdom.IsEmpire()) return false;
                     if (!kingdom.IsInEmpire()) return false;
@@ -1745,14 +1745,14 @@ namespace EmpireCraft.Core
                 action = delegate(Person pActor)
                 {
                     // 谥法：按先帝生平定庙号谥号(见 Empire.ConferPosthumousNames、PosthumousNameGenerator)
-                    pActor.Realm.GetEmpire().ConferPosthumousNames(pActor, announceAll: true);
+                    pActor.kingdom.GetEmpire().ConferPosthumousNames(pActor, announceAll: true);
                     return true;
                 }
             });
             // 增广尊谥(皇帝个人的决议)：本朝此后有庙号的先帝都得明式长谥，并为已有庙号的列祖列宗追加尊谥
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "emperor_extend_posthumous",
+                id = "emperor_extend_posthumous",
                 path_icon = "ui/icons/plots/plot_emperor_extend_posthumous",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -1763,13 +1763,13 @@ namespace EmpireCraft.Core
                 check_should_continue = PosthumousNameGenerator.CanExtend,
                 action = delegate (Person pActor)
                 {
-                    return PosthumousNameGenerator.Extend(pActor.Realm?.GetEmpire(), pActor);
+                    return PosthumousNameGenerator.Extend(pActor.kingdom?.GetEmpire(), pActor);
                 }
             });
             // 谥法从简(皇帝个人的决议)：此后先帝只用简谥；与增广尊谥二选一，一个帝国只定一次
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "emperor_simplify_posthumous",
+                id = "emperor_simplify_posthumous",
                 path_icon = "ui/icons/plots/plot_emperor_simplify_posthumous",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -1780,12 +1780,12 @@ namespace EmpireCraft.Core
                 check_should_continue = PosthumousNameGenerator.CanSimplify,
                 action = delegate (Person pActor)
                 {
-                    return PosthumousNameGenerator.Simplify(pActor.Realm?.GetEmpire(), pActor);
+                    return PosthumousNameGenerator.Simplify(pActor.kingdom?.GetEmpire(), pActor);
                 }
             });
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "king_acquire_title",
+                id = "king_acquire_title",
                 path_icon = "ui/icons/plots/plot_king_acquire_title",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -1795,8 +1795,8 @@ namespace EmpireCraft.Core
                 check_target_kingdom = true,
                 check_is_possible = delegate (Person pActor)
                 {
-                    Realm kingdom = pActor.Realm;
-                    if (!pActor.IsRuler()) return false;
+                    Realm kingdom = pActor.kingdom;
+                    if (!pActor.isKing()) return false;
                     if (!pActor.CanAcquireTitle()) return false;
                     var warsList3 = kingdom.GetWarsCached(false);
                     if (warsList3.Count > 0) return false;
@@ -1806,7 +1806,7 @@ namespace EmpireCraft.Core
                 },
                 try_to_start_advanced = delegate(Person pActor, PlotKind pPlotAsset, bool pForced)
                 {
-                    Realm kingdom = pActor.Realm;
+                    Realm kingdom = pActor.kingdom;
                     List<KingdomTitle> titles = pActor.getAcquireTitle();
                     if (!titles.Any()) return false;
                     foreach (KingdomTitle title in titles)
@@ -1814,40 +1814,40 @@ namespace EmpireCraft.Core
                         if (title.IsGone()) continue;
                         Realm targetKingdom = title.FindRealmTitleHolder();
                         if (!kingdom.CanDeclareDeJureTitleWar(targetKingdom, title)) continue;
-                        if (kingdom.IsOpinionGood(targetKingdom)) continue;
-                        foreach (Plot plot3 in EmpireWorld.Current.Plots)
+                        if (kingdom.isOpinionTowardsKingdomGood(targetKingdom)) continue;
+                        foreach (Plot plot3 in EmpireWorld.Current.plots)
                         {
-                            if (plot3.IsActive() && plot3.isSameType(pPlotAsset))
+                            if (plot3.isActive() && plot3.isSameType(pPlotAsset))
                             {
                                 pActor.setPlot(plot3);
-                                plot3.TargetRealm = targetKingdom;
-                                plot3.setName($"{kingdom.Name}试图索取{targetKingdom.Name}的{title.Name}法理");
+                                plot3.target_kingdom = targetKingdom;
+                                plot3.setName($"{kingdom.name}试图索取{targetKingdom.name}的{title.name}法理");
                                 return true;
                             }
                         }
-                        var nPlot = EmpireWorld.Current.Plots.newPlot(pActor, pPlotAsset, pForced);
+                        var nPlot = EmpireWorld.Current.plots.newPlot(pActor, pPlotAsset, pForced);
                         nPlot.target_kingdom = targetKingdom;
-                        nPlot.setName($"{kingdom.Name}试图索取{targetKingdom.Name}的{title.Name}法理");
+                        nPlot.setName($"{kingdom.name}试图索取{targetKingdom.name}的{title.name}法理");
                         return true;
                     }
                     return false;
                 },
                 check_should_continue = delegate (Person pActor) {
                     if (!pActor.hasPlot()) return false;
-                    if (!pActor.HasRealm()) return false;
-                    if (pActor.Realm.HasTakenAlliance()) return false;
+                    if (!pActor.hasKingdom()) return false;
+                    if (pActor.kingdom.HasTakenAlliance()) return false;
                     var plot = pActor.plot;
                     var targetKingdom = plot.target_kingdom;
                     if (targetKingdom == null || targetKingdom.IsGone()) return false;
                     if (!targetKingdom.HasRuler()) return false;
                     return pActor.getAcquireTitle().Any(title =>
-                        pActor.Realm.CanDeclareDeJureTitleWar(targetKingdom, title));
+                        pActor.kingdom.CanDeclareDeJureTitleWar(targetKingdom, title));
                 },
                 action = delegate(Person pActor)
                 {
                     if (!pActor.hasPlot()) return false;
-                    if (!pActor.HasRealm()) return false;
-                    var kingdom = pActor.Realm;
+                    if (!pActor.hasKingdom()) return false;
+                    var kingdom = pActor.kingdom;
                     if (kingdom.HasTakenAlliance()) return false;
                     var plot = pActor.plot;
                     var targetKingdom = plot.target_kingdom;
@@ -1855,16 +1855,16 @@ namespace EmpireCraft.Core
                     var finalTitle = titles.FirstOrDefault(title => !title.IsGone() &&
                         kingdom.CanDeclareDeJureTitleWar(targetKingdom, title));
                     if (finalTitle == null || CorpsSystem.CannotFundWar(kingdom)) return false;
-                    War war = EmpireWorld.Current.StartWar(kingdom, targetKingdom, WarKinds.Normal);
+                    War war = EmpireWorld.Current.diplomacy.startWar(kingdom, targetKingdom, WarKinds.normal);
                     if (war == null) return false;
                     war.SetEmpireWarType(EmpireWarType.索取法理, nanoObject:finalTitle);
                     TranslateHelper.LogKingdomAcquireTitle(kingdom, targetKingdom, finalTitle);
                     return true;
                 }
             });
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "kingdom_destroy_title",
+                id = "kingdom_destroy_title",
                 path_icon = "ui/icons/plots/plot_kingdom_destroy_title",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -1873,8 +1873,8 @@ namespace EmpireCraft.Core
                 can_be_done_by_king = true,
                 check_is_possible = delegate (Person pActor)
                 {
-                    Realm kingdom = pActor.Realm;
-                    if (!pActor.IsRuler()) return false;
+                    Realm kingdom = pActor.kingdom;
+                    if (!pActor.isKing()) return false;
                     if (kingdom.IsDeJureTitleAcquisitionBlocked()) return false;
                     if (ModClass.KINGDOM_TITLE_FREEZE) return false;
                     if (!kingdom.HasMainTitle()) return false;
@@ -1884,7 +1884,7 @@ namespace EmpireCraft.Core
 
                 check_should_continue = delegate (Person pActor)
                 {
-                    Realm kingdom = pActor.Realm;
+                    Realm kingdom = pActor.kingdom;
                     if (!kingdom.Alive) return false;
                     if (!kingdom.HasMainTitle()) return false;
                     // 谋划半途开了冻结法理
@@ -1893,7 +1893,7 @@ namespace EmpireCraft.Core
                 },
                 action = delegate(Person pActor) 
                 {
-                    Realm kingdom = pActor.Realm;
+                    Realm kingdom = pActor.kingdom;
                     List<KingdomTitle> titles = pActor.titleCanBeDestroy();
                     foreach(KingdomTitle title in titles)
                     {
@@ -1909,7 +1909,7 @@ namespace EmpireCraft.Core
                     if (kingdom.HasMainTitle())
                     {
                         KingdomTitle title = kingdom.GetMainTitle();
-                        foreach(City city in kingdom.Cities.ToList())
+                        foreach(City city in kingdom.cities.ToList())
                         {
                             if (city.GetTitle()!=kingdom.GetMainTitle())
                             {
@@ -1920,12 +1920,12 @@ namespace EmpireCraft.Core
                         }
                     }else
                     {
-                        KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER.newKingdomTitle(kingdom.Capital);
+                        KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER.newKingdomTitle(kingdom.capital);
                         if (title == null) return false;
                         kingdom.SetMainTitle(title);
-                        foreach (City city in kingdom.Cities.ToList())
+                        foreach (City city in kingdom.cities.ToList())
                         {
-                            if (city!=kingdom.Capital)
+                            if (city!=kingdom.capital)
                             {
                                 if (!KingdomTitleManager.HasRoomFor(title)) break;
                                 title.addCity(city);
@@ -1936,9 +1936,9 @@ namespace EmpireCraft.Core
                     return true;
                 }
             });
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "emperor_reorganize_administration",
+                id = "emperor_reorganize_administration",
                 path_icon = "ui/icons/plots/plot_empire_take_back_title",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -1950,9 +1950,9 @@ namespace EmpireCraft.Core
                 check_should_continue = AdministrationReorganizationSystem.CanPropose,
                 action = AdministrationReorganizationSystem.Begin
             });
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "kingdom_get_title",
+                id = "kingdom_get_title",
                 path_icon = "ui/icons/plots/plot_kingdom_get_title",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -1965,7 +1965,7 @@ namespace EmpireCraft.Core
                 action = delegate(Person pActor) 
                 {
                     if (!CanContinueKingdomGetTitlePlot(pActor)) return false;
-                    Realm kingdom = pActor.Realm;
+                    Realm kingdom = pActor.kingdom;
                     List<KingdomTitle> titles = pActor.takeTitle();
                     foreach(KingdomTitle title in titles)
                     {
@@ -1979,9 +1979,9 @@ namespace EmpireCraft.Core
                     return titles.Count > 0;
                 }
             }); 
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "kingdom_change_capital_title",
+                id = "kingdom_change_capital_title",
                 path_icon = "ui/icons/plots/plot_kingdom_change_capital_title",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -1991,24 +1991,24 @@ namespace EmpireCraft.Core
                 check_is_possible = delegate (Person pActor)
                 {
                     if (pActor == null) return false;
-                    Realm kingdom = pActor.Realm;
-                    if (!pActor.IsRuler()) return false;
+                    Realm kingdom = pActor.kingdom;
+                    if (!pActor.isKing()) return false;
                     if (kingdom.IsEmpire()) return false;
                     if (!kingdom.HasMainTitle()) return false;
                     if (kingdom.GetMainTitle()==null) return false;
                     if (kingdom.GetMainTitle().title_capital==null) return false;
-                    if (kingdom.Capital == null) return false;
-                    if (pActor.Realm.GetMainTitle().title_capital==kingdom.Capital) return false;
-                    if (!kingdom.Cities.Contains(pActor.Realm.GetMainTitle().title_capital)) return false;
+                    if (kingdom.capital == null) return false;
+                    if (pActor.kingdom.GetMainTitle().title_capital==kingdom.capital) return false;
+                    if (!kingdom.cities.Contains(pActor.kingdom.GetMainTitle().title_capital)) return false;
                     // 还于旧都后的首都锚定：不再迁回封号首府
                     if (EmpireCraft.Core.CoreCapitalRestorationSystem.IsAnchored(kingdom)) return false;
                     return true;
                 },
                 action = delegate(Person pActor) 
                 {
-                    Realm kingdom = pActor.Realm;
+                    Realm kingdom = pActor.kingdom;
                     if (EmpireCraft.Core.CoreCapitalRestorationSystem.IsAnchored(kingdom)) return true;
-                    kingdom.SetCapital(kingdom.GetMainTitle().title_capital);
+                    kingdom.setCapital(kingdom.GetMainTitle().title_capital);
                     // 迁都封号首府：记工役，算大兴土木(见 CorveeSystem)
                     CorveeSystem.Add(kingdom, CorveeSystem.CapitalMove, true);
                     TranslateHelper.LogKingdomChangeCapitalToTitle(kingdom, kingdom.GetMainTitle());
@@ -2016,9 +2016,9 @@ namespace EmpireCraft.Core
                     return true;
                 }
             });
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "kingdom_join_empire",
+                id = "kingdom_join_empire",
                 path_icon = "ui/icons/plots/plot_kingdom_join_empire",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -2028,9 +2028,9 @@ namespace EmpireCraft.Core
                 check_is_possible = delegate (Person pActor)
                 {
                     if (pActor == null) return false;
-                    Realm kingdom = pActor.Realm;
+                    Realm kingdom = pActor.kingdom;
                     if (kingdom == null) return false;
-                    if (!pActor.IsRuler()) return false;
+                    if (!pActor.isKing()) return false;
                     if (kingdom.IsEmpire()) return false;
                     if (kingdom.IsInEmpire()) return false;
                     if (!kingdom.GetEmpiresCanBeJoined().Any()) return false;
@@ -2039,15 +2039,15 @@ namespace EmpireCraft.Core
                 check_should_continue = delegate (Person pActor)
                 {
                     if (pActor == null) return false;
-                    Realm kingdom = pActor.Realm;
+                    Realm kingdom = pActor.kingdom;
                     if (kingdom.IsInEmpire()) return false;
                     if (!kingdom.GetEmpiresCanBeJoined().Any()) return false;
                     return true;
                 },
                 action = delegate(Person pActor) 
                 {
-                    Realm kingdom = pActor.Realm;
-                    if (!pActor.IsRuler() || kingdom.IsInEmpire() || !RealmDiplomacySystem.CanChooseOverlord(kingdom)) return false;
+                    Realm kingdom = pActor.kingdom;
+                    if (!pActor.isKing() || kingdom.IsInEmpire() || !RealmDiplomacySystem.CanChooseOverlord(kingdom)) return false;
                     Empire destination = kingdom.GetEmpiresCanBeJoined().FirstOrDefault();
                     if (destination == null) return false;
                     destination.join(kingdom);
@@ -2061,9 +2061,9 @@ namespace EmpireCraft.Core
                     return true;
                 }
             });
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "kingdom_create_title",
+                id = "kingdom_create_title",
                 path_icon = "ui/icons/plots/plot_kingdom_create_title",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -2072,20 +2072,20 @@ namespace EmpireCraft.Core
                 can_be_done_by_king = true,
                 check_is_possible = delegate (Person pActor)
                 {
-                    Realm kingdom = pActor.Realm;
-                    if (kingdom.Capital==null) return false;
-                    if (!pActor.IsRuler()) return false;
-                    if (!pActor.HasRealm()) return false; 
+                    Realm kingdom = pActor.kingdom;
+                    if (kingdom.capital==null) return false;
+                    if (!pActor.isKing()) return false;
+                    if (!pActor.hasKingdom()) return false; 
                     if (kingdom.HasTakenAlliance()) return false;
                     if (kingdom.IsDeJureTitleAcquisitionBlocked()) return false;
-                    if (kingdom.Capital.hasTitle()) return false;
+                    if (kingdom.capital.hasTitle()) return false;
                     return true;
                 },
                 action = delegate(Person pActor) 
                 {
-                    Realm kingdom = pActor.Realm;
+                    Realm kingdom = pActor.kingdom;
                     if (kingdom.HasTakenAlliance()) return false;
-                    KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER.newKingdomTitle(kingdom.Capital);
+                    KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER.newKingdomTitle(kingdom.capital);
                     if (title == null) return false;
                     TranslateHelper.LogCreateTitle(kingdom, title);
                     title.owner = pActor;
@@ -2094,9 +2094,9 @@ namespace EmpireCraft.Core
                     return true;
                 }
             });
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "kingdom_add_city_into_title",
+                id = "kingdom_add_city_into_title",
                 path_icon = "ui/icons/plots/plot_kingdom_add_city_into_title",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -2105,27 +2105,27 @@ namespace EmpireCraft.Core
                 can_be_done_by_king = true,
                 check_is_possible = delegate (Person pActor)
                 {
-                    Realm kingdom = pActor.Realm;
-                    if (kingdom.Capital==null) return false;
-                    if (!pActor.IsRuler()) return false;
-                    if (!pActor.HasRealm()) return false; 
+                    Realm kingdom = pActor.kingdom;
+                    if (kingdom.capital==null) return false;
+                    if (!pActor.isKing()) return false;
+                    if (!pActor.hasKingdom()) return false; 
                     if (!kingdom.HasMainTitle()) return false;
-                    if (kingdom.Cities.All(c=>c.hasTitle())) return false;
+                    if (kingdom.cities.All(c=>c.hasTitle())) return false;
                     if (!KingdomTitleManager.HasRoomFor(kingdom.GetMainTitle())) return false;
                     return true;
                 },
                 action = delegate(Person pActor) 
                 {
-                    Realm kingdom = pActor.Realm;
+                    Realm kingdom = pActor.kingdom;
                     var mainTitle = kingdom.GetMainTitle();
                     if (mainTitle == null) return false;
                     KingdomTitleManager.AddUntitledCities(mainTitle, kingdom);
                     return true;
                 }
             });
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "empress_dowager_install_son",
+                id = "empress_dowager_install_son",
                 path_icon = "ui/icons/plots/plot_empress_dowager_install_son",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -2138,20 +2138,20 @@ namespace EmpireCraft.Core
                 try_to_start_advanced = TryStartSimplePlot,
                 check_is_possible = delegate (Person pActor)
                 {
-                    return pActor?.Realm?.GetEmpire()?.CanEmpressDowagerInstallSon(pActor) == true;
+                    return pActor?.kingdom?.GetEmpire()?.CanEmpressDowagerInstallSon(pActor) == true;
                 },
                 check_should_continue = delegate (Person pActor)
                 {
-                    return pActor?.Realm?.GetEmpire()?.CanEmpressDowagerInstallSon(pActor) == true;
+                    return pActor?.kingdom?.GetEmpire()?.CanEmpressDowagerInstallSon(pActor) == true;
                 },
                 action = delegate (Person pActor)
                 {
-                    return pActor?.Realm?.GetEmpire()?.CompleteEmpressDowagerInstallSon(pActor) == true;
+                    return pActor?.kingdom?.GetEmpire()?.CompleteEmpressDowagerInstallSon(pActor) == true;
                 }
             });
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "minister_acquire_empire",
+                id = "minister_acquire_empire",
                 path_icon = "ui/icons/plots/plot_minister_acquire_empire",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -2165,19 +2165,19 @@ namespace EmpireCraft.Core
                 try_to_start_advanced = TryStartSimplePlot,
                 check_is_possible = delegate (Person pActor)
                 {
-                    Empire empire = pActor?.Realm?.GetEmpire();
+                    Empire empire = pActor?.kingdom?.GetEmpire();
                     return empire?.CanPowerfulMinisterUsurp(pActor) == true;
                 },
                 check_should_continue = delegate (Person pActor)
                 {
-                    Empire empire = pActor?.Realm?.GetEmpire();
+                    Empire empire = pActor?.kingdom?.GetEmpire();
                     return empire?.CanPowerfulMinisterUsurp(pActor) == true;
                 },
                 action = minister_acquire_empire
             });
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "minister_acquire_title",
+                id = "minister_acquire_title",
                 path_icon = "ui/icons/plots/plot_minister_acquire_title",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -2190,19 +2190,19 @@ namespace EmpireCraft.Core
                 try_to_start_advanced = TryStartSimplePlot,
                 check_is_possible = delegate (Person pActor)
                 {
-                    Empire empire = pActor?.Realm?.GetEmpire();
+                    Empire empire = pActor?.kingdom?.GetEmpire();
                     return empire?.CanPowerfulMinisterSeekDukedom(pActor) == true;
                 },
                 check_should_continue = delegate (Person pActor)
                 {
-                    Empire empire = pActor?.Realm?.GetEmpire();
+                    Empire empire = pActor?.kingdom?.GetEmpire();
                     return empire?.CanPowerfulMinisterSeekDukedom(pActor) == true;
                 },
-                action = delegate (Person pActor) { return pActor?.Realm?.GetEmpire()?.TryGrantPowerfulMinisterDukedom(pActor) == true; }
+                action = delegate (Person pActor) { return pActor?.kingdom?.GetEmpire()?.TryGrantPowerfulMinisterDukedom(pActor) == true; }
             });
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "minister_receive_nine_bestowments",
+                id = "minister_receive_nine_bestowments",
                 path_icon = "ui/icons/plots/plot_minister_receive_nine_bestowments",
                 group_id = "empirecraft_diplomacy",
                 is_basic_plot = true,
@@ -2215,26 +2215,26 @@ namespace EmpireCraft.Core
                 try_to_start_advanced = TryStartSimplePlot,
                 check_is_possible = delegate (Person pActor)
                 {
-                    Empire empire = pActor?.Realm?.GetEmpire();
+                    Empire empire = pActor?.kingdom?.GetEmpire();
                     return empire?.CanPowerfulMinisterReceiveNineBestowments(pActor) == true;
                 },
                 check_should_continue = delegate (Person pActor)
                 {
-                    Empire empire = pActor?.Realm?.GetEmpire();
+                    Empire empire = pActor?.kingdom?.GetEmpire();
                     return empire?.CanPowerfulMinisterReceiveNineBestowments(pActor) == true;
                 },
                 action = delegate (Person pActor)
                 {
-                    return pActor?.Realm?.GetEmpire()?.GrantPowerfulMinisterNineBestowments(pActor) == true;
+                    return pActor?.kingdom?.GetEmpire()?.GrantPowerfulMinisterNineBestowments(pActor) == true;
                 }
             });
-            AssetManager.plots_library.list.RemoveAll(a => a.id == "rebellion");
-            AssetManager.plots_library.basic_plots.RemoveAll(a=>a.id=="rebellion");
+            PlotKinds.Library.list.RemoveAll(a => a.id == "rebellion");
+            PlotKinds.Library.basic_plots.RemoveAll(a=>a.id=="rebellion");
             // 字典里的旧条目也要拿掉，否则 add 会在日志里报一条"duplicate asset"错误
-            AssetManager.plots_library.dict.Remove("rebellion");
-            Rebellion = AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.dict.Remove("rebellion");
+            Rebellion = PlotKinds.Library.add(new PlotKind
 		    {
-			    Id = "rebellion",
+			    id = "rebellion",
 			    is_basic_plot = true,
 			    path_icon = "plots/icons/plot_rebellion",
 			    group_id = "empirecraft_diplomacy",
@@ -2250,12 +2250,12 @@ namespace EmpireCraft.Core
                 unlocked_with_achievement = false,
 			    check_is_possible = delegate(Person pActor)
 			    {
-				    Realm kingdom = pActor.Realm;
-				    if (pActor.IsRuler())
+				    Realm kingdom = pActor.kingdom;
+				    if (pActor.isKing())
 				    {
 					    return false;
 				    }
-				    if (kingdom.CountCities() == 1&&!kingdom.IsInEmpire())
+				    if (kingdom.countCities() == 1&&!kingdom.IsInEmpire())
 				    {
 					    return false;
 				    }
@@ -2263,25 +2263,25 @@ namespace EmpireCraft.Core
 				    {
 					    return false;
 				    }
-				    if (kingdom.getAge() <= SimGlobals.m.rebellions_min_age)
+				    if (kingdom.getAge() <= WorldRules.m.rebellions_min_age)
 				    {
 					    return false;
 				    }
-				    if (pActor.HasTrait("pacifist"))
+				    if (pActor.hasTrait("pacifist"))
 				    {
 					    return false;
 				    }
 				    // 现代国家治理能力：大部分叛乱图谋起不来(见 ModernStability)
 				    if (!ModernStability.PassRebellionGate(kingdom)) return false;
-				    City city = pActor.City;
+				    City city = pActor.city;
 				    // 不在任何城里的人(流民、行军在外)起不了事
-				    if (city?.Record == null || city.IsGone() || city.Realm == null) return false;
-				    if (city.IsCapital()&&!city.Realm.IsInEmpire())
+				    if (city?.data == null || city.IsGone() || city.kingdom == null) return false;
+				    if (city.isCapitalCity()&&!city.kingdom.IsInEmpire())
 				    {
 					    return false;
 				    }
 
-                    if (city.Realm.IsEmpire() && city.IsCapital())
+                    if (city.kingdom.IsEmpire() && city.isCapitalCity())
                     {
                         return false;
                     }
@@ -2293,27 +2293,27 @@ namespace EmpireCraft.Core
                     }
                     if (!kingdom.IsInEmpire())
                     {
-                        float num = city.Warriors();
-                        float num2 = kingdom.Capital.Warriors();
-                        if (num < (float)SimGlobals.m.rebellions_min_warriors)
+                        float num = city.countWarriors();
+                        float num2 = kingdom.capital.countWarriors();
+                        if (num < (float)WorldRules.m.rebellions_min_warriors)
                         {
                             return false;
                         }
-                        float num3 = (float)kingdom.countUnhappyCities() * SimGlobals.m.rebellions_unhappy_multiplier;
+                        float num3 = (float)kingdom.countUnhappyCities() * WorldRules.m.rebellions_unhappy_multiplier;
                         float num4 = num2 - num2 * num3;
                         if (!(num >= num4))
                         {
                             return false;
                         }
                     }
-				    foreach (War war2 in kingdom.GetWars())
+				    foreach (War war2 in kingdom.getWars())
 				    {
-					    if (war2.GetKind() == WarKinds.Rebellion && war2.isMainDefender(kingdom))
+					    if (war2.getAsset() == WarKinds.rebellion && war2.isMainDefender(kingdom))
 					    {
 						    return false;
 					    }
 				    }
-				    int num5 = kingdom.CountCities();
+				    int num5 = kingdom.countCities();
                     if (!kingdom.IsInEmpire())
                     {
                         int maxCities = kingdom.getMaxCities();
@@ -2322,9 +2322,9 @@ namespace EmpireCraft.Core
                             return false;
                         }
                     }
-				    foreach (Plot plot2 in EmpireWorld.Current.Plots)
+				    foreach (Plot plot2 in EmpireWorld.Current.plots)
 				    {
-					    if (plot2.IsActive() && plot2.isSameType(Rebellion) && plot2.TargetRealm == kingdom)
+					    if (plot2.isActive() && plot2.isSameType(Rebellion) && plot2.target_kingdom == kingdom)
 					    {
 						    return false;
 					    }
@@ -2333,10 +2333,10 @@ namespace EmpireCraft.Core
 			    },
 			    try_to_start_advanced = delegate(Person pActor, PlotKind pPlotAsset, bool pForced)
 			    {
-				    Plot plot = EmpireWorld.Current.Plots.newPlot(pActor, pPlotAsset, pForced);
-                    var regime = pActor.Realm.GetRegime();
-                    var empire = pActor.Realm.GetEmpire();
-				    plot.TargetRealm = empire!=null&&regime.type == RegimeType.LvLing?empire.CoreKingdom:pActor.Realm;
+				    Plot plot = EmpireWorld.Current.plots.newPlot(pActor, pPlotAsset, pForced);
+                    var regime = pActor.kingdom.GetRegime();
+                    var empire = pActor.kingdom.GetEmpire();
+				    plot.target_kingdom = empire!=null&&regime.type == RegimeType.LvLing?empire.CoreKingdom:pActor.kingdom;
 				    if (!plot.checkInitiatorAndTargets())
 				    {
 					    Debug.Log("tryPlotRebellion is missing start requirements");
@@ -2346,44 +2346,44 @@ namespace EmpireCraft.Core
 			    check_other_plots = (pActor, pPlot) => (pActor.kingdom == pPlot.target_kingdom),
 			    check_can_be_forced = delegate(Person pActor)
 			    {
-				    if (pActor.IsRuler())
+				    if (pActor.isKing())
 				    {
 					    return false;
 				    }
-				    Realm kingdom = pActor.Realm;
-                    City city = pActor.City;
-                    if (city.IsCapital()&&!city.Realm.IsInEmpire())
+				    Realm kingdom = pActor.kingdom;
+                    City city = pActor.city;
+                    if (city.isCapitalCity()&&!city.kingdom.IsInEmpire())
                     {
                         return false;
                     }
 
-                    if (city.Realm.IsEmpire() && city.IsCapital())
+                    if (city.kingdom.IsEmpire() && city.isCapitalCity())
                     {
                         return false;
                     }
-				    return kingdom.CountCities() != 1&&!kingdom.IsInEmpire();
+				    return kingdom.countCities() != 1&&!kingdom.IsInEmpire();
 			    },
 			    check_should_continue = delegate(Person pActor)
 			    {
-				    if (!pActor.HasCity())
+				    if (!pActor.hasCity())
 				    {
 					    return false;
 				    }
-				    if (!pActor.HasClan())
+				    if (!pActor.hasClan())
 				    {
 					    return false;
 				    }
-				    if (pActor.IsRuler())
+				    if (pActor.isKing())
 				    {
 					    return false;
 				    }
-                    City city = pActor.City;
-                    if (city.IsCapital()&&!city.Realm.IsInEmpire())
+                    City city = pActor.city;
+                    if (city.isCapitalCity()&&!city.kingdom.IsInEmpire())
                     {
                         return false;
                     }
 
-                    if (city.Realm.IsEmpire() && city.IsCapital())
+                    if (city.kingdom.IsEmpire() && city.isCapitalCity())
                     {
                         return false;
                     }
@@ -2393,29 +2393,29 @@ namespace EmpireCraft.Core
 			    {
                     Plot plot = pActor?.plot;
                     if (plot == null || !RebellionSystem.CanContinueCityPlot(pActor, plot.data.forced)) return false;
-                    Realm origin = pActor.Realm;
-                    City originCity = pActor.City;
+                    Realm origin = pActor.kingdom;
+                    City originCity = pActor.city;
                     RebellionCauseData cause = RebellionSystem.Capture(origin, originCity,
                         originCity.isHappy() ? "rebellion_reason_exclave" : "rebellion_reason_city_loyalty",
                         RebellionSystem.CityLoyaltyCauses(originCity));
 				    bool pCheckForHappiness = !plot.data.forced;
 				    DiplomacyHelpersRebellion.startRebellion(pActor, plot, pCheckForHappiness);
-                    if (pActor.Realm == null || pActor.Realm == origin) return false;
-                    Realm target = plot.TargetRealm;
+                    if (pActor.kingdom == null || pActor.kingdom == origin) return false;
+                    Realm target = plot.target_kingdom;
 #if EC_SERVER
                     // 旗下的单城行政区失去治所后已无城可守，由原帝国核心应战。
                     if (target?.hasCities() != true) target = origin.GetEmpire()?.CoreKingdom;
 #endif
                     War war = null;
-                    if (pActor.Realm.HasEnemies())
+                    if (pActor.kingdom.hasEnemies())
                     {
-                        war = pActor.Realm.GetWars()?.FirstOrDefault(w => !w.HasEnded() &&
-                            (w.IsAttacker(origin) || w.IsDefender(origin) ||
-                             w.IsAttacker(target) || w.IsDefender(target)));
+                        war = pActor.kingdom.getWars()?.FirstOrDefault(w => !w.hasEnded() &&
+                            (w.isAttacker(origin) || w.isDefender(origin) ||
+                             w.isAttacker(target) || w.isDefender(target)));
                     }
                     else
                     {
-                        war = EmpireWorld.Current.StartWar(pActor.Realm, target, WarKinds.Rebellion);
+                        war = EmpireWorld.Current.diplomacy.startWar(pActor.kingdom, target, WarKinds.rebellion);
                     }
 #if EC_SERVER
                     if (war == null)
@@ -2430,12 +2430,12 @@ namespace EmpireCraft.Core
                     if (war != null)
                     {
                         war.SetEmpireWarType(EmpireWarType.地方独立);
-                        pActor.Realm.StartLocalRebelling(EmpireWarType.地方独立, pre: pActor.City.GetCityName());
-                        RebellionSystem.Record(pActor.Realm, war, cause);
+                        pActor.kingdom.StartLocalRebelling(EmpireWarType.地方独立, pre: pActor.city.GetCityName());
+                        RebellionSystem.Record(pActor.kingdom, war, cause);
                         // 就地武装义军：以前城市起事走原版起义流程，无小人模式下城里几乎没有实体兵，
                         // 叛军一冒头手里没兵，集结期一过本省军府开到就收复了。民心越背离(忠诚越低)武装越多
                         float fervor = Mathf.Clamp(0.3f + Mathf.Max(0f, -(cause.loyalty ?? 0)) / 100f, 0.3f, 1f);
-                        RebellionStartupService.RaiseUprisingMilitia(pActor.Realm, fervor);
+                        RebellionStartupService.RaiseUprisingMilitia(pActor.kingdom, fervor);
                         // 成员的城市独立：中央不自动出兵，由成员长官求援(见 MemberWarAid)
                     }
 				    return true;
@@ -2447,13 +2447,13 @@ namespace EmpireCraft.Core
             // 全仓的停战判定都读这一个值——WarGate.CanDeclare、WarlordUnificationSystem.InTruce(开国雄主的统一战争)、
             // WarTargetPatch、SteppeOrderSystem.Feuds、DiplomacyActions 与 DiplomacyLedger 的提示——改这一处即可覆盖。
             // 上帝视角不受此限：外交面板的宣战只提醒、不拦(见 DiplomacyActions.DeclareWarning)
-            if (SimGlobals.m != null)
+            if (WorldRules.m != null)
             {
-                SimGlobals.m.diplomacy_years_war_timeout = 3;
-                SimGlobals.m.minimum_years_between_wars = 5;
+                WorldRules.m.diplomacy_years_war_timeout = 3;
+                WorldRules.m.minimum_years_between_wars = 5;
             }
             // 原版"攻方议和"不适用于同一法统内部的统一战争(内战打到底，见 WarlordEraSystem 统一进程)
-            PlotKind stopWar = AssetManager.plots_library.get("attacker_stop_war");
+            PlotKind stopWar = PlotKinds.Library.get("attacker_stop_war");
             if (stopWar != null)
             {
                 var stopWarContinue = stopWar.check_should_continue;
@@ -2461,7 +2461,7 @@ namespace EmpireCraft.Core
                                                          !RulerTraitSystem.IsFounderUnificationWar(actor?.plot?.target_war) &&
                                                          (stopWarContinue?.Invoke(actor) ?? true);
             }
-            PlotKind vanillaWar = AssetManager.plots_library.get("new_war") ?? PlotsLibrary.new_war;
+            PlotKind vanillaWar = PlotKinds.Library.get("new_war") ?? PlotsLibrary.new_war;
             // 独立核心的原版库也有同名占位，只有带原版行为的定义才能用来宣战。
             if (vanillaWar?.try_to_start_advanced == null || vanillaWar.action == null) vanillaWar = null;
             if (vanillaWar != null)
@@ -2497,9 +2497,9 @@ namespace EmpireCraft.Core
             {
                 LogService.LogWarning("Vanilla new_war plot is unavailable; EmpireCraft war plot will handle independent kingdoms.");
             }
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "empirecraft_war",
+                id = "empirecraft_war",
                 is_basic_plot = vanillaWar == null,
                 path_icon = "plots/icons/plot_new_war",
                 group_id = "empirecraft_diplomacy",
@@ -2518,13 +2518,13 @@ namespace EmpireCraft.Core
                 action = ActModWar
             });
             if (vanillaWar != null)
-                AssetManager.plots_library.basic_plots.RemoveAll(plot => plot.id == "empirecraft_war");
+                PlotKinds.Library.basic_plots.RemoveAll(plot => plot.id == "empirecraft_war");
 
             PlotsLibrary.alliance_create.check_is_possible = delegate (Person pActor)
             {
-                Realm kingdom = pActor.Realm;
+                Realm kingdom = pActor.kingdom;
                 if (!FeudalVassalService.CanJoinAlliance(kingdom, null)) return false;
-                if (kingdom.HasAlliance())
+                if (kingdom.hasAlliance())
                 {
                     return false;
                 }
@@ -2532,7 +2532,7 @@ namespace EmpireCraft.Core
                 {
                     return false;
                 }
-                if (kingdom.HasEnemies())
+                if (kingdom.hasEnemies())
                 {
                     return false;
                 }
@@ -2540,18 +2540,18 @@ namespace EmpireCraft.Core
                 {
                     return false;
                 }
-                if (GameClock.YearsSince(kingdom.Record.timestamp_alliance) < SimGlobals.m.alliance_timeout)
+                if (GameClock.YearsSince(kingdom.data.timestamp_alliance) < WorldRules.m.alliance_timeout)
                 {
                     return false;
                 }
-                return !EmpireWorld.Current.Plots.isPlotTypeAlreadyRunning(pActor, PlotsLibrary.alliance_create);
+                return !EmpireWorld.Current.plots.isPlotTypeAlreadyRunning(pActor, PlotsLibrary.alliance_create);
             };
-            AssetManager.plots_library.list.RemoveAll(a => a.id == "alliance_join");
-            AssetManager.plots_library.basic_plots.RemoveAll(a => a.id == "alliance_join");
-            AssetManager.plots_library.dict.Remove("alliance_join");
-            AssetManager.plots_library.add(new PlotKind
+            PlotKinds.Library.list.RemoveAll(a => a.id == "alliance_join");
+            PlotKinds.Library.basic_plots.RemoveAll(a => a.id == "alliance_join");
+            PlotKinds.Library.dict.Remove("alliance_join");
+            PlotKinds.Library.add(new PlotKind
             {
-                Id = "alliance_join",
+                id = "alliance_join",
                 is_basic_plot = true,
                 path_icon = "plots/icons/plot_alliance_create",
                 group_id = "empirecraft_diplomacy",
@@ -2565,7 +2565,7 @@ namespace EmpireCraft.Core
                 check_is_possible = delegate (Person pActor)
                 {
                     if (IsVanillaAllianceBlocked()) return false;
-                    Realm kingdom = pActor.Realm;
+                    Realm kingdom = pActor.kingdom;
                     if (!FeudalVassalService.CanJoinAlliance(kingdom, null)) return false;
                     Regime regime = kingdom.GetRegime();
                     if (regime == null) return false;
@@ -2574,7 +2574,7 @@ namespace EmpireCraft.Core
                     {
                         return false;
                     }
-                    if (kingdom.HasAlliance())
+                    if (kingdom.hasAlliance())
                     {
                         return false;
                     }
@@ -2582,25 +2582,25 @@ namespace EmpireCraft.Core
                     {
                         return false;
                     }
-                    if (kingdom.HasEnemies())
+                    if (kingdom.hasEnemies())
                     {
                         return false;
                     }
-                    if (GameClock.YearsSince(kingdom.Record.timestamp_alliance) < SimGlobals.m.alliance_timeout)
+                    if (GameClock.YearsSince(kingdom.data.timestamp_alliance) < WorldRules.m.alliance_timeout)
                     {
                         return false;
                     }
-                    return EmpireWorld.Current.AnyAlliances() ? true : false;
+                    return EmpireWorld.Current.alliances.anyAlliances() ? true : false;
                 },
                 try_to_start_advanced = delegate (Person pActor, PlotKind pPlotAsset, bool pForced)
                 {
-                    if (IsVanillaAllianceBlocked() || pActor?.plot?.isActive() == true || pActor?.Realm == null ||
-                        pActor.Realm.IsInEmpire() || pActor.Realm.HasAlliance() ||
-                        !FeudalVassalService.CanJoinAlliance(pActor.Realm, null)) return false;
-                    Realm kingdom = pActor.Realm;
+                    if (IsVanillaAllianceBlocked() || pActor?.plot?.isActive() == true || pActor?.kingdom == null ||
+                        pActor.kingdom.IsInEmpire() || pActor.kingdom.hasAlliance() ||
+                        !FeudalVassalService.CanJoinAlliance(pActor.kingdom, null)) return false;
+                    Realm kingdom = pActor.kingdom;
                     _ = kingdom.power;
                     Alliance alliance = null;
-                    foreach (var item3 in EmpireWorld.Current.LiveAlliances.LoopRandom())
+                    foreach (var item3 in EmpireWorld.Current.alliances.list.LoopRandom())
                     {
                         if (!item3.hasWars())
                         {
@@ -2614,7 +2614,7 @@ namespace EmpireCraft.Core
                             if (!FeudalVassalService.CanJoinAlliance(kingdom, item3) ||
                                 !item3.canJoin(kingdom) || item3.hasSupremeKingdom()) continue;
                             _ = item3.power;
-                            var flag = kingdom.Cities.Count <= 2 && !kingdom.hasNearbyKingdoms();
+                            var flag = kingdom.cities.Count <= 2 && !kingdom.hasNearbyKingdoms();
                             if (!flag && item3.hasSharedBordersWithKingdom(kingdom))
                             {
                                 flag = true;
@@ -2629,7 +2629,7 @@ namespace EmpireCraft.Core
                     {
                         return false;
                     }
-                    Plot plot = EmpireWorld.Current.Plots.newPlot(pActor, pPlotAsset, pForced);
+                    Plot plot = EmpireWorld.Current.plots.newPlot(pActor, pPlotAsset, pForced);
                     if (plot == null) return false;
                     plot.target_alliance = alliance;
                     if (!plot.checkInitiatorAndTargets())
@@ -2643,13 +2643,13 @@ namespace EmpireCraft.Core
                 },
                 check_other_plots = PlotsLibrary.alliance_create.check_other_plots,
                 check_can_be_forced = (Person pActor) =>
-                    !IsVanillaAllianceBlocked() && !pActor.Realm.HasAlliance() && !pActor.Realm.IsInEmpire() &&
-                    FeudalVassalService.CanJoinAlliance(pActor.Realm, null),
+                    !IsVanillaAllianceBlocked() && !pActor.kingdom.hasAlliance() && !pActor.kingdom.IsInEmpire() &&
+                    FeudalVassalService.CanJoinAlliance(pActor.kingdom, null),
                 check_should_continue = delegate(Person pActor)
                 {
                     if (IsVanillaAllianceBlocked()) return false;
                     Plot plot = pActor.plot;
-                    if (pActor.Realm.HasAlliance() || pActor.Realm.IsInEmpire())
+                    if (pActor.kingdom.hasAlliance() || pActor.kingdom.IsInEmpire())
                     {
                         return false;
                     }
@@ -2657,12 +2657,12 @@ namespace EmpireCraft.Core
                     {
                         return false;
                     }
-                    if (!FeudalVassalService.CanJoinAlliance(pActor.Realm, plot.target_alliance)) return false;
-                    if (!plot.target_alliance.canJoin(pActor.Realm))
+                    if (!FeudalVassalService.CanJoinAlliance(pActor.kingdom, plot.target_alliance)) return false;
+                    if (!plot.target_alliance.canJoin(pActor.kingdom))
                     {
                         return false;
                     }
-                    if (pActor.Realm.HasEnemies())
+                    if (pActor.kingdom.hasEnemies())
                     {
                         return false;
                     }
@@ -2672,7 +2672,7 @@ namespace EmpireCraft.Core
                 {
                     if (IsVanillaAllianceBlocked()) return false;
                     Plot plot = pActor.plot;
-                    if (pActor.Realm.HasAlliance() || pActor.Realm.IsInEmpire())
+                    if (pActor.kingdom.hasAlliance() || pActor.kingdom.IsInEmpire())
                     {
                         return false;
                     }
@@ -2680,11 +2680,11 @@ namespace EmpireCraft.Core
                     {
                         return false;
                     }
-                    if (!FeudalVassalService.CanJoinAlliance(pActor.Realm, plot.target_alliance)) return false;
-                    plot.target_alliance.join(pActor.Realm);
-                    if (pActor.Realm.HasRuler())
+                    if (!FeudalVassalService.CanJoinAlliance(pActor.kingdom, plot.target_alliance)) return false;
+                    plot.target_alliance.join(pActor.kingdom);
+                    if (pActor.kingdom.HasRuler())
                     {
-                        pActor.Realm.Ruler.leavePlot();
+                        pActor.kingdom.king.leavePlot();
                     }
                     return true;
                 }
@@ -2692,17 +2692,20 @@ namespace EmpireCraft.Core
             // 君主的大政：迁都、多京直隶、改制(只由人亲自发起、走决议天平，见 RulerDecrees)
             EmpireCraft.Core.RulerDecrees.Register();
             BlockVanillaAlliancePlots();
-            foreach (var asset in AssetManager.plots_library.getList())
+            foreach (var asset in PlotKinds.Library.getList())
                 VanillaIdentitySystem.ApplyPlotPolicy((PlotKind)asset);
             GuardAllPlotAssets();
-            LogService.LogInfo($"Currently loaded{AssetManager.plots_library.getList().Count().ToString()} plots");
-            AssetManager.plots_library.linkAssets();
+            LogService.LogInfo($"Currently loaded{PlotKinds.Library.getList().Count().ToString()} plots");
+            PlotKinds.Library.linkAssets();
         }
+#endif
 
+#if EC_PENDING
         private static bool minister_acquire_empire(Person pActor)
         {
             return pActor?.Realm?.GetEmpire()?.CompletePowerfulMinisterUsurpation(pActor) == true;
         }
+#endif
         public static bool BecomeEmpireAndStartEnfeoff(Person pActor)
         {
             if (EmpireCraft.Core.AncientWarfareCompatibility.BlocksEmpireFormation(pActor?.Realm))
@@ -2763,14 +2766,14 @@ namespace EmpireCraft.Core
             if (regime == null || !regime.IsAllowDiplomacy()) return false;
             if (actor.HasCulture() && actor.Culture.HasTrait("serenity_now") ||
                 actor.HasTrait("pacifist")) return false;
-            sharedWarPlot ??= AssetManager.plots_library.get("empirecraft_war");
+            sharedWarPlot ??= PlotKinds.Library.get("empirecraft_war");
             if (kingdom.HasAlliance())
             {
                 foreach (Realm ally in kingdom.GetAlliance().MemberSet)
                 {
                     Person allyKing = ally == kingdom ? null : ally?.Ruler;
-                    if (allyKing?.hasPlot() == true && sharedWarPlot != null &&
-                        allyKing.plot.isSameType(sharedWarPlot)) return false;
+                    if (allyKing?.HasPlot() == true && sharedWarPlot != null &&
+                        allyKing.Plot.IsSameType(sharedWarPlot)) return false;
                 }
             }
             return GetWarTarget(kingdom) != null;
@@ -2786,16 +2789,16 @@ namespace EmpireCraft.Core
             Plot plot = EmpireWorld.Current.Plots.newPlot(actor, asset, forced);
             if (plot == null) return false;
             plot.TargetRealm = target;
-            if (plot.checkInitiatorAndTargets()) return true;
-            plot.setAlive(false);
+            if (plot.TargetsStillThere()) return true;
+            plot.SetAlive(false);
             return false;
         }
 
         private static bool ShouldContinueModWar(Person actor)
         {
             Realm kingdom = actor?.Realm;
-            Realm target = actor?.plot?.target_kingdom;
-            return kingdom != null && target != null && actor.plot.getAsset()?.isAllowedByWorldLaws() == true &&
+            Realm target = actor?.Plot?.TargetRealm;
+            return kingdom != null && target != null && actor.Plot.GetKind()?.IsAllowedByWorldLaws() == true &&
                    !DiplomacyLaws.WarBlocked && IsWarNeededForPlot(kingdom) &&
                    IsValidModWarTarget(kingdom, target);
         }
@@ -2803,13 +2806,12 @@ namespace EmpireCraft.Core
         private static bool ActModWar(Person actor)
         {
             Realm kingdom = actor?.Realm;
-            Realm target = actor?.plot?.target_kingdom;
+            Realm target = actor?.Plot?.TargetRealm;
             if (kingdom == null || target == null || !IsWarNeededForPlot(kingdom) || CorpsSystem.CannotFundWar(kingdom) ||
                 !IsValidModWarTarget(kingdom, target) || EmpireWorld.Current?.Diplomacy == null) return false;
             War war = EmpireWorld.Current.StartWar(kingdom, target, WarKinds.Normal);
             return war != null;
         }
-#endif
 
         private static bool IsIndependentWarRealm(Realm kingdom) =>
             kingdom != null && UsesVanillaWarPlot(kingdom.IsEmpire(), kingdom.IsInEmpire(),
@@ -2840,12 +2842,11 @@ namespace EmpireCraft.Core
         internal static bool CanInitiateNormalWar(bool isEmpire, bool inEmpire) =>
             isEmpire || !inEmpire;
 
-#if EC_PENDING
         public static Realm GetWarTarget(Realm pInitiatorKingdom)
         {
             if (pInitiatorKingdom == null || !pInitiatorKingdom.Alive ||
                 EmpireWorld.Current?.LiveWars == null) return null;
-            using ListPool<Realm> neutral = EmpireWorld.Current.LiveWars.getNeutralKingdoms(
+            using ListPool<Realm> neutral = EmpireWorld.Current.NeutralRealms(
                 pInitiatorKingdom, false, false);
             return neutral.Where(target => IsValidModWarTarget(pInitiatorKingdom, target))
                 // 先收法理：占着本国法理城的邻国排在前面(见 DeJureAgenda)
@@ -2856,9 +2857,9 @@ namespace EmpireCraft.Core
                 .ThenByDescending(target => UnificationDrive.Prefers(pInitiatorKingdom, target))
                 // 再就近：通达层算好后按人员走过去的成本(翻山越岭的算远)，没算好时照旧量直线(见 ConnectivitySystem.WarTargetOrder)
                 .ThenBy(target => ConnectivitySystem.WarTargetOrder(pInitiatorKingdom, target,
-                    Realm.distanceBetweenKingdom(pInitiatorKingdom, target)))
+                    Realm.DistanceBetween(pInitiatorKingdom, target)))
                 .ThenBy(target => EmpireWorld.Current.Diplomacy?.GetOpinion(pInitiatorKingdom, target)?.Total ?? 0)
-                .ThenBy(target => target.id)
+                .ThenBy(target => target.Key)
                 .FirstOrDefault();
         }
 
@@ -2872,13 +2873,13 @@ namespace EmpireCraft.Core
             if (TribalFissionService.Bound(initiator, target)) return false;
             if (initiator?.Capital == null || target?.Capital == null || initiator == target ||
                 !target.Alive ||
-                !target.HasCities() || target.getAge() < SimGlobals.m.minimum_kingdom_age_for_attack ||
-                !initiator.Capital.reachableFrom(target.Capital) && !StraitReach.Across(initiator, target))
+                !target.HasCities() || target.GetAge() < WorldRules.m.minimum_kingdom_age_for_attack ||
+                !initiator.Capital.ReachableFrom(target.Capital) && !StraitReach.Across(initiator, target))
                 return false;
             double lastWarEnded = EmpireWorld.Current.Diplomacy?.GetRelation(initiator, target)
                 ?.Record?.LastWarEnded ?? -1d;
             if (lastWarEnded >= 0 &&
-                GameClock.YearsSince(lastWarEnded) < SimGlobals.m.minimum_years_between_wars)
+                GameClock.YearsSince(lastWarEnded) < WorldRules.m.minimum_years_between_wars)
                 return false;
             // 草原常态：没有雄主在位的游牧政权平时只打两城以内的小国(见 SteppeOrderSystem)
             if (!SteppeOrderSystem.PeacetimeWarAllowed(initiator, target)) return false;
@@ -2924,8 +2925,8 @@ namespace EmpireCraft.Core
             Empire empire = kingdom.GetEmpire();
             if (empire == null || empire.IsArchived() || empire.IsGone() ||
                 !kingdom.HasCities() || !kingdom.HasCapital()) return false;
-            if (kingdom.Record.timestamp_last_war != -1d &&
-                GameClock.YearsSince(kingdom.Record.timestamp_last_war) <= SimGlobals.m.diplomacy_years_war_timeout)
+            if (kingdom.Record.LastWarAt != -1d &&
+                GameClock.YearsSince(kingdom.Record.LastWarAt) <= WorldRules.m.diplomacy_years_war_timeout)
                 return false;
             // 帝国本身(核心)手上不到两场仗、没被全面侵略就可以对外开战(以前在打任何一场仗——平叛也算——都不行)；
             // 成员国各自的战事不再拖住整个帝国
@@ -2935,9 +2936,8 @@ namespace EmpireCraft.Core
             if (CityPopulationSystem.AbstractPopulationEnabled && empire.kingdoms_list != null)
                 warriors = Math.Max(warriors, empire.kingdoms_list.Where(member => member != null && !member.IsGone())
                     .Sum(member => CityPopulationSystem.WarPotential(member)));
-            return warriors > SimGlobals.m.diplomacy_years_war_min_warriors;
+            return warriors > WorldRules.m.diplomacy_years_war_min_warriors;
         }
-#endif
 
     }
 }

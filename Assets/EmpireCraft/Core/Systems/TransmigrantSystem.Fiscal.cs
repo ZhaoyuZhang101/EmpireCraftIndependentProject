@@ -31,7 +31,6 @@ public static partial class TransmigrantSystem
     // 澳宋各国不向百姓举债，缺钱走流通券
     public static bool IssuesScrip(Realm kingdom) => NavalState(kingdom) != null;
 
-#if EC_PENDING
     private static void IssueScrip()
     {
         Realm senate = Active();
@@ -58,6 +57,5 @@ public static partial class TransmigrantSystem
     }
 
     private static float Savings(City city) => PopulationEconomySystem.Savings(city, CityPopulationSystem.Get(city));
-#endif
 }
 }

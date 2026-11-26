@@ -53,6 +53,10 @@ namespace EmpireCraft.Core
         public static int Clamp(int value, int min, int max) => value < min ? min : value > max ? max : value;
         public static float Clamp01(float value) => value < 0f ? 0f : value > 1f ? 1f : value;
         public static float Min(float a, float b) => a < b ? a : b;
+        public static float Min(params float[] values) { float least = values.Length == 0 ? 0f : values[0]; foreach (float v in values) if (v < least) least = v; return least; }
+        public static int Min(params int[] values) { int least = values.Length == 0 ? 0 : values[0]; foreach (int v in values) if (v < least) least = v; return least; }
+        public static float Max(params float[] values) { float most = values.Length == 0 ? 0f : values[0]; foreach (float v in values) if (v > most) most = v; return most; }
+        public static int Max(params int[] values) { int most = values.Length == 0 ? 0 : values[0]; foreach (int v in values) if (v > most) most = v; return most; }
         public static float Max(float a, float b) => a > b ? a : b;
         public static int Min(int a, int b) => a < b ? a : b;
         public static int Max(int a, int b) => a > b ? a : b;
@@ -71,6 +75,7 @@ namespace EmpireCraft.Core
         public static int CeilToInt(float value) => (int)Math.Ceiling(value);
         public static int RoundToInt(float value) => (int)Math.Round(value);
         public static float Lerp(float a, float b, float t) => a + (b - a) * Clamp01(t);
+        public static float SquaredDist(float x1, float y1, float x2, float y2) { float dx = x1 - x2, dy = y1 - y2; return dx * dx + dy * dy; }
         public static float LerpUnclamped(float a, float b, float t) => a + (b - a) * t;
         public static float InverseLerp(float a, float b, float value) => a == b ? 0f : Clamp01((value - a) / (b - a));
         public static float MoveTowards(float current, float target, float maxDelta) =>
@@ -115,6 +120,10 @@ namespace EmpireCraft.Core
         public float magnitude => (float)Math.Sqrt(x * x + y * y);
         public EcVector2 normalized { get { float m = magnitude; return m > 1e-6f ? new EcVector2(x / m, y / m) : zero; } }
         public static float Distance(EcVector2 a, EcVector2 b) => (a - b).magnitude;
+        public static float Dot(EcVector2 a, EcVector2 b) => a.x * b.x + a.y * b.y;
+        public static float SqrMagnitude(EcVector2 v) => v.x * v.x + v.y * v.y;
+        public static EcVector2 right => new EcVector2(1f, 0f);
+        public static EcVector2 Lerp(EcVector2 a, EcVector2 b, float t) { t = t < 0f ? 0f : t > 1f ? 1f : t; return new EcVector2(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t); }
         public static EcVector2 operator +(EcVector2 a, EcVector2 b) => new EcVector2(a.x + b.x, a.y + b.y);
         public static EcVector2 operator -(EcVector2 a, EcVector2 b) => new EcVector2(a.x - b.x, a.y - b.y);
         public static EcVector2 operator *(EcVector2 a, float k) => new EcVector2(a.x * k, a.y * k);
@@ -208,6 +217,7 @@ namespace EmpireCraft.Core
         // Integers in [min, max); floats in [min, max).
         public static int Range(int min, int max) => max <= min ? min : min + (int)(Next() % (ulong)(max - min));
         public static float Range(float min, float max) => min + (max - min) * value;
+        public static double Range(double min, double max) => min + (max - min) * value;
         // True with the given probability (0 never, 1 always).
         public static bool Chance(float probability) => value < probability;
     }
@@ -322,11 +332,41 @@ namespace EmpireCraft.Core
     }
 
     // Per-key time accounting for the simulation steps. Off unless a host turns it on.
+    // The clock the ported systems read for their own time limits ("work 3 ms, then leave the rest for the next frame").
+    // While the ported systems run a month (PortedSystems sets Frozen) no time passes on it: every such limit is never
+    // reached and each system finishes its month in the step, so the world does not depend on how fast the machine is.
+    // Otherwise it is a plain stopwatch.
+    public sealed class SimWatch
+    {
+        public static bool Frozen;
+        public static readonly long Frequency = Stopwatch.Frequency;
+        public static long GetTimestamp() => Frozen ? 0L : Stopwatch.GetTimestamp();
+        public static SimWatch StartNew() { var watch = new SimWatch(); watch.Start(); return watch; }
+
+        long _started, _elapsed; bool _running;
+        public bool IsRunning => _running;
+        public void Start() { if (!_running) { _started = GetTimestamp(); _running = true; } }
+        public void Stop() { if (_running) { _elapsed += GetTimestamp() - _started; _running = false; } }
+        public void Reset() { _elapsed = 0; _running = false; }
+        public void Restart() { _elapsed = 0; _started = GetTimestamp(); _running = true; }
+        public long ElapsedTicks => Math.Max(0L, _elapsed + (_running ? GetTimestamp() - _started : 0L));
+        public long ElapsedMilliseconds => ElapsedTicks * 1000L / Frequency;
+        public TimeSpan Elapsed => TimeSpan.FromSeconds(ElapsedTicks / (double)Frequency);
+    }
+
     public static class FrameProfiler
     {
         public static bool Enabled;
         sealed class Entry { public long Ticks; public int Calls; }
         static readonly Dictionary<string, Entry> Entries = new Dictionary<string, Entry>(StringComparer.Ordinal);
+
+        // Time measured by the caller (in stopwatch ticks), added under the key.
+        public static void Record(string key, long ticks)
+        {
+            if (!Enabled || key == null) return;
+            if (!Entries.TryGetValue(key, out Entry entry)) Entries[key] = entry = new Entry();
+            entry.Ticks += ticks; entry.Calls++;
+        }
 
         public static Scope Measure(string key) => Enabled && key != null ? new Scope(key, Stopwatch.GetTimestamp()) : default;
 

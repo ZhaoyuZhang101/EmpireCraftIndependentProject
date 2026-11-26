@@ -87,9 +87,7 @@ public sealed class InstitutionRealm
         : Realm?.Record == null ? null : Realm.GetOrCreate().institution_state;
 
     // 推改革要够的威望：帝国看正统，王国看君威(见 RealmAuthority)
-#if EC_PENDING
     public int Authority => Empire != null ? Empire.Legitimacy : RealmAuthority.Get(Realm);
-#endif
 
     public string Name => Empire != null ? Empire.GetEmpireName() : Realm?.GetKingdomName() ?? "";
 

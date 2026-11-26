@@ -45,7 +45,6 @@ public static partial class NomadRaidSystem
         EmpireWorld.Current.LiveWars.Where(war => war?.Record != null && war.Alive && !war.HasEnded() &&
                                            war.GetEmpireWarType() == EmpireWarType.劫掠).ToList();
 
-#if EC_PENDING
     private static void MonthTick()
     {
         Aftermath();
@@ -62,7 +61,6 @@ public static partial class NomadRaidSystem
             MonthlyCourse(war, state);
         }
     }
-#endif
 
     // 劫掠之战每月的进展(关隘折损、买和，见应对一节)
     static partial void MonthlyCourse(War war, RaidWarState state);
@@ -70,7 +68,6 @@ public static partial class NomadRaidSystem
     #region 洗劫
 
     // 劫掠之战里攻方破城(CityPatch.FinishedCapture)：洗劫，城不易主；返回是否抢够(调用处随即判攻方胜、罢兵)
-#if EC_PENDING
     public static bool OnSack(War war, City city, Realm raider)
     {
         try
@@ -122,7 +119,6 @@ public static partial class NomadRaidSystem
             return true;
         }
     }
-#endif
 
     // 出兵各部分战利品的份额：开战时的兵力占比；已退出、亡了的不分
     private static List<(Realm member, float share)> Shares(War war, RaidWarState state)
@@ -152,20 +148,17 @@ public static partial class NomadRaidSystem
 
     private static List<string> _foodIds;
 
-#if EC_PENDING
     private static List<string> FoodIds() =>
-        _foodIds ??= AssetManager.resources?.list?.Where(asset => asset != null && asset.food).Select(asset => asset.id).ToList()
+        _foodIds ??= ResourceKinds.Table?.list?.Where(asset => asset != null && asset.food).Select(asset => asset.id).ToList()
                      ?? new List<string>();
-#endif
 
     // 各样存粮拿走几成，运到各部都城
-#if EC_PENDING
     private static int TakeFood(City city, List<(Realm member, float share)> shares, float factor)
     {
         int moved = 0;
         foreach (string id in FoodIds())
         {
-            int have = city.getResourcesAmount(id);
+            int have = city.GetResourcesAmount(id);
             int take = Mathf.FloorToInt(have * SteppeRules.FoodShare * factor);
             if (take <= 0) continue;
             foreach ((Realm member, float share) in shares)
@@ -178,10 +171,8 @@ public static partial class NomadRaidSystem
         }
         return moved;
     }
-#endif
 
     // 掳掠背景人口(无小人模式)，迁到各部都城
-#if EC_PENDING
     private static float TakePeople(City city, List<(Realm member, float share)> shares, float factor)
     {
         if (!CityPopulationSystem.AbstractPopulationEnabled) return 0f;
@@ -196,7 +187,6 @@ public static partial class NomadRaidSystem
         }
         return moved;
     }
-#endif
 
     #endregion
 
@@ -251,12 +241,9 @@ public static partial class NomadRaidSystem
     #region 单国劫掠诉求(TempFac_劫掠)
 
     // 有劫掠传统的帝国朝堂提"劫掠"：要今年草原压力够、能出兵，挑一家比自己弱的接壤定居之国；没有返回 null
-#if EC_PENDING
     public static Realm ClaimTarget(Realm core) => ClaimTargets(core).FirstOrDefault();
-#endif
 
     // 同上，可劫的各家按分从高到低(发起劫掠诉求时选目标用，见 TempFac_劫掠.BuiltinCandidates)；第一家就是朝堂自己会挑的
-#if EC_PENDING
     public static List<Realm> ClaimTargets(Realm core)
     {
         if (!IsRealm(core) || !IsRaider(core) || !CanRaid(core)) return new List<Realm>();
@@ -264,16 +251,13 @@ public static partial class NomadRaidSystem
         if (state.pressure_at < 0d || YearsSince(state.pressure_at) > 1.5f || state.pressure < SteppeRules.RaidThreshold) return new List<Realm>();
         return RankTargets(core, new List<Realm> { core }).Select(item => item.target).ToList();
     }
-#endif
 
     // 诉求施行：单独劫掠(开战前再查一遍)
-#if EC_PENDING
     public static void RaidFromClaim(Realm core, Realm target)
     {
         if (!IsRealm(core) || !CanRaid(core) || !Raidable(core, new List<Realm> { core }, target)) return;
         Launch(new List<Realm> { core }, target, 0d);
     }
-#endif
 
     #endregion
 }

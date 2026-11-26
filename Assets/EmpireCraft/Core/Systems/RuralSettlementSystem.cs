@@ -83,7 +83,6 @@ public static class RuralSettlementSystem
         SettlementNaming.ResetWorldState();
     }
 
-#if EC_PENDING
     public static void Load(List<RuralSettlement> saved)
     {
         ResetWorldState();
@@ -98,7 +97,6 @@ public static class RuralSettlementSystem
         // 旧版按写死的词库起的名字改按文化重起(手改过的不动，见 SettlementNaming)
         SettlementNaming.MigrateOldNames(All.Values);
     }
-#endif
 
     public static List<RuralSettlement> Save() => All.Values.ToList();
 
@@ -286,7 +284,6 @@ public static class RuralSettlementSystem
     }
 
     // 点到的镇村：这一格及四邻地块里离得最近、点在它范围里的(镇按大小、村两格半)
-#if EC_PENDING
     public static RuralSettlement Near(Cell tile)
     {
         Cell zone = tile?.Zone;
@@ -313,7 +310,6 @@ public static class RuralSettlementSystem
             }
         return best;
     }
-#endif
 
     #region 住人、产粮交税
 
@@ -475,7 +471,6 @@ public static class RuralSettlementSystem
     #endregion
 
     // 关城守御：敌军攻的那块地所在的一片(见 CityDistricts)里有完好的关城，守方战力按等级多三成、六成、九成
-#if EC_PENDING
     public static float FortFactor(City city, Cell zone)
     {
         if (All.Count == 0 || city?.Zones == null || zone == null) return 1f;
@@ -485,7 +480,6 @@ public static class RuralSettlementSystem
                 if (settlement.fort && settlement.ruined_at < 0d) best = Math.Max(best, Math.Max(1, Math.Min(3, settlement.size)));
         return 1f + 0.3f * best;
     }
-#endif
 
     // 改档位(窗口里的升级、降级)：镇三格见方，有墙大镇四格(城大的五格)；毡帐的也能升到有墙的大营(调用的地方自己定上限)
     public static void SetTier(RuralSettlement settlement, int tier)
@@ -566,7 +560,6 @@ public static class RuralSettlementSystem
     // 村没人出得起时百姓自建(归民营)，镇出不起就不建；本城头一回摆镇村(新城、旧档的底子)不花钱
     public const int VillageCost = 30, TownCost = 120, WallCost = 60;
 
-#if EC_PENDING
     public static bool Fund(City city, bool town, bool walled, bool initial, out bool state)
     {
         state = false;
@@ -574,7 +567,6 @@ public static class RuralSettlementSystem
         int cost = town ? TownCost + (walled ? WallCost : 0) : VillageCost;
         return EnterpriseSystem.Fund(city, cost, !town, out state);
     }
-#endif
 
     public static void Rename(RuralSettlement settlement, string name)
     {

@@ -103,9 +103,7 @@ public static class ClaimTargetRules
         public float Ours => _ours >= 0f ? _ours : _ours = (float)WarSituation.Power(Empire);
         public float Army => _army >= 0f ? _army : _army = Math.Max(1, Empire.countWarriors());
         // 陆上走得到的邻国(法理相连且走得通，见 WarReach)
-#if EC_PENDING
         public HashSet<Realm> Near => _near ??= WarReach.WalkableNeighbourKingdoms(Core);
-#endif
         // 决议自带的候选(一轮只问一回)
         public List<ClaimTargetOption> Builtin => _builtin ??= Claim.BuiltinCandidates() ?? new List<ClaimTargetOption>();
     }
@@ -355,7 +353,6 @@ public static class ClaimTargetRules
         }
     }
 
-#if EC_PENDING
     private static void CollectKingdoms(Context c, Spec spec, int mode, List<ClaimTargetOption> result)
     {
         bool auto = mode != ModeAll, autoRules = mode == ModeAuto;
@@ -410,12 +407,10 @@ public static class ClaimTargetRules
             if (mode == ModeProbe || autoRules && spec.Prefer.Count == 0) return;
         }
     }
-#endif
 
     private static bool IsMilitaryCommand(Realm k) =>
         k.GetKingdomType() is KingdomType.LvLing_jiedushi or KingdomType.LvLing_duhufu;
 
-#if EC_PENDING
     private static bool PassKingdom(Context c, string rule, Realm k)
     {
         switch (rule)
@@ -473,7 +468,6 @@ public static class ClaimTargetRules
             default: return Unknown(rule);
         }
     }
-#endif
 
     private static float ScoreKingdom(Context c, Spec spec, Realm k, ref float theirs, List<string> tags)
     {

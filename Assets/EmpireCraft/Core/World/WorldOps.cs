@@ -27,9 +27,19 @@ namespace EmpireCraft.Core
             if(mother!=null)Require(mother.Sex==Sex.Female,"Mother must be female");
             var p=new Person{Id=w.People.Count,Given=given,Sex=sex,Clan=clan,City=city,Father=father,Mother=mother,BirthMonth=w.Month-ageYears*12};
             w.People.Add(p);w.Living.Add(p);
+            Talents(w,p);
             if(father!=null)father.Children.Add(p);
             if(mother!=null)mother.Children.Add(p);
             return p;
+        }
+
+        // A person's four talents (stewardship, warfare, intelligence, diplomacy) are drawn at birth: each 1 + three draws of
+        // 0..6 (1 to 19, most near 10). Each draw is fixed by the world's seed and the person's id, so it does not take from
+        // the world's random stream. This game's own rule: the base game gave talents from the kind of creature and traits.
+        static void Talents(EmpireWorld w,Person p)
+        {
+            int Roll(uint which){int total=1;for(uint k=0;k<3;k++)total+=(int)(Orbis.Flat.FMath.Hash((uint)w.Seed^(uint)(w.Seed>>32)^(uint)p.Id*0x9E3779B9u^which*0x85EBCA6Bu^k*0xC2B2AE35u)%7u);return total;}
+            p.Stewardship=Roll(1);p.Warfare=Roll(2);p.Intelligence=Roll(3);p.Diplomacy=Roll(4);
         }
 
         public static void Marry(EmpireWorld w,Person a,Person b)
@@ -171,6 +181,7 @@ namespace EmpireCraft.Core
                 Name=name??attacker.Name+"与"+defender.Name+"之战"};
             war.Attackers.Add(attacker);war.Defenders.Add(defender);
             w.Wars.Add(war);w.LiveWars.Add(war);attacker.Wars.Add(war);defender.Wars.Add(war);
+            attacker.LastWarAt=w.Month;defender.LastWarAt=w.Month;
             w.Annals.Add(w,AnnalKind.WarStarted,war.Id,attacker.Id,defender.Id);
             return war;
         }
@@ -180,6 +191,7 @@ namespace EmpireCraft.Core
             LiveWar(w,war);Live(w,r);
             Require(!war.HasRealm(r),"Realm already fights in this war");
             (asAttacker?war.Attackers:war.Defenders).Add(r);r.Wars.Add(war);
+            r.LastWarAt=w.Month;
         }
 
         // A realm that leaves hands its side's lead on; a side left empty has lost.
@@ -314,6 +326,53 @@ namespace EmpireCraft.Core
             }
         }
         public static void JoinCity(this Person person,City city){if(person!=null&&person.Alive&&(city==null||city.Alive))person.City=city;}
-        public static void JoinRealm(this City city,Realm realm,bool captured=false,bool rebellion=false){if(city.Realm!=realm)WorldOps.TransferCity(World,city,realm);}
+        // A city changes hands. Whoever handles the change (the ported city rules: exiles, an empire's list of cities, the
+        // culture of an occupier) is told first and does the move itself with SetKingdom, or turns it down; a city it is
+        // already handling moves as it is.
+        public static Func<City,Realm,bool,bool,bool> JoinHandler;
+        static readonly HashSet<City> Joining=new HashSet<City>();
+        public static void JoinRealm(this City city,Realm realm,bool captured=false,bool rebellion=false)
+        {
+            if(city==null||realm==null||city.Realm==realm)return;
+            if(JoinHandler!=null&&Joining.Add(city))
+            {
+                try{if(!JoinHandler(city,realm,captured,rebellion))return;}
+                finally{Joining.Remove(city);}
+            }
+            city.SetKingdom(realm);
+        }
+        // The move itself: the city leaves its realm for the other one. The ported city rules set the city up for its new
+        // realm before (its kind of city and offices under the new regime) and after (its name, its title's control).
+        public static Action<City,Realm> BeforeSetKingdom;
+        public static Action<City> AfterSetKingdom;
+        public static void SetKingdom(this City city,Realm realm)
+        {
+            if(city==null||realm==null||!city.Alive||!realm.Alive||city.Realm==realm)return;
+            BeforeSetKingdom?.Invoke(city,realm);
+            WorldOps.TransferCity(World,city,realm);
+            AfterSetKingdom?.Invoke(city);
+        }
+        // A city taken in war. The handler (the ported capture rules: tribes submit instead, city states, feudal conquest,
+        // raids that sack and leave, wartime custody ...) decides what happens; without one the taker simply gets the city.
+        public static Func<City,Realm,bool> CaptureHandler;
+        public static void FinishCapture(this City city,Realm taker)
+        {
+            if(city==null||taker==null||!city.Alive||!taker.Alive||city.Realm==taker)return;
+            if(CaptureHandler!=null&&!CaptureHandler(city,taker))return;
+            city.JoinRealm(taker,true);
+        }
+        // What the base game did around a change of hands that is a matter of display or of its own bookkeeping here:
+        // capture points (occupation is kept by the ported rules), the event shown to the townsfolk, a realm's mood.
+        public static void ClearCapture(this City city){}
+        public static void RemoveFromCurrentKingdom(this City city){}
+        public static void SwitchedKingdom(this City city){}
+        public static void NewForceKingdomEvent(this City city,IEnumerable<Person> people,IEnumerable<Person> boats,Realm realm,string happinessEvent){}
+        public static void CapturedFrom(this Realm realm,Realm from){}
+        // The ruler leaves a city about to be lost for another of the realm's cities, if it has one.
+        public static void KingFledCity(this Realm realm)
+        {
+            var ruler=realm?.Ruler;if(ruler==null||!ruler.Alive)return;
+            foreach(var other in realm.Cities)if(other!=ruler.City&&other.Alive){ruler.City=other;return;}
+        }
     }
 }

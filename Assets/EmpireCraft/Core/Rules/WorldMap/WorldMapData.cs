@@ -633,9 +633,7 @@ public static class WorldMapData
     private static Dictionary<string, WorldMapRegion> _regionById = new();
     private static bool _loaded;
 
-#if EC_PENDING
-    public static string Folder => Path.Combine(ModClass._declare?.FolderPath ?? "", FolderName);
-#endif
+    public static string Folder => Path.Combine(GameData.Folder ?? "", FolderName);
 
     // ch = 繁体、cz = 简体，其余语言用英文名
     public static string Pick(string zh, string tw, string en)
@@ -700,7 +698,6 @@ public static class WorldMapData
     public static Dictionary<string, string> BuiltinTianxia => _builtinTianxia;
 
     // 开局用哪套城表：自定剧本带了自己的城表就用它的(帝国法理只用剧本里的)，否则用内置的
-#if EC_PENDING
     public static void Activate(WorldMapEra era)
     {
         if (!EnsureLoaded()) return;
@@ -712,7 +709,6 @@ public static class WorldMapData
         _regionById = Regions.Where(region => !string.IsNullOrEmpty(region.id))
             .GroupBy(region => region.id).ToDictionary(group => group.Key, group => group.First());
     }
-#endif
 
     #region 自定剧本
 
@@ -893,7 +889,6 @@ public static class WorldMapData
 
     #endregion
 
-#if EC_PENDING
     public static bool EnsureLoaded()
     {
         if (_loaded) return Eras.Count > 0 && Cities.Count > 0;
@@ -940,6 +935,5 @@ public static class WorldMapData
         }
         return Eras.Count > 0 && Cities.Count > 0;
     }
-#endif
 }
 }

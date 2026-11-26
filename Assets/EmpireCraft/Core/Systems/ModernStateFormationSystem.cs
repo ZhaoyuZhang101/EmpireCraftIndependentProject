@@ -12,7 +12,6 @@ namespace EmpireCraft.Core
 // remain armed, warlord or separatist governments until they acquire one.
 public static class ModernStateFormationSystem
 {
-#if EC_PENDING
     public static bool TryUpdate(Realm kingdom)
     {
         // 一座城都没有的残余政权：谈不上组建政府，也不用改名、认领法理，等它收复城池或者君主寿终
@@ -45,7 +44,6 @@ public static class ModernStateFormationSystem
         }
         return FormGovernment(kingdom) != null;
     }
-#endif
 
     // 现代国家的省、州建制时关了自主外交(见 Empire 的直辖区划分)，政府解散或脱离后这项留在了独立的地方势力身上：
     // 外交权关着就不能谋求法理(KingdomExtension.CanPursueDeJureTitle)，没有法理又组建不了政府，永远是"某某自治军"。
@@ -76,7 +74,6 @@ public static class ModernStateFormationSystem
     }
 
     // 组建政府：现代政体下取代"称帝"(所有文化)，政权由此进入帝国层、享有正常国家的全部机制
-#if EC_PENDING
     public static Empire FormGovernment(Realm kingdom)
     {
         if (kingdom == null || kingdom.IsGone() || !kingdom.HasRuler() || kingdom.IsEmpire() || kingdom.IsInEmpire() ||
@@ -110,7 +107,6 @@ public static class ModernStateFormationSystem
         TranslateHelper.LogEventMessage(text, kingdom);
         return empire;
     }
-#endif
 
     // 法统 = 天下(军阀时期以天下为单位，见 WarlordEraSystem)：主法理所在核心的天下
     private static EmpireCore LawfulCore(Realm kingdom)
@@ -142,7 +138,6 @@ public static class ModernStateFormationSystem
         return overlord != null;
     }
 
-#if EC_PENDING
     public static bool TryMergeIntoOverlordGovernment(Realm subject)
     {
         return TryGetSameCoreOverlord(subject, out Realm overlord) &&
@@ -228,7 +223,6 @@ public static class ModernStateFormationSystem
         }
         return changed;
     }
-#endif
 
     // 新国家依建国首领的理念立制；首领理念尚未被本文化解锁时，采用光谱上最接近的
     // 已解锁理念。文化刚进入现代、批量承接旧法理王国时也必须走同一套判定。

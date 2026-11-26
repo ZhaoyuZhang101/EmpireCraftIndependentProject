@@ -6,7 +6,7 @@ namespace EmpireCraft.Core
 {
 
 // 此类仅在主线程调用。城市引用留在这里，工作队列里只有独立的数值快照。
-public static class PopulationParallelSystem
+public static partial class PopulationParallelSystem
 {
     private sealed class Request
     {
@@ -30,6 +30,7 @@ public static class PopulationParallelSystem
         PopulationMathWorkers.Reset();
     }
 
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
     private static PopulationMathWorkers.Job Submit(PopulationNumericInput input)
     {
         if (!_announced)
@@ -39,6 +40,7 @@ public static class PopulationParallelSystem
         }
         return PopulationMathWorkers.Submit(input);
     }
+#endif
 
     private static PopulationGroupValue[] CopyGroups(CityPopulationData data)
     {
@@ -63,7 +65,7 @@ public static class PopulationParallelSystem
         return true;
     }
 
-#if EC_PENDING
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
     public static void PrewarmWorkforce(IEnumerable<City> cities, double now)
     {
         if (!CityPopulationSystem.AbstractPopulationEnabled) return;
@@ -74,7 +76,9 @@ public static class PopulationParallelSystem
             PrepareWorkforce(city, now);
         }
     }
+#endif
 
+#if EC_PENDING
     public static void PrepareWorkforce(City city, double now, bool refreshProduction = false)
     {
         if (!CityPopulationSystem.AbstractPopulationEnabled || city?.Record == null || city.IsGone() || city.Realm == null ||
@@ -113,7 +117,6 @@ public static class PopulationParallelSystem
         return PopulationMathWorkers.Compute(new PopulationNumericInput(CopyGroups(data), perSlot, production));
     }
 
-#if EC_PENDING
     private static PopulationNumericInput GrowthInput(City city, CityPopulationData data, float years)
     {
         CityPopulationSystem.GrowthFactors factors = CityPopulationSystem.GetGrowthFactors(city, data);
@@ -147,7 +150,6 @@ public static class PopulationParallelSystem
         for (int i = 0; i < result.Sizes.Length; i++) request.Data.groups[i].size = result.Sizes[i];
         return true;
     }
-#endif
 
     public static void Discard(City city)
     {
@@ -156,13 +158,11 @@ public static class PopulationParallelSystem
         Growth.Remove(city);
     }
 
-#if EC_PENDING
     public static List<City> FlushGrowth()
     {
         var cities = new List<City>(Growth.Keys);
         foreach (City city in cities) TryCompleteGrowth(city, true);
         return cities;
     }
-#endif
 }
 }

@@ -81,7 +81,6 @@ public static class CityFragmentSystem
     }
 
     // 关掉无人区设置：交出去的碎块还回原城；返回还了几块。记录随即清掉
-#if EC_PENDING
     public static int RestoreAll()
     {
         Resolve();
@@ -112,10 +111,8 @@ public static class CityFragmentSystem
         calc.MarkDirty();
         return count;
     }
-#endif
 
     // 无人区划完(WildernessSystem.Build)：当场看一遍
-#if EC_PENDING
     public static void AfterBuild()
     {
         try
@@ -127,10 +124,8 @@ public static class CityFragmentSystem
             LogService.LogWarning($"[EmpireCraft][城地碎块] 出错: {exception}");
         }
     }
-#endif
 
     // 每帧(WildernessSystem.Tick 里，划区不忙时)：一年看一次
-#if EC_PENDING
     public static void Tick()
     {
         double now = GameClock.Now;
@@ -151,10 +146,8 @@ public static class CityFragmentSystem
         LogService.LogInfo($"[EmpireCraft][城地碎块] 交出 {report.Count} 处 {moved} 块：" + string.Join("；", report.Take(12)) +
                            (report.Count > 12 ? $" 等" : ""));
     }
-#endif
 
     // 地块跟着哪座城：城的地块归那座城；无人区跟着 OriginOf 那座城(永久中立的不算)；别的为 null
-#if EC_PENDING
     private static City HolderOf(Cell zone)
     {
         if (zone == null) return null;
@@ -164,7 +157,6 @@ public static class CityFragmentSystem
         City origin = WildernessSystem.OriginOf(zone);
         return Alive(origin) ? origin : null;
     }
-#endif
 
     private static bool Alive(City city) =>
         city?.Record != null && !city.IsGone() && city.Realm?.Record != null && !city.Realm.IsGone() && !city.Realm.IsWild;
@@ -182,7 +174,6 @@ public static class CityFragmentSystem
     private static bool AtWar(Realm a, Realm b) => a != b && a.IsAtWarWith(b);
 
     // 返回交出的城地块数；report 记每一处"城 → 城 几块"
-#if EC_PENDING
     private static int Transfer(List<Cell> zones, List<City> cities, List<string> report)
     {
         int size = 0;
@@ -263,10 +254,8 @@ public static class CityFragmentSystem
         }
         return total;
     }
-#endif
 
     // 这一片交给谁(按先后试)：片外四邻每一块都得有主，否则 null(海岛、海外领地、挨着无主地的不动)
-#if EC_PENDING
     private static List<City> Receivers(City city, List<Cell> piece, Cell[] byId, City[] holder, int size)
     {
         var inside = new HashSet<Cell>(piece);
@@ -302,7 +291,6 @@ public static class CityFragmentSystem
             .ThenBy(other => other.Key)
             .ToList();
     }
-#endif
 }
 
 // 存档里的一条城地碎块交接(见 CityFragmentSystem)：地块、原来的城、交给的城

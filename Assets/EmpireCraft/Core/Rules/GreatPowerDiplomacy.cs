@@ -68,7 +68,6 @@ public static class GreatPowerDiplomacy
     public static int PactOpinionOf(Realm main, Realm target) =>
         main != null && target != null && main.IsEmpire() && target.IsEmpire() && Bound(main, target) ? PactOpinion : 0;
 
-#if EC_PENDING
     public static void TryYearlyScan()
     {
         if (EmpireWorld.Current == null || ModClass.EMPIRE_MANAGER == null || ModClass.IS_CLEAR) return;
@@ -111,7 +110,6 @@ public static class GreatPowerDiplomacy
         b.RecordHistory(directContent: text, kingdomId: cb.Key);
         TranslateHelper.LogEventMessage(text, ca);
     }
-#endif
 
     // 编旗的政权(入关前的后金也算)要入主中原：不与华夏各朝通好(一纸三十年互不侵犯，入关就打不下去了)
     private static bool BarredByConquest(Realm a, Realm b) =>
@@ -131,7 +129,6 @@ public static class GreatPowerDiplomacy
     }
 
     // 依约相助(王国 AI 每月一查，帝国核心自己查)
-#if EC_PENDING
     public static void Aid(Realm core)
     {
         Empire empire = core?.GetEmpire();
@@ -156,6 +153,5 @@ public static class GreatPowerDiplomacy
             return;
         }
     }
-#endif
 }
 }

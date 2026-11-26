@@ -1,6 +1,7 @@
 {
   "CityPopulationSystem": [
-    "SpawnFromGroup"
+    "SpawnFromGroup",
+    "ExecuteFoldPhase"
   ],
   "KingdomColorService": [
     "*"
@@ -20,5 +21,50 @@
     "getColorLibrary",
     "generateColor",
     "getActorAsset"
+  ],
+  "EmpireCraftPlotsAddition": [
+    "init"
+  ],
+  "RebellionStartupService": [
+    "RaiseUprisingMilitia"
+  ],
+  "KingdomExtension": [
+    "GetOrCreate",
+    "GetTreasuryBalance",
+    "AddMoney",
+    "SubMoney"
+  ],
+  "NuclearDoctrineSystem": [
+    "TryStrike"
+  ],
+  "SmoothBorders": [
+    "Settle",
+    "DescribeDisplay",
+    "CanvasActive"
+  ],
+  "WarWeather": [
+    "IceAge",
+    "RainAge"
+  ],
+  "NavySystem": [
+    "EnsureFlagship",
+    "MoveFlagship"
+  ],
+  "TransmigrantSystem": [
+    "EnsureBases"
+  ],
+  "CorpsSystem": [],
+  "StateSettlementSystem": [
+    "ModeChanged"
+  ],
+  "PopulationParallelSystem": [
+    "PrewarmWorkforce",
+    "Submit"
+  ],
+  "RealisticAgeSystem": [
+    "SpeciesLifespan"
+  ],
+  "HistoryDateFormatter": [
+    "TryParseTime"
   ]
 }

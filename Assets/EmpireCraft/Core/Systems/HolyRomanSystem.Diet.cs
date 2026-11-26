@@ -205,7 +205,6 @@ public static partial class HolyRomanSystem
 
     #region 年度
 
-#if EC_PENDING
     private static void DietYearly(Empire empire, HolyRomanState state)
     {
         CleanupBan(empire, state);
@@ -225,7 +224,6 @@ public static partial class HolyRomanSystem
         if (years < (agenda is AgendaLevy or AgendaReform ? DietIntervalYears : UrgentDietGapYears)) return;
         Convene(empire, agenda, subject);
     }
-#endif
 
     public static (string agenda, Realm subject) PickAgenda(Empire empire, HolyRomanState state)
     {
@@ -262,7 +260,6 @@ public static partial class HolyRomanSystem
 
     #region 开议
 
-#if EC_PENDING
     public static DietRecord Convene(Empire empire, string agenda, Realm subject)
     {
         try
@@ -311,7 +308,6 @@ public static partial class HolyRomanSystem
             return null;
         }
     }
-#endif
 
     // 没有席位的院不拦议案
     private static bool Majority(int yes, int no) => yes + no == 0 || yes * 2 > yes + no;
@@ -325,7 +321,6 @@ public static partial class HolyRomanSystem
         _ => LM.Get("hre_agenda_levy")
     };
 
-#if EC_PENDING
     private static string Enact(Empire empire, HolyRomanState state, string agenda, Realm subject, Dictionary<Realm, bool> ballots)
     {
         Realm core = empire.CoreKingdom;
@@ -398,7 +393,6 @@ public static partial class HolyRomanSystem
             }
         }
     }
-#endif
 
     // 帝国战争应征：各成员国按中央一方出兵。听命于中央的诸侯在中央开战时就被带进了战争名单(见 FeudalVassalService.ExpandSide)，
     // 以前只数新加入的，回回"0国应征"，也没人下令出征——远处的军团照就近动员留守驻地。现在已在中央一方的与新加入的一律出征
@@ -598,7 +592,6 @@ public static partial class HolyRomanSystem
 
     // 帝国议会页的按钮：立即召开(按当前最急的议程，没有就议摊派)、对最不听话的成员国提请禁令、解除禁令、颁行帝国改革；
     // 神力按钮照扣帝国权威，扣到 0 为止，不因权威不够拦下
-#if EC_PENDING
     public static DietRecord ActConvene(Empire empire)
     {
         if (!HasDiet(empire)) return null;
@@ -617,16 +610,13 @@ public static partial class HolyRomanSystem
             .ThenBy(member => Opinion(member, core)).ThenByDescending(member => member.Cities.Count).FirstOrDefault();
         return target == null ? null : Convene(empire, AgendaBan, target);
     }
-#endif
 
     // 颁行帝国改革：文化节点已施行、本帝国未颁行时径付议会(权威不够照扣到 0)
-#if EC_PENDING
     public static DietRecord ActEnactReform(Empire empire)
     {
         if (!HasDiet(empire) || ReformEnacted(empire) || !ReformNodeEnacted(empire)) return null;
         return Convene(empire, AgendaReform, null);
     }
-#endif
 
     public static bool ActLiftBan(Empire empire)
     {

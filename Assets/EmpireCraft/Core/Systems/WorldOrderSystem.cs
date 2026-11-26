@@ -27,6 +27,9 @@ public static class WorldOrderSystem
     private const float CloseIdeology = 30f, FarIdeology = 60f, OpposedIdeology = 90f;
     private const int MaxGreatPowers = 6, GreatPowerMinCities = 5;
     private const float GreatPowerShare = 0.3f;
+    // 盟主保位的门槛(最强国国力的这一成)：比立阵营的门槛低。以前一跌出大国就散，1937 剧本里苏联开局国力 561、次年 430，
+    // 跌破最强国(1686)的三成，社会主义阵营立了当年就"群龙无首，土崩瓦解"(用户 2026-11-25 "修这个")
+    private const float LeaderKeepShare = 0.2f;
     private const float JoinChance = 0.25f, ThreatenedJoinChance = 0.6f, JoinMinOpinion = -20f;
     private const int UnopposedYears = 15;
     private const int KinOpinion = 25, WaryOpinion = -20, FoeOpinion = -40, RevolutionaryOpinion = -30;
@@ -34,6 +37,8 @@ public static class WorldOrderSystem
     private const float RadicalRegime = 40f;
     private const float StartTension = 30f, TensionDrift = 3f, ProxyTension = 5f, DetenteCooling = 4f;
     private const float CrisisBase = 0.08f, DetenteTension = 55f, CollapseShare = 0.4f;
+    // 衰落：国力对比(本方 ÷ 对方)掉到开始对峙时的这一成以下才算(见 UpdateColdWars)
+    private const float DeclineShare = 0.6f;
     public const float IronCurtainAt = 60f;
     private const int DetenteYears = 8, CrisisGapYears = 2;
     private const float AidChance = 0.2f;
@@ -136,7 +141,6 @@ public static class WorldOrderSystem
         _data.cold_wars.Count == 0 ? null : ColdWarBetween(BlocOf(a), BlocOf(b));
 
     // 核恐怖平衡：冷战双方的盟主都有核，盟主之间不直接开战(各自的盟友、第三国的仗不拦)
-#if EC_PENDING
     public static bool MutuallyDeterred(Realm attacker, Realm target)
     {
         if (_data.cold_wars.Count == 0) return false;
@@ -146,7 +150,6 @@ public static class WorldOrderSystem
         if (lx == null || ly == null || ModRealm(attacker) != lx || ModRealm(target) != ly) return false;
         return NuclearDoctrineSystem.IsNuclearPower(lx) && NuclearDoctrineSystem.IsNuclearPower(ly);
     }
-#endif
 
     private static Realm ModRealm(Realm kingdom) => kingdom?.GetEmpire()?.CoreKingdom ?? kingdom;
 
@@ -292,13 +295,13 @@ public static class WorldOrderSystem
     private static float Distance(Empire empire, BlocData bloc) =>
         PartySystem.IdeologyDistance(Ideology(empire), (PartyIdeology)bloc.ideology);
 
-#if EC_PENDING
     private static bool Contact(Empire a, Empire b)
     {
         Realm ca = a.CoreKingdom, cb = b.CoreKingdom;
         return ConnectivitySystem.CanContactEither(ca, cb) ?? WarReach.Reachable(ca, cb);
     }
 
+#if EC_PENDING
     private static void Scan(double now)
     {
         List<Empire> states = States();
@@ -351,19 +354,22 @@ public static class WorldOrderSystem
 
     private static void PruneBlocs(HashSet<long> alive, List<Empire> greats, Dictionary<long, double> power, double now)
     {
+        double strongest = power.Count == 0 ? 0d : power.Values.Max();
+        bool Keeps(Empire empire) => empire != null && alive.Contains(empire.Key) && power.TryGetValue(empire.Key, out double value) &&
+                                     value >= strongest * LeaderKeepShare && Cities(empire) >= GreatPowerMinCities;
         foreach (BlocData bloc in _data.blocs.ToList())
         {
             bloc.members.RemoveAll(id => !alive.Contains(id));
             bloc.wartime ??= new List<long>();
             bloc.wartime.RemoveAll(id => !bloc.members.Contains(id));
             Empire leader = Living(bloc.leader_id);
-            bool leaderFit = leader != null && alive.Contains(leader.Key) && greats.Contains(leader) &&
+            bool leaderFit = Keeps(leader) &&
                              PartySystem.IdeologyDistance(Ideology(leader), (PartyIdeology)bloc.ideology) < FarIdeology;
             if (!leaderFit)
             {
                 // 盟主倒了、衰了、改旗易帜了：同道的大国接手，没人接就散
-                Empire successor = greats.Where(empire => bloc.members.Contains(empire.Key) && empire != leader &&
-                                                          Distance(empire, bloc) <= CloseIdeology)
+                Empire successor = bloc.members.Select(Living).Where(empire => empire != null && empire != leader && Keeps(empire) &&
+                                                                              Distance(empire, bloc) <= CloseIdeology)
                     .OrderByDescending(empire => power[empire.Key]).FirstOrDefault();
                 if (successor == null)
                 {
@@ -420,7 +426,6 @@ public static class WorldOrderSystem
             EndColdWar(war, Bloc(war.a == bloc.id ? war.b : war.a), members);
     }
 
-#if EC_PENDING
     private static void FormBlocs(List<Empire> greats, double now)
     {
         foreach (Empire great in greats)
@@ -449,7 +454,6 @@ public static class WorldOrderSystem
                 PartySystem.GetIdeologyName(Ideology(great)), BlocName(bloc), rival.GetEmpireFullName()), great, new[] { rival });
         }
     }
-#endif
 
     private static void Join(BlocData bloc, Empire state)
     {
@@ -494,7 +498,6 @@ public static class WorldOrderSystem
         }
     }
 
-#if EC_PENDING
     private static void JoinBlocs(List<Empire> states)
     {
         if (_data.blocs.Count == 0) return;
@@ -512,7 +515,6 @@ public static class WorldOrderSystem
             Join(best, state);
         }
     }
-#endif
 
     // 对面阵营的国与它接壤或正在打它：入盟更急
     private static bool Threatened(Empire state, BlocData candidate)
@@ -532,7 +534,6 @@ public static class WorldOrderSystem
     }
 
     // 盟友来援(王国 AI 每月，帝国核心自己查；同跨文明通好的依约相助)：同阵营的国挨了阵营外的打
-#if EC_PENDING
     public static void Aid(Realm core)
     {
         if (_data.blocs.Count == 0) return;
@@ -559,7 +560,6 @@ public static class WorldOrderSystem
             return;
         }
     }
-#endif
 
     #endregion
 
@@ -582,7 +582,11 @@ public static class WorldOrderSystem
             bool fighting = lx.CoreKingdom.IsAtWarWith(ly.CoreKingdom);
             if (hostile && war == null && (fighting || Contact(lx, ly)))
             {
-                _data.cold_wars.Add(new ColdWarData { a = x.id, b = y.id, since = now, tension = fighting ? 100f : StartTension, hot = fighting });
+                _data.cold_wars.Add(new ColdWarData
+                {
+                    a = x.id, b = y.id, since = now, tension = fighting ? 100f : StartTension, hot = fighting,
+                    power_a = power.TryGetValue(lx.Key, out double startX) ? startX : -1d, power_b = power.TryGetValue(ly.Key, out double startY) ? startY : -1d
+                });
                 Record(string.Format(LM.Get(fighting ? "bloc_war_started_history" : "cold_war_started_history"), BlocName(x), BlocName(y), lx.GetEmpireFullName(),
                     ly.GetEmpireFullName()), lx, Members(x).Concat(Members(y)));
             }
@@ -606,10 +610,18 @@ public static class WorldOrderSystem
                 war.tension = 100f;
                 continue;
             }
-            // 一方盟主国力衰到对方四成以下：不战而终
+            // 一方盟主国力衰到对方四成以下、而且比开始对峙时的对比掉了一大截：不战而终。
+            // 以前只看四成：1937 剧本里苏联开局国力就不到日本的四成，社会主义阵营立了五年照样"不战而终"(用户 2026-11-25 "修这个")
             double px = power.TryGetValue(lx.Key, out double valueX) ? valueX : 0d;
             double py = power.TryGetValue(ly.Key, out double valueY) ? valueY : 0d;
-            if (GameClock.YearsSince(war.since) >= 5 && (px < py * CollapseShare || py < px * CollapseShare))
+            if (war.power_a < 0d || war.power_b < 0d)
+            {
+                war.power_a = px;
+                war.power_b = py;
+            }
+            bool Declined(double self, double other, double selfThen, double otherThen) =>
+                self < other * CollapseShare && (otherThen <= 0d || selfThen <= 0d || self / Math.Max(1d, other) < selfThen / otherThen * DeclineShare);
+            if (GameClock.YearsSince(war.since) >= 5 && (Declined(px, py, war.power_a, war.power_b) || Declined(py, px, war.power_b, war.power_a)))
             {
                 BlocData loser = px < py ? x : y;
                 Dissolve(loser, LeaderOf(loser), "world_bloc_collapsed_history");

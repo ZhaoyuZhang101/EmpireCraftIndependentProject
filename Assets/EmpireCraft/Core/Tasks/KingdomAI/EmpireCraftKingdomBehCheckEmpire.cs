@@ -10,7 +10,6 @@ public class EmpireCraftKingdomBehCheckEmpire:GameAIKingdomBase
 {
     public override Type OriginalBeh => GetType();
 
-#if EC_PENDING
     public override BehResult Execute(Realm pKingdom)
     {
         pKingdom.CheckEmpire();
@@ -30,7 +29,6 @@ public class EmpireCraftKingdomBehCheckEmpire:GameAIKingdomBase
         CheckEmpireAlliance(pKingdom);
         return BehResult.Continue;
     }
-#endif
     /// <summary>
     /// 帝国破产后十年直接解散
     /// </summary>
@@ -175,7 +173,6 @@ public class EmpireCraftKingdomBehCheckEmpire:GameAIKingdomBase
     /// </summary>
     /// <param name="pKingdom"></param>
     /// <returns></returns>
-#if EC_PENDING
     public void CheckPossible(Realm pKingdom)
     {
         if (pKingdom.IsGone()) return;
@@ -196,7 +193,7 @@ public class EmpireCraftKingdomBehCheckEmpire:GameAIKingdomBase
             if (pKingdom == empire.CoreKingdom && pKingdom.HasRuler() &&
                 CompositeEmpireService.CanAdoptCentralInstitutions(pKingdom.Ruler))
             {
-                var adoptionPlot = AssetManager.plots_library.get("adopt_central_plains_institutions");
+                var adoptionPlot = PlotKinds.Library.get("adopt_central_plains_institutions");
                 if (adoptionPlot?.try_to_start_advanced?.Invoke(pKingdom.Ruler, adoptionPlot, true) == true)
                 {
                     TranslateHelper.LogCompositeEmpireAdoptionStarted(empire,
@@ -217,7 +214,7 @@ public class EmpireCraftKingdomBehCheckEmpire:GameAIKingdomBase
         if (empire == null && ModernStateFormationSystem.TryUpdate(pKingdom)) return;
         if (pKingdom.HasRuler() && ImperialLegitimacyChallengeService.TryFindTarget(pKingdom, out _))
         {
-            var challengePlot = AssetManager.plots_library.get("usurp_imperial_legitimacy");
+            var challengePlot = PlotKinds.Library.get("usurp_imperial_legitimacy");
             if (challengePlot?.try_to_start_advanced?.Invoke(pKingdom.Ruler, challengePlot, true) == true)
             {
                 pKingdom.GetRegime()?.SetAllowDiplomacy(true);
@@ -225,10 +222,10 @@ public class EmpireCraftKingdomBehCheckEmpire:GameAIKingdomBase
             }
         }
         // 已经在筹备(或进行别的剧情)时不要重新开始，否则会反复覆盖筹备开始时的记录
-        if (!pKingdom.HasRuler() || pKingdom.Ruler.plot?.isActive() == true) return;
+        if (!pKingdom.HasRuler() || pKingdom.Ruler.Plot?.IsActive() == true) return;
         if (!CanStartEmpireFormation(pKingdom, true)) return;
 
-        var plot = AssetManager.plots_library.get("become_empire");
+        var plot = PlotKinds.Library.get("become_empire");
         if (plot == null) return;
         EmpireFormationService.BeginPreparation(pKingdom, EmpireFormationService.GetBestRoute(pKingdom));
         if (plot.try_to_start_advanced?.Invoke(pKingdom.Ruler, plot, true) == true)
@@ -240,7 +237,6 @@ public class EmpireCraftKingdomBehCheckEmpire:GameAIKingdomBase
             pKingdom.GetOrCreate().empire_formation_started_timestamp = -1d;
         }
     }
-#endif
 
     // 按制度文化看(旧制犹存的看旧制所属的文化，见 LegacyInstitutionSystem)
     private static bool CultureAbolishedMonarchy(Realm kingdom) =>
@@ -248,7 +244,6 @@ public class EmpireCraftKingdomBehCheckEmpire:GameAIKingdomBase
         InstitutionSystem.GetFeature(CultureService.GetInstitutionCulture(kingdom), RepublicSystem.FeatureAbolishMonarchy) > 0f;
 
     // 称帝资格：基础条件 + 不在失败冷却期 + 至少满足一条称帝路线(见 EmpireFormationService)
-#if EC_PENDING
     public static bool CanStartEmpireFormation(Realm pKingdom, bool repairMainTitle = false)
     {
         if (pKingdom == null || pKingdom.IsGone()) return false;
@@ -304,6 +299,5 @@ public class EmpireCraftKingdomBehCheckEmpire:GameAIKingdomBase
             pKingdom.RemoveGivenAlliance();
         }
     }
-#endif
 }
 }

@@ -20,7 +20,6 @@ public static class FrontLineCleanup
     private static readonly HashSet<int> Seen = new();
     private static readonly Queue<Cell> Frontier = new();
 
-#if EC_PENDING
     public static void Monthly()
     {
         if (EmpireWorld.Current?.Cities == null || !CorpsSystem.Enabled) return;
@@ -90,7 +89,6 @@ public static class FrontLineCleanup
         if (returned + taken > 0)
             LogService.LogInfo($"[EmpireCraft][孤块归位] {city.GetCityName()}：还给城主 {returned} 块，归占领者 {taken} 块");
     }
-#endif
 
     // 同一座城里同一控制者的地块，按相邻连成几片
     private static List<List<Cell>> Pieces(List<Cell> zones)

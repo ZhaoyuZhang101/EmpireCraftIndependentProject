@@ -20,7 +20,6 @@ public static class StraitReach
     // 港口：圆心取码头所在的格(没有就取城心)，及港外海区所在的水域
     private static readonly Dictionary<long, (float at, List<(Vector2 port, HashSet<int> basins)> ports, float radius)> PortCache = new();
 
-#if EC_PENDING
     public static bool Across(Realm initiator, Realm target)
     {
         if (initiator?.Record == null || target?.Record == null || initiator == target || initiator.IsGone() || target.IsGone())
@@ -30,10 +29,8 @@ public static class StraitReach
             if (Reaches(initiator, shore)) return true;
         return false;
     }
-#endif
 
     // 本国(或所在帝国)的水师辐射半径(格)
-#if EC_PENDING
     public static float Radius(Realm side) => side?.Record == null || side.IsGone() ? 0f : Navy(side).radius;
 
     private static (List<(Vector2 port, HashSet<int> basins)> ports, float radius) Navy(Realm initiator)
@@ -59,11 +56,9 @@ public static class StraitReach
 
     private static Vector2 PortAt(City city) =>
         NavySystem.Port(city)?.Cell is Cell tile ? new Vector2(tile.X, tile.Y) : city.Center;
-#endif
 
     // 这座临海城在本国(或所在帝国)水师的辐射范围里：本城某处海岸离某个水师港口(码头)不过辐射半径、同一片水域
     // (见 FrontSystem.InReach)。以前量城心到城心，城心在内陆的城隔着窄海也够不着
-#if EC_PENDING
     public static bool Reaches(Realm side, City target)
     {
         if (side?.Record == null || side.IsGone() || target?.Record == null || target.IsGone()) return false;
@@ -80,11 +75,9 @@ public static class StraitReach
         }
         return false;
     }
-#endif
 
     // 两家接壤或隔海相望，两边都按全体成员算(帝国连同各成员国)：远距离不开战
     // (用户 2026-10-15："能不能阻止远距离交战，但是很近的海岛却可以")
-#if EC_PENDING
     public static bool Within(Realm a, Realm b)
     {
         if (a?.Record == null || b?.Record == null || a.IsGone() || b.IsGone()) return false;
@@ -97,7 +90,6 @@ public static class StraitReach
         }
         return false;
     }
-#endif
 
     private static List<Realm> Members(Realm kingdom)
     {
@@ -109,10 +101,8 @@ public static class StraitReach
     }
 
     // 接壤或隔海相望(帝国按全体成员算)
-#if EC_PENDING
     public static bool Near(Realm initiator, Realm target) =>
         initiator != null && target != null &&
         (initiator.IsNeighbourWith(target) || initiator.GetEmpire()?.IsNeighbourWith(target) == true || Across(initiator, target));
-#endif
 }
 }

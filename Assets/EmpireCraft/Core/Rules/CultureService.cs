@@ -1,6 +1,5 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/CultureService.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
-using Time = EmpireCraft.Core.FrameClock;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -463,7 +462,6 @@ public static class CultureService
         string.Equals(a, b, StringComparison.Ordinal) ||
         IsValidCulture(a) && IsValidCulture(b) && string.Equals(a.GetTianxiaId(), b.GetTianxiaId(), StringComparison.Ordinal);
 
-#if EC_PENDING
     public static bool SetEmpireDefaultCulture(EmpireCore core, string culture, bool locked)
     {
         if (core == null || !IsValidCulture(culture)) return false;
@@ -475,14 +473,12 @@ public static class CultureService
         ApplyEmpireCultureLock(core, locked);
         return true;
     }
-#endif
 
     /// <summary>
     /// 单独设置帝国的文化锁定状态（不改变文化本身）。帝国一旦锁定文化，
     /// 其下所有王国法理也会跟着锁定，避免"帝国已固定文化，王国法理还能被同化悄悄改变"的不一致状态。
     /// 解锁帝国不会自动解锁各王国法理——那些需要在各自的法理窗口里单独解锁。
     /// </summary>
-#if EC_PENDING
     public static bool SetEmpireCultureLock(EmpireCore core, bool locked)
     {
         if (core == null) return false;
@@ -500,7 +496,6 @@ public static class CultureService
             RefreshTitleCityCultureLockState(title);
         }
     }
-#endif
 
     public static EmpireCore GetInheritedEmpireCore(KingdomTitle title)
     {
@@ -589,7 +584,6 @@ public static class CultureService
     }
 
     // 恢复初始文化(锁定的也恢复)；已经是初始文化的返回 false
-#if EC_PENDING
     public static bool RestoreInitialTitleCulture(KingdomTitle title)
     {
         string initial = GetInitialTitleCulture(title);
@@ -622,7 +616,6 @@ public static class CultureService
         RefreshCultureDependents(title);
         RefreshTitleCityCultureLockState(title);
     }
-#endif
 
     private static void RefreshTitleCityCultureLockState(KingdomTitle title)
     {
@@ -672,7 +665,7 @@ public static class CultureService
 
         Dictionary<string, int> counts = new Dictionary<string, int>();
         int recognizedPopulation = 0;
-        for (int i = 0; i < city.PopulationCount(); i++)
+        for (int i = 0; i < city.People.Count; i++)
         {
             Person actor = city.People[i];
             if (actor == null || actor.IsGone() || !actor.Alive) continue;
@@ -1001,7 +994,6 @@ public static class CultureService
     /// 由城主决议执行：把城市的官方主流文化改为 candidate。
     /// 现存居民保留个人文化，避免一次决议瞬间改写整座城市的人物文化。
     /// </summary>
-#if EC_PENDING
     public static bool SetCityMainCulture(City city, string candidate)
     {
         if (city?.Record == null || city.IsGone() || !IsValidCulture(candidate)) return false;
@@ -1020,15 +1012,13 @@ public static class CultureService
         EmpireCraftNamePlateLibrary.RequestRefresh();
         return true;
     }
-#endif
 
     // 按模组文化名找原版文化对象要逐个比对全部文化，决策检查里每个君主、城主都会调：记十秒
     private static readonly Dictionary<string, (Culture culture, float at)> NativeCultureCache = new(StringComparer.Ordinal);
 
-#if EC_PENDING
     private static Culture CachedNativeCulture(string culture)
     {
-        float now = global::Time.unscaledTime;
+        float now = FrameClock.unscaledTime;
         if (NativeCultureCache.TryGetValue(culture, out var hit) && now - hit.at < 10f && now >= hit.at &&
             (hit.culture == null || hit.culture.data != null && !hit.culture.IsGone()))
             return hit.culture;
@@ -1036,10 +1026,8 @@ public static class CultureService
         NativeCultureCache[culture] = (found, now);
         return found;
     }
-#endif
 
     // 原版的国家文化对象(原版窗口、新城看它)跟着国家文化走
-#if EC_PENDING
     public static void SyncVanillaKingdomCulture(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone()) return;
@@ -1049,10 +1037,8 @@ public static class CultureService
         Culture native = CachedNativeCulture(realm);
         if (native != null) kingdom.SetCulture(native);
     }
-#endif
 
     // 原版的城市文化对象(原版窗口、没有文化的新居民看它)跟着官方主流文化走
-#if EC_PENDING
     public static void SyncVanillaCityCulture(City city)
     {
         if (city?.Record == null || city.IsGone()) return;
@@ -1062,13 +1048,11 @@ public static class CultureService
         Culture native = CachedNativeCulture(main);
         if (native == null || city.Culture == native) return;
         city.Culture = native;
-        EmpireWorld.Current?.Cultures?.setDirtyCities();
+        EmpireWorld.Current?.Cultures?.SetDirtyCities();
     }
-#endif
 
     // 原版决策"城主把城市文化改成自己的"(只改原版的文化对象)：主流文化锁定时不许，并把原版对象拉回官方文化；
     // 城主与城本是同一文化(两个同文化的原版对象)也不改，免得来回互改
-#if EC_PENDING
     public static bool AllowLeaderCityCulture(Person actor)
     {
         City city = actor?.City;
@@ -1083,7 +1067,6 @@ public static class CultureService
         return !IsValidCulture(leaderCulture) ||
                !string.Equals(leaderCulture, Cultures.FamilyOf(city.Culture), StringComparison.Ordinal);
     }
-#endif
 
     /// <summary>
     /// 异文化征服只施加一次制度冲击并建立持续的占领文化压力，不会立即替换城市官方文化
@@ -1147,7 +1130,6 @@ public static class CultureService
 
     // 神力易俗(见 GodPowers/CityCulturePower)：这座城当即改从某文化——城里的人物、背景人口、文化比例、地名一并改过来，
     // 不看法理文化锁定、不走城市文化转换的谋划
-#if EC_PENDING
     public static bool ForceCityCulture(City city, string culture)
     {
         if (city?.Record == null || city.IsGone() || !IsValidCulture(culture)) return false;
@@ -1174,7 +1156,7 @@ public static class CultureService
         if (nativeCulture != null && city.Culture != nativeCulture)
         {
             city.Culture = nativeCulture;
-            EmpireWorld.Current?.Cultures?.setDirtyCities();
+            EmpireWorld.Current?.Cultures?.SetDirtyCities();
         }
         EmpireCraftNamePlateLibrary.RequestRefresh();
         return true;
@@ -1214,13 +1196,12 @@ public static class CultureService
         if (city.Culture != nativeCulture)
         {
             city.Culture = nativeCulture;
-            EmpireWorld.Current?.Cultures?.setDirtyCities();
+            EmpireWorld.Current?.Cultures?.SetDirtyCities();
         }
         EmpireCraftNamePlateLibrary.RequestRefresh();
         TranslateHelper.LogCityCultureRestored(city, previousCulture, culture);
         return true;
     }
-#endif
 
     // ================= 文化专属地名历史（城市 / 法理头衔 / 省份）=================
 
@@ -1314,7 +1295,6 @@ public static class CultureService
     /// 同时按恢复/新生成分别打不同的世界提示。解析不出名字（比如这个文化世界上还
     /// 完全没有出现过任何单位）就保留原名不动，不算错误。
     /// </summary>
-#if EC_PENDING
     private static void ApplyCulturalCityRename(City city, string previousCulture, string newCulture)
     {
         if (city?.Record == null) return;
@@ -1323,13 +1303,12 @@ public static class CultureService
         if (string.IsNullOrWhiteSpace(resolvedName) ||
             string.Equals(resolvedName, city.Name, StringComparison.Ordinal)) return;
         string oldName = city.Name;
-        city.setName(resolvedName);
+        city.SetName(resolvedName);
         if (restored)
             TranslateHelper.LogCityNameRestored(city, oldName, resolvedName, newCulture);
         else
             TranslateHelper.LogCityNameChanged(city, oldName, resolvedName, newCulture);
     }
-#endif
 
     public static string GetTitleCulturalName(KingdomTitle title, string culture)
     {
@@ -1563,7 +1542,6 @@ public static class CultureService
     /// <summary>
     /// 由“文治”派系决议执行：把法理的默认文化正式改为 candidate。
     /// </summary>
-#if EC_PENDING
     public static bool ConvertTitleCulture(KingdomTitle title, string candidate)
     {
         if (title?.data == null || title.IsGone() || !IsValidCulture(candidate)) return false;
@@ -1578,7 +1556,6 @@ public static class CultureService
         ApplyCulturalTitleRename(title, previous, candidate);
         return true;
     }
-#endif
 
     /// <summary>
     /// 都护府判定：这个 administration 是否被政体引擎实际判定为"都护府"
@@ -1931,7 +1908,6 @@ public static class CultureService
         return created;
     }
 
-#if EC_PENDING
     public static void RefreshCultureDependents(KingdomTitle title)
     {
         if (title == null) return;
@@ -1944,7 +1920,6 @@ public static class CultureService
         }
         EmpireCraftNamePlateLibrary.RequestRefresh();
     }
-#endif
 
     private static bool HasValidShares(Dictionary<string, float> shares)
     {

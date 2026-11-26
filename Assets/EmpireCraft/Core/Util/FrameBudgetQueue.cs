@@ -55,7 +55,7 @@ public sealed class FrameBudgetQueue<T>
             return false;
         }
         using var frameWork = SimulationFrameBudget.Measure();
-        long started = Stopwatch.GetTimestamp();
+        long started = SimWatch.GetTimestamp();
         while (_index < _items.Count && SimulationFrameBudget.HasTime && (canContinue?.Invoke() ?? true))
         {
             T item = _items[_index++];
@@ -67,7 +67,7 @@ public sealed class FrameBudgetQueue<T>
             {
                 LogService.LogWarning($"[EmpireCraft] {_label}失败: {exception.Message}");
             }
-            if ((Stopwatch.GetTimestamp() - started) * 1000d / Stopwatch.Frequency >= _budgetMilliseconds) return false;
+            if ((SimWatch.GetTimestamp() - started) * 1000d / SimWatch.Frequency >= _budgetMilliseconds) return false;
         }
         if (_index < _items.Count) return false;
         Cancel();

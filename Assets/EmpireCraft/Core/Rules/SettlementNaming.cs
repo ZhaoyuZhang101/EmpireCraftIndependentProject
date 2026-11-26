@@ -35,12 +35,11 @@ public static class SettlementNaming
     private static readonly Dictionary<string, List<string>> Cache = new();
     private static string _language;
 
-#if EC_PENDING
     private static string Language()
     {
         try
         {
-            string language = LocalizedTextManager.instance?.language ?? "cz";
+            string language = LM.Language ?? "cz";
             return language is "cz" or "ch" or "en" ? language : "en";
         }
         catch
@@ -48,12 +47,10 @@ public static class SettlementNaming
             return "cz";
         }
     }
-#endif
 
     private static string Root => Path.Combine(GameData.Folder, "Locales", "Cultures");
 
     // 文化配的词库(可写"别的文化:词库名")；没配或读不到就用通用词库 Settlements/<fallback>.csv
-#if EC_PENDING
     private static List<string> Pool(string culture, string configured, string fallback)
     {
         if (!string.IsNullOrWhiteSpace(configured))
@@ -70,10 +67,8 @@ public static class SettlementNaming
         }
         return string.IsNullOrEmpty(fallback) ? new List<string>() : Read(Path.Combine(Root, "Settlements", fallback + ".csv"));
     }
-#endif
 
     // 读当前语言那一列；"_"开头换成空格，单个"_"是空串
-#if EC_PENDING
     private static List<string> Read(string path)
     {
         string language = Language();
@@ -110,7 +105,6 @@ public static class SettlementNaming
         Cache[path] = words;
         return words;
     }
-#endif
 
     private static string Pick(List<string> pool, long seed)
     {
@@ -196,7 +190,6 @@ public static class SettlementNaming
         return modes.Keys.First();
     }
 
-#if EC_PENDING
     private static string Suffix(string culture, SettlementSetting config, string kind, long seed) => kind switch
     {
         "fort" => Pick(Pool(culture, config?.fort_suffix, "FortSuffix"), seed),
@@ -205,10 +198,8 @@ public static class SettlementNaming
         YurtVillage => Pick(Pool(culture, config?.yurt_village_suffix, "YurtVillageSuffix"), seed),
         _ => Pick(Pool(culture, config?.village_suffix, "VillageSuffix"), seed)
     } ?? "";
-#endif
 
     // 毡帐村镇字库方式的词：配了毡帐字库用它，没配照村、镇的字库
-#if EC_PENDING
     private static List<string> YurtWords(string culture, SettlementSetting config, bool town)
     {
         if (!string.IsNullOrWhiteSpace(config?.yurt_words))
@@ -232,10 +223,8 @@ public static class SettlementNaming
         string word = Pick(pool, seed);
         return string.IsNullOrEmpty(word) ? null : Join(word, Suffix(culture, config, kind, seed + 1));
     }
-#endif
 
     // 姓氏：本城宗族的姓，没有就取本文化的姓氏词库
-#if EC_PENDING
     private static string BySurname(RuralSettlement settlement, City city, string culture, Setting setting,
         SettlementSetting config, string kind, long seed)
     {
@@ -254,10 +243,8 @@ public static class SettlementNaming
             : Suffix(culture, config, kind, seed + 5);
         return Join(surname, suffix);
     }
-#endif
 
     // 地势：前缀 + 地势词 + 后缀
-#if EC_PENDING
     private static string ByTerrain(RuralSettlement settlement, string culture, SettlementSetting config, string kind, long seed)
     {
         if (settlement == null) return null;
@@ -272,7 +259,6 @@ public static class SettlementNaming
             : Suffix(culture, config, kind, seed + 17);
         return Join(prefix + feature, suffix);
     }
-#endif
 
     // 词 + 后缀；词本身已经以后缀结尾的不重复(木村 + 村 → 木村)
     private static string Join(string word, string suffix)
@@ -411,7 +397,6 @@ public static class SettlementNaming
         return _oldNames = set;
     }
 
-#if EC_PENDING
     public static void MigrateOldNames(IEnumerable<RuralSettlement> settlements)
     {
         int cleared = 0;
@@ -433,7 +418,6 @@ public static class SettlementNaming
         }
         if (cleared > 0) LogService.LogInfo($"[EmpireCraft][村镇命名] {cleared} 处旧名改按文化重起");
     }
-#endif
 
     #endregion
 }

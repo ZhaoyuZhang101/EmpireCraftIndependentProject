@@ -128,7 +128,6 @@ public static class CultureRadiation
     #region 分帧结算
 
     // 每帧(EmpireCraftStrategicScheduler)；每年一轮
-#if EC_PENDING
     public static void Tick()
     {
         EmpireWorld world = EmpireWorld.Current;
@@ -139,7 +138,7 @@ public static class CultureRadiation
             _world = world;
         }
         if (!SimulationFrameBudget.HasTime) return;
-        var clock = Stopwatch.StartNew();
+        var clock = SimWatch.StartNew();
         try
         {
             using (FrameProfiler.Measure("文化辐射"))
@@ -162,14 +161,12 @@ public static class CultureRadiation
             _phase = Phase.Idle;
         }
     }
-#endif
 
     private static bool Valid(City city) => city?.Record != null && !city.IsGone() && city.Realm != null && !city.Realm.IsWild &&
                                            city.Zones != null && city.Zones.Count > 0 && !AncientWarfareCompatibility.OwnsObject(city);
 
     private static Realm ModRealm(Realm kingdom) => kingdom?.GetEmpire()?.CoreKingdom ?? kingdom;
 
-#if EC_PENDING
     private static void Begin()
     {
         Cities.Clear();
@@ -267,7 +264,6 @@ public static class CultureRadiation
         if (_layer != null) RadiateLayer(source.city, source.culture, source.strength, source.length);
         else Radiate(source.city.Key, source.culture, source.strength, source.length);
     }
-#endif
 
     private static void AddEdge(long from, long to, float cost)
     {
@@ -276,7 +272,6 @@ public static class CultureRadiation
     }
 
     // 两城城心之间最省力那条路的阻力(A*，按地块；找不到返回 -1)。城墙上的关门(见 WallGateSystem)两城所属的国都放行才不加城墙阻力
-#if EC_PENDING
     private static float LandCost(Cell from, Cell to, Realm fromKingdom, Realm toKingdom)
     {
         if (from == null || to == null) return -1f;
@@ -307,12 +302,10 @@ public static class CultureRadiation
         }
         return -1f;
     }
-#endif
 
     private static float Estimate(Cell a, Cell b) => (Mathf.Abs(a.X - b.X) + Mathf.Abs(a.Y - b.Y)) * TerrainResistance.RoadFactor;
 
     // 海路：港口之间，在出发一方水师辐射内、同一片水域
-#if EC_PENDING
     private static void BuildSea()
     {
         var ports = new List<(City city, HashSet<int> basins)>();
@@ -348,9 +341,9 @@ public static class CultureRadiation
             Realm realm = ModRealm(city.Realm);
             if (realm?.Capital == city) strength *= RealmCapitalFactor;
             else if (city.Realm.Capital == city) strength *= CapitalFactor;
-            strength *= 1f + TempleBonus * Mathf.Min(BuildingCap, city.countBuildingsType("type_temple")) +
-                        LibraryBonus * Mathf.Min(BuildingCap, city.countBuildingsType("type_library")) +
-                        UniversityBonus * Mathf.Min(BuildingCap, city.countBuildingsType("type_university"));
+            strength *= 1f + TempleBonus * Mathf.Min(BuildingCap, city.CountBuildingsType("type_temple")) +
+                        LibraryBonus * Mathf.Min(BuildingCap, city.CountBuildingsType("type_library")) +
+                        UniversityBonus * Mathf.Min(BuildingCap, city.CountBuildingsType("type_university"));
             // 衰减距离看本国(施教的一方)的科技(见 ConnectivitySystem.InfoLength)
             string techCulture = TechnologySystem.GetCultureOf(city);
             if (!lengths.TryGetValue(techCulture ?? "", out float length))
@@ -361,7 +354,6 @@ public static class CultureRadiation
             Sources.Add((city, culture, strength, length));
         }
     }
-#endif
 
     // 从一座城向外辐射(有界的最短路)
     private static void Radiate(long sourceId, string culture, float strength, float length)

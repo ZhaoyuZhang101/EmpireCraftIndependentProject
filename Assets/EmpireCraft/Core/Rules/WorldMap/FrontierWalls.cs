@@ -47,7 +47,6 @@ public static class FrontierWalls
     }
 
     // 剧本摆好时记下这一时代的长城(格坐标折线)
-#if EC_PENDING
     public static void Set(List<List<Vector2>> polylines)
     {
         _fallback = false;
@@ -92,10 +91,8 @@ public static class FrontierWalls
             return _lines.Count > 0;
         }
     }
-#endif
 
     // 折线 → 一道道连着的墙：端头离别的折线不到 JoinTiles 的接成一道，没接上的端头记下
-#if EC_PENDING
     public static List<Line> Build(IEnumerable<List<Vector2>> polylines)
     {
         List<List<Vector2>> lines = polylines?.Where(line => line != null && line.Count >= 2).ToList() ?? new List<List<Vector2>>();
@@ -139,20 +136,16 @@ public static class FrontierWalls
         }
         return result;
     }
-#endif
 
     // 从 p 看 q 在墙后：连线穿过某道墙奇数次(p 压着的那段不算)
-#if EC_PENDING
     public static bool Behind(List<Line> lines, Vector2 p, Vector2 q)
     {
         foreach (Line line in lines)
             if (Crossings(line, p, q, false) % 2 == 1) return true;
         return false;
     }
-#endif
 
     // 两城隔着长城：连线穿过某道墙奇数次(两头压着的那段不算)，且从没接上的端头绕过去比直线远 DetourRatio 倍以上
-#if EC_PENDING
     public static bool Separates(List<Line> lines, Vector2 p, Vector2 q)
     {
         foreach (Line line in lines)
@@ -178,7 +171,6 @@ public static class FrontierWalls
         }
         return count;
     }
-#endif
 
     private static bool Crosses(Vector2 a, Vector2 b, Vector2 c, Vector2 d) =>
         Side(c, d, a) > 0f != Side(c, d, b) > 0f && Side(a, b, c) > 0f != Side(a, b, d) > 0f;
@@ -186,7 +178,6 @@ public static class FrontierWalls
     private static float Side(Vector2 o, Vector2 p, Vector2 q) => (p.x - o.x) * (q.y - o.y) - (p.y - o.y) * (q.x - o.x);
 
     // 点到线段的距离
-#if EC_PENDING
     private static float Distance(Vector2 p, Vector2 a, Vector2 b)
     {
         Vector2 ab = b - a;
@@ -194,7 +185,6 @@ public static class FrontierWalls
         float t = length <= 0f ? 0f : Mathf.Clamp01(Vector2.Dot(p - a, ab) / length);
         return Vector2.Distance(p, a + ab * t);
     }
-#endif
 
     #region 进世界后
 
@@ -205,7 +195,6 @@ public static class FrontierWalls
     }
 
     // 两城隔着长城(见 Separates)
-#if EC_PENDING
     public static bool Separates(City a, City b)
     {
         if (a == null || b == null || a == b) return false;
@@ -214,10 +203,8 @@ public static class FrontierWalls
         Vector2? p = Seat(a), q = Seat(b);
         return p != null && q != null && Separates(_lines, p.Value, q.Value);
     }
-#endif
 
     // 这块地在城的墙后(见 Behind)
-#if EC_PENDING
     public static bool Behind(City city, Cell zone)
     {
         if (zone?.Center == null) return false;
@@ -226,11 +213,9 @@ public static class FrontierWalls
         Vector2? p = Seat(city);
         return p != null && Behind(_lines, p.Value, new Vector2(zone.Center.X, zone.Center.Y));
     }
-#endif
 
     // 一组城按长城分开(组里任两城都不隔墙)：照给的先后，每座城进头一个跟组里各城都不隔墙的组，都隔着就另起一组。
     // 头一组是排在最前的城那一组(法理首府排最前，它那一组接着用这个法理的名)
-#if EC_PENDING
     public static List<List<City>> Split(IEnumerable<City> cities)
     {
         var groups = new List<List<City>>();
@@ -243,7 +228,6 @@ public static class FrontierWalls
         }
         return groups;
     }
-#endif
 
     #endregion
 }

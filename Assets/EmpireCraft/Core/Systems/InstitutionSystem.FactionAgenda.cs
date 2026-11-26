@@ -86,7 +86,6 @@ public static partial class InstitutionSystem
         empire?.CoreKingdom == null ? null : RevertTarget(InstitutionRealm.Of(empire), faction);
 
     // 改革线空着时，派系按占比从大到小：先看要不要回退，再走本派倾向的节点(candidates 是这一轮能推、支持也够的)
-#if EC_PENDING
     private static bool TryStartFactionPreference(InstitutionRealm realm,
         List<(InstitutionNodeConfig node, float score)> candidates, Dictionary<SocialClass, float> shares)
     {
@@ -106,7 +105,6 @@ public static partial class InstitutionSystem
         }
         return false;
     }
-#endif
 
     #endregion
 
@@ -176,7 +174,6 @@ public static partial class InstitutionSystem
         return Math.Min(RevertTraditionMax, RevertTraditionBase + years * RevertTraditionPerYear);
     }
 
-#if EC_PENDING
     public static bool CanStartRevert(InstitutionRealm realm, InstitutionNodeConfig node, out string reason,
         bool force = false, RevertBalanceView balance = null)
     {
@@ -245,7 +242,6 @@ public static partial class InstitutionSystem
         EmpireCraft.Core.TranslateHelper.LogEventMessage(content, realm.Core);
         return true;
     }
-#endif
 
     // 回退的年度推进(见 AdvanceReform)：进度减半、最短年限加倍、激进度涨一倍半；过了起事线作罢
     private static void AdvanceRevert(InstitutionRealm realm, InstitutionReformState reform, InstitutionNodeConfig node,

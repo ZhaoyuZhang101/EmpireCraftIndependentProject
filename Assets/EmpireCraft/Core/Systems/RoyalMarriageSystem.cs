@@ -35,7 +35,6 @@ public static class RoyalMarriageSystem
 
     private static int _month;
 
-#if EC_PENDING
     public static void Monthly()
     {
         if (EmpireWorld.Current?.LiveRealms == null) return;
@@ -57,10 +56,8 @@ public static class RoyalMarriageSystem
             }
         }
     }
-#endif
 
     // 本国的王室：储君、国王、国王的子女(有实体的)
-#if EC_PENDING
     private static IEnumerable<Person> Royals(Realm kingdom)
     {
         Person king = kingdom.Ruler;
@@ -68,7 +65,6 @@ public static class RoyalMarriageSystem
         yield return king;
         foreach (Person child in king?.GetChildren(false) ?? Enumerable.Empty<Person>()) yield return child;
     }
-#endif
 
     private static bool Marriageable(Person actor, Realm kingdom)
     {
@@ -84,17 +80,14 @@ public static class RoyalMarriageSystem
 
     // 国王在族谱里的虚拟子女(纯净地图下王子公主多不在地图上；以前只配得到国王、储君，王子公主从不外嫁)：
     // 议婚时按族谱比，定下来才落成
-#if EC_PENDING
     private static IEnumerable<PersonalClanIdentity> VirtualRoyals(Realm kingdom) =>
         kingdom?.Ruler?.Record == null ? Enumerable.Empty<PersonalClanIdentity>()
             : KinRoster.Children(kingdom.Ruler).Where(KinRoster.Virtual);
-#endif
 
     private static bool Marriageable(PersonalClanIdentity person) =>
         KinRoster.Virtual(person) && person.age >= MinAge && person.age <= MaxAge && !person.is_concubine &&
         person.IsFreeToMarry(-2L);
 
-#if EC_PENDING
     private static void TryArrange(Realm kingdom)
     {
         Person royal = Royals(kingdom).Distinct().FirstOrDefault(actor => Marriageable(actor, kingdom));
@@ -153,19 +146,15 @@ public static class RoyalMarriageSystem
         if (royal == null || partner == null) return;
         Marry(kingdom, royal, best.other, partner);
     }
-#endif
 
     // 议婚够得着(见类头)：contact 为本国派使节过去的强度(还没算为 -1)
-#if EC_PENDING
     private static bool Reach(Realm kingdom, Realm other, out float contact)
     {
         contact = ConnectivitySystem.ContactStrength(kingdom, other);
         return contact >= 0f ? contact >= ConnectivitySystem.Config.diplomacy_min_strength : WarReach.Reachable(kingdom, other);
     }
-#endif
 
     // 和亲(见 FrontierRelations)：本国君主的女儿或宗室女嫁给对方君主或储君；成了返回出嫁的人，没有合适的人返回 null
-#if EC_PENDING
     public static Person ArrangeHeqin(Realm home, Realm other)
     {
         if (home?.Record == null || other?.Record == null || !home.HasRuler() || !other.HasRuler()) return null;
@@ -192,7 +181,6 @@ public static class RoyalMarriageSystem
         Marry(home, bride, other, groom, log: false);
         return bride.HasSpouse() ? bride : null;
     }
-#endif
 
     private static void Marry(Realm home, Person royal, Realm other, Person partner, bool log = true)
     {

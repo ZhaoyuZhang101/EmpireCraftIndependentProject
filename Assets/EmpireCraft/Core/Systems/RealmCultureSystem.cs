@@ -16,7 +16,6 @@ namespace EmpireCraft.Core
 public static class RealmCultureSystem
 {
     // onlyFrom：整体转化时只改主流文化是它的城、文化是它的法理(国家本身照改)；空 = 全改
-#if EC_PENDING
     public static (int kingdoms, int cities) Convert(Realm kingdom, string culture, bool wholeEmpire, string onlyFrom = null)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || kingdom.IsWild || !CultureService.IsValidCulture(culture)) return (0, 0);
@@ -49,10 +48,8 @@ public static class RealmCultureSystem
         LogService.LogInfo($"[EmpireCraft][一键易俗] {kingdom.GetKingdomName()} → {culture}，{scope.Count} 国 {cities} 城");
         return (scope.Count, cities);
     }
-#endif
 
     // scope：这次易俗的各国(举朝为整个帝国)；宗族跨国的只改这些国家里的族人(见 CultureReformSystem 类头)
-#if EC_PENDING
     private static int ConvertKingdom(Realm kingdom, string culture, string onlyFrom, IEnumerable<Realm> scope)
     {
         // 先改国家文化、政体、君主与旧俗官员(见 CultureReformSystem.Force)，国家本已是这个文化的、别的文化出身的官员另行改过来，
@@ -78,7 +75,6 @@ public static class RealmCultureSystem
         kingdom.GetOrCreate().realm_tech = null;
         return cities;
     }
-#endif
 
     // 整体转化(用户 2026-10-20，文化窗口「整体转化」)：from 这个文化整个改从 to，逐国逐城当场改，不留旧制——
     //   · 国家文化是 from 的国家：国家文化、政体与制度、君主宗室与在任官员、名下 from 的法理与城一并改(同举国易俗)；
@@ -87,7 +83,6 @@ public static class RealmCultureSystem
     //     散在各处的 from 人物也改成 to；
     //   · 帝国的默认文化、统治文化还是 from 的一并改；沿用 from 旧制的国家旧制作罢，照本国文化之制。
     // 改完 from 没人用了就算消亡(不再出现在本局文化里)。返回 (国数, 城数)
-#if EC_PENDING
     public static (int kingdoms, int cities) ConvertCulture(string from, string to)
     {
         if (!CultureService.IsValidCulture(from) || !CultureService.IsValidCulture(to) ||
@@ -155,7 +150,6 @@ public static class RealmCultureSystem
         LogService.LogInfo($"[EmpireCraft][整体转化] {from} -> {to}，{kingdoms} 国 {cities} 城");
         return (kingdoms, cities);
     }
-#endif
 
     // 别的文化的城里 from 的少数：文化比例并入 to，背景人口改成 to
     private static void ConvertMinority(City city, string from, string to)
@@ -184,7 +178,6 @@ public static class RealmCultureSystem
         empire.data.ruling_culture = culture;
     }
 
-#if EC_PENDING
     private static void FinishEmpire(Empire empire, string culture, bool wholeEmpire)
     {
         EmpireCore core = EmpireCoreManager.Get(empire);
@@ -200,6 +193,5 @@ public static class RealmCultureSystem
         InstitutionSystem.ForgetRulingMajority(empire);
         InstitutionSystem.ResyncCulture(empire);
     }
-#endif
 }
 }

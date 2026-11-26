@@ -32,7 +32,6 @@ public static class EmperorTourSystem
     private static double _lastSecond = -1d, _lastMonth = -1d;
     private static object _world;
 
-#if EC_PENDING
     public static void Tick()
     {
         if (!PureMapMode.Enabled || ModClass.EMPIRE_MANAGER == null || EmpireWorld.Current == null) return;
@@ -58,7 +57,6 @@ public static class EmperorTourSystem
             }
         }
     }
-#endif
 
     // 皇帝出行在外时所在的地块(在宫里返回 null，标记画在城上)
     public static Cell Away(Empire empire) =>
@@ -88,7 +86,6 @@ public static class EmperorTourSystem
         return emperor?.City?.Record != null && !emperor.City.IsGone() ? emperor.City : empire?.CoreKingdom?.Capital;
     }
 
-#if EC_PENDING
     private static void Update(Empire empire, bool month, bool second, double now)
     {
         var data = empire?.data;
@@ -110,7 +107,6 @@ public static class EmperorTourSystem
         if (month) CheckStay(empire, now);
         if (second) Move(empire, home, now);
     }
-#endif
 
     private static void TryDepart(Empire empire, Person emperor, Cell home)
     {
@@ -209,7 +205,6 @@ public static class EmperorTourSystem
         return city?.Record != null && !city.IsGone() ? city.SeatCell()?.Zone : null;
     }
 
-#if EC_PENDING
     private static void Move(Empire empire, Cell home, double now)
     {
         var data = empire.data;
@@ -253,7 +248,6 @@ public static class EmperorTourSystem
         cached.path.RemoveAt(0);
         return CorpsSystem.ZoneById(cached.path[0]);
     }
-#endif
 
     private static void Clear(Empire empire, bool arrived)
     {

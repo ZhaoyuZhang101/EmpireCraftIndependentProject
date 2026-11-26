@@ -268,7 +268,7 @@ public static class TechRollbackSystem
         if (EmpireWorld.Current == null || !global::GameClock.Running || GameClock.Loading) return;
         using (FrameProfiler.Measure("后台·科技回退"))
         {
-            var watch = global::System.Diagnostics.Stopwatch.StartNew();
+            var watch = SimWatch.StartNew();
             while (watch.ElapsedMilliseconds < BudgetMs)
             {
                 if (_buildings == null)
@@ -377,7 +377,7 @@ public static class TechRollbackSystem
         }
     }
 
-    private static void StepCity(global::System.Diagnostics.Stopwatch watch)
+    private static void StepCity(SimWatch watch)
     {
         try
         {

@@ -54,14 +54,12 @@ public static class RulerDecrees
     public static bool HasTargets(string id) => id != null && Rules.TryGetValue(id, out var rule) && rule.targets;
 
     // 权威(0~100)：帝国中央看正统，别的国看君权(同决议天平、制度门槛一个读法)
-#if EC_PENDING
     public static int Authority(Realm realm)
     {
         if (realm?.Record == null || realm.IsGone()) return 0;
         Empire empire = realm.GetEmpire();
         return empire != null && empire.CoreKingdom == realm ? empire.Legitimacy : RealmAuthority.Get(realm);
     }
-#endif
 
     private static bool Ruler(Person actor) =>
         actor?.Record != null && actor.Alive && actor.IsRuler() && actor.Realm?.Record != null && !actor.Realm.IsGone();
@@ -74,16 +72,12 @@ public static class RulerDecrees
         return empire?.data != null && !empire.IsGone() && !empire.IsArchived() && empire.CoreKingdom == actor.Realm ? empire : null;
     }
 
-#if EC_PENDING
     private static bool Enough(Person actor, string id) =>
         Ruler(actor) && (ProbeIgnoresAuthority || Authority(actor.Realm) >= MinAuthority(id));
-#endif
 
     // 办不成的缘由(文字键)：权威不够的单说，其余都是"条件不合"
-#if EC_PENDING
     public static string WhyNot(string id, Person actor) =>
         Ruler(actor) && Authority(actor.Realm) < MinAuthority(id) ? "decision_outcome_authority" : "decision_outcome_unfit";
-#endif
 
     // ───────── 可选的城 ─────────
     public static List<City> Candidates(string id, Person actor)
@@ -114,7 +108,6 @@ public static class RulerDecrees
         return result.OrderByDescending(city => CityPopulationSystem.GetTotal(city)).ThenBy(city => city.Key).Take(MaxCandidates).ToList();
     }
 
-#if EC_PENDING
     private static bool CanMoveCapital(Person actor)
     {
         if (!Enough(actor, MoveCapital)) return false;
@@ -123,37 +116,32 @@ public static class RulerDecrees
         if (court != null && (HolyRomanSystem.IsElective(court) || ZhouEraSystem.RoyalReclaimBlocked(court))) return false;
         return CapitalCandidates(actor.Realm).Count > 0;
     }
-#endif
 
     // ───────── 立项：把点的那座城记到决议上 ─────────
-#if EC_PENDING
     private static bool StartWithCity(Person actor, PlotKind asset, bool forced)
     {
         City target = DecisionSystem.PendingTarget;
-        if (target?.Record == null || actor == null || actor.IsGone() || EmpireWorld.Current?.Plots == null || actor.plot?.isActive() == true) return false;
+        if (target?.Record == null || actor == null || actor.IsGone() || EmpireWorld.Current?.Plots == null || actor.Plot?.IsActive() == true) return false;
         Plot plot = EmpireWorld.Current.Plots.newPlot(actor, asset, forced);
         if (plot == null) return false;
-        plot.target_city = target;
+        plot.TargetCity = target;
         return true;
     }
 
     private static bool StartPlain(Person actor, PlotKind asset, bool forced)
     {
-        if (actor == null || actor.IsGone() || EmpireWorld.Current?.Plots == null || actor.plot?.isActive() == true) return false;
+        if (actor == null || actor.IsGone() || EmpireWorld.Current?.Plots == null || actor.Plot?.IsActive() == true) return false;
         return EmpireWorld.Current.Plots.newPlot(actor, asset, forced) != null;
     }
 
-    private static City TargetOf(Person actor) => actor?.plot?.target_city;
-#endif
+    private static City TargetOf(Person actor) => actor?.Plot?.TargetCity;
 
     // 办着的时候点的那座城还得在可选的里头(城丢了、被占了就作罢)
-#if EC_PENDING
     private static bool TargetStillFits(string id, Person actor)
     {
         City target = TargetOf(actor);
         return target?.Record != null && !target.IsGone() && Candidates(id, actor).Contains(target);
     }
-#endif
 
     // ───────── 施行 ─────────
 #if EC_PENDING
@@ -207,7 +195,6 @@ public static class RulerDecrees
 #endif
 
     // 制度树上声明了这条诉求的节点(同朝议里那条诉求推的是同一个)
-#if EC_PENDING
     private static InstitutionNodeConfig ReformNode(Empire court, string claim, TemporaryFactionType? push)
     {
         if (court == null) return null;
@@ -240,10 +227,8 @@ public static class RulerDecrees
         LogService.LogInfo($"[EmpireCraft][大政] {court.GetEmpireFullName()} 奉诏改制 {id}：推行 {node.id}{(force ? "(强推)" : "")}");
         return true;
     }
-#endif
 
     // 行分封：华夏的帝国、眼下不是周制、上回改制过了 EnfeoffCooldownYears 年、中央没有领土战争
-#if EC_PENDING
     private static bool CanEnfeoff(Person actor)
     {
         if (!Enough(actor, ReformEnfeoff)) return false;
@@ -265,10 +250,8 @@ public static class RulerDecrees
         LogService.LogInfo($"[EmpireCraft][大政] {court.GetEmpireFullName()} 奉诏改行分封");
         return true;
     }
-#endif
 
     // ───────── 登记 ─────────
-#if EC_PENDING
     private static void Add(string id, string icon, float progress, Func<Person, bool> possible, Func<Person, bool> proceed, Func<Person, bool> act)
     {
         bool targets = HasTargets(id);
@@ -286,9 +269,8 @@ public static class RulerDecrees
             asset.try_to_start_advanced = StartWithCity;
         }
         else asset.try_to_start_advanced = StartPlain;
-        AssetManager.plots_library.add(asset);
+        PlotKinds.Library.add(asset);
     }
-#endif
 
     private static bool Guard(string id, string stage, Person actor, Func<Person, bool> body)
     {

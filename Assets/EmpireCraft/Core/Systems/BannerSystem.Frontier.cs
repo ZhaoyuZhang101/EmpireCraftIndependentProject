@@ -41,7 +41,6 @@ public static partial class BannerSystem
         (empire?.kingdoms_list ?? new List<Realm>()).Where(LeagueBound);
 
     // 每年：满蒙联姻(编旗以后就有，入关前后都算)
-#if EC_PENDING
     private static void LeagueYearly(Empire empire)
     {
         Realm core = empire.CoreKingdom;
@@ -60,7 +59,6 @@ public static partial class BannerSystem
         empire.RecordHistory(directContent: text, kingdomId: core.Key);
         TranslateHelper.LogEventOnly(text, core);
     }
-#endif
 
     #region 封禁
 
@@ -80,7 +78,6 @@ public static partial class BannerSystem
     // 迁徙(见 CityPopulationSystem.Migrate)：属地之民不许迁进封禁之城，旧地之间照常
     public static bool MigrationBarred(City from, City to) => Sealed(to) && !from.GetOrCreate().banner_home;
 
-#if EC_PENDING
     private static void SealYearly(Empire empire, Realm core, KingdomExtension.KingdomExtraData extra)
     {
         if (extra.banner_entered_at < 0d) return;
@@ -96,10 +93,8 @@ public static partial class BannerSystem
         }
         Migrate(empire);
     }
-#endif
 
     // 闯关东：属地之城里最挤的几座各迁一成之一到旧地里最空的城
-#if EC_PENDING
     private static void Migrate(Empire empire)
     {
         string institutional = CompositeEmpireService.GetInstitutionalCulture(empire);
@@ -116,25 +111,20 @@ public static partial class BannerSystem
             CityPopulationSystem.TransferBackground(source, home, MigrantShare);
         }
     }
-#endif
 
     // 住满了几成(人口 / 住房上限)
-#if EC_PENDING
     private static float Crowding(City city)
     {
         CityPopulationSystem.GrowthFactors factors = CityPopulationSystem.GetGrowthFactors(city);
         return factors.Capacity > 0f ? factors.Total / factors.Capacity : 0f;
     }
-#endif
 
     // 还能住几成
-#if EC_PENDING
     private static float Room(City city)
     {
         CityPopulationSystem.GrowthFactors factors = CityPopulationSystem.GetGrowthFactors(city);
         return factors.Capacity > 0f ? Mathf.Clamp01((factors.Capacity - factors.Total) / factors.Capacity) : 0f;
     }
-#endif
 
     #endregion
 }

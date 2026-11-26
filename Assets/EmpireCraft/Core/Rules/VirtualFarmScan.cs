@@ -21,11 +21,11 @@ public static class VirtualFarmScan
         city.calculated_grown_wheat.Clear();
         city.calculated_farm_fields.Clear();
         city.calculated_crops.Clear();
-        Cell mill = city.getBuildingOfType("type_windmill")?.current_tile;
-        if (mill?.region != null)
+        Cell mill = city.GetBuildingOfType("type_windmill")?.Cell;
+        if (mill?.Region != null)
         {
-            var chunks = new HashSet<MapChunk> { mill.region.chunk };
-            foreach (MapRegion neighbour in mill.region.neighbours) chunks.Add(neighbour.chunk);
+            var chunks = new HashSet<MapChunk> { mill.Region.chunk };
+            foreach (MapRegion neighbour in mill.Region.neighbours) chunks.Add(neighbour.chunk);
             for (int dx = -9; dx <= 9; dx++)
                 for (int dy = -9; dy <= 9; dy++)
                 {

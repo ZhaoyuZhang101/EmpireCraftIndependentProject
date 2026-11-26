@@ -44,7 +44,7 @@ public static partial class ShuiTuSystem
     // 本族故地在旱地：文化带 dry_native，或以该文化为主流的城里旱地城占 DryNativeShare 以上
     private const float DryNativeShare = 0.5f;
     // 一年约 60 秒世界时间(5 秒一个月)
-    private const double SecondsPerYear = 60d;
+    private const double SecondsPerYear = 12d; // world time counts months here
 
     private sealed class UnitInfo
     {
@@ -358,7 +358,6 @@ public static partial class ShuiTuSystem
     #region 结算
 
     // 每帧至多结算一个政权；同一政权一年一次
-#if EC_PENDING
     public static void Tick()
     {
         if (EmpireWorld.Current?.LiveRealms == null || ModClass.IS_CLEAR || !GameClock.Running || GameClock.Loading) return;
@@ -376,7 +375,6 @@ public static partial class ShuiTuSystem
             LogService.LogWarning($"[EmpireCraft][水土] {unit.Key}: {error.Message}");
         }
     }
-#endif
 
     private static bool Due(Realm unit) =>
         !Units.TryGetValue(unit.Key, out UnitInfo info) || info.At < 0d || GameClock.Now < info.At ||
@@ -412,7 +410,6 @@ public static partial class ShuiTuSystem
         return cities;
     }
 
-#if EC_PENDING
     private static void Pass(Realm unit)
     {
         double now = GameClock.Now;
@@ -491,7 +488,6 @@ public static partial class ShuiTuSystem
         // 到档后按局势走出路(见 ShuiTuSystem.Outlets)
         TryOutlet(unit, info, kingdoms, cities);
     }
-#endif
 
     // 离草结束(回到旱地，或改了政体)：到过档的记入史书
     private static void EndOffGrass(Realm unit, KingdomExtension.KingdomExtraData extra, bool steppe)

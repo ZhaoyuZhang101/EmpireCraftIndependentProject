@@ -438,7 +438,6 @@ public static class PartySystem
 
     #region 年度更新(由 ParliamentSystem.Update 在议会存续时调用)
 
-#if EC_PENDING
     public static void Update(Empire empire, ConstitutionalEconomyState state)
     {
         if (!IsActive(empire) || EmpireWorld.Current == null) return;
@@ -482,7 +481,6 @@ public static class PartySystem
             RevolutionSystem.Tension(empire) >= RevolutionSystem.RipeAt)
             RepublicSystem.TryRegionalRepublicCoalition(empire);
     }
-#endif
 
     // 开放党禁：朝中派系改组为政党，原班人马随之转入
     private static void Reorganize(Empire empire, Regime regime)

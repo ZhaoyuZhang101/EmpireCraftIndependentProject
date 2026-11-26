@@ -37,7 +37,6 @@ public static partial class PapacySystem
 
     public static bool InContest(Empire empire) => State(empire)?.investiture_contest_at >= 0d;
 
-#if EC_PENDING
     private static void Conflict(Empire empire, PapalRelationState state, Religion religion)
     {
         Realm core = empire.CoreKingdom, papacy = ObeyedSee(empire, religion);
@@ -91,7 +90,6 @@ public static partial class PapacySystem
             Record(empire, string.Format(LM.Get("papal_contest_won_history"), empire.GetEmpireFullName()));
         }
     }
-#endif
 
     // 与教廷正面相争过(叙任权之争、遭绝罚；旧档按留下的痕迹算)：帝国自称神圣的由头(见 HolyBlocker)
     private static void NoteClash(PapalRelationState state)
@@ -164,7 +162,6 @@ public static partial class PapacySystem
     }
 
     // 绝罚期间教皇党成员国倒戈：离开帝国另立(地方独立)
-#if EC_PENDING
     private static void Defections(Empire empire, Religion religion)
     {
         // 不许自立(见 SecessionGate)：先开战后离开，要在开战前问
@@ -183,7 +180,6 @@ public static partial class PapacySystem
                 empire.GetEmpireFullName()));
         }
     }
-#endif
 
     // 两党：离帝都越远越亲教廷；教皇国、统治者有宗教特质的亲教廷；有滞后，不轻易换边
     private static void UpdateParties(Empire empire)

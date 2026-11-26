@@ -46,12 +46,11 @@ public static class WildernessNaming
     private static readonly Dictionary<string, List<string>> Cache = new();
     private static string _language;
 
-#if EC_PENDING
     private static string Language()
     {
         try
         {
-            string language = LocalizedTextManager.instance?.language ?? "cz";
+            string language = LM.Language ?? "cz";
             return language is "cz" or "ch" or "en" ? language : "en";
         }
         catch
@@ -59,12 +58,10 @@ public static class WildernessNaming
             return "cz";
         }
     }
-#endif
 
     private static string Root => Path.Combine(GameData.Folder, "Locales", "Cultures");
 
     // 读当前语言那一列(空着退回英文、简体)；"_"开头换成空格，单个"_"是空串(同村镇词库)
-#if EC_PENDING
     private static List<string> Read(string path)
     {
         string language = Language();
@@ -101,10 +98,8 @@ public static class WildernessNaming
         Cache[path] = words;
         return words;
     }
-#endif
 
     // 文化配的词库(可写"别的文化:词库名")；没配或读不到是空表
-#if EC_PENDING
     private static List<string> Own(string culture, string configured)
     {
         if (string.IsNullOrWhiteSpace(configured)) return new List<string>();
@@ -118,12 +113,9 @@ public static class WildernessNaming
         if (owner.Length == 0 || group.Length == 0) return new List<string>();
         return Read(Path.Combine(Root, $"Culture_{owner}", owner + group + ".csv"));
     }
-#endif
 
     // 通用词库 Locales/Cultures/Wilderness/<名>.csv
-#if EC_PENDING
     private static List<string> General(string name) => Read(Path.Combine(Root, Folder, name + ".csv"));
-#endif
 
     private static WildernessSetting Config(string culture) =>
         !string.IsNullOrEmpty(culture) && OnomasticsRule.ALL_CULTURE_RULE.TryGetValue(culture, out Setting setting)
@@ -148,7 +140,6 @@ public static class WildernessNaming
     // 通用词库的文件名：Wild + 类型首字母大写(WildMountain、WildMountainSuffix、WildMountainGreat)
     private static string Stem(string key) => "Wild" + char.ToUpperInvariant(key[0]) + key.Substring(1);
 
-#if EC_PENDING
     private static List<Word> Words(string culture, WildernessSetting config, string key)
     {
         List<string> raw = Own(culture, Configured(config?.words, key));
@@ -163,11 +154,9 @@ public static class WildernessNaming
         }
         return words;
     }
-#endif
 
     // 后缀：寻常的用 suffix(默认 Wild<类型>Suffix)；大区域用 great_suffix，没配的照本文化的 suffix，
     // 本文化两样都没配用通用的 Wild<类型>Great(没有这个文件的类型照寻常后缀，如山脉)
-#if EC_PENDING
     private static List<string> Suffixes(string culture, WildernessSetting config, string key, bool great)
     {
         List<string> normal = Own(culture, Configured(config?.suffix, key));
@@ -181,7 +170,6 @@ public static class WildernessNaming
         }
         return normal.Count > 0 ? normal : General(Stem(key) + "Suffix");
     }
-#endif
 
     // 本类型各后缀去掉 {0} 及其前面的部分剩下的尾巴(山脉、山、大沙漠、Desert、的旷野)：地名已以它结尾的不再接后缀
     private static List<string> Endings(IEnumerable<string> suffixes)
@@ -202,7 +190,6 @@ public static class WildernessNaming
 
     // 全名(本地化好的，如"撒哈拉大沙漠""太行山脉""Sahara Desert")；seed 稳定(同一区域每次起同一个名)；
     // used：本世界已用的全名，起名避开；zones：区域多大(≥ GreatZones 用大字头的后缀)
-#if EC_PENDING
     public static string Name(WildKind kind, string culture, long seed, ICollection<string> used, int zones)
     {
         string key = KindKey(kind);
@@ -250,7 +237,6 @@ public static class WildernessNaming
                 if (Free(Variants(index).Select(name => Numbered(name, n, chinese)))) return Numbered(Chosen(index), n, chinese);
         return Numbered(Chosen(order[0]), limit + 1, chinese);
     }
-#endif
 
     // 类型名(山脉、沙漠、冻原、雨林、大泽、熔岩)，悬停提示用
     public static string KindName(WildKind kind)

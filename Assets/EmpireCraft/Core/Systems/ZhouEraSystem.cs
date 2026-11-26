@@ -154,7 +154,6 @@ public static class ZhouEraSystem
         !own.IsGone() && !own.IsArchived();
 
     // 天子兴师讨伐的不服王化之国：与王畿接壤、兵力不及王师的，先挑最弱的
-#if EC_PENDING
     public static Realm SubdueTarget(Empire empire)
     {
         if (!Applies(empire) || empire.CoreKingdom == null) return null;
@@ -167,11 +166,9 @@ public static class ZhouEraSystem
                               !kingdom.IsAtWarWith(empire.CoreKingdom) && kingdom.Warriors() < royal)
             .OrderBy(kingdom => kingdom.Warriors()).FirstOrDefault();
     }
-#endif
 
     // 讨伐不服王化之战：攻下其都城即迫其称臣、受封为诸侯(见 FeudalConquestService.TryResolveCapitalConquest)，
     // 不按吞并、割地议和(见 WarGoalSystem.OwnEnding)
-#if EC_PENDING
     public static void MarkSubdueWar(War war, Empire empire, Realm target)
     {
         if (war?.Record == null || empire == null || target == null) return;
@@ -180,7 +177,6 @@ public static class ZhouEraSystem
         war.Name = string.Format(LM.Get("zhou_subdue_war_name"),
             string.IsNullOrWhiteSpace(royal) ? empire.GetEmpireName() : royal, target.GetKingdomName());
     }
-#endif
 
     // 战国时离开帝国的周诸侯
     // 同一周室、已入战国的两国(含王畿)：彼此征伐以兼并为务
@@ -456,6 +452,7 @@ public static class ZhouEraSystem
             LogService.LogWarning($"[EmpireCraft][春秋战国] {empire.GetEmpireName()} 结算失败: {exception}");
         }
     }
+#endif
 
     private static void Monthly(Empire empire, ZhouEraState state)
     {
@@ -521,7 +518,6 @@ public static class ZhouEraSystem
                         JoinSide(war, member, attackerSide: false);
             }
     }
-#endif
 
     // 合纵之国各怀心思：每场仗只有四成会出兵来援(按国与这场仗定下，不每月重掷)
     private static bool Answers(Realm member, War war) =>
@@ -534,7 +530,6 @@ public static class ZhouEraSystem
             .OrderByDescending(kingdom => kingdom.Key == state.hegemon_id).ThenByDescending(kingdom => HasZuo(state, kingdom))
             .ThenByDescending(Power);
 
-#if EC_PENDING
     private static void JoinSide(War war, Realm kingdom, bool attackerSide)
     {
         if (war == null || kingdom?.Record == null || kingdom.IsGone() || war.HasEnded()) return;
@@ -554,6 +549,7 @@ public static class ZhouEraSystem
         }
     }
 
+#if EC_PENDING
     private static void Yearly(Empire empire, ZhouEraState state)
     {
         Realm core = empire.CoreKingdom;
@@ -761,7 +757,6 @@ public static class ZhouEraSystem
     }
 
     // 霸主调停：诸侯互攻，霸主令其罢兵(存亡继绝：弱小的一方被打时更可能出面)
-#if EC_PENDING
     private static void Arbitrate(Empire empire, ZhouEraState state, Realm hegemon)
     {
         foreach (Realm vassal in Vassals(empire).ToList())
@@ -778,10 +773,8 @@ public static class ZhouEraSystem
                     victim.GetKingdomName()), hegemon);
             }
     }
-#endif
 
     // 霸主讨伐僭越称王者(同文化之国，记为伐不臣，不是攘夷)
-#if EC_PENDING
     private static void PunishUsurper(Empire empire, ZhouEraState state, Realm hegemon)
     {
         foreach (long id in state.kings.ToList())
@@ -798,7 +791,6 @@ public static class ZhouEraSystem
             return;
         }
     }
-#endif
 
     // 三家分晋：六城以上的大国，国君年幼或年老时更易被权臣瓜分为三
     private static bool TryPartition(Empire empire, ZhouEraState state, Realm vassal)
@@ -859,7 +851,7 @@ public static class ZhouEraSystem
     {
         if ((vassal.Cities?.Count ?? 0) < 4 || vassal.Capital == null || Random.value > 0.015f) return;
         City seat = vassal.Cities.Where(city => city != null && !city.IsGone() && city != vassal.Capital && city.Leader != null)
-            .OrderByDescending(city => city.PopulationCount()).FirstOrDefault();
+            .OrderByDescending(city => city.People.Count).FirstOrDefault();
         Person usurper = seat?.Leader;
         Person ruler = vassal.Ruler;
         if (usurper == null || usurper.IsGone() || !usurper.Alive || ruler == null ||
@@ -1179,7 +1171,6 @@ public static class ZhouEraSystem
             : Math.Max(0, RepelCooldownYears - GameClock.YearsSince(state.repel_called_at));
     }
 
-#if EC_PENDING
     public static bool CallToRepel(Empire empire, Realm barbarian)
     {
         if (!Applies(empire) || !IsBarbarian(empire, barbarian)) return false;
@@ -1222,7 +1213,6 @@ public static class ZhouEraSystem
             barbarian.GetKingdomName()), core, history: true);
         return true;
     }
-#endif
 
     private static string Helpers(List<Realm> helpers) =>
         helpers.Count == 0 ? LM.Get("zhou_helpers_none") : string.Join("、", helpers.Select(kingdom => kingdom.GetKingdomName()));

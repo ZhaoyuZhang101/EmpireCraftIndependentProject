@@ -66,7 +66,6 @@ public static class EmpireFormationService
 
     // 独立行省/旧王国可能实际占领了都城法理，却仍记在前任君主名下。
     // ReconcileMainTitle 只选择已持有的头衔，不能完成承接，因此再大也过不了称帝门槛。
-#if EC_PENDING
     internal static bool RepairFoundingTitle(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || !kingdom.HasRuler() || !kingdom.HasCapital() ||
@@ -91,7 +90,6 @@ public static class EmpireFormationService
         KingdomTitleManager.AddUntitledCities(title, kingdom);
         return kingdom.HasMainTitle();
     }
-#endif
 
     public static bool IsInFailureCooldown(Realm kingdom)
     {
@@ -453,7 +451,6 @@ public static class EmpireFormationService
 
 
     // 诊断(见 FormationDiagnostics)：这个国家卡在称帝的哪一关，按称帝检查的先后逐条说
-#if EC_PENDING
     public static string Diagnose(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone()) return "国家已灭";
@@ -486,10 +483,9 @@ public static class EmpireFormationService
         if (OutmatchedByEmpire(kingdom, culture)) return "比不过同文化已有的帝国";
         EmpireFormationRoute route = GetBestRoute(kingdom);
         if (route == EmpireFormationRoute.None) return "没有称帝路线(不是本文化最强的候选)";
-        if (kingdom.Ruler.plot?.isActive() == true) return $"君主正忙别的剧情({kingdom.Ruler.plot.getAsset()?.id})，路线 {route}";
+        if (kingdom.Ruler.Plot?.IsActive() == true) return $"君主正忙别的剧情({kingdom.Ruler.Plot.GetKind()?.Id})，路线 {route}";
         return $"条件都满足(路线 {route}{RealmNamingSystem.DominionNote(kingdom)})，等称帝剧情";
     }
-#endif
 
     // 别国的从属不称帝(用户 2026-11-13 转群友"现在好多附庸国都能称帝")：封建附庸、向帝国称臣纳贡的、傀儡、
     // 属地(连同宗主国不在图上的剧本属地)、流亡政府，先脱离了再说。以前只有 AI 筹备称帝这一条路拦了(见
@@ -499,7 +495,7 @@ public static class EmpireFormationService
     // 按户数算(实体 + 背景人口折户，同朝贡、岁赐的口径，见 CityPopulationSystem.Households)；以前一直数实体，
     // 无小人、纯净地图(独立服务器也是)下谁都够不上人口 200，天下几十年没人称帝
     public static int Population(Realm kingdom) =>
-        kingdom?.Record == null ? 0 : CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.Households(kingdom) : kingdom.PopulationCount();
+        kingdom?.Record == null ? 0 : CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.Households(kingdom) : kingdom.CountUnits();
 
     public static bool IsSubject(Realm kingdom) =>
         kingdom?.Record != null && !kingdom.IsGone() &&
@@ -554,7 +550,6 @@ public static class EmpireFormationService
     #region 称帝之后
 
     // 新帝国建立后调用(剧情路线)：定初始天命、处理原同盟成员、同文化不服者记仇与结盟。
-#if EC_PENDING
     public static void CompleteFormation(Empire empire, Realm founder, EmpireFormationRoute route)
     {
         Alliance alliance = founder?.HasAlliance() == true ? founder.GetAlliance() : null;
@@ -602,10 +597,8 @@ public static class EmpireFormationService
         FormAntiEmpireAlliances(empire, dissenters.Where(kingdom =>
             string.Equals(CultureService.GetRealmCulture(kingdom), culture, StringComparison.Ordinal)).ToList());
     }
-#endif
 
     // 原同盟成员按对新帝国的好感表态：高则归附为诸侯，中等改为朝贡，负则退出同盟(并算作不服者)
-#if EC_PENDING
     private static void ResolveAllianceMembers(Empire empire, Realm founder, Alliance alliance,
         IReadOnlyCollection<Realm> allianceMembers, IReadOnlyCollection<Realm> coRuledRealms,
         List<Realm> dissenters)
@@ -652,7 +645,6 @@ public static class EmpireFormationService
                 empire.GetEmpireName()), kingdomId: member.Key);
         }
     }
-#endif
 
     private static void LeaveFoundingAlliance(Alliance alliance, Realm member)
     {

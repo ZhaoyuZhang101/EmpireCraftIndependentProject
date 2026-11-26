@@ -15,7 +15,6 @@ public static class RealmAuthority
     private static readonly Dictionary<long, (int value, float at)> Cache = new();
     private static object _cacheWorld;
 
-#if EC_PENDING
     public static int Get(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || EmpireWorld.Current == null) return 0;
@@ -31,10 +30,8 @@ public static class RealmAuthority
         Cache[kingdom.Key] = (value, now);
         return value;
     }
-#endif
 
     // 君威的各项来源(界面悬停明细用)；键复用正统明细里已有的说法，君威独有的另起
-#if EC_PENDING
     public static List<(string key, int value)> Breakdown(Realm kingdom)
     {
         var items = new List<(string key, int value)>();
@@ -56,7 +53,6 @@ public static class RealmAuthority
         if (InRebellion(kingdom)) items.Add(("realm_authority_rebellion", RealmAuthorityRules.Rebellion));
         return items;
     }
-#endif
 
     // 叛乱未平：本国正在起兵(派系、地方叛乱)，或正被叛军攻打
     public static bool InRebellion(Realm kingdom)

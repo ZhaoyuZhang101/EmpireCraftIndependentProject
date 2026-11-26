@@ -17,10 +17,10 @@ public class EmpireCraftCityBehCheckJoinRebellion: GameAICityBase
     public override BehResult Execute(City pCity)
     {
         if (pCity.IsGone()) return BehResult.Stop;
-        if (pCity.isNeutral()) return BehResult.Stop;
+        if (pCity.IsNeutral()) return BehResult.Stop;
         if (pCity.IsCapital()&&pCity.Realm.IsEmpire()) return BehResult.Continue;
         if (!RebellionSystem.CanAttempt(pCity.Realm) || !CityStabilitySystem.CanRise(pCity)) return BehResult.Continue;
-        int loyalty = pCity.getLoyalty();
+        int loyalty = pCity.GetLoyalty();
         if (loyalty > 38) return BehResult.Continue;
         CityValueSnapshot cityValue = pCity.GetCityStrategicValue();
         if (loyalty > CityValueRules.GetIsolationRebellionLoyaltyThreshold(cityValue)) return BehResult.Continue;
@@ -29,7 +29,7 @@ public class EmpireCraftCityBehCheckJoinRebellion: GameAICityBase
         var target = pCity.NeighbourCities.ToList().Find(c =>
         {
             if (c.IsGone()) return false;
-            if (c.isNeutral()) return false;
+            if (c.IsNeutral()) return false;
             if (!c.HasRealm()) return false;
             var targetKingdom = c.Realm;
             if (initKingdom == targetKingdom) return false;

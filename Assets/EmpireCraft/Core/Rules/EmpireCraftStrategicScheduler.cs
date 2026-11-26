@@ -154,7 +154,7 @@ public static class EmpireCraftStrategicScheduler
             : Math.Min(1, empireCount);
         maximumKingdoms = Math.Max(maximumKingdoms, minimumKingdoms);
         maximumEmpires = Math.Max(maximumEmpires, minimumEmpires);
-        long started = Stopwatch.GetTimestamp();
+        long started = SimWatch.GetTimestamp();
 
         // Titles are internally sliced. Calling once per render frame avoids a full
         // title scan on every physics tick.
@@ -396,6 +396,7 @@ public static class EmpireCraftStrategicScheduler
             LogService.LogWarning($"[EmpireCraft] Strategic kingdom slice failed for {kingdom.Key}: {error}");
         }
     }
+#endif
 
     private static void ProcessTemporaryFactions(Realm kingdom)
     {
@@ -417,7 +418,6 @@ public static class EmpireCraftStrategicScheduler
             }
         }
     }
-#endif
 
     private const double EmpireBudgetShare = 0.35d;
     private const double MinimumEmpireBudgetMilliseconds = 0.25d;
@@ -465,7 +465,7 @@ public static class EmpireCraftStrategicScheduler
 
     private static double ElapsedMilliseconds(long started)
     {
-        return (Stopwatch.GetTimestamp() - started) * 1000d / Stopwatch.Frequency;
+        return (SimWatch.GetTimestamp() - started) * 1000d / SimWatch.Frequency;
     }
 }
 }

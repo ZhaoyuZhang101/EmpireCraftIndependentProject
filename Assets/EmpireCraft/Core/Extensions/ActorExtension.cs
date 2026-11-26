@@ -210,9 +210,9 @@ public class OfficeIdentity
 #if EC_PENDING
     [JsonIgnore]
     public AdvancedButton setLeaderButton { get; set; } 
+#endif
     [JsonIgnore]
     public AutoHoriLayoutGroup memberCardSpace { get; set; }
-#endif
     public List<EmpireExamLevel> empireExamLevels { get; set; } = new List<EmpireExamLevel>();
     public long actor_id;
     [JsonIgnore]
@@ -594,7 +594,6 @@ public static class ActorExtension
         return true;
     }
 
-#if EC_PENDING
     public static bool HasNearbyEnemyAttackOpportunity(this Person a)
     {
         if (a == null || a.Realm == null || a.Cell?.Zone == null)
@@ -624,7 +623,6 @@ public static class ActorExtension
 
         return false;
     }
-#endif
 
     private static bool IsNearbyEnemyAttackTarget(this Person a, Cell requestedTile)
     {
@@ -654,7 +652,7 @@ public static class ActorExtension
             return false;
         }
 
-        for (int i = 0; i < city.PopulationCount(); i++)
+        for (int i = 0; i < city.People.Count; i++)
         {
             Person other = city.People[i];
             if (other == null || other == actor || !other.HasArmy() || other.Cell?.Zone != zone)
@@ -1107,7 +1105,7 @@ public static class ActorExtension
     // (age_overgrowth)里，created_time 是落地那天，原版 getBirthday() 就把落地日当生日——族谱上一位四十岁的皇帝
     // 只比长子大几个月，像是五岁生子。按额外年龄往前推(原版新生儿额外年龄为 1，一年 60 秒)
     public static double TrueBirthTime(this Person a) =>
-        a?.Record == null ? 0d : a.BirthStamp - Math.Max(0, a.Record.AgeOvergrowth - 1) * 60d;
+        a?.Record == null ? 0d : a.BirthStamp - Math.Max(0, a.Record.AgeOvergrowth - 1) * 12d;
 
     public static string TrueBirthday(this Person a) => GameClock.DateText(a.TrueBirthTime());
 

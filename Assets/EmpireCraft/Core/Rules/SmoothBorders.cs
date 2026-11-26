@@ -740,7 +740,7 @@ public static partial class SmoothBorders
     public static void Finish(Color32[] pixels, Cell zone)
     {
         // 原版刚给这块地上过色(colorZone、applyMetaColorsToZone[Full] 之后都调这里)：记下所在的块(地块 8×8 落在一个上传块里，见 SmoothBorders.Upload)
-        if (zone?.Tiles != null && zone.Tiles.Length > 0 && zone.Tiles[0]?.data != null) MarkPixel(zone.Tiles[0].Index);
+        if (zone?.Tiles != null && zone.Tiles.Length > 0 && zone.Tiles[0]?.Record != null) MarkPixel(zone.Tiles[0].Index);
         if (Enabled && zone?.Tiles != null && pixels != null && _paintedZone != zone.Index &&
             Transitions.TryGetValue(zone.Index, out Transition raw) && raw.raw)
             ApplyRaw(pixels, zone, raw);
@@ -1103,7 +1103,7 @@ public static partial class SmoothBorders
         {
             Transitions.Remove(zone.Index);
             PendingSweep.Remove(zone.Index);
-            if (repaint) zone.resetRenderHelpers();
+            if (repaint) zone.ResetRenderHelpers();
             return;
         }
         Transition transition = Capture(zone);
@@ -1113,7 +1113,7 @@ public static partial class SmoothBorders
         PendingFollow.Remove(zone.Index);
         if (PendingSweep.Count == 0 && PendingFollow.Count == 0) _pendingSince = Time.unscaledTime;
         PendingSweep.Add(zone.Index);
-        if (repaint) zone.resetRenderHelpers();
+        if (repaint) zone.ResetRenderHelpers();
         Follow(zone);
     }
 #endif
@@ -1138,7 +1138,7 @@ public static partial class SmoothBorders
             transition.follow = true;
             Transitions[near.Index] = transition;
             PendingFollow.Add(near.Index);
-            near.resetRenderHelpers();
+            near.ResetRenderHelpers();
         }
     }
 #endif
@@ -1328,29 +1328,29 @@ public static partial class SmoothBorders
 
     // 逐格推进吃下的块：推进本身已经是渐变，换主时直接显示。已经画好新样子、还在按旧样子显示的(等着扫描)，
     // 当场换成新样子——以前直接丢掉渐变，这块地就一直留着旧颜色(它已经画过，原版不会再重画)
-#if EC_PENDING
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
     public static void Settle(Cell zone)
     {
         // 整图画布：这块地这一轮直接换，不翻牌
         if (CanvasActive && zone != null)
         {
-            Transitions.Remove(zone.Index);
-            CanvasNoFlip.Add(zone.Index);
+            Transitions.Remove(zone.id);
+            CanvasNoFlip.Add(zone.id);
             CanvasMark(zone);
             return;
         }
         MetaTypeAsset layer = EmpireWorld.Current?.getCachedMapMetaAsset();
         // 战线推进只处理国家/帝国的显示；不能撤销城市图层的状态或写回别的图层留下的颜色。
         if (zone == null || layer == null || !ControlLayer(layer) || !ReferenceEquals(layer, _sweepLayer)) return;
-        Shown.Remove(zone.Index);
-        PendingSweep.Remove(zone.Index);
-        PendingFollow.Remove(zone.Index);
-        if (!Transitions.TryGetValue(zone.Index, out Transition transition)) return;
-        Transitions.Remove(zone.Index);
-        ZoneGrid calc = EmpireWorld.Current?.Zones;
+        Shown.Remove(zone.id);
+        PendingSweep.Remove(zone.id);
+        PendingFollow.Remove(zone.id);
+        if (!Transitions.TryGetValue(zone.id, out Transition transition)) return;
+        Transitions.Remove(zone.id);
+        ZoneGrid calc = EmpireWorld.Current?.zone_calculator;
         Color32[] pixels = calc?.pixels;
-        if (transition.newPixels == null || zone.Tiles == null || pixels == null || pixels.Length != _base.Length ||
-            transition.newPixels.Length != zone.Tiles.Length) return;
+        if (transition.newPixels == null || zone.tiles == null || pixels == null || pixels.Length != _base.Length ||
+            transition.newPixels.Length != zone.tiles.Length) return;
         int[] ids = PixelIds(zone);
         BeginLift();
         for (int i = 0; i < ids.Length; i++)
@@ -1360,7 +1360,7 @@ public static partial class SmoothBorders
             _base[id] = transition.newPixels[i];
             pixels[id] = Marked(id, Lifted(id));
         }
-        calc.MarkDirty();
+        calc.setDirty();
     }
 #endif
 
@@ -1551,7 +1551,7 @@ public static partial class SmoothBorders
         {
             calc.MarkDirty();
             QuietResets++;
-            foreach (Cell zone in calc._current_drawn_zones) zone.resetRenderHelpers();
+            foreach (Cell zone in calc._current_drawn_zones) zone.ResetRenderHelpers();
             QuietResets--;
             calc.clearAllRedrawTimers();
         }
@@ -1718,7 +1718,7 @@ public static partial class SmoothBorders
         ZoneGrid calc = EmpireWorld.Current.Zones;
         Color32[] pixels = calc.pixels;
         if (pixels == null || pixels.Length != _base.Length) return;
-        long started = global::System.Diagnostics.Stopwatch.GetTimestamp();
+        long started = SimWatch.GetTimestamp();
         List<int> done = null;
         bool wrote = false;
         ZoneFlipOverlay.Begin();
@@ -1729,7 +1729,7 @@ public static partial class SmoothBorders
             if (zone?.Tiles == null || transition.newPixels == null && now - transition.created > StaleSeconds)
             {
                 // 一直没画到：作废，并让原版重画它(直接显示新样子)，不留旧颜色
-                zone?.resetRenderHelpers();
+                zone?.ResetRenderHelpers();
                 (done ??= new List<int>()).Add(pair.Key);
                 continue;
             }
@@ -1753,7 +1753,7 @@ public static partial class SmoothBorders
         if (done != null)
             foreach (int id in done) Transitions.Remove(id);
         if (wrote) calc.MarkDirty();
-        FrameProfiler.Record("平滑国界·换色翻牌", global::System.Diagnostics.Stopwatch.GetTimestamp() - started);
+        FrameProfiler.Record("平滑国界·换色翻牌", SimWatch.GetTimestamp() - started);
     }
 
     private static bool PendingUnpainted()
@@ -2133,7 +2133,6 @@ public static partial class SmoothBorders
     }
 
     // 这一格记为边框，四邻的陆地格记下的归属却都同它一样：残留的边框(国界早该没了，见 LayerDiagnostics)
-#if EC_PENDING
     public static bool StaleOutline(Cell tile)
     {
         int id = tile?.Index ?? -1;
@@ -2142,14 +2141,13 @@ public static partial class SmoothBorders
         if (owner == 0) return false;
         foreach (Cell next in new[] { tile.Up, tile.Down, tile.Left, tile.Right })
         {
-            if (next?.data == null) return false;
+            if (next?.Record == null) return false;
             int other = next.Index;
             if (IsWater(next.X, next.Y)) continue;
             if (other < 0 || other >= _owner.Length || _owner[other] != owner) return false;
         }
         return true;
     }
-#endif
 
     // 归属/战线变化或残留边框：丢掉本块与周围八块的缓存，包含平滑轮廓伸入的斜对角。
     // 重画指纹(用户 2026-10-19 转玩家反馈"平滑模式下色块不刷新"，问答选"补全重画指纹")：原版决定一块地要不要重画
@@ -2304,20 +2302,20 @@ public static partial class SmoothBorders
             return meta.GetType().Name;
         }
     }
+#endif
 
     public static void Repaint(Cell zone)
     {
         if (zone == null) return;
         Snapshots.Remove(zone.Index);
-        zone.resetRenderHelpers();
+        zone.ResetRenderHelpers();
         foreach (Cell next in zone.NeighboursAll ?? Array.Empty<Cell>())
         {
             if (next == null) continue;
             Snapshots.Remove(next.Index);
-            next.resetRenderHelpers();
+            next.ResetRenderHelpers();
         }
     }
-#endif
 
     #endregion
 
@@ -2491,20 +2489,17 @@ public static partial class SmoothBorders
 
     // 宣战、议和后战线(边框朱红)要变：双方各城的地块重画(WarPatch)；上色缓存按周围几方是否交战取(见 FrontSignature)，
     // 不挨着敌方的地块照样从缓存拷回
-#if EC_PENDING
     public static void RefreshWar(War war)
     {
         if (!Enabled || war == null) return;
         foreach (Realm kingdom in war.GetAttackers().Concat(war.GetDefenders()))
             foreach (City city in kingdom?.Cities ?? new List<City>())
                 foreach (Cell zone in city?.Zones ?? new List<Cell>())
-                    zone?.resetRenderHelpers();
+                    zone?.ResetRenderHelpers();
     }
-#endif
 
     // 本月真打起来的两方变了(见 FrontSystem.HasFront)：涉及的国家(连同所在帝国的成员)各城重画
     // (只重画挨着别国的地块并丢掉它们的上色缓存，不让全图缓存作废)
-#if EC_PENDING
     public static void RefreshFronts(ICollection<long> realms)
     {
         if (!Enabled || realms == null || realms.Count == 0 || EmpireWorld.Current?.LiveRealms == null) return;
@@ -2521,11 +2516,10 @@ public static partial class SmoothBorders
                         if (next?.City?.Realm != null && next.City.Realm != kingdom) { border = true; break; }
                     if (!border) continue;
                     Snapshots.Remove(zone.Index);
-                    zone.resetRenderHelpers();
+                    zone.ResetRenderHelpers();
                 }
         }
     }
-#endif
 
     // 这块地的归属或颜色变了：周围两圈(5×5，连斜对角)也重画，平滑的边要跟着变。
     // 一格归谁看它所在地块周围 3×3 块，判边框还要看外面一圈格(落在邻块里，归属又看邻块周围 3×3)，
@@ -2544,7 +2538,7 @@ public static partial class SmoothBorders
         ZoneGrid calc = EmpireWorld.Current.Zones;
         for (int dy = -RememberRadius; dy <= RememberRadius; dy++)
         for (int dx = -RememberRadius; dx <= RememberRadius; dx++)
-            if (dx != 0 || dy != 0) calc.Get(zone.X + dx, zone.Y + dy)?.resetRenderHelpers();
+            if (dx != 0 || dy != 0) calc.Get(zone.X + dx, zone.Y + dy)?.ResetRenderHelpers();
     }
 #endif
 

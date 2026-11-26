@@ -8,7 +8,7 @@ namespace EmpireCraft.Core
 // 诊断用的只读查询(见 FrontSystem.PushDiagnostics)：这块地在当前图层上取到的归属，整图画布上记着的是什么
 public static partial class SmoothBorders
 {
-#if EC_PENDING
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
     internal static string DescribeDisplay(Cell zone)
     {
         if (zone == null) return "无";
@@ -18,21 +18,22 @@ public static partial class SmoothBorders
             if (layer == null) return "无图层";
             int option = layer.getZoneOptionState();
             string text = $"图层 {layer.id} 归属 {MetaLabel(LayerMeta(layer, option, zone))} 控制方 {MetaLabel(RealMetaOf(layer, option, zone))} 推进方 {MetaLabel(PushMetaOf(layer, zone))}";
-            if (!CanvasActive || !ReferenceEquals(layer, _canvasLayer) || zone.Index < 0 || zone.Index >= _zoneCity.Length) return text + " 画布 未接手";
+            if (!CanvasActive || !ReferenceEquals(layer, _canvasLayer) || zone.id < 0 || zone.id >= _zoneCity.Length) return text + " 画布 未接手";
             CountCanvas(zone, out int land, out int blank);
-            return text + $" 画布 城{_zoneCity[zone.Index]} 控制{_zoneShade[zone.Index]} 推进{_zonePush[zone.Index]} 空格{blank}/{land}";
+            return text + $" 画布 城{_zoneCity[zone.id]} 控制{_zoneShade[zone.id]} 推进{_zonePush[zone.id]} 空格{blank}/{land}";
         }
         catch (Exception exception)
         {
             return $"取显示失败({exception.Message})";
         }
     }
+#endif
 
+#if EC_PENDING
     private static string MetaLabel(IMetaObject meta) => meta == null ? "无" : $"{meta.name}#{meta.Key}";
 #endif
 
     // 这块地归城、在按城归属的图层上，画布却有一大半陆地格没有归属，且不是这一帧刚要重画的
-#if EC_PENDING
     internal static bool CanvasBlank(Cell zone)
     {
         if (zone?.City == null || !CanvasActive || !_canvasCityKeyed || zone.Index < 0 || zone.Index >= _zoneCity.Length || CanvasDirty.Contains(zone.Index))
@@ -40,7 +41,6 @@ public static partial class SmoothBorders
         CountCanvas(zone, out int land, out int blank);
         return land > 0 && blank * 2 > land;
     }
-#endif
 
     private static void CountCanvas(Cell zone, out int land, out int blank)
     {

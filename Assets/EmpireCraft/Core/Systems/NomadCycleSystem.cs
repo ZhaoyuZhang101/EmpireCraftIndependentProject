@@ -66,7 +66,6 @@ public static class NomadCycleSystem
     #region 汗位更替之乱
 
     // 新汗即位：平常先于即位分封兀鲁思，新分出去的兄弟这一回不自立；雄主之后的那一回先分后判(见 Empire.CompleteSuccession)
-#if EC_PENDING
     public static void OnKhanSucceeded(Empire empire)
     {
         try
@@ -121,7 +120,6 @@ public static class NomadCycleSystem
             LogService.LogWarning($"[EmpireCraft][汗位更替] 结算失败: {exception.Message}");
         }
     }
-#endif
 
     // 新哈里发即位：新君还没受册封，哈里发国与印度(没有册封)正统同在一条线上，门槛不分
 #if EC_PENDING
@@ -247,7 +245,6 @@ public static class NomadCycleSystem
     }
 
     // 拥兵自立：退出帝国、与中央开战(地方独立)，记下起因(拥兵自立决议与汗位更替之乱共用)
-#if EC_PENDING
     public static bool DeclareIndependence(Realm kingdom, Empire empire, string reasonKey)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || empire?.CoreKingdom == null || kingdom.Capital == null) return false;
@@ -262,7 +259,6 @@ public static class NomadCycleSystem
         RebellionSystem.Record(kingdom, war, cause);
         return true;
     }
-#endif
 
     #endregion
 
@@ -295,7 +291,6 @@ public static class NomadCycleSystem
     }
 
     // 当场崩解(汗庭的地已先分给新汗的兄弟)；legitimacy 是分封之前的正统，只进日志
-#if EC_PENDING
     public static void KhanateCollapse(Empire empire, int legitimacy)
     {
         try
@@ -346,7 +341,6 @@ public static class NomadCycleSystem
             LogService.LogWarning($"[EmpireCraft][汗国崩解] 结算失败: {exception.Message}");
         }
     }
-#endif
 
     // 汗国崩解时走的成员：兀鲁思、领地(游牧政体、本族定居分封的成员)，或 AnnexedYears 年内并入的别种政体成员；
     // 行省、羁縻、起事中的、正与汗庭交战的留下

@@ -52,7 +52,6 @@ public static class LivelihoodSystem
     public const int RulesVersion = 2;
 
     // 这处镇村的生计(关城没有，-1)；还没定的按地形定下、存进存档
-#if EC_PENDING
     public static int Of(RuralSettlement settlement)
     {
         if (settlement == null || settlement.fort) return -1;
@@ -70,7 +69,6 @@ public static class LivelihoodSystem
     }
 
     public static int At(int x, int y) => Of(RuralSettlementSystem.At(x, y));
-#endif
 
     // 本城产粮的镇村够这么多成，宜农的草地、疏林才轮得到放牧、伐木
     private const float ArableSpareFood = 0.6f;
@@ -129,7 +127,6 @@ public static class LivelihoodSystem
 
     private const float MarketMines = 3f;
 
-#if EC_PENDING
     private static int Classify(RuralSettlement settlement)
     {
         City city = RuralSettlementSystem.CityOf(settlement);
@@ -158,14 +155,12 @@ public static class LivelihoodSystem
         if (s.Rough >= 0.25f) return Mine;
         return Farm;
     }
-#endif
 
     // 旧档按旧规则定的生计重查一次(没在窗口里手动改过的)：
     //   · 第 0 版：以前本城有任何矿藏(连同还开不了的铀、石油)就硬派一处矿村，平地上也是——四周山石不到两成半、
     //     本城眼下没有开得了的矿藏的矿村，改按地形重定；
     //   · 第 0、1 版：沙地不算旱地，沙漠里的村都落成务农——四周旱地(连同沙地)过半的农村改按地形重定(先牧后农)。
     // 由人口经济结算调用(那时科技已读好)，每处镇村只查一次
-#if EC_PENDING
     public static void RecheckOldRules(City city)
     {
         if (!Active || city?.Record == null) return;
@@ -189,7 +184,6 @@ public static class LivelihoodSystem
         }
         if (changed) RuralSettlementSystem.TradeChanged(city);
     }
-#endif
 
     // 本城已定了生计的镇村里，产粮(农、渔)的份数占几成；还没有的算零
     private static float FoodShare(City city, RuralSettlement except)
@@ -216,7 +210,6 @@ public static class LivelihoodSystem
     // ---- 本城各生计的份数与产出 ----
 
     // 本城完好的镇村里做这一行的份数(村 1、镇 3)
-#if EC_PENDING
     public static float Shares(City city, int trade)
     {
         if (city == null) return 0f;
@@ -225,7 +218,6 @@ public static class LivelihoodSystem
             if (settlement.ruined_at < 0d && Of(settlement) == trade) shares += RuralSettlementSystem.Weight(settlement);
         return shares;
     }
-#endif
 
     // 本文化这一行做到第几级(原矿场、伐木场五级，农具、渔船，都随科技换代，见 FarmlandSystem.FarmTools)
     public static int Level(City city, int trade) => trade switch
@@ -247,9 +239,7 @@ public static class LivelihoodSystem
     };
 
     // 折成几座原来的矿场、伐木场、牧场
-#if EC_PENDING
     public static float Equivalent(City city, int trade) => Active ? Shares(city, trade) * PerShare : 0f;
-#endif
 
     // 定生计时用：只数已定了这一行的。Equivalent 走 Of，会当场给还没定生计的镇村定生计，定生计又问到这里，
     // 无限递归把主线程的栈撑爆，开局必闪退
@@ -263,18 +253,15 @@ public static class LivelihoodSystem
     }
 
     // 矿、林的产出倍数(代替原来各座矿场、伐木场的等级倍数之和，见 IndustryBuildingSystem.OutputFactor)
-#if EC_PENDING
     public static float Factor(City city, int trade)
     {
         float equivalent = Equivalent(city, trade);
         if (equivalent <= 0f) return 0f;
         return equivalent * IndustryBuildingSystem.TierFactor(Level(city, trade)) * IndustryBuildingSystem.FactoryBonus(city);
     }
-#endif
 
     // 牧场、屠宰场折几座(见 AnimalHusbandrySystem)：游牧营地(见 CityStyleSystem.Nomad)至少照原来三座牧场，毡帐村镇多了才往上加——
     // 只看城是不是营地，不看文化线(游牧一系也有阿兹特克、林地部族，他们是农耕、渔猎)；研究了制革，牧村、林场村的一半折成屠宰场
-#if EC_PENDING
     public static float Pastures(City city) =>
         CityStyleSystem.Nomad(city) ? Mathf.Max(NomadPastures, Equivalent(city, Pasture)) : Equivalent(city, Pasture);
 
@@ -284,10 +271,8 @@ public static class LivelihoodSystem
         float game = (Shares(city, Pasture) + Shares(city, Forest)) * PerShare * 0.5f;
         return CityStyleSystem.Nomad(city) ? Mathf.Max(1f, game) : game;
     }
-#endif
 
     // 原版建筑类型折几座(科技加速"本文化有几座矿场"等，见 TechnologySystem.IsBoostMet)
-#if EC_PENDING
     public static int BuildingEquivalent(City city, string type)
     {
         if (!Active || city == null) return 0;
@@ -301,38 +286,30 @@ public static class LivelihoodSystem
         };
         return Mathf.RoundToInt(count);
     }
-#endif
 
     // 本城做这一行的户数(按份数分背景户数，同 FarmlandSystem.RuralHarvest)
-#if EC_PENDING
     public static float Workers(City city, int trade)
     {
         if (city == null) return 0f;
         (float living, float ruined) = RuralSettlementSystem.Weights(city);
         return CityPopulationSystem.BackgroundHouseholds(city) * Shares(city, trade) / (CityWeight + living + ruined);
     }
-#endif
 
     // 林场、矿、牧的岗位(农、渔的岗位记在农田岗位里，见 FarmlandSystem.RuralHarvest)
-#if EC_PENDING
     public static float Jobs(City city) =>
         Active ? JobsPerWorker * (Workers(city, Forest) + Workers(city, Mine) + Workers(city, Pasture)) : 0f;
-#endif
 
     // 渔村的鱼(由人口经济按经过的年数调用，见 PopulationEconomySystem.Settle)
-#if EC_PENDING
     public static void Produce(City city, CityPopulationData data, float years)
     {
         if (!Active || city == null || data == null || years <= 0f) return;
         float fish = Workers(city, Fish) * FishYield * FarmlandSystem.FishProductivity(city) * years;
-        if (fish > 0f && AssetManager.resources?.get("fish") != null) PopulationEconomySystem.Deposit(city, data, "fish", fish);
+        if (fish > 0f && ResourceKinds.Table?.get("fish") != null) PopulationEconomySystem.Deposit(city, data, "fish", fish);
     }
-#endif
 
     // ---- 官营民营 ----
 
     // 本城的产业：林场、矿、牧的镇村按份数，厂区里的厂按等级；官营的占几份(见 EnterpriseSystem.TakePublicProfit)
-#if EC_PENDING
     public static void CountEnterprises(City city, out int total, out int publicCount)
     {
         total = publicCount = 0;
@@ -352,7 +329,6 @@ public static class LivelihoodSystem
                 if (site.state) publicCount += level;
             }
     }
-#endif
 
     // ---- 小窗口 ----
 

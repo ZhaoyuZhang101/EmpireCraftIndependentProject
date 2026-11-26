@@ -679,7 +679,6 @@ public static partial class CompositeEmpireService
         empire.data.empire_type_key = "";
     }
 
-#if EC_PENDING
     public static void Update(Empire empire)
     {
         if (!IsComposite(empire) || empire.CoreKingdom == null || empire.CoreKingdom.IsGone() || EmpireWorld.Current == null)
@@ -760,7 +759,6 @@ public static partial class CompositeEmpireService
         if (empire.data.composite_integration_stage == CompositeEmpireIntegrationStage.IntegratedDynasty)
             CompleteIntegration(empire, institutionalCulture);
     }
-#endif
 
     // 统治族群、制度文化各占治下人口的几成：按各城的文化构成乘城中人口(含无小人模式的背景人口)。
     // 以前数实体小人——无小人模式下几乎没有小人，两个占比都是 0，融合只看皇帝本人的文化
@@ -1019,7 +1017,6 @@ public static partial class CompositeEmpireService
     }
 
     // 易俗改制(见 CultureReformSystem)：君主改从制度文化之俗，融合一步到位
-#if EC_PENDING
     public static void CompleteByReform(Empire empire)
     {
         if (!IsComposite(empire)) return;
@@ -1059,7 +1056,6 @@ public static partial class CompositeEmpireService
         // 旧部不服改俗，据地起兵(见 CompositeEmpireService.Conquest)
         OldGuardRevolt(empire, oldRuling, institutionalCulture);
     }
-#endif
 
     // 征服王朝随统治族群带来的诉求：游牧扩张挂在攘夷、融入派上(保留游牧军事传统时)；
     // 国语骑射挂在攘夷、同化派上(统治族群游牧、尚未融完时)。没有这些派系的挂在当权派上

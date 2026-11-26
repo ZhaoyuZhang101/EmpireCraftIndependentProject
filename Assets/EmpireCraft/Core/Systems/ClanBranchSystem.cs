@@ -41,13 +41,10 @@ public static class ClanBranchSystem
     private const int PrinceBranchAge = 16;
 
     private static double _lastScan = -1d;
-#if EC_PENDING
     private static readonly FrameBudgetQueue<long> Queue =
         new(2d, id => ScanClan(SpecificClanManager.Get(id)), "宗族分家检查");
-#endif
 
     // 挂在城市更新上(每座城都会调)，这里自己限流成一年一轮，一轮分帧做完
-#if EC_PENDING
     public static void TryYearlyScan()
     {
         if (EmpireWorld.Current == null || ModClass.IS_CLEAR) return;
@@ -84,7 +81,6 @@ public static class ClanBranchSystem
         if (TryMigrationBranch(clan, living, chief)) return;
         TryMourningBranch(clan, living, chief);
     }
-#endif
 
     #region 别子为祖
 
@@ -355,18 +351,16 @@ public static class ClanBranchSystem
     }
 
     // 宗子 = 原版氏族族长；取本宗族在世成员所在的原版氏族。整族虚拟(没有原版氏族)时取辈分最高、最年长的正支族人
-#if EC_PENDING
     private static PersonalClanIdentity GetChief(SpecificClan clan, List<PersonalClanIdentity> living)
     {
         Clan vanilla = living.Where(identity => !identity.is_virtual).Select(identity => identity._actor?.Clan)
             .FirstOrDefault(candidate => candidate != null && candidate.GetSpecificClan() == clan);
-        Person chief = vanilla?.getChief();
+        Person chief = vanilla?.GetChief();
         if (chief != null && !chief.IsGone() && chief.GetSpecificClan() == clan && chief.GetPersonalIdentity() is { } identity)
             return identity;
         return living.Where(person => person.is_main && !person.is_concubine && person.IsHeirPriority())
             .OrderBy(person => person.generation).ThenByDescending(person => person.age).FirstOrDefault();
     }
-#endif
 
     // root 及其在本宗族里的全部在世后裔(沿 is_main 血脉往下)，再带上他们嫁/入进来的配偶
     private static List<PersonalClanIdentity> CollectDescendants(SpecificClan clan, PersonalClanIdentity root,

@@ -35,7 +35,6 @@ public static class WallGateSystem
     private static bool _changed;
 
     // 关门(关城压着的城墙格)
-#if EC_PENDING
     public static IReadOnlyCollection<int> GateTiles
     {
         get
@@ -44,10 +43,8 @@ public static class WallGateSystem
             return _gates;
         }
     }
-#endif
 
     // 压着城墙的关城中心(画城墙挑敌楼时让开)
-#if EC_PENDING
     public static IReadOnlyList<(int x, int y)> Centers
     {
         get
@@ -56,32 +53,26 @@ public static class WallGateSystem
             return _centers;
         }
     }
-#endif
 
     // 关城方城的半边长(格)：一律 RuralSettlementSystem.FortReach，不随等级变；与 UrbanFabric、PureMapPatch.Fort 画的一样
     public static int Reach(RuralSettlement fort) => RuralSettlementSystem.FortReach;
 
-#if EC_PENDING
     public static bool IsGate(int tileId)
     {
         Ensure();
         return _gates.Count > 0 && _gates.Contains(tileId);
     }
 
-    public static bool IsGate(Cell tile) => tile?.data != null && IsGate(tile.Index);
-#endif
+    public static bool IsGate(Cell tile) => tile?.Record != null && IsGate(tile.Index);
 
     // 城池全图筑的城墙上的城门(不是关城压着的关门；守门的是这一格所在的地块，见 WallPassage)
-#if EC_PENDING
     public static bool IsCityGate(Cell tile)
     {
         Ensure();
-        return tile?.data != null && _cityGates.Count > 0 && _cityGates.Contains(tile.Index);
+        return tile?.Record != null && _cityGates.Count > 0 && _cityGates.Contains(tile.Index);
     }
-#endif
 
     // (x, y) 这座关城压着几格关门(城市平面图的指纹用)
-#if EC_PENDING
     public static int GatesAround(int x, int y)
     {
         Ensure();
@@ -90,24 +81,20 @@ public static class WallGateSystem
         const int far = RuralSettlementSystem.FortReach;
         for (int dy = -far; dy <= far; dy++)
         for (int dx = -far; dx <= far; dx++)
-            if (EmpireWorld.Current.CellAt(x + dx, y + dy)?.data is WorldTileData data && _gates.Contains(data.tile_id)) count++;
+            if (EmpireWorld.Current.CellAt(x + dx, y + dy)?.Record is Cell data && _gates.Contains(data.Index)) count++;
         return count;
     }
-#endif
 
     // 这一格画的是压着城墙的关城(城墙图层在这里不画墙、不落影子、不起敌楼)
-#if EC_PENDING
     public static bool Covered(int tileId)
     {
         Ensure();
         return _covered.Count > 0 && _covered.Contains(tileId);
     }
-#endif
 
     // 筑关吸附：点的这一格或四周 Snap 格以内最近的一格城墙(只排除水面：长城多沿山脊，关隘本在山口，山上、岩石上的墙也吸；
     // 关城画在山格上照画，见 PureMapPatch.Fort)；优先落在点的那座城的地上。城池全图筑的城墙(城区外沿那一圈，自有城门，见 CityPlanWorks)
     // 不吸：在城外贴着城墙筑关，关城落在点的地方。没有返回 null
-#if EC_PENDING
     public static Cell SnapToWall(Cell tile)
     {
         if (tile?.Zone == null || MapWallSystem.Walls.Count == 0) return null;
@@ -127,7 +114,6 @@ public static class WallGateSystem
         }
         return best;
     }
-#endif
 
     // 关城的城墙阻力(见 TerrainResistance)：这块地的关门放不放 visitor 过去——关在谁手里(被敌军占着就归占领者)，
     // 谁与同一势力、并肩作战的友邦、同盟才放
@@ -143,7 +129,6 @@ public static class WallGateSystem
     }
 
     // 每帧(MapWallSystem.Tick)：关城、城墙变了就重算，另外每 RefreshSeconds 秒重算一遍；关门变了返回 true
-#if EC_PENDING
     public static bool Refresh()
     {
         float now = Time.unscaledTime;
@@ -189,7 +174,7 @@ public static class WallGateSystem
                 for (int dx = -reach; dx <= reach; dx++)
                 {
                     Cell tile = world.CellAt(fort.x + dx, fort.y + dy);
-                    if (tile?.data == null || tile.Zone?.City != city) continue;
+                    if (tile?.Record == null || tile.Zone?.City != city) continue;
                     area.Add(tile.Index);
                     // 这里不能用 MapWallSystem.Blocks(它要问关门，会绕回来)
                     if (!MapWallSystem.Contains(tile) && tile.Type?.Wall != true) continue;
@@ -205,7 +190,7 @@ public static class WallGateSystem
             foreach (int id in CityPlanWorks.PlannedGates)
             {
                 Cell tile = id >= 0 && id < world.AllCells.Length ? world.AllCells[id] : null;
-                if (tile?.data == null || !MapWallSystem.Contains(tile) && tile.Type?.Wall != true) continue;
+                if (tile?.Record == null || !MapWallSystem.Contains(tile) && tile.Type?.Wall != true) continue;
                 cityGates.Add(id);
                 gates.Add(id);
             }
@@ -215,6 +200,5 @@ public static class WallGateSystem
         _covered = covered;
         _centers = centers;
     }
-#endif
 }
 }

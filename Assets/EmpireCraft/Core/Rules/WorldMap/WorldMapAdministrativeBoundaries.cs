@@ -25,7 +25,6 @@ internal static class WorldMapAdministrativeBoundaries
     private sealed class FileData { public List<WorldMapAdministrativeBoundary> boundaries = new(); }
     private static List<WorldMapAdministrativeBoundary> _boundaries;
 
-#if EC_PENDING
     public static List<WorldMapAdministrativeBoundary> For(WorldMapEra era, string polity, string division)
     {
         if (era == null) return new();
@@ -35,10 +34,8 @@ internal static class WorldMapAdministrativeBoundaries
         string basis = WorldMapData.BaseOf(era);
         return string.IsNullOrEmpty(basis) || basis == era.id ? own : For(basis, era.year, polity, division);
     }
-#endif
 
     // 共用省界(不分哪一国，见 WorldMapScenario.ConformSharedBorders)：本剧本的，没有就照所本的剧本
-#if EC_PENDING
     public static List<WorldMapAdministrativeBoundary> Shared(WorldMapEra era)
     {
         if (era == null) return new();
@@ -69,6 +66,5 @@ internal static class WorldMapAdministrativeBoundaries
         return _boundaries.Where(item => item != null && item.era == era && item.year == year && item.polity == polity &&
             item.division == division && item.polygons is { Count: > 0 }).ToList();
     }
-#endif
 }
 }

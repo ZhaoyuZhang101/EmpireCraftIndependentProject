@@ -53,7 +53,7 @@ public static class NationMap
 
     private static bool Shown(City city) =>
         city != null && !city.IsGone() && !AncientWarfareCompatibility.OwnsObject(city) &&
-        city.People != null && city.PopulationCount() > 0;
+        city.People != null && city.People.Count > 0;
 
 #if EC_PENDING
     public static void Configure(MetaTypeAsset asset)

@@ -11,7 +11,7 @@ namespace EmpireCraft.Core
 // 选址搜索：通达层开着时(用户 2026-11-06 同意"先信息类、再贸易迁徙"，见 ConnectivitySystem)不再按地块层数(8 层)，
 //   按走过去的地形阻力(TerrainResistance.Step：平原 1、山 4、过河 +2、有路减半，政令过不去的无人区不走)做最短路，
 //   预算 settle_budget(16)以内；离原城至少 settle_min_cost(官办 5、自发 2)；评分里的远近按成本扣。没开时照旧按层数。
-public static class StateSettlementSystem
+public static partial class StateSettlementSystem
 {
     private sealed class Search
     {
@@ -94,7 +94,6 @@ public static class StateSettlementSystem
         return actor?.Record != null && !actor.IsGone() && actor.Alive && actor.Realm == owner ? actor : null;
     }
 
-#if EC_PENDING
     private static bool SafeCity(City city)
         => SafetyReason(city) == null;
 
@@ -110,6 +109,7 @@ public static class StateSettlementSystem
         return CityPopulationSystem.GetGrowthFactors(city).Famine ? "famine" : null;
     }
 
+#if EC_PENDING
     public static void Check(Realm owner)
     {
         if (!PopulationMode || owner == null || owner.IsGone() || owner.IsWild || AncientWarfareCompatibility.Owns(owner)) return;
@@ -187,7 +187,7 @@ public static class StateSettlementSystem
         // 只等待本系统上次建立的城安置，不因别的旧城人少而锁死全国。
         if (ValidCity(lastCity) && (FundingRealm(lastCity.Realm) == payer ||
                 payer.GetEmpire() != null && lastCity.Realm?.GetEmpire() == payer.GetEmpire()) &&
-            (lastCity.getTotalFood() < CityPopulationSystem.Households(lastCity) ||
+            (lastCity.GetTotalFood() < CityPopulationSystem.Households(lastCity) ||
              lastCity.GetPopulationMaximum() < CityPopulationSystem.GetTotal(lastCity)))
         { ReserveForProject(state, 0); state.status = "stabilizing"; return; }
         if (!AllCitiesAtLimit(payer))
@@ -264,6 +264,7 @@ public static class StateSettlementSystem
         return pressure && payer.GetMoney() >= Math.Max(2000L, (long)ModClass.SETTLEMENT_BASE_GOLD * 5L) &&
                GameClock.MonthsSince(since) >= 120;
     }
+#endif
 
     private static string SpontaneousCause(City city)
     {
@@ -280,17 +281,19 @@ public static class StateSettlementSystem
         return null;
     }
 
+#if EC_PENDING
     private static bool HasClaimableLand(City city)
     {
         Person actor = Founder(city.Realm, city);
         if (actor == null) return false;
-        foreach (Cell border in city.border_zones)
+        foreach (Cell border in city.BorderZones)
             foreach (Cell zone in border.Neighbours)
                 if (zone?.City == null && zone?.Center != null && zone.GroundCount > 0 &&
                     zone.canBeClaimedByCity(city) && zone.checkCanSettleInThisBiomes(actor.Subspecies) &&
                     zone.Center.IsSameIsland(city.SeatCell()) && zone.Center.reachableFrom(city.SeatCell())) return true;
         return false;
     }
+#endif
 
     private static void QueueSearch(Realm payer, City source)
     {
@@ -298,7 +301,7 @@ public static class StateSettlementSystem
         var search = new Search(unchecked((int)(payer.Key * 397L ^ source.Key ^
             BitConverter.DoubleToInt64Bits(GameClock.Now))));
         search.weighted = ConnectivitySystem.Config.enabled;
-        foreach (Cell zone in source.border_zones)
+        foreach (Cell zone in source.BorderZones)
         {
             if (zone == null) continue;
             if (search.weighted)
@@ -314,7 +317,6 @@ public static class StateSettlementSystem
         Data(payer).status = project?.spontaneous == true ? "spontaneous_searching" : "searching";
         PendingSearches.Enqueue(payer.Key);
     }
-#endif
 
     // 调度器每帧推进一个国家，最多 8 个区域和 128 格海面；不调用原版整图 CityPlaceFinder.recalc。
 #if EC_PENDING
@@ -468,8 +470,8 @@ public static class StateSettlementSystem
                 if (tile?.Type?.CanBeFarm == true) fields++;
         // 周围能建设/耕作的土地优先，木石加分设上限，避免一片矿石压过安置条件。
         score = zone.GroundCount + fields * 2 + (zone.canStartCityHere() ? 32 : 0) +
-            Math.Min(12, zone.getHashset(BuildingList.Trees)?.Count ?? 0) * 3 +
-            Math.Min(4, zone.getHashset(BuildingList.Minerals)?.Count ?? 0) * 8;
+            Math.Min(12, zone.GetHashset(BuildingList.Trees)?.Count ?? 0) * 3 +
+            Math.Min(4, zone.GetHashset(BuildingList.Minerals)?.Count ?? 0) * 8;
         search.terrainScores[zone.Index] = score;
         return score;
     }
@@ -480,7 +482,7 @@ public static class StateSettlementSystem
         Cell origin = landOrigin ?? source.SeatCell();
         if (zone?.Center == null || actor == null || zone.City != null || !zone.canStartCityHere() ||
             !zone.checkCanSettleInThisBiomes(actor.Subspecies) ||
-            zone.Center.region?.island == null || !spontaneous && !overseas && zone.Center.region.island.getTileCount() < 300 ||
+            zone.Center.Region?.island == null || !spontaneous && !overseas && zone.Center.Region.island.getTileCount() < 300 ||
             !zone.Center.IsSameIsland(origin) || !zone.Center.reachableFrom(origin)) return false;
         // 自发聚落可以靠近原居地，不沿用官办城市的四层留白。
         var queue = new Queue<(Cell zone, int depth)>();
@@ -549,7 +551,7 @@ public static class StateSettlementSystem
             !PlanCargo(project, donors, "stone", ModClass.SETTLEMENT_STONE)) return false;
         reason = "food";
         int food = (int)Math.Ceiling(project.people / targetScale * ModClass.SETTLEMENT_FOOD_YEARS);
-        ResourceAsset[] foods = AssetManager.resources.list.Where(resource => resource.type == ResType.Food).ToArray();
+        ResourceKind[] foods = ResourceKinds.Table.list.Where(resource => resource.type == ResType.Food).ToArray();
         // 自主藩国不会使用帝国核心的粮仓。没有粮仓制度时直接用城市余粮。
         if (GranarySystem.ModRealm(payer) == payer && GranarySystem.Enabled(payer) && foods.Length > 0)
         {
@@ -560,11 +562,11 @@ public static class StateSettlementSystem
         foreach (City donor in donors)
         {
             // 原版食物缓存可能尚未反映本帧吃粮，保护线必须读取实际库存。
-            int surplus = Math.Max(0, foods.Sum(resource => donor.getResourcesAmount(resource.id)) -
+            int surplus = Math.Max(0, foods.Sum(resource => donor.GetResourcesAmount(resource.id)) -
                 CityPopulationSystem.Households(donor));
-            foreach (ResourceAsset resource in foods)
+            foreach (ResourceKind resource in foods)
             {
-                int amount = Math.Min(food, Math.Min(surplus, donor.getResourcesAmount(resource.id)));
+                int amount = Math.Min(food, Math.Min(surplus, donor.GetResourcesAmount(resource.id)));
                 if (amount <= 0) continue;
                 AddCargo(project, donor, resource.id, amount);
                 food -= amount; surplus -= amount;
@@ -587,6 +589,7 @@ public static class StateSettlementSystem
         return cost <= int.MaxValue && StateSettlementRules.CanPay(payer.GetMoney(), project.gold,
             (int)Math.Min(int.MaxValue, TreasurySystem.SafetyReserve(payer)));
     }
+#endif
 
     private static bool PrepareSpontaneous(StateSettlementProject project, City source, out string reason)
     {
@@ -603,10 +606,10 @@ public static class StateSettlementSystem
         // 百姓只带现有行粮，不征用国库、国家粮仓或建材，也不生成启动物资。
         int food = (int)Math.Ceiling(people / CityPopulationSystem.PeoplePerSlot(source));
         float share = people / Math.Max(1f, CityPopulationSystem.GetTotal(source));
-        foreach (ResourceAsset resource in AssetManager.resources.list)
+        foreach (ResourceKind resource in ResourceKinds.Table.list)
         {
             if (resource.type != ResType.Food || food <= 0) continue;
-            int amount = Math.Min(food, (int)Math.Floor(Math.Max(0, source.getResourcesAmount(resource.id)) * share));
+            int amount = Math.Min(food, (int)Math.Floor(Math.Max(0, source.GetResourcesAmount(resource.id)) * share));
             if (amount <= 0) continue;
             project.cargo.Add(new SettlementCargo { source = source.Key, resource = resource.id, amount = amount });
             food -= amount;
@@ -623,7 +626,7 @@ public static class StateSettlementSystem
     {
         foreach (City donor in donors)
         {
-            int amount = Math.Min(need, Math.Max(0, donor.getResourcesAmount(resource)));
+            int amount = Math.Min(need, Math.Max(0, donor.GetResourcesAmount(resource)));
             if (amount <= 0) continue;
             AddCargo(project, donor, resource, amount);
             need -= amount;
@@ -636,11 +639,12 @@ public static class StateSettlementSystem
     {
         var stock = CityPopulationSystem.Get(donor).public_stock;
         int publicAmount = stock != null && stock.TryGetValue(resource, out int have)
-            ? Math.Min(amount, Math.Max(0, Math.Min(have, donor.getResourcesAmount(resource)))) : 0;
+            ? Math.Min(amount, Math.Max(0, Math.Min(have, donor.GetResourcesAmount(resource)))) : 0;
         project.cargo.Add(new SettlementCargo { source = donor.Key, resource = resource, amount = amount,
             price = (amount - publicAmount) * Math.Max(0f, PopulationEconomySystem.UnitValue(donor, resource)) });
     }
 
+#if EC_PENDING
     private static void Complete(Realm payer, StateSettlementData state)
     {
         StateSettlementProject project = state.project;
@@ -731,21 +735,21 @@ public static class StateSettlementSystem
                     if (project.spontaneous && ValidCity(donor) && donor.Realm == owner)
                     {
                         // 恢复期间行粮被消耗也不能卡死迁民；已有启运数量仍按原日志交付。
-                        remaining = Math.Min(remaining, Math.Max(0, donor.getResourcesAmount(cargo.resource)));
+                        remaining = Math.Min(remaining, Math.Max(0, donor.GetResourcesAmount(cargo.resource)));
                         cargo.amount = cargo.in_transit + remaining;
                         if (cargo.amount == 0) { cargo.taken = cargo.delivered = true; continue; }
                     }
-                    if (!ValidCity(donor) || donor.Realm != owner || donor.getResourcesAmount(cargo.resource) < remaining)
+                    if (!ValidCity(donor) || donor.Realm != owner || donor.GetResourcesAmount(cargo.resource) < remaining)
                     { state.status = "recovery"; return; }
-                    int before = donor.getResourcesAmount(cargo.resource);
+                    int before = donor.GetResourcesAmount(cargo.resource);
                     try
                     {
-                        using (PopulationEconomySystem.PrivateUse()) donor.takeResource(cargo.resource, remaining);
+                        using (PopulationEconomySystem.PrivateUse()) donor.TakeResource(cargo.resource, remaining);
                     }
                     finally
                     {
                         // 原版/其它钩子只扣了部分货物或扣货后抛错时，也保存已经启运的实际数量。
-                        int taken = Math.Max(0, Math.Min(remaining, before - donor.getResourcesAmount(cargo.resource)));
+                        int taken = Math.Max(0, Math.Min(remaining, before - donor.GetResourcesAmount(cargo.resource)));
                         cargo.in_transit += taken;
                         cargo.taken = cargo.in_transit >= cargo.amount;
                         PopulationEconomySystem.TakePublicStock(donor, cargo.resource, taken);
@@ -863,17 +867,17 @@ public static class StateSettlementSystem
         return LM.Get("state_settlement_" + (payer == null ? "idle" : Data(payer).status));
     }
 
-#if EC_PENDING
     public static bool WantsPort(City city) => PopulationMode && ValidCity(city) &&
         (FundingRealm(city.Realm)?.GetOrCreate().settlement?.status == "resettlement_port" ||
          Enabled && FundingRealm(city.Realm)?.GetOrCreate().settlement?.status == "port") &&
-        city.getBuildingOfType("type_docks", pCountOnlyFinished: false) == null;
+        city.GetBuildingOfType("type_docks", pCountOnlyFinished: false) == null;
 
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
     public static void ModeChanged(bool enabled)
     {
         CityResettlementSystem.ModeChanged(enabled);
         ResetWorldState();
-        foreach (Realm kingdom in EmpireWorld.Current.LiveRealms.ToList())
+        foreach (Realm kingdom in EmpireWorld.Current.kingdoms.ToList())
         {
             StateSettlementData state = kingdom.GetOrCreate().settlement;
             if (state == null) continue;

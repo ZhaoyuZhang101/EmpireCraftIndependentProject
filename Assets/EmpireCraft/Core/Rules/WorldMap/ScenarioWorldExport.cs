@@ -99,14 +99,12 @@ public static class ScenarioWorldExport
         city.SeatCell() != null;
 
     // 剧本名：世界名，没有就"导入_年月日"；都加"·导入"，免得与预设剧本同名(世界地图开的局，世界名就是剧本名)
-#if EC_PENDING
     public static string DefaultName()
     {
         string world = Clean(EmpireWorld.Current?.map_stats?.name);
         if (string.IsNullOrEmpty(world)) world = string.Format(LM.Get("scenario_export_default_name"), DateTime.Now.ToString("yyyyMMdd"));
         return world + LM.Get("scenario_export_suffix");
     }
-#endif
 
     #endregion
 
@@ -640,7 +638,6 @@ public static class ScenarioWorldExport
     // 长城：图层城墙与原版城墙格，城池自己的那圈城墙(见 CityPlanWorks)不算；折线的点隔几格取一个，太短的零星墙不要
     private const int WallPointEvery = 5, MinWallTiles = 4;
 
-#if EC_PENDING
     private static JArray Walls(Projection projection)
     {
         int width = EmpireWorld.Current.Width;
@@ -648,7 +645,7 @@ public static class ScenarioWorldExport
         Cell[] all = EmpireWorld.Current?.AllCells;
         if (all != null)
             foreach (Cell tile in all)
-                if (tile?.data != null && tile.Type?.Wall == true) tiles.Add(tile.Index);
+                if (tile?.Record != null && tile.Type?.Wall == true) tiles.Add(tile.Index);
         tiles.ExceptWith(CityPlanWorks.CityWallTiles());
         var result = new JArray();
         foreach (List<(int x, int y)> line in ScenarioWallTrace.Trace(tiles.Select(id => (id % width, id / width)), MinWallTiles))
@@ -663,10 +660,8 @@ public static class ScenarioWorldExport
         }
         return result;
     }
-#endif
 
     // 关隘：压着城墙的关城(城池自己的城门不算)
-#if EC_PENDING
     private static JArray Passes(Projection projection)
     {
         var result = new JArray();
@@ -683,7 +678,6 @@ public static class ScenarioWorldExport
         }
         return result;
     }
-#endif
 
     private static JArray Relations(Dictionary<Realm, ModRealm> realms, Func<Realm, string> realmId, Func<Realm, string> ownId)
     {

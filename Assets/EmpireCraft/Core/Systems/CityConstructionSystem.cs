@@ -165,7 +165,7 @@ public static class CityConstructionSystem
     private static void AbandonBarrenHouses(City city)
     {
         if (city.Status == null || EcRandom.value >= 0.25f) return;
-        if (city.countBuildingsType("type_house", false) <= city.Status.HousesMax + 1) return;
+        if (city.CountBuildingsType("type_house", false) <= city.Status.HousesMax + 1) return;
         if (AbandonLedgerHouse(city)) return;
         Building worst = null;
         float worstWeight = TerrainSystem.BarrenWeight;
@@ -213,7 +213,7 @@ public static class CityConstructionSystem
     {
         try
         {
-            if (city.countBuildingsType("type_house", pCountOnlyFinished: false) >= PioneerHouses) return;
+            if (city.CountBuildingsType("type_house", pCountOnlyFinished: false) >= PioneerHouses) return;
             // 建筑台账下仓库只是账上的数，没有仓库实体也存得住(见 Gather)
             Building storage = city.getRandomStockpile();
             if (storage == null && !CityLedger.Uses(city)) return;
@@ -228,12 +228,12 @@ public static class CityConstructionSystem
 
     private static void Gather(City city, Building storage, string resource, int target, int step)
     {
-        if (AssetManager.resources?.get(resource) == null) return;
-        int have = city.getResourcesAmount(resource);
+        if (ResourceKinds.Table?.get(resource) == null) return;
+        int have = city.GetResourcesAmount(resource);
         if (have >= target) return;
         if (storage != null) storage.addResources(resource, Mathf.Min(step, target - have));
         // 没有仓库实体：记进账面库存(见 StateSettlementPatch.StoreOverflow)
-        else city.addResourcesToRandomStockpile(resource, Mathf.Min(step, target - have));
+        else city.AddResourcesToRandomStockpile(resource, Mathf.Min(step, target - have));
     }
 #endif
 
@@ -281,28 +281,28 @@ public static class CityConstructionSystem
         broke = false;
         need = HousingMaterials(target);
         cost = UpgradeBaseCost + target.ConstructionProgressNeeded / 2;
-        if (city.getResourcesAmount("wood") < need.wood || city.getResourcesAmount("stone") < need.stone ||
-            city.getResourcesAmount("common_metals") < need.metal) return false;
+        if (city.GetResourcesAmount("wood") < need.wood || city.GetResourcesAmount("stone") < need.stone ||
+            city.GetResourcesAmount("common_metals") < need.metal) return false;
         if (EnterpriseSystem.CanPay(city, cost, privateFirst: true)) return true;
         broke = true;
         return false;
     }
+#endif
 
     private static void ChargeHousing(City city, (int wood, int stone, int metal) need, int cost)
     {
         // 民居是百姓自己的房子：建材是私用，不由国库向百姓买
         using (PopulationEconomySystem.PrivateUse())
         {
-            if (need.wood > 0) city.takeResource("wood", need.wood);
-            if (need.stone > 0) city.takeResource("stone", need.stone);
-            if (need.metal > 0) city.takeResource("common_metals", need.metal);
+            if (need.wood > 0) city.TakeResource("wood", need.wood);
+            if (need.stone > 0) city.TakeResource("stone", need.stone);
+            if (need.metal > 0) city.TakeResource("common_metals", need.metal);
         }
         GoodsLedger.Used(city, "wood", need.wood);
         GoodsLedger.Used(city, "stone", need.stone);
         GoodsLedger.Used(city, "common_metals", need.metal);
         EnterpriseSystem.PayPrivateFirst(city, cost);
     }
-#endif
 
     // 建筑台账里的民居(见 CityLedger)同样跟上科技：等级低的先升，规矩、花费同上
 #if EC_PENDING
@@ -472,7 +472,7 @@ public static class CityConstructionSystem
         var ruins = new List<Building>();
         foreach (Cell zone in city.Zones)
         {
-            HashSet<Building> set = zone?.getHashset(BuildingList.Ruins);
+            HashSet<Building> set = zone?.GetHashset(BuildingList.Ruins);
             if (set == null) continue;
             foreach (Building ruin in set)
             {
@@ -495,8 +495,8 @@ public static class CityConstructionSystem
             StatRuinsCleared++;
             try
             {
-                if (ruin.Asset.cost.wood > 0) city.addResourcesToRandomStockpile("wood", 1);
-                if (ruin.Asset.cost.stone > 0) city.addResourcesToRandomStockpile("stone", 1);
+                if (ruin.Asset.cost.wood > 0) city.AddResourcesToRandomStockpile("wood", 1);
+                if (ruin.Asset.cost.stone > 0) city.AddResourcesToRandomStockpile("stone", 1);
             }
             catch
             {
@@ -513,15 +513,13 @@ public static class CityConstructionSystem
     // 上月拆了几座废墟(城市面板用)
     public static readonly Dictionary<City, int> LastRuinsCleared = new();
 
-#if EC_PENDING
     public static int CountRuins(City city)
     {
         int count = 0;
         if (city?.Zones == null) return 0;
-        foreach (Cell zone in city.Zones) count += zone?.getHashset(BuildingList.Ruins)?.Count ?? 0;
+        foreach (Cell zone in city.Zones) count += zone?.GetHashset(BuildingList.Ruins)?.Count ?? 0;
         return count;
     }
-#endif
 
     private static bool HasConstruction(City city)
     {
@@ -570,7 +568,7 @@ public static class CityConstructionSystem
             city.under_construction_building = null;
             // 住满了、民居又还没盖到上限：先盖房，不去升级别的建筑——首都的升级偏好(0.3 + 0.6×富庶 + 0.6)以前几乎回回先升级，
             // 唯一的开工名额和木石常被挪走，首都人口反倒不如别城(用户 2026-10-28 转群友"城市A还是帝国首都……人口只有一千多")
-            bool homesFirst = city.Status != null && city.countBuildingsType("type_house", false) < city.Status.HousesMax &&
+            bool homesFirst = city.Status != null && city.CountBuildingsType("type_house", false) < city.Status.HousesMax &&
                               CityPopulationSystem.GetTotal(city) >= city.GetPopulationMaximum() * HomesFirstShare;
             if (!homesFirst && EcRandom.value < 0.3f + 0.6f * Wealth(city) + SeatBonus(city) && TryUpgrade(city)) return;
             CityLedger.BuildTick(city);

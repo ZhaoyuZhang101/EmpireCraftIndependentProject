@@ -773,7 +773,6 @@ public static class CompanySystem
     private static int StakePrice(CompanyData company, float share) => Mathf.Max(1, Mathf.RoundToInt(Worth(company) * share));
 
     // 入股：办不成返回原因键
-#if EC_PENDING
     public static string BuyStake(CompanyData company, float share = StakeStep)
     {
         Empire realm = RealmOf(company);
@@ -790,7 +789,6 @@ public static class CompanySystem
         Note(company, string.Format(LM.Get("company_note_stake_bought"), Mathf.RoundToInt(company.state_share * 100f)));
         return null;
     }
-#endif
 
     // 减持：办不成返回原因键
     public static string SellStake(CompanyData company, float share = StakeStep)
@@ -809,7 +807,6 @@ public static class CompanySystem
     }
 
     // 外国来收购：东道国不信自由放任、国库又宽裕(三倍于入股款)的，入股三成挡下
-#if EC_PENDING
     private static bool Defend(Empire host, CompanyData target, Empire buyer)
     {
         PartyIdeology ideology = IdeologyFamilies.StateIdeology(host);
@@ -821,10 +818,8 @@ public static class CompanySystem
             buyer.GetEmpireFullName()), host, new[] { buyer });
         return true;
     }
-#endif
 
     // 每年：萧条里以兴办工程为对策的救一家赔了本的私企；定了私有化的减持
-#if EC_PENDING
     private static void StateStakes(Empire empire, ConstitutionalEconomyState state, List<CompanyData> own)
     {
         if (state.nationalization <= ModernPolicySystem.Privatized)
@@ -840,7 +835,6 @@ public static class CompanySystem
         if (failing == null || empire.CoreKingdom.GetMoney() < StakePrice(failing, StakeStep) * 3 || BuyStake(failing) != null) return;
         EventRecorder.RecordRoutine(empire, string.Format(LM.Get("company_stake_rescue_history"), empire.GetEmpireFullName(), failing.name));
     }
-#endif
 
     // 这座城的私营厂区里国家的股份折成几份官营(见 EnterpriseSystem.TakePublicProfit)
     public static float StateStake(City city)

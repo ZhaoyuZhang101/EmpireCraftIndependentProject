@@ -572,7 +572,6 @@ public static class LandEconomySystem
         TrimPrivateSharesToCapacity(city, data);
     }
 
-#if EC_PENDING
     private static void ProcessLandPurchases(City city, Dictionary<string, List<Person>> households)
     {
         CityExtension.CityExtraData data = EnsureData(city);
@@ -622,10 +621,8 @@ public static class LandEconomySystem
             data.household_land_representatives[buyerHousehold.Key] = buyer.Key;
         }
     }
-#endif
 
     // 实体商户向背景农民买一份地：按背景地价付钱，背景农民的有地部分减少、无地比例上升
-#if EC_PENDING
     private static bool BuyFromBackground(City city, CityExtension.CityExtraData data, Person buyer, string key)
     {
         if (!CityPopulationSystem.AbstractPopulationEnabled) return false;
@@ -644,11 +641,9 @@ public static class LandEconomySystem
         ReceiveLandSale(city, population, price);
         return true;
     }
-#endif
 
     // 世家兼并(见 GentrySystem.Annex)：从背景农民有地的那部分划 amount 份归宗族，背景无地比例随之上升。
     // 投献、强占，不付地价；返回实际划过来的份数
-#if EC_PENDING
     public static float AnnexForClan(City city, SpecificClan clan, float amount)
     {
         if (!CityPopulationSystem.AbstractPopulationEnabled || city == null || city.IsGone() || clan == null || amount <= 0f ||
@@ -665,14 +660,12 @@ public static class LandEconomySystem
         data.household_land_shares[key] = GetHouseholdShare(city, key) + amount;
         return amount;
     }
-#endif
 
     // 背景人口的私田：私有土地里实体家户没占的部分(实体家户占的多了，背景农民的地就少了)
     private static float BackgroundLandPool(City city, CityExtension.CityExtraData data) =>
         Mathf.Max(0f, GetPrivateLandCapacity(city) - data.household_land_shares.Values.Where(value => value > 0f).Sum());
 
     // 背景人口的进账按税率交进城市国库(卖地的钱、商人利润)，返回应交的税
-#if EC_PENDING
     private static float PayBackgroundTax(City city, CityPopulationData population, float paid, TreasuryCategory category)
     {
         if (city.Realm == null || paid <= 0f) return 0f;
@@ -686,10 +679,8 @@ public static class LandEconomySystem
         if (whole > 0 && CityPopulationSystem.AbstractPopulationEnabled) population.other_background_tax += whole;
         return due;
     }
-#endif
 
     // 卖地的农民拿到钱，交过税存进民间存款
-#if EC_PENDING
     private static void ReceiveLandSale(City city, CityPopulationData population, float paid)
     {
         float tax = PayBackgroundTax(city, population, paid, TreasuryCategory.LandTax);
@@ -713,7 +704,6 @@ public static class LandEconomySystem
         if (destination == null) return;
         foreach (Person actor in landless.Value.ToList()) actor.JoinCity(destination);
     }
-#endif
 
     private static void RefreshClasses(City city)
     {
@@ -791,7 +781,6 @@ public static class LandEconomySystem
     // 背景商人、地主的真实收入：市场买卖里商人赚的一成利润(城里没有背景商人就是损耗)，加上卖租粮的钱。
     // 利润按税率交税；租粮在收割时已经算进产出交过税(见 PopulationEconomySystem.PayTaxes)，不再交。
     // 大部分攒成买地钱，最多攒够买下全城私田
-#if EC_PENDING
     public static void AddBackgroundIncome(City city, float margin, float rent)
     {
         if (!CityPopulationSystem.AbstractPopulationEnabled || city == null) return;
@@ -814,7 +803,6 @@ public static class LandEconomySystem
         // 交的税和攒去买地的钱从民间存款里出
         PopulationEconomySystem.AddSavings(city, data, -(tax + data.background_land_fund - before));
     }
-#endif
 
     private static float BackgroundPeasants(CityPopulationData data)
     {
@@ -824,7 +812,6 @@ public static class LandEconomySystem
         return peasants;
     }
 
-#if EC_PENDING
     private static void UpdateBackgroundLand(City city)
     {
         if (!CityPopulationSystem.AbstractPopulationEnabled) return;
@@ -866,7 +853,6 @@ public static class LandEconomySystem
         data.background_landless = Mathf.Clamp01(landless);
         data.background_peasants_last = peasants;
     }
-#endif
 
     private static bool IsAgrarianCommoner(Person actor)
     {
@@ -943,6 +929,7 @@ public static class LandEconomySystem
 #if EC_PENDING
     public static bool TryStartPeasantLandRebellion(City city) =>
         city != null && !city.IsGone() && TryStartPeasantLandRebellion(city, CalculateLandlessPopulationRatio(city));
+#endif
 
     internal static bool CanStartPeasantLandUprising(City city, float ratio) => city != null && !city.IsGone() &&
         city.Realm != null && !city.Realm.IsGone() && city != city.Realm.Capital &&
@@ -951,6 +938,7 @@ public static class LandEconomySystem
         ratio >= EffectiveRebellionThreshold(city) &&
         (!city.Realm.GetWars().Any() || DynasticCycleSystem.InCrisis(city.Realm.GetEmpire()));
 
+#if EC_PENDING
     private static bool TryStartPeasantLandRebellion(City city, float ratio)
     {
         if (!CanStartPeasantLandUprising(city, ratio)) return false;
@@ -1139,13 +1127,11 @@ public static class LandEconomySystem
     public static float LandPrice(float points) => points * BackgroundLandPrice;
 
     // 买地的钱给卖地的百姓：交过地税存进民间存款
-#if EC_PENDING
     public static void PaySellers(City city, float paid)
     {
         CityPopulationData population = CityPopulationSystem.Get(city);
         if (population != null && paid > 0f) ReceiveLandSale(city, population, paid);
     }
-#endif
 
     private static float GetHouseholdShare(City city, string key)
     {

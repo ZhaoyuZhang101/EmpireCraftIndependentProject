@@ -62,15 +62,11 @@ public static class MineralResourceSystem
     public static float TaperFactor(float remainingShare) => Mathf.Clamp(remainingShare / TaperStart, TaperFloor, 1f);
 
     // 本城开矿能做到第几级：纯净地图按本文化的科技(见 LivelihoodSystem.Level)，开小人时按城里最高的矿场(没有算 1 级)
-#if EC_PENDING
     public static int MiningLevel(City city) =>
         LivelihoodSystem.Active ? LivelihoodSystem.Level(city, LivelihoodSystem.Mine) : Mathf.Max(1, MineTier(city));
-#endif
 
     // 本城这处矿藏的储量(按本城的采矿等级)
-#if EC_PENDING
     public static float ReserveOf(City city, string id) => ReserveAt(id, MiningLevel(city));
-#endif
 
     private static float ReserveAt(string id, int level)
     {
@@ -113,13 +109,10 @@ public static class MineralResourceSystem
         return 0;
     }
 
-#if EC_PENDING
     public static float RemainingAmount(City city, CityPopulationData data, string id) =>
         RemainingShare(city, data, id) * ReserveOf(city, id);
-#endif
 
     // 剩余储量比例(0~1)
-#if EC_PENDING
     public static float RemainingShare(City city, CityPopulationData data, string id)
     {
         if (CooldownLeft(data, id) > 0) return 0f;
@@ -128,29 +121,28 @@ public static class MineralResourceSystem
         float mined = data?.deposit_mined != null && data.deposit_mined.TryGetValue(id, out float m) ? m : 0f;
         return Mathf.Clamp01(1f - mined / ReserveOf(city, id));
     }
-#endif
 
     // 本城有没有眼下(本城采矿等级)开采得了的矿藏：没有就不必先开一处矿村(要更高等级的矿留到科技到了再说)
-#if EC_PENDING
     public static bool HasMinableDeposit(City city)
     {
         if (city?.Record == null) return false;
         int level = MiningLevel(city);
         foreach ((string id, int tier, _, float chance) in Minerals)
-            if (tier <= level && AssetManager.resources.get(id) != null && HasDeposit(city, id, chance)) return true;
+            if (tier <= level && ResourceKinds.Table.get(id) != null && HasDeposit(city, id, chance)) return true;
         return false;
     }
 
+#if EC_PENDING
     public static void Init()
     {
         try
         {
-            ResourceAsset template = AssetManager.resources.get("common_metals");
+            ResourceKind template = ResourceKinds.Table.get("common_metals");
             if (template == null) return;
             foreach ((string id, _, _, _) in Minerals)
             {
-                if (AssetManager.resources.get(id) != null) continue;
-                ResourceAsset asset = AssetManager.resources.clone(id, "common_metals");
+                if (ResourceKinds.Table.get(id) != null) continue;
+                ResourceKind asset = ResourceKinds.Table.clone(id, "common_metals");
                 asset.path_icon = "resources/iconRes_" + id;
                 asset.restore_nutrition = 0;
                 asset.restore_health = 0f;
@@ -182,7 +174,6 @@ public static class MineralResourceSystem
 
     private static readonly Dictionary<City, TerrainProfile> Terrain = new();
 
-#if EC_PENDING
     private static TerrainProfile TerrainOf(City city)
     {
         double now = GameClock.Now;
@@ -193,7 +184,7 @@ public static class MineralResourceSystem
             foreach (Cell zone in city.Zones)
             {
                 if (zone?.Tiles == null) continue;
-                trees += zone.getHashset(BuildingList.Trees)?.Count ?? 0;
+                trees += zone.GetHashset(BuildingList.Trees)?.Count ?? 0;
                 foreach (Cell tile in zone.Tiles)
                 {
                     if (tile?.Type == null) continue;
@@ -230,12 +221,10 @@ public static class MineralResourceSystem
         Terrain[city] = profile;
         return profile;
     }
-#endif
 
     // 某种矿藏在本城出现的概率(按地形)。平地的底数压低一些(铜 0.3→0.2、煤 0.25→0.15……)，矿藏集中在山地、荒漠、沼泽：
     // 纯平原的城有任何一种矿藏的机会约 57%(以前 75%)，开得了的一级矿(铜金银)约 29%(以前 43%)。
     // 已经判定过的城存在存档里(deposits_fixed)，不受影响
-#if EC_PENDING
     public static float ChanceFor(City city, string id, float baseChance)
     {
         TerrainProfile t = TerrainOf(city);
@@ -255,11 +244,9 @@ public static class MineralResourceSystem
         };
         return Mathf.Clamp(chance, 0.02f, 0.9f);
     }
-#endif
 
     // 城市有没有某种矿藏：按地形定概率，按城市编号和资源 id 固定地取舍；第一次判定后存进存档固定下来，
     // 之后砍树、挖湖改变地形也不会让矿藏忽有忽无
-#if EC_PENDING
     public static bool HasDeposit(City city, string id, float baseChance)
     {
         if (city?.Record == null) return false;
@@ -274,10 +261,8 @@ public static class MineralResourceSystem
         }
         return RollDeposit(city, id, baseChance);
     }
-#endif
 
     // 本城有没有任何一种模组矿藏
-#if EC_PENDING
     public static bool HasAnyDeposit(City city)
     {
         foreach ((string id, _, _, float chance) in Minerals)
@@ -297,10 +282,8 @@ public static class MineralResourceSystem
             return (hash & 0xffff) / 65536f < chance;
         }
     }
-#endif
 
     // 本城最高矿场等级
-#if EC_PENDING
     public static int MineTier(City city)
     {
         // 纯净地图：有矿村就按本文化的采矿等级(见 LivelihoodSystem)
@@ -313,7 +296,6 @@ public static class MineralResourceSystem
                 tier = Mathf.Max(tier, Mathf.Max(1, IndustryBuildingSystem.Tier(building.Asset)));
         return tier;
     }
-#endif
 
     // 每年开采(由人口经济结算按经过的年数调用)
     // 钢铁厂(WarBox)：无小人模式下没有工人，按座数每年用煤和金属炼钢，成品折成金属
@@ -322,14 +304,13 @@ public static class MineralResourceSystem
     private const float SteelMetalInPerYear = 4f;
     private const float SteelMetalOutPerYear = 12f;
 
-#if EC_PENDING
     public static void SmeltSteel(City city, CityPopulationData data, float years)
     {
-        int mills = city?.countBuildingsType("type_steel_mill", true) ?? 0;
-        if (mills <= 0 || AssetManager.resources.get("coal") == null) return;
+        int mills = city?.CountBuildingsType("type_steel_mill", true) ?? 0;
+        if (mills <= 0 || ResourceKinds.Table.get("coal") == null) return;
         float wantCoal = mills * SteelCoalPerYear * years, wantMetal = mills * SteelMetalInPerYear * years;
-        int coal = Mathf.Min(Mathf.FloorToInt(wantCoal), city.getResourcesAmount("coal"));
-        int metal = Mathf.Min(Mathf.FloorToInt(wantMetal), city.getResourcesAmount("common_metals"));
+        int coal = Mathf.Min(Mathf.FloorToInt(wantCoal), city.GetResourcesAmount("coal"));
+        int metal = Mathf.Min(Mathf.FloorToInt(wantMetal), city.GetResourcesAmount("common_metals"));
         if (coal <= 0 || metal <= 0) return;
         float share = Mathf.Min(coal / Mathf.Max(1f, wantCoal), metal / Mathf.Max(1f, wantMetal));
         int useCoal = Mathf.Max(1, Mathf.RoundToInt(wantCoal * share));
@@ -337,8 +318,8 @@ public static class MineralResourceSystem
         // 百姓的工业用料，不是公家用途
         using (PopulationEconomySystem.PrivateUse())
         {
-            city.takeResource("coal", Mathf.Min(useCoal, coal));
-            city.takeResource("common_metals", Mathf.Min(useMetal, metal));
+            city.TakeResource("coal", Mathf.Min(useCoal, coal));
+            city.TakeResource("common_metals", Mathf.Min(useMetal, metal));
         }
         GoodsLedger.Used(city, "coal", Mathf.Min(useCoal, coal));
         GoodsLedger.Used(city, "common_metals", Mathf.Min(useMetal, metal));
@@ -362,7 +343,7 @@ public static class MineralResourceSystem
         data.deposit_depleted_at ??= new Dictionary<string, double>();
         foreach ((string id, int need, float perYear, float chance) in Minerals)
         {
-            if (tier < need || !HasDeposit(city, id, chance) || AssetManager.resources.get(id) == null) continue;
+            if (tier < need || !HasDeposit(city, id, chance) || ResourceKinds.Table.get(id) == null) continue;
             // 冷却中：不能开采；冷却结束：找到新矿脉，储量恢复
             if (data.deposit_depleted_at.ContainsKey(id))
             {
@@ -387,7 +368,6 @@ public static class MineralResourceSystem
             RecordDepletion(city, id);
         }
     }
-#endif
 
     // ---- 采尽汇总：按政权(帝国记在核心王国名下)每年一条，详情看城市面板、矿藏图层 ----
     private static readonly Dictionary<Realm, Dictionary<string, int>> Depleted = new();
@@ -445,7 +425,6 @@ public static class MineralResourceSystem
     }
 
     // 城市面板：本城有哪些矿藏(能否开采、剩余储量、枯竭冷却剩余年数)
-#if EC_PENDING
     public static List<(string id, bool minable, float remaining, int cooldown)> Deposits(City city)
     {
         var list = new List<(string, bool, float, int)>();
@@ -456,6 +435,5 @@ public static class MineralResourceSystem
                 list.Add((id, tier >= need, RemainingShare(city, data, id), CooldownLeft(data, id)));
         return list;
     }
-#endif
 }
 }

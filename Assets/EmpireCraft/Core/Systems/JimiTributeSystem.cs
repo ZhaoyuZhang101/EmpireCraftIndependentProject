@@ -33,7 +33,6 @@ public static class JimiTributeSystem
     private static double Get(Dictionary<long, double> map, long id) => map != null && map.TryGetValue(id, out double at) ? at : -1d;
 
     // 每年(帝国例行检查，见 EmpireCraftEmpireBehCheckMandate)
-#if EC_PENDING
     public static void Yearly(Empire empire)
     {
         if (empire?.data == null || empire.IsGone() || empire.IsArchived()) return;
@@ -66,7 +65,6 @@ public static class JimiTributeSystem
             }
         }
     }
-#endif
 
     // 册封：首领更替时遣使册封(头一回见到只记下，不算更替)
     private static void Invest(Empire empire, Realm core, Realm region, ref int popups)
@@ -118,7 +116,6 @@ public static class JimiTributeSystem
     }
 
     // 叛：朝廷先看能否安抚，不能就由它叛去、发兵征讨
-#if EC_PENDING
     private static bool Revolt(Empire empire, Realm core, Realm region)
     {
         // 不许自立(见 SecessionGate)：羁縻不叛去
@@ -159,10 +156,8 @@ public static class JimiTributeSystem
         Announce(string.Format(LM.Get("jimi_revolt_log"), core.GetKingdomName(), name, chief), core, history: true, ref count);
         return true;
     }
-#endif
 
     // 服：叛去的羁縻政区请降复服
-#if EC_PENDING
     private static void Returns(Empire empire, Realm core)
     {
         EmpireData data = empire.data;
@@ -198,7 +193,6 @@ public static class JimiTributeSystem
             Announce(string.Format(LM.Get("jimi_submit_log"), core.GetKingdomName(), name, chief), rebel, history: true, ref none);
         }
     }
-#endif
 
     // 册封、入朝只弹提示(每国每年至多两条)；叛服连史册一起记
     private static void Announce(string text, Realm kingdom, bool history, ref int popups)

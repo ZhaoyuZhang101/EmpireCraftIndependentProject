@@ -166,7 +166,6 @@ public static class DeJureShareSystem
         foreach (City city in SharedCities(title)) yield return city;
     }
 
-#if EC_PENDING
     public static bool ShareTitle(City city, KingdomTitle title, bool manual, double since = -1d)
     {
         if (!Valid(city) || title == null || title.IsGone() || city.GetTitleID() == title.Key) return false;
@@ -196,7 +195,6 @@ public static class DeJureShareSystem
         Changed();
         return true;
     }
-#endif
 
     #endregion
 
@@ -227,7 +225,6 @@ public static class DeJureShareSystem
         return result;
     }
 
-#if EC_PENDING
     public static bool ShareCore(KingdomTitle title, EmpireCore core, bool manual, double since = -1d)
     {
         if (title == null || title.IsGone() || core == null || EmpireCoreManager.ContainsTitle(core, title)) return false;
@@ -253,7 +250,6 @@ public static class DeJureShareSystem
         foreach (EmpireCore core in SharedCores(title)) removed |= UnshareCore(title, core);
         return removed;
     }
-#endif
 
     #endregion
 
@@ -283,7 +279,6 @@ public static class DeJureShareSystem
         return result;
     }
 
-#if EC_PENDING
     public static bool ShareTianxia(EmpireCore core, EmpireCore lead, bool manual, double since = -1d)
     {
         lead = TianxiaSystem.Lead(lead);
@@ -314,7 +309,6 @@ public static class DeJureShareSystem
         Changed();
         return true;
     }
-#endif
 
     #endregion
 
@@ -393,7 +387,6 @@ public static class DeJureShareSystem
 
     #region 年度：故地留作兼属、过期的淡忘
 
-#if EC_PENDING
     public static void TryYearlyScan()
     {
         if (EmpireWorld.Current?.Cities == null || ModClass.KINGDOM_TITLE_MANAGER == null) return;
@@ -448,7 +441,6 @@ public static class DeJureShareSystem
                 Touch(core);
         }
     }
-#endif
 
     private static bool Prune(List<DeJureShare> shares, double now, global::System.Predicate<DeJureShare> invalid)
     {
@@ -489,7 +481,6 @@ public static class DeJureShareSystem
     }
 
     // 读档后：旧存档的争议地带宣称折成兼属——城兼属宣称方帝国法理里挨着它(没有就离它最近)的王国法理
-#if EC_PENDING
     public static void AfterLoad()
     {
         Changed();
@@ -515,17 +506,15 @@ public static class DeJureShareSystem
         }
         if (converted > 0) LogService.LogInfo($"[EmpireCraft][兼属] 旧存档的争议地带折成兼属 {converted} 份");
     }
-#endif
 
     #endregion
 
     #region 地图：斜纹
 
     // 变了：下一轮重画(斜纹)
-#if EC_PENDING
     private static void Touch(City city)
     {
-        foreach (Cell zone in city?.Zones ?? new List<Cell>()) zone?.resetRenderHelpers();
+        foreach (Cell zone in city?.Zones ?? new List<Cell>()) zone?.ResetRenderHelpers();
     }
 
     private static void Touch(KingdomTitle title)
@@ -538,7 +527,6 @@ public static class DeJureShareSystem
     {
         foreach (City city in EmpireCoreManager.GetCities(core)) Touch(city);
     }
-#endif
 
     // 一帧里同一座城只算一次(平滑国界每块都要问一遍缓存键)
     private static int _stripeFrame = -1;

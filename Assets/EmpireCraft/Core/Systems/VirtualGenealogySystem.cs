@@ -23,7 +23,6 @@ public static partial class VirtualGenealogySystem
     private static object _world;
     private static double _lastDeathPass = -1d;
 
-#if EC_PENDING
     public static void ResetWorldState()
     {
         VirtualIds.Clear();
@@ -36,7 +35,6 @@ public static partial class VirtualGenealogySystem
         _world = null;
         _lastDeathPass = -1d;
     }
-#endif
 
     // 读档后从全局族谱索引里重建虚拟族人名单
     private static void EnsureIndex()
@@ -143,9 +141,9 @@ public static partial class VirtualGenealogySystem
                 if (parent == null || parent.id == child.id) continue;
                 double parentBorn = BornTime(parent, now), childBorn = BornTime(child, now);
                 if (double.IsNaN(parentBorn) || double.IsNaN(childBorn) ||
-                    childBorn - parentBorn >= (ParentGapYears - 1) * 60d) continue;
+                    childBorn - parentBorn >= (ParentGapYears - 1) * 12d) continue;
                 if (HistoryDateFormatter.TryParseTime(child.birthday, out double born) && born <= now &&
-                    born - parentBorn >= ParentGapYears * 60d && Math.Abs(born - childBorn) > 90d)
+                    born - parentBorn >= ParentGapYears * 12d && Math.Abs(born - childBorn) > 90d)
                 {
                     SetPersonAge(child, GameClock.YearsSince(born), now);
                     fixedCount++;
@@ -153,13 +151,13 @@ public static partial class VirtualGenealogySystem
                 }
                 if (childBorn <= parentBorn)
                 {
-                    SetPersonAge(child, Math.Max(0, (int)((now - parentBorn) / 60d) - FixedGapYears), now);
+                    SetPersonAge(child, Math.Max(0, (int)((now - parentBorn) / 12d) - FixedGapYears), now);
                     fixedCount++;
                     childBorn = BornTime(child, now);
-                    if (childBorn - parentBorn >= (ParentGapYears - 1) * 60d) continue;
+                    if (childBorn - parentBorn >= (ParentGapYears - 1) * 12d) continue;
                 }
                 if (!parent.is_alive) continue;
-                SetPersonAge(parent, Math.Max(0, (int)((now - childBorn) / 60d)) + FixedGapYears, now);
+                SetPersonAge(parent, Math.Max(0, (int)((now - childBorn) / 12d)) + FixedGapYears, now);
                 fixedCount++;
             }
         }
@@ -170,11 +168,11 @@ public static partial class VirtualGenealogySystem
     private static double BornTime(PersonalClanIdentity person, double now)
     {
         Person actor = person.is_alive && !person.is_virtual ? person._actor : null;
-        if (actor?.Record != null && person.actor_id == actor.Key) return now - actor.Age() * 60d;
-        if (person.is_alive) return now - person.age * 60d;
+        if (actor?.Record != null && person.actor_id == actor.Key) return now - actor.Age() * 12d;
+        if (person.is_alive) return now - person.age * 12d;
         if (HistoryDateFormatter.TryParseTime(person.birthday, out double born)) return born;
         return person.recordedAge >= 0 && HistoryDateFormatter.TryParseTime(person.deathday, out double died)
-            ? died - person.recordedAge * 60d : double.NaN;
+            ? died - person.recordedAge * 12d : double.NaN;
     }
 
     // 改在世的人的年纪：有实体的改实体，虚拟族人改记下的年纪；生日跟着
@@ -187,7 +185,7 @@ public static partial class VirtualGenealogySystem
             person.recordedAge = years;
             person.virtual_since = now;
         }
-        person.birthday = GameClock.DateText(now - years * 60d);
+        person.birthday = GameClock.DateText(now - years * 12d);
     }
 
     // 读档校正旧存档的生日：成年落地的人以前把落地日记成生日(见 ActorExtension.TrueBirthTime)，族谱上父母只比子女大
@@ -203,12 +201,12 @@ public static partial class VirtualGenealogySystem
         else if (person.is_alive)
         {
             if (person.age <= 1) return false;
-            expected = GameClock.Now - (person.age - 1) * 60d;
+            expected = GameClock.Now - (person.age - 1) * 12d;
         }
         else
         {
             if (person.recordedAge <= 1 || !HistoryDateFormatter.TryParseTime(person.deathday, out double died)) return false;
-            expected = died - (person.recordedAge - 1) * 60d;
+            expected = died - (person.recordedAge - 1) * 12d;
         }
         if (born - expected <= 90d) return false;
         person.birthday = GameClock.DateText(expected);
@@ -600,7 +598,6 @@ public static partial class VirtualGenealogySystem
     //   · 后来身故排最前又反过来：帧慢时身故一轮就要占掉一年的大半甚至全部，做完又到期，族长检查、瘦身排不上。
     //     11-02 那局 1 万多虚拟族人、均帧两百毫秒，瘦身在世界时间 17800 之后再没做过，宗族从 1.2 万涨到 3.2 万，
     //     族谱身份从 4.8 万涨到 14.9 万(存档 186 MB，族谱占 139 MB)，19458 个全死的宗族一直没人管
-#if EC_PENDING
     public static void Tick()
     {
         if (EmpireWorld.Current == null) return;
@@ -611,10 +608,8 @@ public static partial class VirtualGenealogySystem
         if (TickDeaths(now)) return;
         if (!_upkeepTurn) TickUpkeep(now);
     }
-#endif
 
     // 身故一线；这一帧做了事返回 true
-#if EC_PENDING
     private static bool TickDeaths(double now)
     {
         // 上一轮还没检查完：接着分帧做(以前一帧检查全部虚拟族人，族谱大时一次卡几百毫秒)
@@ -644,10 +639,8 @@ public static partial class VirtualGenealogySystem
         }
         return false;
     }
-#endif
 
     // 族长检查、族谱瘦身一线；这一帧做了事返回 true
-#if EC_PENDING
     private static bool TickUpkeep(double now)
     {
         if (HeadQueue.Active)
@@ -675,7 +668,6 @@ public static partial class VirtualGenealogySystem
         }
         return false;
     }
-#endif
 
     private static void RebuildVirtualIds()
     {
@@ -1072,10 +1064,8 @@ public static partial class VirtualGenealogySystem
     // 族长死于战乱或饥荒的宗族不再补族长；这样的宗族一个实体族人都不剩时销户——剩下的虚拟族人从族谱里注销，
     // 变成所在城的普通百姓(人数不变)，宗族记录留在族谱里
     private static readonly Dictionary<long, long> ClanHeads = new();
-#if EC_PENDING
     private static readonly EmpireCraft.Core.FrameBudgetQueue<long> HeadQueue =
         new(1.5d, CheckClanHead, "宗族族长检查");
-#endif
     private const int HeadMinAge = 16;
     private const int DormantYears = 30;
     // 宗族是否显赫(每年检查族长时重算)；没算过的按显赫处理，读档后第一轮检查前不会误并族长
@@ -1172,7 +1162,6 @@ public static partial class VirtualGenealogySystem
         ClanHeads.Remove(clan.id);
     }
 
-#if EC_PENDING
     private static void CheckClanHead(long clanId)
     {
         SpecificClan clan = SpecificClanManager.Get(clanId);
@@ -1214,7 +1203,6 @@ public static partial class VirtualGenealogySystem
         Person head = heir?.Realize();
         if (head != null) ClanHeads[clan.id] = heir.id;
     }
-#endif
 
     private static void Disperse(SpecificClan clan, List<PersonalClanIdentity> virtuals, bool dormant = false)
     {
@@ -1244,7 +1232,6 @@ public static partial class VirtualGenealogySystem
 
     #endregion
 
-#if EC_PENDING
     private static readonly EmpireCraft.Core.FrameBudgetQueue<long> DeathQueue = new(1.5d, CheckDeath, "虚拟族谱年度身故");
 
     private static void CheckDeath(long id)
@@ -1262,7 +1249,6 @@ public static partial class VirtualGenealogySystem
         }
         TryBirth(person);
     }
-#endif
 
     // ---- 虚拟族人生育 ----
     // 虚拟族人也成家生子：宗族里继承一方性别(男系宗族看男子，女系看女子)的正支成年人，
@@ -1359,7 +1345,7 @@ public static partial class VirtualGenealogySystem
                 virtual_since = now,
                 virtual_city_id = adopter.virtual_city_id > 0 ? adopter.virtual_city_id : adopter._actor?.City?.Key ?? -1L,
                 recordedAge = years,
-                birthday = GameClock.DateText(now - years * 60d),
+                birthday = GameClock.DateText(now - years * 12d),
                 sex = Sex.Male,
                 species = adopter.species,
                 culture = adopter.culture,
@@ -1396,7 +1382,7 @@ public static partial class VirtualGenealogySystem
             virtual_since = now,
             virtual_city_id = city.Key,
             recordedAge = years,
-            birthday = GameClock.DateText(now - years * 60d - EcRandom.Range(0, 12) * 5d),
+            birthday = GameClock.DateText(now - years * 12d - EcRandom.Range(0, 12) * 1d),
             sex = clan.isMalePriority() ? Sex.Male : Sex.Female,
             species = last.species,
             culture = last.culture,
@@ -1535,7 +1521,7 @@ public static partial class VirtualGenealogySystem
             virtual_city_id = city?.Key ?? parent.virtual_city_id,
             recordedAge = years,
             // 一年 60 秒、一月 5 秒；生日落在 years 年前再往前几个月
-            birthday = GameClock.DateText(now - years * 60d - EcRandom.Range(0, 12) * 5d),
+            birthday = GameClock.DateText(now - years * 12d - EcRandom.Range(0, 12) * 1d),
             sex = Sex.Male,
             species = species,
             culture = parent.culture,

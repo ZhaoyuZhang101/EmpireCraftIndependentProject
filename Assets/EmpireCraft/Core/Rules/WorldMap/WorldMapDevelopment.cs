@@ -80,7 +80,6 @@ public static class WorldMapDevelopment
 
     #region 数据
 
-#if EC_PENDING
     private static bool EnsureAreas()
     {
         if (_areas != null) return _areas.Count > 0;
@@ -107,7 +106,6 @@ public static class WorldMapDevelopment
         }
         return _areas.Count > 0;
     }
-#endif
 
     private static void Measure(WorldMapDevArea area)
     {
@@ -134,7 +132,6 @@ public static class WorldMapDevelopment
         area.dev.TryGetValue(era ?? "", out float value) ? value : area.all;
 
     // 剧本编辑器预测无人区用(见 ScenarioWilderness)：这个经纬度落在哪一片(按 table 这个时代)；value 为那片这个时代的开发度(不动为负)
-#if EC_PENDING
     public static bool AreaAt(string table, float lon, float lat, out float value, out bool swamp)
     {
         value = -1f;
@@ -146,7 +143,6 @@ public static class WorldMapDevelopment
         swamp = _areas[index].Swamp;
         return true;
     }
-#endif
 
     // 离城越近开发度越高：腹地的数 × (1 + e^(−距离/Reach))，到 100 为止(距离按度)
     public static float NearCity(float value, float distance) =>
@@ -225,14 +221,14 @@ public static class WorldMapDevelopment
             any |= values[i] >= 0f && values[i] < WildernessDevelopmentSystem.Full;
         }
         if (!any) return;
-        TerrainKind jungleLow = AssetManager.top_tiles.get("jungle_low"), jungleHigh = AssetManager.top_tiles.get("jungle_high");
-        TerrainKind swampLow = AssetManager.top_tiles.get("swamp_low"), swampHigh = AssetManager.top_tiles.get("swamp_high");
+        TerrainKind jungleLow = TerrainLayers.Top.get("jungle_low"), jungleHigh = TerrainLayers.Top.get("jungle_high");
+        TerrainKind swampLow = TerrainLayers.Top.get("swamp_low"), swampHigh = TerrainLayers.Top.get("swamp_high");
         if (jungleLow == null || jungleHigh == null || swampLow == null || swampHigh == null)
         {
             LogService.LogWarning("[EmpireCraft][世界地图] 找不到丛林、沼泽的顶层格，雨林大泽开发度不设");
             return;
         }
-        var watch = global::System.Diagnostics.Stopwatch.StartNew();
+        var watch = SimWatch.StartNew();
         frame.Bounds(size, out float bottom, out float degrees);
         HashSet<int> kept = KeptZones();
         List<Vector2Int> seats = Seats();

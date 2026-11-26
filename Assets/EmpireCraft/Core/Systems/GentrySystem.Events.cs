@@ -73,7 +73,6 @@ public static partial class GentrySystem
     }
 
     // 灾年赈济(每年，Assess 里)
-#if EC_PENDING
     private static void TryRelief(SpecificClan clan, City seat)
     {
         if (seat?.Realm == null || !FamineUnrestSystem.InFamine(seat) || Random.value >= ReliefChance) return;
@@ -87,7 +86,6 @@ public static partial class GentrySystem
         Record(seat, text, force: true);
         NoteClan(clan, "clan_history_gentry_relief", text);
     }
-#endif
 
     // 赈济过的城两年里自然稳定度加成
     private static bool Relieved(City city)

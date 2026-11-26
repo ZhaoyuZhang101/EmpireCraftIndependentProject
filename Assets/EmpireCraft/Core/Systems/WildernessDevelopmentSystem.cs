@@ -336,7 +336,6 @@ public static class WildernessDevelopmentSystem
 
     // 挨着的城(本国的城)、挨着的开发过半的地块(开发它的国家)都是候选；归了别国的、科技不够的不算。
     // pass：一年推进里(用这一年的缓存，并记下各国挨着这一片的城里最大的人口压力)；提示里现算
-#if EC_PENDING
     private static Pick Evaluate(Cell zone, WildRegion region, bool pass)
     {
         var pick = new Pick();
@@ -388,7 +387,6 @@ public static class WildernessDevelopmentSystem
         }
         return pick;
     }
-#endif
 
     // 这国的科技门槛与倍率、动荡(见类头)
     private static ModRealm RealmOf(Realm kingdom, bool cached)
@@ -650,8 +648,8 @@ public static class WildernessDevelopmentSystem
     private static bool Clear(Cell tile)
     {
         bool high = (tile.TopType?.Id ?? "").EndsWith("_high", StringComparison.Ordinal);
-        _grassLow ??= AssetManager.top_tiles.get("grass_low");
-        _grassHigh ??= AssetManager.top_tiles.get("grass_high");
+        _grassLow ??= TerrainLayers.Top.get("grass_low");
+        _grassHigh ??= TerrainLayers.Top.get("grass_high");
         TerrainKind grass = high && _grassHigh != null ? _grassHigh : _grassLow;
         if (grass == null) return false;
         Building building = tile.Building;
@@ -738,19 +736,14 @@ public static class WildernessDevelopmentSystem
     private static int Cost(Realm kingdom) => Mathf.Clamp(CostBase + CostPerCity * (kingdom.Cities?.Count ?? 0), CostMin, CostMax);
 
     // 能下诏(玩家强行发起、谋划进行中)：国君、本国眼下没有诏令、有够科技的雨林大泽前沿、国库够一年开支
-#if EC_PENDING
     public static bool CanDecree(Person actor) => Candidate(actor, out _, out _, out _);
-#endif
 
     // AI 自己下诏：另要国库够 ReserveYears 年开支、前沿的城人多地少(到上限九成)
-#if EC_PENDING
     public static bool WantsDecree(Person actor) =>
         Candidate(actor, out Realm kingdom, out _, out float pressure) && pressure >= PressureBoost &&
         kingdom.GetMoney() >= Cost(kingdom) * ReserveYears;
-#endif
 
     // 谋划完成：先付头一年，记工役、纪事
-#if EC_PENDING
     public static bool Decree(Person actor)
     {
         if (!Candidate(actor, out Realm kingdom, out WildRegion region, out _)) return false;
@@ -767,10 +760,8 @@ public static class WildernessDevelopmentSystem
         EventRecorder.Record(kingdom, string.Format(LM.Get("wild_develop_decree_history"), kingdom.GetKingdomName(), name), actor);
         return true;
     }
-#endif
 
     // 本国前沿上够得着的一片(够格的前沿地块最多的那片)与挨着它的城里最大的人口压力；按国家缓存一个月
-#if EC_PENDING
     private static bool Candidate(Person actor, out Realm kingdom, out WildRegion region, out float pressure)
     {
         region = null;
@@ -824,7 +815,6 @@ public static class WildernessDevelopmentSystem
         best = pick.Id;
         pressure = pressures.TryGetValue(pick, out float value) ? value : 1f;
     }
-#endif
 
     // 一年开头结算诏令：国亡、那一片开完(开完的记纪事)、到期即止；付不起当年的钱罢了；否则付钱、记工役
     private static void SettleEdicts()
@@ -864,7 +854,6 @@ public static class WildernessDevelopmentSystem
     #region 提示
 
     // 悬停提示(见 WildernessOverlay.ShowTooltip)：雨林、大泽才有；value 为"35%"，status 为谁在开发、缺什么科技、诏令、能不能走
-#if EC_PENDING
     public static bool Describe(Cell zone, out string value, out string status)
     {
         value = status = "";
@@ -896,20 +885,16 @@ public static class WildernessDevelopmentSystem
         if (dev >= Half && dev < Full) status += LM.Get("wild_dev_passable");
         return true;
     }
-#endif
 
     // 提示换没换(悬停时每帧比一次，见 WildernessOverlay.Hover)：开发度的整数与状态
-#if EC_PENDING
     public static int TipKey(Cell zone)
     {
         WildRegion region = zone == null ? null : WildernessSystem.RegionOf(zone);
         if (region == null || !Develops(region.Kind)) return -1;
         return Mathf.FloorToInt(DevelopmentOf(zone)) * 8 + StatusOf(zone, region, out _);
     }
-#endif
 
     // 0 没人开发、1 有国开发、2 奉诏开发、3 缺科技、4 归了别国、5 永久中立
-#if EC_PENDING
     private static int StatusOf(Cell zone, WildRegion region, out Pick pick)
     {
         pick = default;
@@ -920,7 +905,6 @@ public static class WildernessDevelopmentSystem
         if (pick.Lacking != null) return 3;
         return pick.Owner != null ? 4 : 0;
     }
-#endif
 
     #endregion
 }

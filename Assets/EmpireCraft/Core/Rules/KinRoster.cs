@@ -19,7 +19,6 @@ public static class KinRoster
     public const int AdultAge = 16;
 
     // 在世子女：族谱(含虚拟族人)，再补原版亲子关系里有族谱身份、模组索引漏了的(旧档)
-#if EC_PENDING
     public static List<PersonalClanIdentity> Children(Person parent) =>
         Children(parent?.GetPersonalIdentity(), parent);
 
@@ -40,7 +39,6 @@ public static class KinRoster
         }
         return result;
     }
-#endif
 
     // 在世兄弟姐妹(族谱)
     public static List<PersonalClanIdentity> Siblings(PersonalClanIdentity person) =>

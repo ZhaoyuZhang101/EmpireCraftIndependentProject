@@ -80,7 +80,6 @@ public static partial class FrontSystem
         return PushEnd.AtPeace;
     }
 
-#if EC_PENDING
     private static void NotePushHandOver(Push push, Realm heir)
     {
         _pushHandOvers++;
@@ -98,7 +97,6 @@ public static partial class FrontSystem
         if (!PushDetailAllowed()) return;
         LogService.LogInfo($"[EmpireCraft][战线诊断] 推进撤销({PushEndLabel(why)})：{PushLine(push)}");
     }
-#endif
 
     // 全图每分钟至多几行明细
     private static bool PushDetailAllowed()
@@ -115,7 +113,6 @@ public static partial class FrontSystem
     private static string KingdomLabel(Realm kingdom) =>
         kingdom?.Record == null ? "无" : kingdom.IsGone() ? $"已亡#{kingdom.Key}" : $"{kingdom.GetKingdomName()}#{kingdom.Key}";
 
-#if EC_PENDING
     private static string PushLine(Push push)
     {
         try
@@ -131,7 +128,6 @@ public static partial class FrontSystem
             return $"城#{push.City} 地块 {push.Zone} (取详情失败: {exception.Message})";
         }
     }
-#endif
 
     private static string ZoneCityLabel(Cell zone) =>
         zone?.City?.Record == null ? "无" : $"{zone.City.GetCityName()}#{zone.City.Key}";
@@ -153,7 +149,6 @@ public static partial class FrontSystem
     }
 
     // 每帧(SmoothTick)：到点的才动，平时只比一下时间
-#if EC_PENDING
     private static void PushDiagnosticsTick()
     {
         if (PushProbes.Count == 0 && Time.unscaledTime < _gapScanAt) return;
@@ -179,10 +174,8 @@ public static partial class FrontSystem
             PushProbes.Clear();
         }
     }
-#endif
 
     // 撤销后回看：地块脱离了原来的城是实际领土变动；城还在、画布却空了才是绘制缺口
-#if EC_PENDING
     private static void ProbeZone(int zoneId, long cityId, PushEnd why)
     {
         Cell zone = EmpireWorld.Current?.Zones?.ById(zoneId);
@@ -194,10 +187,8 @@ public static partial class FrontSystem
         LogService.LogInfo($"[EmpireCraft][版图缺口] 推进撤销({PushEndLabel(why)})后回看：{kind}；地块 {zoneId} 原城#{cityId} 现归 {ZoneCityLabel(zone)} " +
                            $"城主 {KingdomLabel(zone.City?.Realm)} 占领者 {KingdomLabel(zone.City?.GetTileZoneOccupier(zone))} 显示 {SmoothBorders.DescribeDisplay(zone)}");
     }
-#endif
 
     // 抽查正在打仗的城：有城有归属、画布上却空着的地块
-#if EC_PENDING
     private static void ScanBattleGaps()
     {
         if (!SmoothActive || !SmoothBorders.CanvasActive || Battles.Count == 0) return;
@@ -218,6 +209,5 @@ public static partial class FrontSystem
             }
         }
     }
-#endif
 }
 }

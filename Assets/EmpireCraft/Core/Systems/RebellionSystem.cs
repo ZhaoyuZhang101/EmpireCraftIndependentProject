@@ -90,8 +90,9 @@ public static class RebellionSystem
         if (forced || !city.isHappy()) return true;
         CityValueSnapshot value = city.GetCityStrategicValue();
         return CityValueRules.CanRebelWhileContent(value) &&
-               city.getLoyalty() <= CityValueRules.GetIsolationRebellionLoyaltyThreshold(value);
+               city.GetLoyalty() <= CityValueRules.GetIsolationRebellionLoyaltyThreshold(value);
     }
+#endif
 
     public static RebellionCauseData Capture(Realm origin, City city, string reasonKey, string detail = "")
     {
@@ -104,12 +105,13 @@ public static class RebellionSystem
             city_name = city?.GetCityName() ?? "",
             origin_empire_id = empire?.Key ?? -1L,
             legitimacy = empire?.Legitimacy ?? -1,
-            loyalty = city?.getLoyalty(),
+            loyalty = city?.GetLoyalty(),
             stability = city != null && TreasurySystem.Enabled(city) ? CityStabilitySystem.Effective(city) : null,
             timestamp = EmpireWorld.Current?.Now() ?? -1d
         };
     }
 
+#if EC_PENDING
     public static string CityLoyaltyCauses(City city)
     {
         if (city?.Realm == null || AssetManager.loyalty_library == null) return "";

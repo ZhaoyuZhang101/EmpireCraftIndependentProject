@@ -63,21 +63,21 @@ public static class KinshipRules
     }
 }
 
-#if EC_PENDING
 public class KinshipPatch : GamePatch
 {
     public ModDeclare declare { get; set; }
 
+#if EC_PENDING
     public void Initialize()
     {
         new Harmony(nameof(KinshipPatch)).Patch(AccessTools.Method(typeof(Person), nameof(Person.canFallInLoveWith)),
             postfix: new HarmonyMethod(typeof(KinshipPatch), nameof(AfterCanFallInLove)));
     }
+#endif
 
     public static void AfterCanFallInLove(Person __instance, Person pTarget, ref bool __result)
     {
         if (__result && KinshipRules.AreCloseKin(__instance, pTarget)) __result = false;
     }
 }
-#endif
 }

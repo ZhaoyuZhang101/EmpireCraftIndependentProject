@@ -59,7 +59,6 @@ public static class SpeechFreedomSystem
         _ => 0f
     };
 
-#if EC_PENDING
     public static void Update(Empire empire)
     {
         if (empire?.CoreKingdom == null || empire.IsGone() || empire.IsArchived() || EmpireWorld.Current?.Books == null) return;
@@ -94,10 +93,8 @@ public static class SpeechFreedomSystem
             }
         }
     }
-#endif
 
     // 出版一本理念著作；成功返回 true。一个理念要本文化已有它的奠基名著(资本论、国富论……)才能有人写它的著作
-#if EC_PENDING
     private static bool Publish(City city, ConstitutionClauses clauses, bool announce)
     {
         if (city == null || city.IsGone() || !city.HasBookSlots()) return false;
@@ -141,7 +138,7 @@ public static class SpeechFreedomSystem
         if (book == null) return false;
         string culture = TechnologySystem.GetCultureOf(author);
         string title = PickTitle(culture, ideology, author, city);
-        if (!string.IsNullOrWhiteSpace(title)) book.setName(BookNamingSystem.ClaimUnique(title));
+        if (!string.IsNullOrWhiteSpace(title)) book.SetName(BookNamingSystem.ClaimUnique(title));
         BookExtension.BookExtraData data = book.GetOrCreate();
         data.id = book.Key;
         data.ideology = ideology.ToString();
@@ -149,7 +146,6 @@ public static class SpeechFreedomSystem
         if (announce) Announce(author, book, ideology);
         return true;
     }
-#endif
 
     private static void Announce(Person author, Book book, PartyIdeology ideology)
     {
@@ -167,7 +163,6 @@ public static class SpeechFreedomSystem
     }
 
     // 优先用该理念的专属书名(没用过的)，否则用体裁模板组合
-#if EC_PENDING
     private static string PickTitle(string culture, PartyIdeology ideology, Person author, City city)
     {
         List<(string key, string text)> entries = BookNamingSystem.Entries(culture, LibraryName);
@@ -186,7 +181,7 @@ public static class SpeechFreedomSystem
 
     private static string Fill(string pattern, PartyIdeology ideology, Person author, City city)
     {
-        bool chinese = LocalizedTextManager.instance?.language is "cz" or "ch";
+        bool chinese = LM.Language is "cz" or "ch";
         string Tidy(string text) => chinese && text != null ? text.Replace(" ", "") : text ?? "";
         string result = pattern.Replace("{0}", PartySystem.GetIdeologyName(ideology))
             .Replace("{1}", Tidy(author?.FullName()))
@@ -201,6 +196,5 @@ public static class SpeechFreedomSystem
         }
         return result;
     }
-#endif
 }
 }

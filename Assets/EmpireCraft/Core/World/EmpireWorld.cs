@@ -107,6 +107,35 @@ namespace EmpireCraft.Core
             return WorldOps.FormAlliance(this,a,b);
         }
         public void DissolveAlliance(Alliance alliance){if(alliance!=null&&alliance.Alive)WorldOps.DissolveAlliance(this,alliance);}
+        // Running counts of the world's history, as the ported code keeps them.
+        public readonly WorldStats game_stats=new WorldStats();
+        public readonly WorldStatsData map_stats=new WorldStatsData();
+        // One object per landmass, for code that tells islands apart by reference.
+        readonly Dictionary<int,object> _islands=new Dictionary<int,object>();
+        public object IslandObject(int tile){int mass=LandmassOf(tile);if(mass<0)return null;if(!_islands.TryGetValue(mass,out var island))_islands[mass]=island=new object();return island;}
+        // Realms a realm could turn on: every other living realm it is neither at war with nor allied to.
+        public ListPool<Realm> NeutralRealms(Realm realm,bool onlyWithoutWars=false,bool onlyCivs=false)
+        {
+            var found=new ListPool<Realm>();if(realm==null)return found;
+            foreach(var other in LiveRealms)
+            {
+                if(other==realm||realm.IsAtWarWith(other)||realm.HasAlliance()&&realm.Alliance==other.Alliance)continue;
+                if(onlyWithoutWars&&other.Wars.Count>0)continue;
+                found.Add(other);
+            }
+            return found;
+        }
+        // Some member of the alliance is at war.
+        public bool HasWars(Alliance alliance){if(alliance==null||!alliance.Alive)return false;foreach(var realm in alliance.Members)if(HasWars(realm))return true;return false;}
+        // The two end up in one alliance: one joins the other's, or they found one. Null when they cannot (at war with each other, gone, the same).
+        public Alliance ForceAlliance(Realm a,Realm b)
+        {
+            if(a.IsGone()||b.IsGone()||a==b||a.IsAtWarWith(b))return null;
+            if(a.HasAlliance()&&b.HasAlliance())return a.Alliance==b.Alliance?a.Alliance:null;
+            if(b.HasAlliance()){WorldOps.JoinAlliance(this,b.Alliance,a);return b.Alliance;}
+            if(a.HasAlliance()){WorldOps.JoinAlliance(this,a.Alliance,b);return a.Alliance;}
+            return WorldOps.FormAlliance(this,a,b);
+        }
         public void EndWar(War war,WarOutcome outcome=WarOutcome.Peace){if(war!=null&&war.Alive)WorldOps.EndWar(this,war,outcome);}
 
         // Stateless deterministic randomness: the same world seed, stream, month and

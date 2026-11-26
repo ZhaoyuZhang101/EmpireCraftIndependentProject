@@ -322,7 +322,6 @@ namespace EmpireCraft.Core
         }
         // 判决上公屏(独立王国也报，2026-11 起)。犯人的名号、颜色、上不上公屏在立案时记下(施刑后罢了官、伏了诛也照原样写)；
         // 卷宗、前科在这里补记(揭发罪行的计谋自己施刑，见 EmpireLawSystem.FinishCase)
-#if EC_PENDING
         public static void LogLawEnforcement(LawEnforcementContext context)
         {
             if (context == null) return;
@@ -341,7 +340,7 @@ namespace EmpireCraft.Core
             string reason = EmpireLawSystem.GetReasonText(context.ReasonKey);
             if (!string.IsNullOrEmpty(reason)) crimeDetailText = string.Format(LM.Get("empire_law_crime_with_reason"), crimeDetailText, reason);
             string punishmentText = GetPunishmentText(context);
-            UnityEngine.Color kingdomColor = kingdom.GetColor().ColorText;
+            EcColor kingdomColor = kingdom.GetColor().ColorText;
             News worldLog = new News(
                 NewsKinds.empire_law_enforced_log,
                 actorName,
@@ -361,7 +360,6 @@ namespace EmpireCraft.Core
 
             worldLog.Add();
         }
-#endif
 
         public static void LogLawArrest(Person actor, Realm kingdom, string crimeName, string crimeDate)
         {

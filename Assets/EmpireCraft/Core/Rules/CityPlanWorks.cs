@@ -248,10 +248,10 @@ public static class CityPlanWorks
         {
             if (zone?.Tiles == null || !built.Contains(zone.Index)) continue;
             foreach (Cell tile in zone.Tiles)
-                if (tile?.data != null && PureMapPatch.TileInTown(city, tile)) town.Add(tile.Index);
+                if (tile?.Record != null && PureMapPatch.TileInTown(city, tile)) town.Add(tile.Index);
         }
         if (town.Count == 0) return;
-        bool In(Cell tile) => tile?.data != null && town.Contains(tile.Index);
+        bool In(Cell tile) => tile?.Record != null && town.Contains(tile.Index);
         Cell[] tiles = EmpireWorld.Current.AllCells;
         var edge = new List<Cell>();
         int minX = int.MaxValue, minY = int.MaxValue, maxX = int.MinValue, maxY = int.MinValue;
@@ -283,11 +283,10 @@ public static class CityPlanWorks
 #endif
 
     // 筑墙用哪种原版城墙(关掉纯净地图读档时还原成它)：有 wall_order 用它，没有取头一种
-#if EC_PENDING
     private static string WallType()
     {
         if (_wallType != null) return _wallType;
-        foreach (TerrainKind type in AssetManager.top_tiles?.list ?? new List<TerrainKind>())
+        foreach (TerrainKind type in TerrainLayers.Top?.list ?? new List<TerrainKind>())
         {
             if (type?.Wall != true) continue;
             _wallType ??= type.Id;
@@ -303,7 +302,6 @@ public static class CityPlanWorks
         Cell tile = TileAt(id);
         return tile != null && MapWallSystem.Contains(tile) && MapWallSystem.Remove(tile);
     }
-#endif
 
     private static void Track(City city, CityExtension.CityExtraData extra)
     {
@@ -417,7 +415,6 @@ public static class CityPlanWorks
     #region 道路
 
     // 画路、擦路(同道路神力)：只认本城领地里的格；画上(擦掉)了返回 true
-#if EC_PENDING
     public static bool PaintRoad(City city, Cell tile)
     {
         if (!Own(city, tile) || !RoadPaintSystem.Paint(tile)) return false;
@@ -431,7 +428,6 @@ public static class CityPlanWorks
         Touched(city, true);
         return true;
     }
-#endif
 
     private static bool Own(City city, Cell tile) =>
         city?.Record != null && !city.IsGone() && tile?.Zone != null && tile.Zone.City == city;
@@ -569,7 +565,7 @@ public static class CityPlanWorks
             if (!float.IsNaN(steps[i])) return steps[i];
             Cell tile = EmpireWorld.Current.CellAt(minX + i % w, minY + i / w);
             float cost;
-            if (tile?.data == null || tile.Type == null || tile.Zone?.City != city || Town(tile)) cost = -1f;
+            if (tile?.Record == null || tile.Type == null || tile.Zone?.City != city || Town(tile)) cost = -1f;
             else
             {
                 int id = tile.Index;
@@ -640,7 +636,7 @@ public static class CityPlanWorks
             for (int i = best; i >= 0; i = from[i])
             {
                 Cell tile = EmpireWorld.Current.CellAt(minX + i % w, minY + i / w);
-                if (tile?.data == null || Road(tile.Index)) continue;
+                if (tile?.Record == null || Road(tile.Index)) continue;
                 if (RoadPaintSystem.Paint(tile)) painted++;
             }
         }
@@ -695,7 +691,7 @@ public static class CityPlanWorks
         if (g == null) return tiles;
         void Mark(int x, int y)
         {
-            if (EmpireWorld.Current.CellAt(x, y)?.data is WorldTileData data) tiles.Add(data.tile_id);
+            if (EmpireWorld.Current.CellAt(x, y)?.Record is Cell data) tiles.Add(data.Index);
         }
         foreach (UrbanFabric.Road road in g.Roads)
             for (int d = 0; d <= road.Length; d++)
@@ -784,7 +780,7 @@ public static class CityPlanWorks
             if (grade < 2) continue;
             foreach (Cell next in tile.Neighbours ?? Array.Empty<Cell>())
             {
-                if (next?.data == null || next.Zone == null || !InRange(next) || grades.ContainsKey(next.Index) ||
+                if (next?.Record == null || next.Zone == null || !InRange(next) || grades.ContainsKey(next.Index) ||
                     PureMapPatch.UrbanTile(next) || !cased.Add(next.Index)) continue;
                 Blend(pixels, pw, next.X - x0, next.Y - y0, scale, RoadOverlay.CasingColor);
             }

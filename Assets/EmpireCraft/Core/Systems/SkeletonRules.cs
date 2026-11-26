@@ -15,7 +15,7 @@ namespace EmpireCraft.Core
         public static void Month(EmpireWorld w)
         {
             w.Month++;
-            Population(w);
+            if(!PopulationElsewhere)Population(w);
             if(w.Month%12==0)Year(w);
             // The year's step fills the thrones its own deaths empty. A throne emptied in mid-year by
             // another system (an execution, a coup) is filled the same month.
@@ -24,6 +24,10 @@ namespace EmpireCraft.Core
 
         // How many people a city's land can carry: every tile a little, fertile tiles much more.
         public static double Capacity(EmpireWorld w,City c){var m=w.Map;double capacity=0;foreach(int t in c.Tiles)capacity+=150+2600*m.Fertility[t];return capacity;}
+
+        // True while another book keeps the population (the ported population system, see PopulationBridge): the
+        // skeleton's own growth then gives way; its other rules still change head counts, which the bridge carries over.
+        public static bool PopulationElsewhere;
 
         static void Population(EmpireWorld w)
         {

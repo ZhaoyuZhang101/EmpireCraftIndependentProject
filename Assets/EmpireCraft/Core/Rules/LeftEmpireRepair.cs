@@ -29,12 +29,12 @@ public static class LeftEmpireRepair
             {
                 Empire former = ModClass.EMPIRE_MANAGER?.Get(data.left_empire_id);
                 Realm core = former?.CoreKingdom;
-                if (core?.Record != null && !core.IsGone() && core != kingdom && kingdom.Record.color_id == core.Record.color_id &&
+                if (core?.Record != null && !core.IsGone() && core != kingdom && kingdom.Record.ColorId == core.Record.ColorId &&
                     !EmpireFormationService.IsSubject(kingdom))
                 {
-                    int before = kingdom.Record.color_id;
+                    int before = kingdom.Record.ColorId;
                     KingdomColorService.Restore(kingdom, -1, core.GetColor());
-                    if (kingdom.Record.color_id != before) recolored++;
+                    if (kingdom.Record.ColorId != before) recolored++;
                 }
                 if (kingdom.IsAdministrativeKingdomType() || !string.IsNullOrWhiteSpace(data.admin_name) || StaleAdministrativeName(kingdom))
                 {

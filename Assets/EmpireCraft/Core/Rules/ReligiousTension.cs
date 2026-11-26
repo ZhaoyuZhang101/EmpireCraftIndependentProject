@@ -175,7 +175,6 @@ public static class ReligiousTension
         }
     }
 
-#if EC_PENDING
     private static void CollectPollTax(City city)
     {
         if (!TreasurySystem.Enabled(city)) return;
@@ -184,7 +183,6 @@ public static class ReligiousTension
         int tax = (int)(CityPopulationSystem.Households(city) / (double)HouseholdsPerCoin * rate / ReferenceTaxRate);
         if (tax > 0) TreasurySystem.CollectResidentTax(city, tax, TreasuryCategory.ResidentTax);
     }
-#endif
 
     // 遭迫害的异教之城当年起事(见 ReligiousPersecution)：机会更大，其余条件同宗教叛乱
 #if EC_PENDING
@@ -207,11 +205,10 @@ public static class ReligiousTension
     private const int StartGraceYears = 10;
 
     // 能不能举事：不是都城、本国能起事、本城稳定低于起事线、十年内没起过事。打仗时照样会起事(以前打仗就不起，正与史实相反)
-#if EC_PENDING
     public static bool CanRevolt(City city)
     {
         // 开局头几年不举事：城的稳定度还没养起来，剧本第一年就教门四起、都城旁边开打(一年 60 秒)
-        if (EmpireWorld.Current == null || GameClock.Now < StartGraceYears * 60d) return false;
+        if (EmpireWorld.Current == null || GameClock.Now < StartGraceYears * 12d) return false;
         Realm origin = city?.Realm;
         if (origin?.Record == null || city == origin.Capital || !RebellionSystem.CanAttempt(origin) || !CityStabilitySystem.CanRise(city) ||
             CityStabilitySystem.Effective(city) >= CityStabilityRules.RebellionThreshold || !ModernStability.PassRebellionGate(origin))
@@ -219,7 +216,6 @@ public static class ReligiousTension
         double last = city.GetOrCreate().last_harsh_uprising;
         return last < 0d || GameClock.YearsSince(last) >= RevoltCooldownYears;
     }
-#endif
 
     // 举教起事(宗教叛乱、民间教门共用，见 SectUprisingSystem)：本城分出来立国，新国奉本城之教
 #if EC_PENDING

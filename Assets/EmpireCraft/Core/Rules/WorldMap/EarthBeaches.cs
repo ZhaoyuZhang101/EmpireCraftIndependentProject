@@ -33,7 +33,7 @@ public static class EarthBeaches
                 break;
             }
         if (!any) return 0;
-        TerrainKind desert = AssetManager.top_tiles?.get("desert_low");
+        TerrainKind desert = TerrainLayers.Top?.get("desert_low");
         if (desert == null) return 0;
         // 离水几格：从水面往外一圈圈走到 Reach 为止(八方向)
         var distance = new byte[width * height];

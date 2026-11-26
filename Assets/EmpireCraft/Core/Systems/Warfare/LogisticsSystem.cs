@@ -40,7 +40,7 @@ public static class LogisticsSystem
     private const float ForageStability = 4f;
     public const string ForagePlot = "war_forage";
     // 原版一个月是 5 个世界秒(见 GameClock.MonthsSince)
-    private const double SecondsPerMonth = 5d;
+    private const double SecondsPerMonth = 1d; // world time counts months here
 
     // 战力：补给满时不打折，补给线被切断时只剩三成五
     public static float AttackFactor(CorpsData corps) => 0.35f + 0.65f * Mathf.Clamp01(corps?.supply ?? 1f);
@@ -70,7 +70,6 @@ public static class LogisticsSystem
     }
 
     // months：降频时一回结几个月(见 CorpsSystem.DueMonths)——补给线找一次，被围、粮耗、损耗按月补跑
-#if EC_PENDING
     public static void MonthTick(Realm kingdom, int months = 1)
     {
         List<CorpsData> list = CorpsSystem.Of(kingdom);
@@ -122,7 +121,6 @@ public static class LogisticsSystem
             supply = Mathf.Min(1f, supply + ForageBonus);
         return supply;
     }
-#endif
 
     // 补给线最短路的工作数组(按地块编号，记趟次不清空)与堆：以前每找一次新建三个字典、集合和一个列表
     private static int _pass, _closedCount;
@@ -256,7 +254,6 @@ public static class LogisticsSystem
         return Mathf.Max(0f, corps.strength) / Mathf.Max(1, perSlot) * RationPerHouseholdYear / 12f;
     }
 
-#if EC_PENDING
     private static void Feed(Realm kingdom, List<CorpsData> list, bool foraging)
     {
         float saving = WarCommandSystem.QuartermasterSaving(kingdom);
@@ -286,7 +283,7 @@ public static class LogisticsSystem
             if (at != null && kingdom.Cities != null)
                 foreach (City near in CorpsSystem.NearestCities(kingdom, at, NearbyGranaries))
                 {
-                    float surplus = near.getTotalFood() - CityPopulationSystem.Households(near);
+                    float surplus = near.GetTotalFood() - CityPopulationSystem.Households(near);
                     if (surplus < 1f) continue;
                     need -= PopulationEconomySystem.TakeFood(near, Mathf.FloorToInt(Mathf.Min(surplus, need)));
                     if (need < 1f) break;
@@ -307,9 +304,9 @@ public static class LogisticsSystem
         if (supplied < remaining && kingdom.Cities != null)
         {
             foreach (City city in kingdom.Cities.Where(city => city?.Record != null && !city.IsGone())
-                         .OrderByDescending(city => city.getTotalFood() - CityPopulationSystem.Households(city)).ToList())
+                         .OrderByDescending(city => city.GetTotalFood() - CityPopulationSystem.Households(city)).ToList())
             {
-                float surplus = city.getTotalFood() - CityPopulationSystem.Households(city);
+                float surplus = city.GetTotalFood() - CityPopulationSystem.Households(city);
                 if (surplus < 1f) break;
                 supplied += PopulationEconomySystem.TakeFood(city, Mathf.FloorToInt(Mathf.Min(surplus, remaining - supplied)));
                 if (supplied >= remaining) break;
@@ -364,24 +361,21 @@ public static class LogisticsSystem
             }
         }
     }
-#endif
 
     private const float WeatherChronicleMen = 500f;
     private static readonly Dictionary<long, int> WeatherChronicled = new();
 
     // 交战中缺粮、或三分之一以上能上阵的军在敌境时，统帅发起"就地征粮"
-#if EC_PENDING
     private static void TryForage(Realm realm)
     {
         if (Foraging(realm) || !realm.HasEnemies()) return;
         Person commander = WarCommandSystem.Commander(realm);
-        if (commander == null || commander.plot != null) return;
+        if (commander == null || commander.Plot != null) return;
         if (!ForageWanted(realm)) return;
-        PlotKind asset = AssetManager.plots_library.get(ForagePlot);
+        PlotKind asset = PlotKinds.Library.get(ForagePlot);
         if (asset == null || EmpireWorld.Current?.Plots == null) return;
         EmpireWorld.Current.Plots.newPlot(commander, asset, false);
     }
-#endif
 
     private static bool ForageWanted(Realm realm)
     {

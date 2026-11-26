@@ -44,7 +44,6 @@ public static partial class HolyRomanSystem
 
     public static int ActiveFeuds(HolyRomanState state) => state?.private_wars?.Count(record => record.ended_at < 0d) ?? 0;
 
-#if EC_PENDING
     private static void FeudsYearly(Empire empire, HolyRomanState state)
     {
         state.private_wars ??= new List<PrivateWarRecord>();
@@ -72,7 +71,6 @@ public static partial class HolyRomanSystem
         if (reformed) LawsuitsYearly(empire, state);
         TryFeud(empire, state, illegal: reformed);
     }
-#endif
 
     #region 私战
 
@@ -132,7 +130,6 @@ public static partial class HolyRomanSystem
     }
 
     // 每年至多新开一场；同时至多两场
-#if EC_PENDING
     private static void TryFeud(Empire empire, HolyRomanState state, bool illegal)
     {
         int authority = Authority(empire);
@@ -190,7 +187,6 @@ public static partial class HolyRomanSystem
                            $"{attacker.GetKingdomName()}(兵{Troops(attacker):0})争{defender.GetKingdomName()}(兵{Troops(defender):0})的{names}，" +
                            $"权威{Authority(empire)}");
     }
-#endif
 
     // 私战进行中：交战两家之间，不在争城清单里的城一律不易手(CityPatch 攻城结算、改换归属时调用)
     public static bool BlocksFeudCity(Realm newKingdom, City city)

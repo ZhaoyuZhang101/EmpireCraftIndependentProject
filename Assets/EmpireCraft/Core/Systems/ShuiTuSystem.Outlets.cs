@@ -46,7 +46,6 @@ public static partial class ShuiTuSystem
 
     #region 挑出路
 
-#if EC_PENDING
     private static void TryOutlet(Realm unit, UnitInfo info, List<Realm> kingdoms, List<City> cities)
     {
         bool nomad = info.Fit == Fit.Nomad && info.OffGrass && info.OffTier > 0;
@@ -99,7 +98,6 @@ public static partial class ShuiTuSystem
         if (info.UnfitTop >= 2 && unfit.Count > 0 && Release(unit, unfit)) return "交当地首领";
         return null;
     }
-#endif
 
     #endregion
 
@@ -189,7 +187,6 @@ public static partial class ShuiTuSystem
     }
 
     // 附近有游牧：本国直辖城或与之相邻的城里有游牧文化为主的城，或接壤、隔海相望的国家是游牧文化
-#if EC_PENDING
     private static bool NomadNearby(Realm unit, List<City> cities)
     {
         foreach (City city in cities)
@@ -204,7 +201,6 @@ public static partial class ShuiTuSystem
                 return true;
         return false;
     }
-#endif
 
     private static bool NomadicCity(City city) =>
         city?.Record != null && !city.IsGone() &&
@@ -214,7 +210,6 @@ public static partial class ShuiTuSystem
     // 国号、君主称号随政体恢复(用户 2026-10-22 选"读档时改回原政体")
     private static readonly HashSet<long> RevertChecked = new();
 
-#if EC_PENDING
     private static void RevertUnfounded(Realm unit, List<Realm> kingdoms, List<City> cities)
     {
         if (!RevertChecked.Add(unit.Key)) return;
@@ -249,7 +244,6 @@ public static partial class ShuiTuSystem
             CompositeEmpireService.GetRegimeName(target)));
         LogService.LogInfo($"[EmpireCraft][水土] {name} 附近没有游牧，撤回整国游牧化，改回{CompositeEmpireService.GetRegimeName(target)}");
     }
-#endif
 
     // 走了出路的离草清零(到过档的已记过史书，这里不再记"离草结束")
     private static void ClearOffGrass(Realm unit)
@@ -277,7 +271,6 @@ public static partial class ShuiTuSystem
     }
 
     // 北归：迁都旱地旧地；农地为主的直辖成员各自脱离；本国的农地城一片片交当地首领(至多 RetreatClusters 片)。离草从头计
-#if EC_PENDING
     private static bool Retreat(Realm unit, List<Realm> kingdoms, City seat)
     {
         if (seat.Realm != unit) seat.JoinRealm(unit);
@@ -318,7 +311,6 @@ public static partial class ShuiTuSystem
         EventRecorder.Record(unit, string.Format(LM.Get("shuitu_retreat_history"), name, seat.GetCityName(), released, left));
         return true;
     }
-#endif
 
     // 复合帝国北归之后(见 CompositeEmpireService.TryNorthernRetreat)：离草从头计
     public static void OnNorthernRetreat(Realm core)
@@ -358,7 +350,6 @@ public static partial class ShuiTuSystem
     }
 
     // 羁縻、交当地首领：到档最高的那片旱地城按政体文化转为羁縻州、朝贡国、附庸(同扩张上限)
-#if EC_PENDING
     private static bool Release(Realm unit, List<City> unfit)
     {
         List<City> cluster = UnfitCluster(unfit);
@@ -370,10 +361,8 @@ public static partial class ShuiTuSystem
             cluster.Count));
         return true;
     }
-#endif
 
     // 改从游牧：那片旱地城改从邻近的游牧文化、改建游牧营地，当地首领立为游牧之国
-#if EC_PENDING
     private static bool TurnNomad(Realm unit, List<City> unfit)
     {
         // 锁定官方文化的城不走改从异俗这条路，仍可羁縻、分封或整国改政体。
@@ -407,10 +396,8 @@ public static partial class ShuiTuSystem
             cluster.Count, nomad.GetCultureTranslate()));
         return true;
     }
-#endif
 
     // 新立的游牧之国：改游牧文化、游牧政体；宗主在帝国里就留作成员(自主外交、世袭)，否则做附庸
-#if EC_PENDING
     private static string PlaceNomads(Realm local, Realm unit, string nomad)
     {
         var extra = local.GetOrCreate();
@@ -443,7 +430,6 @@ public static partial class ShuiTuSystem
         EmpireCraftKingdomBehCheckKingdomType.SyncKingdomStatus(local);
         return form;
     }
-#endif
 
     // 邻近的游牧文化：这片城与它们的邻城里的主流文化(这片城自己的算两份)；没有就找本文化制度线上的游牧文化
     private static string NomadCultureNear(List<City> cluster)
@@ -516,7 +502,6 @@ public static partial class ShuiTuSystem
 
     // 定居帝国换了君主(KingdomPatch 的 setKing 补丁)：积弊深重或正统低落时，改从游牧的成员各按汗位更替之乱的机会据地自立。
     // 汗国自己有汗位更替之乱(游牧政体的成员都在内，见 NomadCycleSystem.OnKhanSucceeded)
-#if EC_PENDING
     public static void OnSuzerainSucceeded(Empire empire)
     {
         try
@@ -547,10 +532,8 @@ public static partial class ShuiTuSystem
             LogService.LogWarning($"[EmpireCraft][水土] 宗主更替结算失败: {exception.Message}");
         }
     }
-#endif
 
     // 不是帝国的宗主换了君主：改从游牧的附庸各有 VassalSplit 的机会起兵独立
-#if EC_PENDING
     public static void OnOverlordSucceeded(Realm lord)
     {
         try
@@ -572,7 +555,6 @@ public static partial class ShuiTuSystem
             LogService.LogWarning($"[EmpireCraft][水土] 宗主更替结算失败: {exception.Message}");
         }
     }
-#endif
 
     #endregion
 }

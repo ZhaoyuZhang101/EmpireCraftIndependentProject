@@ -74,7 +74,7 @@ public static class IslamicSchismSystem
         JihadTargetRatio = 3f, ZealAuthority = 5f;
     // 先代哈里发宗族至多记几家
     private const int MaxHouses = 24;
-    private const double SecondsPerYear = 60d;
+    private const double SecondsPerYear = 12d; // world time counts months here
     private const string Tag = "[EmpireCraft][伊斯兰分裂]";
 
     private static double _lastPass = -1d;
@@ -294,7 +294,6 @@ public static class IslamicSchismSystem
 
     #region 对立哈里发：宣告
 
-#if EC_PENDING
     private static void TryProclaimRival(Religion religion)
     {
         Realm orthodox = PapacySystem.Papacy(religion);
@@ -312,7 +311,6 @@ public static class IslamicSchismSystem
             if (TryFatimid(empire, religion) || ProclaimRival(religion, empire.CoreKingdom, "rival_caliph_proclaimed_log") != null) return;
         }
     }
-#endif
 
     private static bool Candidate(Empire empire, Religion religion, Realm orthodox, Realm see, int seeCities, out bool hostile)
     {
@@ -405,7 +403,6 @@ public static class IslamicSchismSystem
     }
 
     // 法蒂玛式：先代哈里发之裔、民心不附、境内多什叶派的，改立什叶派(或伊斯玛仪派)而自为伊玛目-哈里发
-#if EC_PENDING
     private static bool TryFatimid(Empire empire, Religion religion)
     {
         Realm core = empire.CoreKingdom;
@@ -429,7 +426,6 @@ public static class IslamicSchismSystem
         if (State(shia).sub_split) return false;
         return FoundBranch(shia, core, BranchIsmaili, "fatimid_founded_log", null, FollowerShare, out _) != null;
     }
-#endif
 
     // 什叶派的伊玛目之座已失(圣地不在奉它的国手里)：率国改奉，伊玛目之座迁到本都
     private static bool RestoreImamate(Empire empire, Religion shia, Religion old)
@@ -720,7 +716,6 @@ public static class IslamicSchismSystem
 
     #region 什叶派(争位之外)
 
-#if EC_PENDING
     private static void TryShiaTurns()
     {
         foreach (Realm realm in EmpireWorld.Current.LiveRealms.ToList())
@@ -744,10 +739,8 @@ public static class IslamicSchismSystem
             }
         }
     }
-#endif
 
     // 立什叶派：先代哈里发之裔、与哈里发座交战、民心不附
-#if EC_PENDING
     private static void TryEstablishShia(Realm realm, Religion faith, Realm orthodox)
     {
         if (faith.Age() < ShiaMinAge || Cities(realm) < ShiaMinCities) return;
@@ -759,7 +752,6 @@ public static class IslamicSchismSystem
         if (chance <= 0f || EcRandom.value >= chance) return;
         FoundBranch(faith, realm, BranchShia, alid ? "shia_founded_alid_log" : "shia_founded_log", null, FollowerShare, out _);
     }
-#endif
 
     // 改奉已有的什叶派：治下多奉什叶派(民心所向)，或先代哈里发之裔与哈里发座交战
     private static void TryAdoptShia(Realm realm, Religion faith, Realm orthodox)
@@ -951,6 +943,7 @@ public static class IslamicSchismSystem
         LogService.LogInfo($"{Tag} {realm.GetKingdomName()} {cityName} {name}起事(本教 {religion.Name})");
         return true;
     }
+#endif
 
     private static void UpdateMovements(Religion religion)
     {
@@ -987,7 +980,6 @@ public static class IslamicSchismSystem
             DeclareJihad(religion, movement, rebel);
         }
     }
-#endif
 
     // 起事成功：圣战之国——本教教权回升，国内政教合一
     private static void BecomeJihadState(Religion religion, ReformMovementData movement, Realm state)
@@ -1005,7 +997,6 @@ public static class IslamicSchismSystem
     }
 
     // 圣战：接壤(或隔海相望)、城数不过本国 JihadTargetRatio 倍的——先异教、后别的伊斯兰教派、再宽纵的故国，同档挑城多的
-#if EC_PENDING
     private static void DeclareJihad(Religion religion, ReformMovementData movement, Realm state)
     {
         Realm origin = ModRealm(LiveKingdom(movement.origin_kingdom_id));
@@ -1035,7 +1026,6 @@ public static class IslamicSchismSystem
         ReligionChronicle.Record(religion, ReligionChronicle.KindHolyWar, text);
         LogService.LogInfo($"{Tag} {state.GetKingdomName()}({movement.name})第 {movement.jihads} 次圣战：伐 {target.GetKingdomName()}");
     }
-#endif
 
     private static void EndMovement(Religion religion, ReformMovementData movement, string key, Realm witness)
     {
@@ -1086,7 +1076,6 @@ public static class IslamicSchismSystem
     }
 
     // 民心不附：治下 UnhappyShare 以上的城稳定低于起事线，或王朝已入末世
-#if EC_PENDING
     private static bool Unhappy(Realm realm)
     {
         Empire empire = realm.GetEmpire();
@@ -1099,7 +1088,6 @@ public static class IslamicSchismSystem
         }
         return total > 0 && restless >= total * UnhappyShare;
     }
-#endif
 
     #endregion
 

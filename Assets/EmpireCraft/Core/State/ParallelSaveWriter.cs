@@ -36,7 +36,7 @@ public static class ParallelSaveWriter
 
     public static void Write(string path, SaveData data)
     {
-        var clock = global::System.Diagnostics.Stopwatch.StartNew();
+        var clock = SimWatch.StartNew();
         if (Enabled && ParallelWork.MaxWorkers > 1)
         {
             try

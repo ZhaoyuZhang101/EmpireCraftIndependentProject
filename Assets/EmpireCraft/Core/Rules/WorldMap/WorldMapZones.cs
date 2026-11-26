@@ -120,7 +120,6 @@ internal static class WorldMapZones
     }
 
     // 剧本开局前设这一时代的边墙(格坐标的折线；null 清掉)，之后每次 Build 按它重算哪些相邻区块被隔开
-#if EC_PENDING
     public static void SetWalls(List<List<Vector2>> lines)
     {
         _walls.Clear();
@@ -129,10 +128,8 @@ internal static class WorldMapZones
         _lines = FrontierWalls.Build(lines);
         _blocked.Clear();
     }
-#endif
 
     // 从 seat(城心)看这块地在墙后，或隔着高原外缘(见 PlateauSides)：城不领它(见 FrontierWalls.Behind)
-#if EC_PENDING
     public static bool Behind(Vector2Int seat, int index) =>
         index >= 0 && (_lines.Count > 0 && FrontierWalls.Behind(_lines, seat, new Vector2(index % Width * 8 + 4, index / Width * 8 + 4)) ||
                        PlateauSides.Differ(EmpireWorld.Current?.CellAt(seat.x, seat.y)?.Zone, Zone(index)));
@@ -142,7 +139,6 @@ internal static class WorldMapZones
         Cell seat = city?.SeatCell();
         return seat != null && Behind(new Vector2Int(seat.X, seat.Y), index);
     }
-#endif
 
     // 区块中心连线与边墙线段相交的相邻区块对(八方向，记一半的邻居、两向通用)
     private static void BuildBlocked()
@@ -435,7 +431,6 @@ internal static class WorldMapZones
     }
 
     // 铺辖地：各城同时从自己的城区往外扩，按地形代价谁近归谁(弹出时才定)；budget 为每城能走的地形代价，cap 为每城最多几块
-#if EC_PENDING
     public static void Fill(List<(City city, float budget, int cap)> seeds, Action<City, Cell> claim)
     {
         var owner = new int[_travel.Length];
@@ -490,7 +485,6 @@ internal static class WorldMapZones
             }
         }
     }
-#endif
 
     // 随机补城至少要有一片连通的可定居腹地；冻原、山脊、河湖围住的一两块小空隙不另立国。
     // 史实城市和编辑器指定的部落不走这个筛选，仍可保留狭小河谷／岛屿上的真实聚落。
@@ -594,7 +588,6 @@ internal static class WorldMapZones
     // 不看地块上限(见 WorldMapScenario.FillTerritory)。头一轮山脉只领不越(山脊作国界)，之后几轮把剩下的分完；
     // 哪一轮都不许从山里往下进平地、高原(用户 2026-10-29 "依旧还有跨地形国土")：以前山这边的城领满了上限，
     // 留下的平地第二轮被山那边的城翻过山脊领走(吐蕃翻过喜马拉雅占了恒河边)
-#if EC_PENDING
     public static int FillAll(Action<City, Cell> claim)
     {
         int claimed = 0;
@@ -606,12 +599,10 @@ internal static class WorldMapZones
         }
         return claimed;
     }
-#endif
 
     // 山里至多往里领几块(从平地算起)
     private const int MountainDepth = 2;
 
-#if EC_PENDING
     private static int FillRound(Action<City, Cell> claim, int mountainDepth)
     {
         int count = _travel.Length;
@@ -672,7 +663,6 @@ internal static class WorldMapZones
         }
         return claimed;
     }
-#endif
 
     // 交界有没有路口(用户 10-29 "军队不应该跨越"山、"不仅国土跨越了军队也跨越了"，口径同军团寻路、战线、城市扩张，
     // 见 TerrainSystem.Crossable)：铺辖地、铺满都只从有路口的交界扩过去，翻过山脊才到的地不领(留给山那边的城或空着)；

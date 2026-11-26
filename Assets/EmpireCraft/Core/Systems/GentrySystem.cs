@@ -53,9 +53,7 @@ public static partial class GentrySystem
     private const float RiseRate = 0.15f, FallRate = 0.05f, OfficeCap = 60f;
     private const int MaxRecordsPerEmpire = 3;
 
-#if EC_PENDING
     private static readonly FrameBudgetQueue<long> Queue = new(1.5d, Assess, "世家门第");
-#endif
     private static double _lastPass = -1d;
     private static readonly Dictionary<long, (float share, long city)> Land = new();
     private static readonly HashSet<SpecificClan> Ruling = new();
@@ -65,7 +63,6 @@ public static partial class GentrySystem
     private static readonly List<long> GentryIds = new();
     private static double _lastMonth = -1d;
 
-#if EC_PENDING
     public static void ResetWorldState()
     {
         Queue.Cancel();
@@ -78,7 +75,6 @@ public static partial class GentrySystem
         Recorded.Clear();
         Registry.Clear();
     }
-#endif
 
     #region 查询
 
@@ -450,7 +446,6 @@ public static partial class GentrySystem
     #region 每年分批结算
 
     // 每帧(CityPopulationSystem 里跟着虚拟族谱一起推进)：一年一轮
-#if EC_PENDING
     public static void Tick()
     {
         if (EmpireWorld.Current == null) return;
@@ -478,7 +473,6 @@ public static partial class GentrySystem
             .Select(clan => clan.id).ToList());
         Queue.Tick();
     }
-#endif
 
     // 各宗族的私田：合计占地(按城的分数加总)、占地最多的城
     private static void BuildLand()
@@ -534,7 +528,6 @@ public static partial class GentrySystem
         }
     }
 
-#if EC_PENDING
     private static void Assess(long id)
     {
         SpecificClan clan = SpecificClanManager.Get(id);
@@ -598,7 +591,6 @@ public static partial class GentrySystem
             TryAutonomy(clan, seat);
         }
     }
-#endif
 
     private static void Decline(SpecificClan clan, bool extinct)
     {

@@ -23,12 +23,12 @@ public static class CityLedgerSupply
 
     // 账面库存里富余、可以分出去的货
 #if EC_PENDING
-    public static List<ResourceAsset> Surplus(Dictionary<string, int> stock)
+    public static List<ResourceKind> Surplus(Dictionary<string, int> stock)
     {
-        var list = new List<ResourceAsset>();
+        var list = new List<ResourceKind>();
         if (stock == null) return list;
         foreach (KeyValuePair<string, int> pair in stock)
-            if (AssetManager.resources.dict.TryGetValue(pair.Key ?? "", out ResourceAsset asset) && asset.supply_give > 0 &&
+            if (ResourceKinds.Table.dict.TryGetValue(pair.Key ?? "", out ResourceKind asset) && asset.supply_give > 0 &&
                 pair.Value > asset.supply_bound_give)
                 list.Add(asset);
         return list;
@@ -45,14 +45,14 @@ public static class CityLedgerSupply
             Realm kingdom = city.Realm;
             if (kingdom?.Cities == null || kingdom.CountCities() == 1) return BehResult.Stop;
             if (city.Record.timer_supply > 0f) return BehResult.Stop;
-            List<ResourceAsset> surplus = Surplus(city.GetOrCreate().population?.settlement_supplies);
+            List<ResourceKind> surplus = Surplus(city.GetOrCreate().population?.settlement_supplies);
             if (surplus.Count == 0) return BehResult.Stop;
             foreach (City other in kingdom.Cities.LoopRandom())
             {
                 if (other == city || other?.Record == null || other.IsGone()) continue;
-                foreach (ResourceAsset resource in surplus.LoopRandom())
+                foreach (ResourceKind resource in surplus.LoopRandom())
                 {
-                    if (other.getResourcesAmount(resource.id) >= resource.supply_bound_take) continue;
+                    if (other.GetResourcesAmount(resource.id) >= resource.supply_bound_take) continue;
                     CityResourceTransferSystem.Move(city, other, resource.id, resource.supply_give);
                     city.Record.timer_supply = Cooldown(city.HasLeader() ? city.Leader.Stats["multiplier_supply_timer"] : 1f);
                     return BehResult.Continue;

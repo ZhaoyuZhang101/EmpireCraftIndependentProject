@@ -31,7 +31,6 @@ public static class FrontierRelations
     public static bool IsNomadRealm(Realm kingdom) =>
         kingdom?.Record != null && !kingdom.IsGone() && CultureService.GetRealmCulture(kingdom).IsNomadCulture();
 
-#if EC_PENDING
     public static void TryYearlyScan()
     {
         if (EmpireWorld.Current?.LiveRealms == null || ModClass.EMPIRE_MANAGER == null || ModClass.IS_CLEAR) return;
@@ -68,10 +67,8 @@ public static class FrontierRelations
             Market(core, realm, frontier);
         }
     }
-#endif
 
     // 和亲：本国定居、对方游牧
-#if EC_PENDING
     private static void TryHeqin(Empire empire, Realm khan)
     {
         Realm core = empire.CoreKingdom;
@@ -89,7 +86,6 @@ public static class FrontierRelations
         khan.GetEmpire()?.RecordHistory(directContent: text, kingdomId: khan.Key);
         TranslateHelper.LogEventMessage(text, core);
     }
-#endif
 
     // 互市、商路：两国相安时各得市易之利
     private static void Market(Realm a, Realm b, bool frontier)
@@ -123,7 +119,7 @@ public static class FrontierRelations
         InstitutionSystem.HasFeature(CultureService.GetInstitutionCulture(kingdom), CaravanFeature);
 
     private static int Population(Realm kingdom) =>
-        CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.Households(kingdom) : kingdom.PopulationCount();
+        CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.Households(kingdom) : kingdom.People.Count;
 
     private static bool RaidedWithin(Realm kingdom, int years)
     {

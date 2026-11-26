@@ -40,14 +40,12 @@ public static class CorruptionSystem
         empire.data.constitutional_economy.local_corruption_snapshot = (rates.provinces + rates.cities) * 0.5d;
     }
 
-#if EC_PENDING
     public static double GetRate(Realm kingdom)
     {
         if (kingdom == null || kingdom.IsGone()) return 0d;
         var rates = LocalRates(kingdom, new[] { kingdom }, null);
-        return CorruptionRules.ModRealm(kingdom.GetCorruptionRate(), rates.provinces, rates.cities);
+        return CorruptionRules.Realm(kingdom.GetCorruptionRate(), rates.provinces, rates.cities);
     }
-#endif
 
     private static (double provinces, double cities) LocalRates(Realm core, IEnumerable<Realm> realms,
         Empire empire)

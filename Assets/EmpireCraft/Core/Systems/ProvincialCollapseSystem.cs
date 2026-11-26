@@ -61,7 +61,7 @@ public static class ProvincialCollapseSystem
     //   离心度只在土崩瓦解里用，照旧要有内忧(正统低、积弊重、亏空……)才会首义、响应；天下一统没有外国就没有边疆
     private const float RemoteDisaffection = 0.1f, FrontierDisaffection = 0.2f, WarlordDisaffection = 0.3f;
     private const int ModernEraTier = 7;
-    private const double SecondsPerMonth = 5d;
+    private const double SecondsPerMonth = 1d; // world time counts months here
     // 分裂进程的化解门槛(见 SchismSystem)：内忧里正统一项从 50 以下算起、朝政积弊一项从 50 以上算起
     private const int GateLegitimacy = 50;
     private const float GateMalady = 50f;
@@ -78,7 +78,11 @@ public static class ProvincialCollapseSystem
     private static bool Applies(Empire empire) =>
         empire?.data != null && !empire.IsGone() && !empire.IsArchived() && empire.CoreKingdom != null &&
         !empire.CoreKingdom.IsGone() && !RepublicSystem.IsRepublic(empire) && RegimeFactor(empire) > 0f &&
-        !TransmigrantSystem.Governs(empire) && !ZhouShielded(empire) && !AncientWarfareCompatibility.Owns(empire.CoreKingdom);
+        !TransmigrantSystem.Governs(empire) && !ZhouShielded(empire) && !AncientWarfareCompatibility.Owns(empire.CoreKingdom) &&
+        // 近代国家(立了宪、有议会，或已进电气时代，见 StateModernization.IsModernPower)：内忧深重走政变、革命(见 RevolutionSystem)、
+        // 被占领，不再各省首义、割据(用户 2026-11-26 认可的看法：1937 剧本里大日本帝国开战几年就"北海道、九州割据，福冈首义"，
+        // 瑞典、荷兰、伊朗也进了瓦解)。没立宪、还没进电气时代的老帝国(清末)照旧，那里的各省响应就是辛亥那样的近代革命
+        !ConstitutionSystem.HasConstitution(empire) && !StateModernization.IsModernPower(empire.CoreKingdom);
 
     // 周制：春秋诸侯尊王，周室不瓦解，正统跌破 ZhouSpringCollapseLegitimacy 例外；战国(只剩王畿诸郡，郡也会割据)、
     // 一统之后照常(用户 2026-10-27 截图西大和朝、赵朝：以前春秋、战国整段豁免，周室正统 0、积弊满额也没有出口)
@@ -190,7 +194,6 @@ public static class ProvincialCollapseSystem
         return false;
     }
 
-#if EC_PENDING
     private static float Disaffection(Empire empire, Realm province, bool modern, PartyIdeology ideology)
     {
         float control = province.Cities.Average(AdministrativeControlSystem.Get);
@@ -222,7 +225,6 @@ public static class ProvincialCollapseSystem
         if (province.GetWars().Any(war => war != null && !war.HasEnded())) value -= 0.2f;
         return Mathf.Max(0f, value);
     }
-#endif
 
     // 元首制的行省军权：确有将领统率的正规军，且中央失信或当地欠饷时，才按军镇计算离心。
     // 与边疆加成只取其一；仍须经过内忧、离心门槛、分裂预警和冷却，不另加随机独立事件。
@@ -232,7 +234,6 @@ public static class ProvincialCollapseSystem
         CorpsSystem.Of(province).Any(corps => !corps.militia && corps.strength > 0f && corps.general_id >= 0);
 
     // 每年(ConstitutionalEconomySystem 年度结算)：首义
-#if EC_PENDING
     public static void Yearly(Empire empire)
     {
         try
@@ -281,7 +282,6 @@ public static class ProvincialCollapseSystem
             LogService.LogWarning($"[EmpireCraft][土崩瓦解] 首义失败: {exception.Message}");
         }
     }
-#endif
 
     // 分裂进程破局时首义(见 SchismSystem.BreakOutCollapse)：Started 已首义；Wait 近代革命战争还在打，下月再看；Failed 不再瓦解
     // (帝国已不适用、开国之君在位)或割据之省都起不了事
@@ -293,7 +293,6 @@ public static class ProvincialCollapseSystem
     }
 
     // 分裂进程破局：割据之省里离心最重的一省首义(原 Yearly 的首义)，两年响应期从这时算起
-#if EC_PENDING
     public static RisingStart BeginRising(Empire empire, List<Realm> candidates, out Realm first)
     {
         first = null;
@@ -321,7 +320,6 @@ public static class ProvincialCollapseSystem
         End(state);
         return RisingStart.Failed;
     }
-#endif
 
     // 首义以来几个月(帝国窗口用)；没在瓦解返回 -1
     public static int RisingMonths(Empire empire)
@@ -335,7 +333,6 @@ public static class ProvincialCollapseSystem
     public const int RisingWindowMonths = CascadeMonths;
 
     // 每次帝国更新都调用，自带月度计时：各省响应、近代过半逼退位、两年后收束
-#if EC_PENDING
     public static void Monthly(Empire empire)
     {
         ConstitutionalEconomyState state = State(empire);
@@ -395,13 +392,11 @@ public static class ProvincialCollapseSystem
             LogService.LogWarning($"[EmpireCraft][土崩瓦解] 响应失败: {exception.Message}");
         }
     }
-#endif
 
     // 古代瓦解收束：起义各省带走的城之外，帝国剩下的不到瓦解前的四分之一，帝国就此灭亡，中央降为普通王国。
     // 以前收束只清计时，朝廷剩几座城也一直算现存帝国，地图上早已四分五裂。
     // 只算起义(首义 + 响应)各省离开时带走的城(用户 2026-10-21 选"瓦解收束不再全散")：以前按帝国眼下剩的城算，
     // 两年里外战丢的、更替之乱走的、决议自立的都算成瓦解，帝国常常就此灭亡、所有成员各自独立
-#if EC_PENDING
     private static bool TryFall(Empire empire, ConstitutionalEconomyState state)
     {
         if (state.collapse_modern || state.collapse_origin_cities <= 0 || empire?.data == null || empire.IsArchived() ||
@@ -420,7 +415,6 @@ public static class ProvincialCollapseSystem
         ModClass.EMPIRE_MANAGER?.dissolveEmpire(empire);
         return true;
     }
-#endif
 
     // 起义各省离开时带走的城；旧档(瓦解进行到一半读进来，没记过)按还在帝国外的起义各省眼下的城数估
     private static int RisenCities(Empire empire, ConstitutionalEconomyState state)
@@ -434,7 +428,6 @@ public static class ProvincialCollapseSystem
     // 帝国灭亡时，没有响应起义、听命于中央的直辖成员(道、阿拉伯行省、元首制行省、军府等没有自主外交权、朝廷任命的，
     // 见 EmpirePeacePatch.Obeys)把城并入核心王国，不再随解散各自独立(用户 2026-10-21 选"瓦解收束不再全散")；
     // 羁縻(异族自治)、自治、封建、附庸类成员照旧独立。汗国崩解、名号作废时也用(见 NomadCycleSystem.KhanateCollapse)，risen 给空、日志换 tag
-#if EC_PENDING
     public static void Absorb(Empire empire, IEnumerable<long> risenIds, string tag = "[EmpireCraft][土崩瓦解]")
     {
         Realm core = empire.CoreKingdom;
@@ -458,7 +451,6 @@ public static class ProvincialCollapseSystem
             LogService.LogInfo($"{tag} {empire.GetEmpireName()} 灭亡前，直辖的 {string.Join("、", absorbed)} 共 {moved} 城并入" +
                                $"{core.GetKingdomName()}，不随解散独立");
     }
-#endif
 
     private static void End(ConstitutionalEconomyState state)
     {
@@ -467,7 +459,6 @@ public static class ProvincialCollapseSystem
         state.collapse_war_id = -1L;
     }
 
-#if EC_PENDING
     private static bool Rise(Empire empire, ConstitutionalEconomyState state, Realm province, PartyIdeology ideology, bool first)
     {
         Realm core = empire.CoreKingdom;
@@ -501,10 +492,8 @@ public static class ProvincialCollapseSystem
             empire.GetEmpireFullName()));
         return true;
     }
-#endif
 
     // 近代：首义之省发起革命战争，响应的各省加入攻方、结为同盟
-#if EC_PENDING
     private static War RiseModern(Empire empire, ConstitutionalEconomyState state, Realm province, PartyIdeology ideology)
     {
         Realm core = empire.CoreKingdom;
@@ -561,7 +550,6 @@ public static class ProvincialCollapseSystem
         }
         return war;
     }
-#endif
 
     // 近代：独立各省的城过半，朝廷无力回天，逼皇帝退位
     private static void CheckAbdication(ConstitutionalEconomyState state, War war)

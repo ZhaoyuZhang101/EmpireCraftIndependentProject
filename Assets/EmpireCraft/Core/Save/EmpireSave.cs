@@ -201,6 +201,7 @@ namespace EmpireCraft.Core
                     byte outcome=b.ReadByte();Check(outcome<=(byte)WarOutcome.Merged,"Unknown war outcome");war.Outcome=(WarOutcome)outcome;
                     Side(b,w,war.Attackers,realms);Side(b,w,war.Defenders,realms);Side(b,w,war.PastAttackers,realms);Side(b,w,war.PastDefenders,realms);
                     w.Wars.Add(war);
+                    foreach(var side in new[]{war.Attackers,war.Defenders,war.PastAttackers,war.PastDefenders})foreach(var r in side)r.LastWarAt=Math.Max(r.LastWarAt,war.StartedMonth);
                     if(!war.Alive)continue;
                     w.LiveWars.Add(war);
                     foreach(var r in war.Attackers)r.Wars.Add(war);

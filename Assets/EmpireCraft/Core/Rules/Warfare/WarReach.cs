@@ -56,7 +56,6 @@ public static class WarReach
     public static bool IsFar(War war) => war?.Record != null && Far.Contains(war.Key);
 
     // 开战闸：够不着又不是内乱的不开
-#if EC_PENDING
     public static bool MayDeclare(Realm attacker, Realm defender, WarKind type)
     {
         if (attacker?.Record == null || defender?.Record == null || attacker == defender) return true;
@@ -71,7 +70,6 @@ public static class WarReach
             LogService.LogInfo($"{LogTag} 拦下 {attacker.GetKingdomName()} 对 {defender.GetKingdomName()} 宣战(来自 {caller})：两边够不着");
         return false;
     }
-#endif
 
     // 世界法则「禁止AI宣战」「禁止AI外交(总)」(见 DiplomacyLaws)在开战总入口再拦一道(见 WarReachPatch)：
     // 法则原先只拦经 WarGate.CanDeclare 的十几处与原版挑目标，其余四十来处直接 startWar / newWar 的(帝号之争、圣战、私战、
@@ -140,7 +138,6 @@ public static class WarReach
     private static bool Young(Realm kingdom) => GameClock.YearsSince(kingdom.FoundedStamp) < 1f;
 
     // 两边(帝国连同成员)有一对够得着：法理相连且走得通(见 Borders)、同一块陆地上相距不过 LandTiles 格(不隔着绕不过去的无人区)，或任一边的水师够得着对方临海的城
-#if EC_PENDING
     public static bool Reachable(Realm a, Realm b)
     {
         if (a?.Record == null || b?.Record == null || a.IsGone() || b.IsGone()) return false;
@@ -154,19 +151,15 @@ public static class WarReach
             if (StraitReach.Across(b, x)) return true;
         return false;
     }
-#endif
 
     // 挑宣战目标用(AI，见 EmpireCraftPlotsAddition、WarTargetPatch)：发起国连同所在帝国与目标法理相连且走得通，或隔海相望
-#if EC_PENDING
     public static bool WarNear(Realm initiator, Realm target)
     {
         if (initiator?.Record == null || target?.Record == null || initiator.IsGone() || target.IsGone()) return false;
         return Borders(Members(initiator), new List<Realm> { target }) || StraitReach.Across(initiator, target);
     }
-#endif
 
     // a 有城只隔着无人区挨着 b 的城(不管走不走得通；定战争目标用，见 WarGoalSystem)
-#if EC_PENDING
     public static bool AcrossWild(Realm a, Realm b)
     {
         if (a?.Cities == null || b == null) return false;
@@ -175,10 +168,8 @@ public static class WarReach
                 if (other?.Realm == b) return true;
         return false;
     }
-#endif
 
     // 两边有一对邻城(地块相接，或只隔着无人区)走得通
-#if EC_PENDING
     private static bool Borders(List<Realm> ours, List<Realm> theirs)
     {
         var others = new HashSet<Realm>(theirs);
@@ -193,7 +184,6 @@ public static class WarReach
         }
         return false;
     }
-#endif
 
     private static bool Walks(City city, IEnumerable<City> nearby, HashSet<Realm> others)
     {
@@ -210,7 +200,6 @@ public static class WarReach
     // 走得通的邻城：地块相接、或只隔着无人区，且两边城心军队走得到一起(任一方的走法，同 Borders)。
     // 天下大势量两家接壤用(见 UnificationSystem.Borders；2026-11-07 群友"帝国不会主动出击统一天下"：那边以前只认地块相接的原版邻城，
     // 隔着无人区的天下各家既不算统一的对手、共主也不去平定)；没开无人区时就是原版邻城
-#if EC_PENDING
     public static IEnumerable<City> WalkableNeighbours(City city)
     {
         if (city?.Record == null) yield break;
@@ -224,10 +213,8 @@ public static class WarReach
             }
         foreach (City other in WalkableWildNeighbours(city)) yield return other;
     }
-#endif
 
     // 发起国(连同所在帝国)法理相连且走得通的各国，一次算好(同 WarNear 的陆上一条；朝堂挑目标要逐国问一遍，见 TempFac_扩张地盘)
-#if EC_PENDING
     public static HashSet<Realm> WalkableNeighbourKingdoms(Realm initiator)
     {
         var result = new HashSet<Realm>();
@@ -244,10 +231,8 @@ public static class WarReach
         }
         return result;
     }
-#endif
 
     // 只隔着无人区、又走得通的邻城(AcrossWild 不看走不走得通；隔着过不去的雪山大漠的不算，见 WildernessPassage)
-#if EC_PENDING
     public static IEnumerable<City> WalkableWildNeighbours(City city)
     {
         if (city?.Record == null) yield break;
@@ -259,11 +244,9 @@ public static class WarReach
             if (WildernessPassage.Walks(from, to, city.Realm) || WildernessPassage.Walks(from, to, other.Realm)) yield return other;
         }
     }
-#endif
 
     // 只从给定的这几国(不连同所在帝国的别的成员)量挨不挨着对方：接壤、只隔着走得通的无人区，或隔海在一方水师辐射内；
     // 隔着第三国不算，不管多近(朝贡要宗主直辖之地挨着，见 TributaryRelations.InReach)
-#if EC_PENDING
     public static bool TouchingFrom(List<Realm> ours, Realm other)
     {
         if (ours == null || ours.Count == 0 || other?.Record == null || other.IsGone()) return false;
@@ -300,26 +283,21 @@ public static class WarReach
         }
         return false;
     }
-#endif
 
     // 两城之间陆路的地形阻力不过 LandCost(见类头)
-#if EC_PENDING
     private static bool LandCostWithin(City x, City y, Cell at, Cell tile)
     {
         float cost = ConnectivitySystem.NearLandCost(x, y, LandCost);
         if (cost >= 0f) return cost <= LandCost;
         return TerrainResistance.LineCost(at.Zone, tile.Zone, x.Realm) <= LandCost;
     }
-#endif
 
     // 两边(帝国连同成员)同一块陆地上有两座城相距不远、走得过去(同 Reachable 的陆上一条；定战争目标分陆战、跨海用，见 WarGoalSystem)
-#if EC_PENDING
     public static bool LandNearby(Realm a, Realm b)
     {
         if (a?.Record == null || b?.Record == null || a.IsGone() || b.IsGone()) return false;
         return LandNear(Members(a), Members(b));
     }
-#endif
 
     private static List<City> Cities(List<Realm> realm) =>
         realm.Where(kingdom => kingdom.Cities != null)
@@ -453,7 +431,6 @@ public static class WarReach
         EmpireWorld.Current.EndWar(war, WarOutcome.Peace);
     }
 
-#if EC_PENDING
     private static bool Near(Realm a, Realm b, Dictionary<(long, long), bool> cache)
     {
         Realm x = RealmOf(a), y = RealmOf(b);
@@ -464,7 +441,6 @@ public static class WarReach
         cache[key] = near;
         return near;
     }
-#endif
 
     // 主攻主守够不着：换成够得着的一对——先留主攻换主守，再留主守换主攻，再两家都换；各边军队多的先(同原版另选主攻主守)
 #if EC_PENDING
@@ -503,7 +479,6 @@ public static class WarReach
 #endif
 
     // 主攻主守以外的参战国：连续 ClearMonths 个月一个敌方都够不着的退出战争
-#if EC_PENDING
     private static void PruneDistant(War war, Dictionary<(long, long), bool> cache)
     {
         Realm mainA = war.MainAttacker, mainD = war.MainDefender;
@@ -532,11 +507,9 @@ public static class WarReach
             }
         }
     }
-#endif
 
     // 主攻主守之外，两边的参战国有一对够得着(盟友在打)就不算久不接触。按政权去重(同一帝国的成员算一家，
     // Reachable 本来就按全体成员算)，主攻主守那一对已经算过
-#if EC_PENDING
     private static bool AnyPairReachable(War war)
     {
         List<Realm> attackers = Distinct(war.Attackers), defenders = Distinct(war.Defenders);
@@ -546,7 +519,6 @@ public static class WarReach
             if ((a != mainA || d != mainD) && Reachable(a, d)) return true;
         return false;
     }
-#endif
 
     private static List<Realm> Distinct(List<Realm> side) =>
         side?.Where(Alive).Select(RealmOf).Distinct().ToList() ?? new List<Realm>();

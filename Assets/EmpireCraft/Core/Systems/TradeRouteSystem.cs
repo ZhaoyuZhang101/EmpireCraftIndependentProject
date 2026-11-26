@@ -49,7 +49,6 @@ public static class TradeRouteSystem
         BaseTrade + WealthTrade * (CityConstructionSystem.Wealth(a) + CityConstructionSystem.Wealth(b)) * 0.5f;
 
     // 城市悬停提示：有商路时给一行"伙伴城市（+N/月）"，交战中标注禁运
-#if EC_PENDING
     public static string Describe(City city)
     {
         City partner = EmpireWorld.Current?.CityByKey(PartnerOf(city));
@@ -86,11 +85,9 @@ public static class TradeRouteSystem
     private static bool Tradeable(City city) =>
         city?.Record != null && !city.IsGone() && city.Realm != null && !city.Realm.IsWild &&
         TreasurySystem.Enabled(city) &&
-        city.getBuildingOfType("type_docks", pCountOnlyFinished: true, pRandom: false) != null;
-#endif
+        city.GetBuildingOfType("type_docks", pCountOnlyFinished: true, pRandom: false) != null;
 
     // 每城找最近的外国港口城(直线距离近似海程；每年一次，港口城数量有限)
-#if EC_PENDING
     private static void Pair()
     {
         Routes.Clear();
@@ -143,32 +140,26 @@ public static class TradeRouteSystem
             RouteFreight[city.Key] = (cost, freight);
         }
     }
-#endif
 
     // 港口所在的那片海：码头所在或紧挨着的海面所属的水域；找不到返回 null(那就照旧按距离配)
-#if EC_PENDING
     private static object SeaOf(City city)
     {
-        Building docks = city.getBuildingOfType("type_docks", pCountOnlyFinished: true, pRandom: false);
+        Building docks = city.GetBuildingOfType("type_docks", pCountOnlyFinished: true, pRandom: false);
         Cell tile = docks?.Cell;
         if (tile == null) return null;
-        if (tile.Type?.Ocean == true && tile.region?.island != null) return tile.region.island;
+        if (tile.Type?.Ocean == true && tile.Region?.island != null) return tile.Region.island;
         foreach (Cell next in tile.NeighboursAll ?? Array.Empty<Cell>())
-            if (next?.Type?.Ocean == true && next.region?.island != null) return next.region.island;
+            if (next?.Type?.Ocean == true && next.Region?.island != null) return next.Region.island;
         return null;
     }
-#endif
 
     private const int TreatyYears = 20;
 
     // 有能通商的港口(海上商路只在无小人模式开着，见 TryMonthlyScan)
-#if EC_PENDING
     public static bool HasPort(Realm kingdom) =>
         CityPopulationSystem.AbstractPopulationEnabled && kingdom?.Cities?.Any(Tradeable) == true;
-#endif
 
     // 和约逼开港：二十年里与胜者通商(锁国也开)
-#if EC_PENDING
     public static bool ImposeTreaty(Realm loser, Realm winner)
     {
         if (!HasPort(loser) || !HasPort(winner) || loser == winner) return false;
@@ -178,7 +169,6 @@ public static class TradeRouteSystem
         _lastPairing = -1d;
         return true;
     }
-#endif
 
     public static Realm TreatyPartner(Realm kingdom)
     {
@@ -209,7 +199,6 @@ public static class TradeRouteSystem
     // 普通商路：每条有向记录给发起的港口记一笔。和约商路：按两端的城结一次，两边各记一笔——
     // A→B、B→A 同时在册也只结一次；同一港口的别条商路照常另算。
     // 结不了的不拖累其他：城没了、失去码头、同国化、锁国了就撤掉这条，下月重新配对；交战、封锁只是这个月断航。
-#if EC_PENDING
     private static void Settle()
     {
         SettledTreaties.Clear();
@@ -257,10 +246,8 @@ public static class TradeRouteSystem
         foreach (long id in StaleRoutes) Routes.Remove(id);
         _lastPairing = -1d;
     }
-#endif
 
     // 贸易利得记进民间资产(与生产估值同口径)；关税按商业税率从民间现金征，入城市国库
-#if EC_PENDING
     private static void Earn(City city, float trade)
     {
         CityPopulationData data = CityPopulationSystem.Get(city);
@@ -272,6 +259,5 @@ public static class TradeRouteSystem
         EnterpriseSystem.TakeCash(data, tariff);
         TreasurySystem.CollectResidentTax(city, (int)Math.Min(int.MaxValue, tariff), TreasuryCategory.CommercialTax);
     }
-#endif
 }
 }

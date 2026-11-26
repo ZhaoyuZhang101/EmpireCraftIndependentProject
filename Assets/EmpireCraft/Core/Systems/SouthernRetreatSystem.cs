@@ -129,7 +129,6 @@ public static class SouthernRetreatSystem
     // 国力比朝廷小、朝廷够得着；按入侵者的压力掷机会，一年至多 RallyMaxPerYear 家
     private const int RallyMaxPerYear = 2;
 
-#if EC_PENDING
     private static List<Realm> Rally(Empire court, Realm invader)
     {
         var joined = new List<Realm>();
@@ -166,6 +165,5 @@ public static class SouthernRetreatSystem
             LogService.LogInfo($"[EmpireCraft][南明] 压力 {pressure:P0}，来投：{string.Join("、", joined.Select(kingdom => kingdom.GetKingdomName()))}");
         return joined;
     }
-#endif
 }
 }

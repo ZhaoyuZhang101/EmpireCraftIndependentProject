@@ -180,12 +180,15 @@ public static class Program
                 if (!Unresolved(model, node, out string owner, out var member, out var receiverType)) continue;
                 string name = member.Identifier.Text;
                 // A chain of two collapsed into one member: x.data.color_id -> x.ColorId.
+                // Not when the outer member is called: x.units.Count(predicate) is a count over the list, not the merged member.
                 if (node.Parent is MemberAccessExpressionSyntax outer && outer.Expression == node &&
+                    !(outer.Parent is InvocationExpressionSyntax calledOuter && calledOuter.Expression == outer && outer.Name.Identifier.Text == "Count") &&
                     Lookup(map, receiverType, name + "." + outer.Name.Identifier.Text, out string collapsed))
                 { edits.Add(new TextChange(TextSpan.FromBounds(member.SpanStart, outer.Name.Span.End), collapsed)); continue; }
                 // The same chain with a question mark in the middle: x.cities?.get(id) -> x.CityByKey(id).
                 if (node.Parent is ConditionalAccessExpressionSyntax asked && asked.Expression == node &&
                     LeadingBinding(asked.WhenNotNull) is MemberBindingExpressionSyntax next &&
+                    !(next.Parent is InvocationExpressionSyntax calledNext && calledNext.Expression == next && next.Name.Identifier.Text == "Count") &&
                     Lookup(map, receiverType, name + "." + next.Name.Identifier.Text, out string joined) && joined.Length > 0)
                 { edits.Add(new TextChange(TextSpan.FromBounds(member.SpanStart, next.Name.Span.End), joined)); continue; }
                 if (!Lookup(map, receiverType, name, out string renamed))

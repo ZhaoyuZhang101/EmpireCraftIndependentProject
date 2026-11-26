@@ -709,7 +709,6 @@ public static class WorldMapScenario
         }
     }
 
-#if EC_PENDING
     private static void ApplyRelations(List<WorldMapRelation> relations, Dictionary<string, Realm> realms)
     {
         int done = 0;
@@ -735,7 +734,6 @@ public static class WorldMapScenario
         }
         LogService.LogInfo($"[EmpireCraft][世界地图] 开局外交：{done}/{relations.Count} 条");
     }
-#endif
 
     // 开局国库：兵是当场补满的，钱却几乎没有(开局半年全世界国库合计才两千多)，头一个月军饷就发不出，连欠三个月攻方就罢兵。
     // 排在开局外交之后，在打仗的按战时军饷算
@@ -887,7 +885,7 @@ public static class WorldMapScenario
     {
         Cell center = zone?.Center;
         if (center == null || zone.Tiles.Count(Flat) >= MinFlat * 2) return;
-        TerrainKind grass = AssetManager.top_tiles.get("grass_high") ?? AssetManager.top_tiles.get("grass_low");
+        TerrainKind grass = TerrainLayers.Top.get("grass_high") ?? TerrainLayers.Top.get("grass_low");
         if (grass == null) return;
         for (int dx = -6; dx <= 6; dx++)
         for (int dy = -6; dy <= 6; dy++)
@@ -924,7 +922,7 @@ public static class WorldMapScenario
 #if EC_PENDING
     private static void MakeOasis(Cell zone)
     {
-        TerrainKind grass = AssetManager.top_tiles.get("grass_low");
+        TerrainKind grass = TerrainLayers.Top.get("grass_low");
         foreach (Cell tile in zone.Tiles)
         {
             if (tile?.Type == null || tile.Type.Liquid) continue;
@@ -1821,7 +1819,6 @@ public static class WorldMapScenario
     // (这些地块离本国各城另走一遍，见 WorldMapZones.Partition)；墙这一侧本国也没有城的不归，留给铺辖地、铺满
     private const float StrayBudget = 60f;
 
-#if EC_PENDING
     private static Dictionary<int, PlannedCity> SameSide(AnchorPlan plan, int[] owner, List<int> stray, bool wild)
     {
         var result = new Dictionary<int, PlannedCity>();
@@ -1839,6 +1836,7 @@ public static class WorldMapScenario
         return result;
     }
 
+#if EC_PENDING
     private static int AnchorTerritory()
     {
         AnchorPlan plan = PlanAnchors(city => TerritoryBudget[Mathf.Clamp(city.rank, 0, 3)], SeatBudget);
@@ -2077,7 +2075,6 @@ public static class WorldMapScenario
 
     // 都城不是地区法理首府的剧本国家(神罗里的巴伐利亚、萨克森，意大利的萨伏依、热那亚……)：没有法理就按都城城名起国号
     // (慕尼黑国、德累斯顿国)。以都城连同本国在这个地区的城另立一块王国法理、叫国名，这些城兼属原地区的法理(争议法理)
-#if EC_PENDING
     private static void OwnTitles()
     {
         _ownTitles.Clear();
@@ -2107,7 +2104,6 @@ public static class WorldMapScenario
             _ownTitles.Add((polity.capital.region.id, own));
         }
     }
-#endif
     private static readonly Dictionary<string, EmpireCore> _coreById = new();
     private static readonly Dictionary<string, EmpireCore> _coreByRegion = new();
     private static readonly List<(WorldMapCore data, EmpireCore core)> _cores = new();
@@ -2366,7 +2362,7 @@ public static class WorldMapScenario
                 {
                     polity.empire.data.has_year_name = true;
                     polity.empire.data.year_name = WorldMapData.PickParts(polity.data.eraName);
-                    polity.empire.data.newEmperor_timestamp = GameClock.Now - Mathf.Max(0, polity.data.eraYear - 1) * 60d;
+                    polity.empire.data.newEmperor_timestamp = GameClock.Now - Mathf.Max(0, polity.data.eraYear - 1) * 12d;
                     // 称帝那一刻就开了这位君主的在位记录，记的是随手起的年号：崇祯帝驾崩后帝王表上写着"建福"，
                     // 起头几条记事写成"由检 1年"。照剧本年号改过来
                     EmpireCraftHistory reign = polity.empire.data.currentHistory;
@@ -2792,7 +2788,7 @@ public static class WorldMapScenario
         // 整个崇祯末年一场民变都没有(用户 2026-11-08 "农民起义这么少")。记成宽限期刚满
         _afterLoad.Add(("开局成员不算新附", () =>
         {
-            double settled = GameClock.Now - (RebellionRules.LocalGraceYears + 1) * 60d;
+            double settled = GameClock.Now - (RebellionRules.LocalGraceYears + 1) * 12d;
             foreach (Realm kingdom in EmpireWorld.Current.LiveRealms.ToList())
                 if (kingdom?.Record != null && !kingdom.IsGone() && kingdom.GetEmpire() is Empire empire && empire.CoreKingdom != kingdom)
                     kingdom.SetFiedTimestamp(settled);
@@ -2895,7 +2891,7 @@ public static class WorldMapScenario
     private static void TickDevelop()
     {
         if (_develop.Count == 0) return;
-        var watch = global::System.Diagnostics.Stopwatch.StartNew();
+        var watch = SimWatch.StartNew();
         while (_develop.Count > 0 && watch.Elapsed.TotalMilliseconds < DevelopMilliseconds)
         {
             (City city, float people) = _develop.Dequeue();
@@ -3031,7 +3027,7 @@ public static class WorldMapScenario
                     HashSet<long> kept = empire.GetProtectedDirectCityIds();
                     LogService.LogWarning($"[EmpireCraft][世界地图] {empire.GetEmpireName()} 设 {data.Name} 没成：{region.Count} 城，" +
                                           $"京畿留着的 {region.Count(city => kept.Contains(city.Key))} 城，战时 {empire.HasTerritorialWar()}，" +
-                                          $"政体 {empire.CoreKingdom.GetRegime()?.type}，城里可任官的人 {region.Sum(city => city.PopulationCount()(unit => unit != null && unit.Alive && unit.isAdult() && !unit.isKing()) ?? 0)}");
+                                          $"政体 {empire.CoreKingdom.GetRegime()?.type}，城里可任官的人 {region.Sum(city => city.People?.Count(unit => unit != null && unit.Alive && unit.IsAdult() && !unit.IsRuler()) ?? 0)}");
                     continue;
                 }
                 _divided = true;
@@ -3068,7 +3064,6 @@ public static class WorldMapScenario
 
     // 山西本有大同，明确的历史辖境不能因为一道边墙自动另立“大同省”。
     // 缺乏明确范围的推算行政区仍沿用原有隔墙分设规则。
-#if EC_PENDING
     private static List<List<City>> DivisionParts(string polity, WorldMapDivision data, List<City> cities)
     {
         bool bounded = data.boundary is { Count: > 0 } ||
@@ -3076,7 +3071,6 @@ public static class WorldMapScenario
         return bounded ? new List<List<City>> { cities }
             : FrontierWalls.Split(cities).OrderByDescending(part => part.Count).ToList();
     }
-#endif
 
     // 都护府、长史府、都督府这类统辖羁縻州的(照中文名)
     private static bool Protectorate(string name)
@@ -3134,7 +3128,6 @@ public static class WorldMapScenario
 
     // 自成一国的殖民地设为宗主国的属地：类型照 dependency，国号"某属某地"(地名照 place，不写的从国名"某属"后面取)；
     // 派总督的属地，剧本写了总督的仍由他当总督
-#if EC_PENDING
     private static void AnnexColony(PlannedPolity colony, PlannedPolity metropole)
     {
         Realm kingdom = colony.kingdom;
@@ -3153,7 +3146,6 @@ public static class WorldMapScenario
             state.governor_id = governor.Key;
         }
     }
-#endif
 
     private static int DependencyKind(WorldMapPolity data) => (data.dependency ?? "").Trim().ToLowerInvariant() switch
     {
@@ -3173,14 +3165,12 @@ public static class WorldMapScenario
         return $"{Strip(data.zh)}|{data.en}|{Strip(string.IsNullOrEmpty(data.tw) ? data.zh : data.tw)}";
     }
 
-#if EC_PENDING
     private static void FoundColony(Realm metropole, WorldMapColony data, List<City> cities)
     {
         List<City> held = cities.Where(city => city.Realm == metropole).ToList();
         if (held.Count == 0 || metropole.IsGone()) return;
         ColonySystem.Establish(metropole, held, data.company, data.Name);
     }
-#endif
 
     // 神圣罗马：开局即持所在联合天下(罗马)的普世之名，再授神圣(教廷在就由教宗加冕，不在就自行加冕，见 PapacySystem.GrantHoly)
     private static void Hallow(Empire empire, EmpireCore lead)
@@ -3212,7 +3202,6 @@ public static class WorldMapScenario
     // 两边的帝国法理都算，漠北、准噶尔、满洲、卫藏不再整块挂进中华
     private static readonly Dictionary<string, EmpireCore> _tianxiaLeads = new();
 
-#if EC_PENDING
     private static void ArrangeTianxia()
     {
         _tianxiaLeads.Clear();
@@ -3240,7 +3229,6 @@ public static class WorldMapScenario
                 if (_tianxiaLeads.TryGetValue(id, out EmpireCore target) && TianxiaSystem.Lead(core) != target)
                     Guard($"{data.id} 兼属天下 {id}", () => DeJureShareSystem.ShareTianxia(core, target, true));
     }
-#endif
 
     // 世界地图开局的世界法则：简化铭牌、城市不毁、地块固定(关原版边界侵蚀与领土扩张，开局按地形铺好的辖地不再变)
 #if EC_PENDING

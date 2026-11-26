@@ -426,20 +426,17 @@ public static class WorldMapWilderness
     }
 
     // 旧档没存长城(见 FrontierWalls)：按存档的时代、范围与大小补算这一时代的长城；不是世界地图、时代找不到为 null
-#if EC_PENDING
     internal static List<List<Vector2>> ScenarioWalls()
     {
         if (!Active || string.IsNullOrEmpty(_state.era) || !WorldMapData.EnsureLoaded()) return null;
         WorldMapEra era = WorldMapData.Eras.Concat(WorldMapData.Custom).FirstOrDefault(item => item?.id == _state.era);
         return era == null ? null : WorldMapScenario.WallLines(era, _frame, new Vector2Int(_state.w, _state.h));
     }
-#endif
 
     #endregion
 
     #region 地理单元
 
-#if EC_PENDING
     private static bool EnsureUnits()
     {
         if (_units != null) return _units.Count > 0;
@@ -467,7 +464,6 @@ public static class WorldMapWilderness
         _unitById = _units.GroupBy(unit => unit.id).ToDictionary(group => group.Key, group => group.First());
         return _units.Count > 0;
     }
-#endif
 
     private static void Measure(WorldMapWildUnit unit)
     {
@@ -596,7 +592,6 @@ public static class WorldMapWilderness
     private static Plan _plan;
 
     // 区域 → 单元的对应：按区域列表与版本缓存(一次划区里起名的几片共用)
-#if EC_PENDING
     private static Plan PlanFor()
     {
         IReadOnlyList<WildRegion> regions = WildernessSystem.Regions;
@@ -675,7 +670,6 @@ public static class WorldMapWilderness
         }
         return plan;
     }
-#endif
 
     private static bool Better(Match a, Match b)
     {
@@ -686,7 +680,6 @@ public static class WorldMapWilderness
     }
 
     // 这片无人区的真实地名(没有对上的为 null，照旧走 WildernessNaming)；used 是本世界已用的名字
-#if EC_PENDING
     public static string Name(WildRegion region, ICollection<string> used)
     {
         if (!Active || region == null) return null;
@@ -734,7 +727,6 @@ public static class WorldMapWilderness
             return null;
         }
     }
-#endif
 
     // 东西南北：经向按纬度折算后取差得多的那个方向；离得太近不分
     private static string Direction(float dLon, float dLat, float lat)
@@ -887,7 +879,6 @@ public static class WorldMapWilderness
 
     // 剧本编辑器预测无人区用(见 ScenarioWilderness)：这个经纬度上这一类无人区，按时代文件的史实归属(单元 → 政权)归哪个政权；
     // 落在几个写了归属的单元里取范围最小的(同 TitleFor)；没写为 null
-#if EC_PENDING
     public static string HistoricalOwner(Dictionary<string, string> owners, WildKind kind, float lon, float lat)
         => HistoricalOwner(owners, kind, lon, lat, out _);
 
@@ -909,7 +900,6 @@ public static class WorldMapWilderness
         }
         return chosen;
     }
-#endif
 
     // 开局头一回挂法理时：各单元的政权都城 → 都城所在的王国法理
     private static void ResolveOwners()
@@ -928,7 +918,6 @@ public static class WorldMapWilderness
 
     // 这块无人区挂哪个法理(WildernessSystem.Attach 里问)：剧本刷的先(导入地图也认)，再是史实归属；都没有、法理没了的为 null，
     // 照旧挂最近的。永久中立由挂接阶段的 PreparePaint 应用，查询不改世界。
-#if EC_PENDING
     public static KingdomTitle TitleFor(Cell zone)
     {
         if (zone == null) return null;
@@ -936,13 +925,10 @@ public static class WorldMapWilderness
         if (painted != null) return painted;
         return HistoricalTitle(zone, false);
     }
-#endif
 
     // 明确的地区设置与编辑器笔刷高于自动州府锚点；普通国家级设置仍走原来的本地城市分配。
-#if EC_PENDING
     internal static KingdomTitle FixedTitle(Cell zone) => PaintedTitle(zone) ??
         (_state?.regional is { Count: > 0 } ? HistoricalTitle(zone, true) : null);
-#endif
 
     private static bool SamePolity(City city, City capital)
     {
@@ -951,7 +937,6 @@ public static class WorldMapWilderness
         return a == b || a.GetEmpire() is Empire empire && empire == b.GetEmpire();
     }
 
-#if EC_PENDING
     private static KingdomTitle HistoricalTitle(Cell zone, bool fixedOnly)
     {
         if (zone == null) return null;
@@ -986,7 +971,6 @@ public static class WorldMapWilderness
         }
         return fixedOnly ? null : chosen;
     }
-#endif
 
     #endregion
 }

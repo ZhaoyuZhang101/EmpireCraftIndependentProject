@@ -50,7 +50,7 @@ public class EmpireCraftEmpireBehCheckInnerOffice: GameAIEmpireBase
         if (center == null) return;
         if (pEmpire.IsNeedToOfficeExam())
         {
-            pEmpire.AddRenown(-(int)(pEmpire.CoreKingdom.getRenown() * 0.07));
+            pEmpire.AddRenown(-(int)(pEmpire.CoreKingdom.GetRenown() * 0.07));
 
             Dictionary<Person, double> pData = new Dictionary<Person, double>();
             List<Person> officers = center.GetAllOfficers(pEmpire);

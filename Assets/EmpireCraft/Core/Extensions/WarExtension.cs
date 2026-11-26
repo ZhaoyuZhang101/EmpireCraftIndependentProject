@@ -162,7 +162,6 @@ public static class WarExtension
     }
 
     // 战争名里的国名与地图铭牌一致
-#if EC_PENDING
     private static string DisplayName(Realm kingdom, string fallback)
     {
         string name = EmpireCraft.Core.EmpireCraftNamePlateLibrary.GetDisplayName(kingdom);
@@ -188,7 +187,7 @@ public static class WarExtension
         if (nanoObject != null)
         {
             w.GetOrCreate().metaType = nanoObject.KindOfEntity;
-            w.GetOrCreate().metaID = nanoObject.id;
+            w.GetOrCreate().metaID = nanoObject.Key;
         }
         switch (type)
         {
@@ -203,7 +202,6 @@ public static class WarExtension
                 break;
         }
     }
-#endif
 
     public static KingdomTitle GetTitleTarget(this War w)
     {

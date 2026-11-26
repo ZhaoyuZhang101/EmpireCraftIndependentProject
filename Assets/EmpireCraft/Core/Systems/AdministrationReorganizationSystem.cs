@@ -48,7 +48,6 @@ public static class AdministrationReorganizationSystem
         empire.Legitimacy > 80 && !empire.HasTerritorialWar() && !ZhouEraSystem.RoyalReclaimBlocked(empire) &&
         !AncientWarfareCompatibility.Owns(empire.CoreKingdom);
 
-#if EC_PENDING
     public static bool Begin(Person actor)
     {
         if (!CanPropose(actor)) return false;
@@ -82,7 +81,6 @@ public static class AdministrationReorganizationSystem
         Pending.Enqueue(work);
         Active.Add(empire.Key);
     }
-#endif
 
     private static bool Requested(Empire empire) =>
         !WorldMapWilderness.FixedLayout || empire.data.administrative_reorganization_explicit;

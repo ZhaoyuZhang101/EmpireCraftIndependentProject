@@ -171,7 +171,7 @@ public static partial class SmoothBorders
             LayerImages.Remove(image);
             return false;
         }
-        long started = global::System.Diagnostics.Stopwatch.GetTimestamp();
+        long started = SimWatch.GetTimestamp();
         ResetTransitions();
         ZoneFlipOverlay.Hide();
         ZonePaintBudget.ResetLayerPending();
@@ -205,7 +205,7 @@ public static partial class SmoothBorders
                 if (id < 0 || id >= image.drawnId.Length) continue;
                 if (id < _resetStamp.Length && _resetStamp[id] > image.serial)
                 {
-                    zone.resetRenderHelpers();
+                    zone.ResetRenderHelpers();
                     stale++;
                     continue;
                 }
@@ -225,7 +225,7 @@ public static partial class SmoothBorders
         calc.MarkDirty();
         calc.clearAllRedrawTimers();
         _layerRestored = true;
-        double ms = (global::System.Diagnostics.Stopwatch.GetTimestamp() - started) * 1000d / global::System.Diagnostics.Stopwatch.Frequency;
+        double ms = (SimWatch.GetTimestamp() - started) * 1000d / SimWatch.Frequency;
         LogService.LogInfo($"[EmpireCraft][全图换色] {layer.id}(换图层)：从 {image.usedAt - image.savedAt:0} 秒前存的整层快照拷回，" +
                            $"用了 {ms:0} 毫秒；存下以后被要求重画的 {stale} 块，其余归属、颜色变了的按指纹重画");
         return true;

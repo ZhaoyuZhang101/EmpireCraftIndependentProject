@@ -132,7 +132,7 @@ public static class TerrainSystem
             total++;
             if ((Marks(type) & MarkWater) == 0) continue;
             water++;
-            if (!big && (tile.region?.island?.getTileCount() ?? 0) >= BigWater) big = true;
+            if (!big && (tile.Region?.island?.getTileCount() ?? 0) >= BigWater) big = true;
         }
         bool result = !big && total > 0 && water >= total * RiverShare;
         if (RiverZones.Count > 100_000) RiverZones.Clear();
@@ -235,7 +235,6 @@ public static class TerrainSystem
 
     // 军牌在两块地之间按格走一步的代价(见 CorpsSystem.MarchLine；只管画在哪，行军快慢照旧按地块算)：
     // 修通的路最省(桥也是路，过得了河)；平地 1；林地、丛林 1.4；丘陵、沼泽 2；山地、山巅、水面、岩浆走不了，返回负数
-#if EC_PENDING
     internal static float StepCost(Cell tile)
     {
         TerrainKind type = tile?.Type;
@@ -250,7 +249,6 @@ public static class TerrainSystem
         if ((marks & (MarkJungle | MarkWoods)) != 0) return 1.4f;
         return 1f;
     }
-#endif
 
     // 一格挡不挡路：原版的阻挡格(山地、山巅)，看地面层与顶层(同 ClassifyTiles)
     private static bool Blocks(Cell tile)

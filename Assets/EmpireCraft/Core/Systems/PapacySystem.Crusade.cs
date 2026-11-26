@@ -27,7 +27,7 @@ public static partial class PapacySystem
     private const float CrusadeChance = 0.5f;
     private const int CrusadeCooldownYears = 15;
     private const int MaxResponders = 8, MaxDefenders = 5;
-    private const double SecondsPerYear = 60d;
+    private const double SecondsPerYear = 12d; // world time counts months here
 
     public static War ActiveCrusade(Religion religion)
     {

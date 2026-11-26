@@ -209,7 +209,7 @@ public static partial class TransmigrantSystem
         var state = new TransmigrantState
         {
             landed_at = now, landed_year = year, base_city_id = city.Key, lingao_name = lingao, lingao_native = native,
-            next_publish_at = now + PublishYears * 60d
+            next_publish_at = now + PublishYears * 12d
         };
         kingdom.GetOrCreate().transmigrant = state;
 
@@ -785,7 +785,7 @@ public static partial class TransmigrantSystem
         }
         if (inherited > 0) LogService.LogInfo($"[EmpireCraft][穿越] {kingdom.GetKingdomFullName()} 今年 {inherited} 位元老故去，席位由子女继承");
 
-        if (GameClock.Now - state.chairman_elected_at >= ChairmanTermYears * 60d)
+        if (GameClock.Now - state.chairman_elected_at >= ChairmanTermYears * 12d)
             InstallRuler(kingdom, Elect(kingdom, state, termEnd: true));
         FormGovernment(kingdom);
         StoryEvents(kingdom, state, year);
@@ -1081,7 +1081,7 @@ public static partial class TransmigrantSystem
     {
         double now = GameClock.Now;
         if (!InstitutionSystem.IsEnacted(Culture, "aosong_publishing") || now < state.next_publish_at) return;
-        state.next_publish_at = now + PublishYears * 60d;
+        state.next_publish_at = now + PublishYears * 12d;
         int ceiling = TechnologySystem.GetEraTier(Culture) - 2;
         List<TechNodeConfig> books = TechnologySystem.Techs
             .Where(tech => tech.tier <= ceiling && SafeBranches.Contains(tech.branch) && TechnologySystem.HasTech(Culture, tech.id) &&

@@ -173,6 +173,7 @@ public static class EmpireBankruptcySystem
             LM.Get("bankruptcy_defect_history"), empire.GetEmpireFullName(), name, rebel.GetKingdomFullName()));
         return true;
     }
+#endif
 
     private static bool DeclareIndependence(Empire empire, Realm core, Realm member)
     {
@@ -184,6 +185,5 @@ public static class EmpireBankruptcySystem
             LM.Get("bankruptcy_independence_history"), empire.GetEmpireFullName(), member.GetKingdomFullName()));
         return true;
     }
-#endif
 }
 }

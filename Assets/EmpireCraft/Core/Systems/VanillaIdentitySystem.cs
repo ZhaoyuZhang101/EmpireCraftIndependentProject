@@ -42,7 +42,7 @@ public static class VanillaIdentitySystem
         {
             // 多支决议同时起步时，后完成的也复用先完成的语言，不再额外创建。
             var action = plot.action;
-            plot.action = actor => actor?.hasLanguage() == true || TryReuseLanguage(actor) || action?.Invoke(actor) == true;
+            plot.action = actor => actor?.HasLanguage() == true || TryReuseLanguage(actor) || action?.Invoke(actor) == true;
         }
     }
 #endif

@@ -27,7 +27,6 @@ public static partial class NomadRaidSystem
     private const float SteadfastMoney = 0.7f, SteadfastFood = 0.25f, SteadfastPeople = 0.5f;
 
     // 守方长城关隘之固(0~1)：交界地块里有墙的占比，交界的城里有没有完好的关城
-#if EC_PENDING
     private static float Defense(List<Realm> members, Realm target)
     {
         var raiders = new HashSet<Realm>(members);
@@ -39,7 +38,7 @@ public static partial class NomadRaidSystem
                 !city.NeighbourRealms.Any(raiders.Contains)) continue;
             if (!fort && RuralSettlementSystem.InCity(city).Any(settlement => settlement.fort && !settlement.cleared &&
                                                                              settlement.ruined_at < 0d)) fort = true;
-            foreach (Cell zone in city.border_zones)
+            foreach (Cell zone in city.BorderZones)
             {
                 if (zone == null) continue;
                 bool facing = false, wall = TerrainResistance.HasWall(zone);
@@ -56,7 +55,6 @@ public static partial class NomadRaidSystem
         }
         return SteppeRules.Defense(frontier > 0 ? walled / (float)frontier : 0f, fort);
     }
-#endif
 
     // 屯田实边的边城：所在帝国二十年内施行过屯田实边，城与外国接壤
     private static bool Steadfast(City city)
@@ -70,13 +68,11 @@ public static partial class NomadRaidSystem
         return city.NeighbourCities?.Any(other => other?.Realm != null && other.Realm.GetEmpire() != empire) == true;
     }
 
-#if EC_PENDING
     static partial void MonthlyCourse(War war, RaidWarState state)
     {
         WallLosses(war, state);
         if (state.bought_off == 0 && WarSituation.WarYears(war) >= 1f / 12f) TryBuyOff(war, state);
     }
-#endif
 
     // 关隘折损：出兵各部正在进攻的军
     private static void WallLosses(War war, RaidWarState state)
@@ -94,7 +90,6 @@ public static partial class NomadRaidSystem
 
     #region 买和
 
-#if EC_PENDING
     private static void TryBuyOff(War war, RaidWarState state)
     {
         Realm target = war.MainDefender;
@@ -106,7 +101,7 @@ public static partial class NomadRaidSystem
         bool otherWars = payer.GetWars().Any(other => other?.Record != null && other != war && !other.HasEnded());
         if (EcRandom.value >= SteppeRules.BuyOffChance(state.sacked, ratio, otherWars)) return;
         int funds = StateSettlementSystem.DiscretionaryFunds(payer);
-        int households = CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.Households(target) : target.PopulationCount();
+        int households = CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.Households(target) : target.People.Count;
         int ransom = Math.Max(MinRansom, Math.Max(households / 4, payer.GetMoney() / 10));
         Realm leader = LiveKingdom(state.leader_id);
         Empire empire = payer.IsEmpire() ? payer.GetEmpire() : null;
@@ -161,7 +156,6 @@ public static partial class NomadRaidSystem
                            $"已被洗劫{state.sacked:0.#}城，对方/本方{ratio:0.00})：{text}");
         EmpireWorld.Current.EndWar(war, WarOutcome.Peace);
     }
-#endif
 
     #endregion
 }

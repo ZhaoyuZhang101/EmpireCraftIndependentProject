@@ -73,7 +73,6 @@ public static class PuppetStateSystem
     }
 
     // 立为傀儡；做不了返回原因(语言键)
-#if EC_PENDING
     public static string Establish(Realm master, Realm puppet, bool record = true)
     {
         if (master?.Record == null || puppet?.Record == null || master == puppet || master.IsGone() || puppet.IsGone())
@@ -105,11 +104,9 @@ public static class PuppetStateSystem
         LogService.LogInfo($"[EmpireCraft][傀儡] {master.GetKingdomName()} 立 {puppet.GetKingdomName()} 为傀儡");
         return null;
     }
-#endif
 
     // 立一个傀儡政权：seat 作治所，leader 领头(另立门户，离了原来的官职)，cities 里别的城一并交过去，followers 随他改投；
     // name 国号(锁定)；culture 写了改新国文化，否则取当地之俗。剧情事件(扶植傀儡政权)与近代占领(OccupationPuppetSystem)共用
-#if EC_PENDING
     public static Realm Found(Realm master, City seat, IEnumerable<City> cities, Person leader, string name, string culture = null,
         IEnumerable<Person> followers = null)
     {
@@ -146,7 +143,6 @@ public static class PuppetStateSystem
         if (CorpsSystem.Enabled) CorpsSystem.Prefill(puppet);
         return puppet;
     }
-#endif
 
     // 主国执政党的理念：有执政党按执政党；共和国按建国理念；君主国没有政党的按国家主理念；都没有按君主本人的
     public static PartyIdeology MasterIdeology(Realm master)
@@ -162,7 +158,6 @@ public static class PuppetStateSystem
     }
 
     // 傀儡奉行主国的理念：元首与京城的官员、名人随之改；傀儡自己有政党的，由这一理念的党一党执政
-#if EC_PENDING
     public static void SyncIdeology(Realm puppet, Realm master)
     {
         if (puppet?.Record == null || master?.Record == null) return;
@@ -181,7 +176,6 @@ public static class PuppetStateSystem
             if (ruling != null) PartyBanSystem.Close(empire, ruling, Enumerable.Empty<FixedFaction>(), "party_ban_one_party_history");
         }
     }
-#endif
 
     // 离了原来的官职、城主之位
     private static void Detach(Person actor)
@@ -243,7 +237,6 @@ public static class PuppetStateSystem
     }
 
     // 每月：主国还在的随主国参战，主国亡了的放开
-#if EC_PENDING
     public static void Tick()
     {
         EmpireWorld world = EmpireWorld.Current;
@@ -277,6 +270,5 @@ public static class PuppetStateSystem
             }
         }
     }
-#endif
 }
 }

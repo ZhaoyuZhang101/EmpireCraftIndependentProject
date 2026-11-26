@@ -31,4 +31,57 @@ namespace EmpireCraft.Core
             return person;
         }
     }
+
+    // CityPopulationSystem.ExecuteFoldPhase - one step of a city's month (the mod ran twenty: floor, census, levies,
+    // marching off, five steps of fields, economy, market, siege surrender, the town's growth on the map, building,
+    // scorched earth, migration, plague, reading, growth). Here the population is the mod's own (seeded from this
+    // game's head counts, see PopulationBridge), but the steps that work through things this game does not keep yet are
+    // left out for now, and the books stay as they are:
+    //   - fields, economy and market (crops on map tiles, jobs in buildings, goods in store): the realm's taxes and a
+    //     city's food still come from this game's ledger (RealmAccounts, CityAnswers), so nothing is taxed twice;
+    //   - siege surrender, the town's growth on the map, building and scorched earth (buildings and town plans);
+    //   - the workforce prepared for the economy.
+    // The steps kept are the mod's own, in its order. Steps come back as the parts they need are brought over.
+    public static partial class CityPopulationSystem
+    {
+        // A month of cities still being worked through (see PortedSystems).
+        internal static bool MonthPending => _foldCity != null || PendingFolds.Count > 0 || PriorityFolds.Count > 0 || AwaitingGrowth.Count > 0;
+
+        private static bool ExecuteFoldPhase(City city, CityPopulationData data, double now, int phase)
+        {
+            switch (phase)
+            {
+                case 0:
+                    _foldHarvest = 0f;
+                    _foldMonthDue = data.last_economy >= 0d && now >= data.last_economy && GameClock.MonthsSince(data.last_economy) > 0;
+                    _foldEconomyDue = _foldMonthDue && !EconomyHeld(data, now, _foldStretch);
+                    EnsureFloor(city);
+                    break;
+                case 1:
+                    FoldCommoners(city);
+                    Census(city, data, keepBackground: true);
+                    break;
+                case 2: RaiseLevies(city); Census(city, data, keepBackground: true); break;
+                case 3: MarchToFront(city); break;
+                case 15: Migrate(city, data, now); break;
+                case 16: Plague(city, data); break;
+                case 17: ReadBooks(city); break;
+                case 18: GrowBackground(city, data, now); break;
+                case >= 4 and <= 14: break;
+                default:
+                    if (!PopulationParallelSystem.TryCompleteGrowth(city))
+                    {
+                        if (AwaitingGrowth.Count < MaxAwaitingGrowth)
+                        {
+                            if (!AwaitingGrowth.Contains((city, _foldOwner))) AwaitingGrowth.Add((city, _foldOwner));
+                            return true;
+                        }
+                        _foldPhase = 19; _waitingForMath = true; return false;
+                    }
+                    Census(city, data, keepBackground: true);
+                    return true;
+            }
+            return false;
+        }
+    }
 }

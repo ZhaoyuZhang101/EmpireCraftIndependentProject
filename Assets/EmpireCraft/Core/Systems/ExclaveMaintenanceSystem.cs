@@ -40,10 +40,8 @@ public static class ExclaveMaintenanceSystem
     private static Realm ModRealm(Realm kingdom) => kingdom?.GetEmpire()?.CoreKingdom ?? kingdom;
 
     // 本国(连同本帝国成员)法理上的无人区
-#if EC_PENDING
     private static bool OwnWild(Cell zone, Realm realm) =>
         WildernessSystem.IsWild(zone) && WildernessSystem.OwnerOf(zone) is Realm owner && ModRealm(owner) == realm;
-#endif
 
     private static bool Valid(City city, Realm realm) => city?.Record != null && !city.IsGone() &&
         !AncientWarfareCompatibility.OwnsObject(city) && ModRealm(city.Realm) == realm;
@@ -79,7 +77,6 @@ public static class ExclaveMaintenanceSystem
         Pending.Enqueue(kingdom.Key);
     }
 
-#if EC_PENDING
     public static void Tick()
     {
         if (EmpireWorld.Current == null || ModClass.IS_CLEAR) { ResetWorldState(); return; }
@@ -200,7 +197,6 @@ public static class ExclaveMaintenanceSystem
         foreach (var pair in fees)
             if (Secede(work, pair.part)) { state.weak_years = 0; break; }
     }
-#endif
 
     private static int Cost(Audit work, List<Cell> part)
     {
@@ -235,7 +231,6 @@ public static class ExclaveMaintenanceSystem
     }
 
     // 正统崩坏：都城在本帝国法理之外、或远在中央控制范围之外的成员国一律自立(正在与中央交战、神力拉入保护期内的不算)
-#if EC_PENDING
     private static void ReleaseDistantMembers(Empire empire, Realm core)
     {
         EmpireCore own = EmpireCoreManager.Get(empire);
@@ -265,7 +260,6 @@ public static class ExclaveMaintenanceSystem
         LogService.LogInfo($"[EmpireCraft][正统崩坏] {empire.GetEmpireName()}(正统{empire.Legitimacy}) 法理之外、鞭长莫及的成员自立：" +
                            string.Join("、", gone.Select(member => member.GetKingdomName())));
     }
-#endif
 
     private static bool Front(City city, Realm realm)
     {
@@ -277,7 +271,6 @@ public static class ExclaveMaintenanceSystem
     }
 
     // 一片飞地整片自立：整个在这片里的成员国连国离开帝国，其余的城按原属国各自由当地首领立国；返回是否走了
-#if EC_PENDING
     private static bool Secede(Audit work, List<Cell> part)
     {
         var zones = new HashSet<Cell>(part);
@@ -317,6 +310,5 @@ public static class ExclaveMaintenanceSystem
         LogService.LogInfo($"[EmpireCraft][飞地独立] {work.realm.GetKingdomName()} 的飞地 {names} 自立为 {string.Join("、", gone)}");
         return true;
     }
-#endif
 }
 }

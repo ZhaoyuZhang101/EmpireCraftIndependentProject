@@ -71,13 +71,11 @@ public static partial class TransmigrantSystem
         if (fubo != null) fubo.veterancy = Mathf.Min(FormationSystem.VeteranCap(fubo), fubo.veterancy + veterancy);
     }
 
-#if EC_PENDING
     private static void ShiftStability(City city, float amount)
     {
         CityStabilityData data = city == null ? null : CityStabilitySystem.State(city);
         if (data != null) data.stability = Mathf.Clamp(data.stability + amount, 0f, 100f);
     }
-#endif
 
     // 过了窗口的不补发：旧档读进来不会突然闹一场女仆革命
     private static void PassOverdue(TransmigrantState state)
@@ -91,7 +89,6 @@ public static partial class TransmigrantSystem
     }
 
     // 每年一次(见 Yearly)，在制度施行之前，当年的事件当年就能推动施行
-#if EC_PENDING
     private static void StoryEvents(Realm kingdom, TransmigrantState state, int year)
     {
         PassOverdue(state);
@@ -114,11 +111,9 @@ public static partial class TransmigrantSystem
             ThirdCongress(kingdom, state, year);
         if (!Settled(state, "mainland_campaign") && state.revealed && state.stage >= 5) MainlandCampaign(kingdom, state, year);
     }
-#endif
 
     #region 早期
 
-#if EC_PENDING
     private static void FirstSiege(Realm kingdom, TransmigrantState state, int year)
     {
         City home = BaseCity(kingdom, state);
@@ -144,7 +139,6 @@ public static partial class TransmigrantSystem
         TranslateHelper.LogMajor(string.Format(LM.Get("transmigrant_event_first_siege_history"), kingdom.GetKingdomFullName(), home.GetCityName(),
             from.GetCityName(), Mathf.RoundToInt(moved)), kingdom);
     }
-#endif
 
     private static void BopuDefense(Realm kingdom, TransmigrantState state, int year)
     {
@@ -159,7 +153,6 @@ public static partial class TransmigrantSystem
 
     // 女仆革命：外派站的人先买了女仆，执委会没有章程，元老们从咖啡馆一路游行到执委会大院。
     // 主席当众认错辞职，全体执委辞职组成看守内阁，设女仆状态委员会；取消配给、盖住宅要花钱，都城民心一时不稳
-#if EC_PENDING
     private static void MaidRevolution(Realm kingdom, TransmigrantState state, int year)
     {
         SenatorSeat chair = state.seats?.FirstOrDefault(seat => seat.seat == state.chairman_seat);
@@ -178,7 +171,6 @@ public static partial class TransmigrantSystem
         state.barred_seat = barred;
         TranslateHelper.LogMajor(string.Format(LM.Get("transmigrant_event_maid_revolution_history"), kingdom.GetKingdomFullName(), leader, resigned), kingdom);
     }
-#endif
 
     // 第二次全体大会：看守内阁开的会，共同纲领、女仆培养与分配、归化民地位都在这里定(见 Milestones)
     private static void SecondCongress(Realm kingdom, TransmigrantState state, int year)
@@ -196,7 +188,6 @@ public static partial class TransmigrantSystem
     #region 打出来的事件
 
     // 战争结束(WarPatch.end_war)：共同纲领以后头一回打赢大仗算第二次反围剿；霸王行动的收场
-#if EC_PENDING
     public static void OnWarEnded(War war, WarOutcome winner)
     {
         if (war?.Record == null || winner != WarOutcome.Attackers && winner != WarOutcome.Defenders) return;
@@ -225,27 +216,24 @@ public static partial class TransmigrantSystem
         state.next_campaign_at = GameClock.Now;
         TranslateHelper.LogMajor(string.Format(LM.Get("transmigrant_event_second_encirclement_history"), ours.GetKingdomFullName(), enemy.GetKingdomName()), ours);
     }
-#endif
 
     // 据有落脚那座岛的全部城，或落脚地法理的全部城
-#if EC_PENDING
     private static bool HomelandClear(Realm kingdom, TransmigrantState state)
     {
         City home = BaseCity(kingdom, state);
         if (home?.SeatCell() == null || (kingdom.Cities?.Count ?? 0) < HomelandMinCities) return false;
-        object island = home.SeatCell().region?.island;
+        object island = home.SeatCell().Region?.island;
         object title = home.GetTitle();
         bool islandClear = island != null, titleClear = title != null;
         foreach (City city in EmpireWorld.Current.Cities)
         {
             if (city?.Record == null || city.IsGone() || city.Realm == kingdom) continue;
-            if (islandClear && ReferenceEquals(city.SeatCell()?.region?.island, island)) islandClear = false;
+            if (islandClear && ReferenceEquals(city.SeatCell()?.Region?.island, island)) islandClear = false;
             if (titleClear && ReferenceEquals(city.GetTitle(), title)) titleClear = false;
             if (!islandClear && !titleClear) return false;
         }
         return islandClear || titleClear;
     }
-#endif
 
     private static void HomelandSecured(Realm kingdom, TransmigrantState state, int year)
     {
@@ -277,7 +265,6 @@ public static partial class TransmigrantSystem
     }
 
     // 灾区、战乱的沿海城：船够得着、有人可运
-#if EC_PENDING
     private static List<(City city, float amount)> EngineSources(Realm kingdom, List<City> homes)
     {
         var sources = new List<(City, float)>();
@@ -293,18 +280,14 @@ public static partial class TransmigrantSystem
         sources.Sort((a, b) => b.Item2.CompareTo(a.Item2));
         return sources;
     }
-#endif
 
     // 缺粮数是按月平滑的，饿过一次要很多年才衰减到 0，大多数"缺粮"的城其实缺不到一个人：闹没闹饥荒看人口系统的判定
-#if EC_PENDING
     private static List<City> EngineLandings(List<City> homes) =>
         homes.Where(city => !CityPopulationSystem.GetGrowthFactors(city, CityPopulationSystem.Get(city)).Famine && !NavySystem.IsBlockaded(city)).ToList();
-#endif
 
     // 今年最多花多少船费：只动国库一半，军饷和归化的钱不能全搭进去
     private static float EnginePurse(Realm kingdom) => kingdom.GetMoney() * EngineTreasuryShare;
 
-#if EC_PENDING
     private static void EngineStart(Realm kingdom, TransmigrantState state, int year)
     {
         if (NavySystem.TransportCapacity(kingdom) <= 0f || CorpsSystem.Unpaid(kingdom)) return;
@@ -317,10 +300,8 @@ public static partial class TransmigrantSystem
         TranslateHelper.LogMajor(string.Format(LM.Get("transmigrant_event_engine_operation_history"), kingdom.GetKingdomFullName(),
             RosterName(state, "陈海阳", LM.Get("transmigrant_event_commander_fallback"))), kingdom);
     }
-#endif
 
     // 行动期间每年：运力定上限，每人付船费和救济口粮钱，人落到不闹饥荒、还住得下的城。人是搬过来的，全世界总人口不变
-#if EC_PENDING
     private static void EngineYear(Realm kingdom, TransmigrantState state, int year)
     {
         List<City> allHomes = EngineHomes(kingdom);
@@ -365,14 +346,12 @@ public static partial class TransmigrantSystem
         Mark(state, "engine_end", year);
         TranslateHelper.LogMajor(string.Format(LM.Get("transmigrant_event_engine_end_history"), kingdom.GetKingdomFullName(), Mathf.RoundToInt(state.engine_moved)), kingdom);
     }
-#endif
 
     #endregion
 
     #region 霸王行动
 
     // 这片海上水师最强、打得过的对手。开战先突袭它的港湾，七成舰船当场报销；打赢了航路更远(见 SeaTradePartners)
-#if EC_PENDING
     private static void OverlordOperation(Realm kingdom, TransmigrantState state, int year)
     {
         int ours = NavySystem.Warships(kingdom);
@@ -415,14 +394,12 @@ public static partial class TransmigrantSystem
         Mark(state, "overlord_operation", year);
         TranslateHelper.LogMajor(string.Format(LM.Get("transmigrant_event_overlord_operation_history"), kingdom.GetKingdomFullName(), target.GetKingdomName(), sunk), kingdom);
     }
-#endif
 
     #endregion
 
     #region 太阳伞专案与第三次大会
 
     // 武林高手潜入都城行刺：元老无一伤亡，归化民死伤，安全部门的漏洞暴露，引出机构改革和第三次全体大会
-#if EC_PENDING
     private static void SunshadeCase(Realm kingdom, TransmigrantState state, int year)
     {
         City capital = kingdom.Capital;
@@ -433,7 +410,6 @@ public static partial class TransmigrantSystem
         TranslateHelper.LogMajor(string.Format(LM.Get("transmigrant_event_sunshade_case_history"), kingdom.GetKingdomFullName(), capital.GetCityName(),
             Mathf.RoundToInt(dead), RosterName(state, "姬信", LM.Get("transmigrant_event_investigator_fallback"))), kingdom);
     }
-#endif
 
     // 第三次全体大会：内阁制在 Milestones 里施行，改选在 Stage 里
     private static void ThirdCongress(Realm kingdom, TransmigrantState state, int year)

@@ -360,7 +360,7 @@ public static class WildernessPlotSystem
 #if EC_PENDING
     private static void Sync()
     {
-        var watch = global::System.Diagnostics.Stopwatch.StartNew();
+        var watch = SimWatch.StartNew();
         ZoneGrid calc = EmpireWorld.Current.Zones;
         bool changed = false;
         int dropped = 0;
@@ -875,7 +875,6 @@ public static class WildernessPlotSystem
 
     // 设县的国家(见类头)：开发者(各块记的开发者按开发度加权，县治那块加倍)；这一县归了别国(OwnerOf，同一帝国的不算)由那国设；
     // 开发者没了的由挨着这一县城最多的国家设；永久中立区不设
-#if EC_PENDING
     private static Realm FounderOf(WildPlot plot)
     {
         var weights = new Dictionary<long, float>();
@@ -915,7 +914,6 @@ public static class WildernessPlotSystem
         if (Civil(owner)) return developer != null && SameRealm(developer, owner) ? developer : owner;
         return developer ?? Neighbour(plot);
     }
-#endif
 
     // 挨着这一县(八邻)的城最多的文明国家
     private static Realm Neighbour(WildPlot plot)

@@ -58,7 +58,6 @@ public static class ColonySystem
     public static bool ColonialPower(Realm kingdom) => CanColonize(kingdom) && StateModernization.IsModernPower(kingdom);
 
     // 可租的港口城：有船坞或临海、不是都城，挑户数最多的
-#if EC_PENDING
     public static City LeaseTarget(Realm kingdom) =>
         kingdom?.Cities?.Where(city => city?.Record != null && !city.IsGone() && city != kingdom.Capital && Port(city))
             .OrderByDescending(PeaceTermRules.CityValue).FirstOrDefault();
@@ -66,7 +65,7 @@ public static class ColonySystem
     public static bool Port(City city)
     {
         if (city?.Record == null || city.IsGone()) return false;
-        if (city.getBuildingOfType("type_docks", pCountOnlyFinished: true, pRandom: false) != null) return true;
+        if (city.GetBuildingOfType("type_docks", pCountOnlyFinished: true, pRandom: false) != null) return true;
         // 临不临海要逐格看，内陆大城上万格：同一座城、地块数没变的一年内照旧(议和台每场仗每年给每座城问一遍)
         int count = city.Zones?.Count ?? 0, year = GameClock.Year;
         if (PortCache.TryGetValue(city.Key, out (City city, int zones, int year, bool port) hit) &&
@@ -88,7 +87,6 @@ public static class ColonySystem
         PortCache[city.Key] = (city, count, year, port);
         return port;
     }
-#endif
 
     private static readonly Dictionary<long, (City city, int zones, int year, bool port)> PortCache = new();
 
@@ -219,9 +217,7 @@ public static class ColonySystem
         kingdom?.Capital != null && !kingdom.IsGone() && kingdom.IsCivilized() && !IsColony(kingdom) &&
         (!kingdom.IsInEmpire() || kingdom.IsEmpire()) && TechnologySystem.RealmHasTech(kingdom, OceanTech);
 
-#if EC_PENDING
-    private static object IslandOf(City city) => city?.SeatCell()?.region?.island;
-#endif
+    private static object IslandOf(City city) => city?.SeatCell()?.Region?.island;
 
     // 离都城够远的海外：通达层算好后(用户 2026-11-06 同意"先信息类、再贸易迁徙"，见 ConnectivitySystem)按人员从都城走海路过去的成本，
     // 不低于 colony_min_cost(20，约远洋帆船三百格)或走不到才算；没算好时照旧按地块距离 ColonyDistance
@@ -245,7 +241,6 @@ public static class ColonySystem
 
     #region 编入与设立
 
-#if EC_PENDING
     private static void Incorporate(Realm realm)
     {
         if (!CanColonize(realm)) return;
@@ -273,10 +268,8 @@ public static class ColonySystem
             Found(realm, cities, ColonyState.Governorate);
         }
     }
-#endif
 
     // 剧本开局直接设的殖民地(世界地图：荷兰东印度公司、菲律宾总督府……)；给了名字的作地名，国号照"某属某地"、公司
-#if EC_PENDING
     public static Realm Establish(Realm metropole, List<City> cities, bool company, string name)
     {
         Realm colony = Found(metropole, cities, company ? ColonyState.Company : ColonyState.Governorate);
@@ -287,20 +280,16 @@ public static class ColonySystem
         }
         return colony;
     }
-#endif
 
     // 外交界面(见 DiplomacyActions)：把现成的一国设为殖民地；立即改派总督；特许公司立即收归国有
-#if EC_PENDING
     public static void Annex(Realm metropole, Realm kingdom, bool company)
     {
         // 宗主正从属于它的：先翻身(见 SubjectChain.Overturn)，解不开就不设
         if (!SubjectChain.Overturn(metropole, kingdom)) return;
         Setup(kingdom, metropole, company ? ColonyState.Company : ColonyState.Governorate);
     }
-#endif
 
     // 把现成的一国设为某种属地(剧本 colony_of、战争要求)；place 地名("简体|英文|繁体"，空的取首府法理名)
-#if EC_PENDING
     public static string Annex(Realm metropole, Realm kingdom, int kind, string place, Realm lessor = null, int leaseYears = 0)
     {
         if (kingdom?.Record == null || metropole?.Record == null || kingdom == metropole) return null;
@@ -310,14 +299,12 @@ public static class ColonySystem
         if (kind == ColonyState.Lease && Of(kingdom) is ColonyState state)
         {
             state.lessor_id = lessor?.Key ?? -1L;
-            state.lease_until = GameClock.Now + Math.Max(1, leaseYears > 0 ? leaseYears : LeaseYears) * 60d;
+            state.lease_until = GameClock.Now + Math.Max(1, leaseYears > 0 ? leaseYears : LeaseYears) * 12d;
         }
         return result;
     }
-#endif
 
     // 战败一方立为保护国(战争目标"保护国"、议和"立为保护国")：本地君主照旧，外交归宗主
-#if EC_PENDING
     public static bool MakeProtectorate(Realm metropole, Realm kingdom)
     {
         if (kingdom?.Record == null || metropole?.Record == null || kingdom.IsGone() || metropole.IsGone() || kingdom == metropole) return false;
@@ -333,10 +320,8 @@ public static class ColonySystem
             kingdom.GetKingdomFullName()), metropole);
         return true;
     }
-#endif
 
     // 租借(战争目标"租借"、议和"租借某城")：出租国的这些城另设租借地，归 lessee，租期满交还
-#if EC_PENDING
     public static Realm Lease(Realm lessee, Realm lessor, List<City> cities, int years = LeaseYears)
     {
         cities = cities?.Where(city => city?.Record != null && !city.IsGone() && city.Realm == lessor && city != lessor.Capital).ToList();
@@ -346,16 +331,14 @@ public static class ColonySystem
         if (lease != null && Of(lease) is ColonyState state)
         {
             state.lessor_id = lessor.Key;
-            state.lease_until = GameClock.Now + Math.Max(1, years) * 60d;
+            state.lease_until = GameClock.Now + Math.Max(1, years) * 12d;
             TranslateHelper.LogEventMessage(string.Format(LM.Get("colony_lease_signed"), lessor.GetKingdomFullName(),
                 string.Join(LM.Get("list_separator"), cities.Select(city => city.GetCityName())), lessee.GetKingdomFullName(), years), lessee);
         }
         return lease;
     }
-#endif
 
     // 战败一方的殖民地移交战胜国、改为委任统治地(议和"移交殖民地")
-#if EC_PENDING
     public static bool TransferAsMandate(Realm colony, Realm receiver)
     {
         if (colony?.Record == null || receiver?.Record == null || colony.IsGone() || receiver.IsGone() || Of(colony) is not ColonyState old) return false;
@@ -366,7 +349,6 @@ public static class ColonySystem
         Setup(colony, receiver, ColonyState.Mandate, place);
         return true;
     }
-#endif
 
     public static bool RotateGovernor(Realm colony)
     {
@@ -394,10 +376,8 @@ public static class ColonySystem
     }
 
     // 一组城拆出去立为殖民地(总督府或特许公司)
-#if EC_PENDING
     private static Realm Found(Realm metropole, List<City> cities, int kind) =>
         AdministrativeControlSystem.ReleaseToLocal(metropole, cities, colony => Setup(colony, metropole, kind), out _);
-#endif
 
     private static string Setup(Realm colony, Realm metropole, int kind, string place = "")
     {
@@ -598,7 +578,6 @@ public static class ColonySystem
 
     #region 殖民地的年度：任期、解送、分红、收归国有、离心独立
 
-#if EC_PENDING
     private static void Colony(Realm colony)
     {
         ColonyState state = Of(colony);
@@ -621,7 +600,7 @@ public static class ColonySystem
         }
         if (HasGovernor(state.kind))
         {
-            if (state.governor_since >= 0d && now - state.governor_since >= GovernorTermYears * 60d && !colony.HasEnemies())
+            if (state.governor_since >= 0d && now - state.governor_since >= GovernorTermYears * 12d && !colony.HasEnemies())
             {
                 Person next = AppointGovernor(colony, metropole);
                 if (next != null)
@@ -648,7 +627,7 @@ public static class ColonySystem
                 metropole.AddMoney(dividend, TreasuryCategory.Tribute);
                 state.dividends += dividend;
             }
-            if (colony.Cities.Count >= NationalizeCities || colony.GetTreasuryBalance() < 0 && now - state.founded_at >= 10 * 60d)
+            if (colony.Cities.Count >= NationalizeCities || colony.GetTreasuryBalance() < 0 && now - state.founded_at >= 10 * 12d)
             {
                 Nationalize(colony, metropole, state);
                 return;
@@ -657,7 +636,6 @@ public static class ColonySystem
         state.remitted_at = now;
         Drift(colony, metropole, state, now);
     }
-#endif
 
     // 把经常收入的几成解送宗主国
     private static void Remit(Realm colony, Realm metropole, float share)
@@ -700,7 +678,6 @@ public static class ColonySystem
             colony.GetKingdomFullName()), metropole);
     }
 
-#if EC_PENDING
     private static void Drift(Realm colony, Realm metropole, ColonyState state, double now)
     {
         float gain = 2f + Mathf.Min(4f, Distance(colony.Capital, metropole.Capital) / 40f);
@@ -718,7 +695,7 @@ public static class ColonySystem
             _ => 1f
         };
         state.autonomy = Mathf.Clamp(state.autonomy + gain, 0f, 100f);
-        float years = (float)((now - state.founded_at) / 60d);
+        float years = (float)((now - state.founded_at) / 12d);
         // 自治领：立满 DominionYears 年、离心满了，和平取得完全独立
         if (state.kind == ColonyState.Dominion)
         {
@@ -742,8 +719,8 @@ public static class ColonySystem
             BecomeDominion(colony, metropole, state);
             return;
         }
-        if (state.autonomy < 100f || now - state.founded_at < RiseMinYears * 60d || colony.HasEnemies() || !colony.HasRuler() ||
-            state.rising_at >= 0d && now - state.rising_at < RiseCooldownYears * 60d) return;
+        if (state.autonomy < 100f || now - state.founded_at < RiseMinYears * 12d || colony.HasEnemies() || !colony.HasRuler() ||
+            state.rising_at >= 0d && now - state.rising_at < RiseCooldownYears * 12d) return;
         // 宗主强过自己三倍(去殖民浪潮里六倍)又不在打仗的，不敢起兵
         if (lord > own * DecolonizationSystem.DareRatio && !metropole.HasEnemies()) return;
         War war;
@@ -762,7 +739,6 @@ public static class ColonySystem
         TranslateHelper.LogEventMessage(string.Format(LM.Get("colony_rising"), colony.GetKingdomFullName(), metropole.GetKingdomFullName()),
             metropole);
     }
-#endif
 
     // 直辖殖民地和平改为自治领：总督卸任，本地推出自己的元首，政体照本地文化定
     private static void BecomeDominion(Realm colony, Realm metropole, ColonyState state)
@@ -781,7 +757,6 @@ public static class ColonySystem
     }
 
     // 独立战争结束(见 FeudalVassalService.ResolveIndependenceWar)：殖民地胜则脱离，败则离心压回去
-#if EC_PENDING
     public static void ResolveIndependenceWar(War war, WarOutcome winner)
     {
         if (!IsIndependenceWar(war)) return;
@@ -790,10 +765,8 @@ public static class ColonySystem
             war.GetMainDefender().GetKingdomFullName()));
         else if (Of(colony) is ColonyState state) state.autonomy = 30f;
     }
-#endif
 
     // 殖民地脱离宗主：按本文化重定政体、去掉殖民地名号与合成色；friendly 和平独立的(自治领、委任统治期满)与旧宗主交好
-#if EC_PENDING
     public static void Release(Realm colony, string reason, Realm friendly = null)
     {
         if (colony?.Record == null || Of(colony) == null) return;
@@ -812,7 +785,6 @@ public static class ColonySystem
         if (friendly?.Record != null && !friendly.IsGone()) DiplomacyActions.ApplyScenario("friend", colony, friendly, value: 40);
         if (!string.IsNullOrEmpty(reason)) TranslateHelper.LogEventMessage(reason, colony);
     }
-#endif
 
     #endregion
 
@@ -833,11 +805,11 @@ public static class ColonySystem
         if (realm.HasEnemies() || realm.GetMoney() < VoyageCost * 2 ||
             CityPopulationSystem.GetBackgroundTotal(realm.Capital) < VoyageMinCapital || EcRandom.value >= VoyageChance) return;
         Cell target = FindSite(realm, out int distance);
-        data.colonial_voyage_at = now + VoyageCooldownYears * 60d;
+        data.colonial_voyage_at = now + VoyageCooldownYears * 12d;
         if (target == null) return;
         realm.SubMoney(VoyageCost, TreasuryCategory.Construction);
         data.colonial_voyage_zone = target.Index;
-        data.colonial_voyage_arrive = now + (6 + distance / 40) * 5d;
+        data.colonial_voyage_arrive = now + (6 + distance / 40) * 1d;
         TranslateHelper.LogEventOnly(string.Format(LM.Get("colony_voyage_departed"), realm.GetKingdomFullName(),
             realm.Capital.GetCityName()), realm);
     }
@@ -857,7 +829,7 @@ public static class ColonySystem
         foreach (Cell zone in EmpireWorld.Current.Zones.All)
         {
             if (zone == null || zone.City != null || zone.GroundCount < 48 || !zone.canStartCityHere()) continue;
-            if (zone.Center?.region?.island == home) continue;
+            if (zone.Center?.Region?.island == home) continue;
             int far = capital == null ? 0 : Mathf.Abs(zone.X - capital.X) + Mathf.Abs(zone.Y - capital.Y);
             if (far < ColonyDistance / 2) continue;
             bool reachable = false;

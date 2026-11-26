@@ -127,7 +127,6 @@ public static class SilkRoadSystem
     }
 
     // 一段路铺上：等级照所在国家的科技(无主之地土路)
-#if EC_PENDING
     private static int Lay(List<Cell> path)
     {
         int laid = 0;
@@ -143,7 +142,6 @@ public static class SilkRoadSystem
     private static bool Passable(Cell tile, bool climb = false) =>
         tile?.Type != null && !tile.Type.Ocean && !tile.Type.Lava && (climb || !tile.Type.Mountains && !tile.Type.Summit) &&
         !(tile.Type.Block && !tile.Type.Wall && !tile.Type.Mountains && !tile.Type.Summit) && !MapWallSystem.Blocks(tile);
-#endif
 
     // 开山口：准翻山再找一回，翻过的山格平成丘陵(雪山平成雪丘)，路铺得上、人马走得过
 #if EC_PENDING
@@ -155,7 +153,7 @@ public static class SilkRoadSystem
         {
             TerrainKind type = tile?.Type;
             if (type == null || !type.Mountains && !type.Summit) continue;
-            TerrainKind snow = type.Summit ? AssetManager.top_tiles.get("snow_hills") : null;
+            TerrainKind snow = type.Summit ? TerrainLayers.Top.get("snow_hills") : null;
             if (snow != null) tile.setTileTypes("hills", snow);
             else tile.setTileType("hills");
             tile.Height = tile.Type.HeightMin;
@@ -236,7 +234,6 @@ public static class SilkRoadSystem
 #endif
 
     // 站落在山上、水里时就近挪到走得了的格(至多 8 格)
-#if EC_PENDING
     private static Cell Snap(Vector2Int at)
     {
         for (int radius = 0; radius <= 8; radius++)
@@ -249,6 +246,5 @@ public static class SilkRoadSystem
             }
         return null;
     }
-#endif
 }
 }

@@ -23,23 +23,19 @@ public static class TemplateNameRepair
     private const int Retries = 5;
 
     // 读档时族谱里每个人都要看几遍：先按子串粗筛，含"names"的才上正则
-#if EC_PENDING
     public static bool IsRaw(string name) => !string.IsNullOrEmpty(name) &&
                                              (name.IndexOf("names", StringComparison.OrdinalIgnoreCase) >= 0 && RawName.IsMatch(name) ||
                                               Vanilla(name));
-#endif
 
     // 中文界面下带英文字母的名字：原版按物种起的，没按文明起名(英文界面各文明的名本来就是字母，不算)
-#if EC_PENDING
     private static bool Vanilla(string name)
     {
-        string language = LocalizedTextManager.instance?.language;
+        string language = LM.Language;
         if (language != "cz" && language != "ch") return false;
         foreach (char c in name)
             if (c is >= 'A' and <= 'Z' or >= 'a' and <= 'z') return true;
         return false;
     }
-#endif
 
     // 起名模板坏了的文化重套模板(读档读完文化绑定之后)
 #if EC_PENDING
@@ -95,7 +91,6 @@ public static class TemplateNameRepair
 #endif
 
     // 原版氏族名("Clannames 氏")：按族人的文化重起，宗族的姓跟着改
-#if EC_PENDING
     private static int RepairClans()
     {
         int count = 0;
@@ -115,10 +110,8 @@ public static class TemplateNameRepair
         }
         return count;
     }
-#endif
 
     // 没有原版氏族的宗族(整族虚拟、或氏族已散)：按族人的文化起个姓
-#if EC_PENDING
     private static int RepairSpecificClans()
     {
         int count = 0;
@@ -134,7 +127,6 @@ public static class TemplateNameRepair
         }
         return count;
     }
-#endif
 
     // 氏族名里的姓(同 ClanExtension.GetClanName：按文化配置的 name_pos 取一段)
     private static string SurnameOf(string clanName, string culture)
@@ -221,7 +213,6 @@ public static class TemplateNameRepair
 #endif
 
     // 族谱里的人(含已故、虚拟族人)：在世有实体的跟实体，否则名按文化重起、姓取宗族的姓
-#if EC_PENDING
     private static int RepairPeople()
     {
         int count = 0;
@@ -266,10 +257,8 @@ public static class TemplateNameRepair
         }
         return count;
     }
-#endif
 
     // 国家记下的初始随机国名("Countrynames")清掉，读档整理国家时重起(见 KingdomExtension.GetInitialRandomKingdomName)
-#if EC_PENDING
     private static int RepairKingdoms()
     {
         int count = 0;
@@ -283,7 +272,6 @@ public static class TemplateNameRepair
         }
         return count;
     }
-#endif
 
     private static Culture CultureOf(Clan clan)
     {
@@ -292,7 +280,6 @@ public static class TemplateNameRepair
     }
 
     // 模板才重套过，一般一次就好；万一还是字表名就再起几次，都不行返回 null(调用方保持原样)
-#if EC_PENDING
     private static string Generate(Func<string> generate)
     {
         for (int attempt = 0; attempt < Retries; attempt++)
@@ -304,6 +291,5 @@ public static class TemplateNameRepair
         }
         return null;
     }
-#endif
 }
 }

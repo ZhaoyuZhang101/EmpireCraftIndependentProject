@@ -25,7 +25,7 @@ public class EmpireCraftCityCombineHouses: GameAICityBase
         // 无小人模式下城里实体单位很少，按户数判断(一户占一个住房位)
         int population = CityPopulationSystem.AbstractPopulationEnabled
             ? CityPopulationSystem.Households(pCity)
-            : pCity.PopulationCount();
+            : pCity.CountUnits();
         if (!pCity.Buildings.ToList().Any(b => b.Asset.Id.Contains("city_")))
         {
             // 世界法则关掉合并时保留原版民居(modernmod 的 6~11 级民居也是民居，合并会把它们全拆掉)；

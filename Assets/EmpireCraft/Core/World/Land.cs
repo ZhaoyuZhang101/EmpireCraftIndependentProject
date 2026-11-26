@@ -18,6 +18,8 @@ namespace EmpireCraft.Core
         // Things this world's ground never is. Roads, walls and fields are not terrain here.
         public bool Lava => false;
         public bool Wall => false;
+        // The cells of this kind laid over the ground: none, nothing is laid over the ground here.
+        public IEnumerable<Cell> GetCurrentTiles() => Array.Empty<Cell>();
         public bool Road => false;
         public bool FarmField => false;
         public int HeightMin => Summit ? Land.SummitHeight : Mountains ? Land.MountainHeight : Rocks ? Land.HillHeight : 0;
@@ -105,6 +107,9 @@ namespace EmpireCraft.Core
         }
     }
 
+    // Kinds of things that stand on a cell, as the ported code asks for them (see Cell.GetHashset).
+    public enum BuildingList { Trees, Minerals, Ruins }
+
     // One cell of the ORBIS grid as the polity systems see it. The mod worked with
     // two sizes, a "zone" of 8x8 small tiles and the tile itself; at this map's scale
     // (a cell is tens of kilometres) one cell is both, so a cell is its own centre
@@ -118,6 +123,13 @@ namespace EmpireCraft.Core
         internal Cell(EmpireWorld world, int index) { World = world; Index = index; X = index % world.Width; Y = index / world.Width; }
 
         public long Key => Index;
+        public Cell Record => this;
+        // Drawing helpers belong to the client; there is nothing to reset here.
+        public void ResetRenderHelpers() { }
+        public CellRegion Region => new CellRegion(World.IslandObject(Index));
+        // Trees, deposits, ruins standing on the cell: none, nothing is built or grows here as an object.
+        static readonly HashSet<Building> NoBuildings = new HashSet<Building>();
+        public HashSet<Building> GetHashset(BuildingList list) => NoBuildings;
         public City City => World.CityAt(Index);
         public bool HasCity() => World.TileCity[Index] >= 0;
         public Realm Realm => World.RealmAt(Index);
@@ -147,7 +159,7 @@ namespace EmpireCraft.Core
         public Cell Up => World.CellAt(World.Map.Neighbor(Index, 3));
 
         // The four cells sharing an edge, fewer on a polar row.
-        public IReadOnlyList<Cell> Neighbours
+        public Cell[] Neighbours
         {
             get
             {
@@ -159,7 +171,7 @@ namespace EmpireCraft.Core
         }
 
         // The up to eight cells around.
-        public IReadOnlyList<Cell> NeighboursAll
+        public Cell[] NeighboursAll
         {
             get
             {

@@ -28,7 +28,6 @@ public static class SyncretismSystem
 
     private static Realm ModRealm(Realm kingdom) => kingdom?.GetEmpire()?.CoreKingdom ?? kingdom;
 
-#if EC_PENDING
     public static void YearlyPass()
     {
         ReligionSyncretismConfig config = ReligionTenets.Syncretism;
@@ -76,7 +75,6 @@ public static class SyncretismSystem
         LinkTributaries(Link, config.tributary_weight);
         Accumulate(contacts, config);
     }
-#endif
 
     // 朝贡、岁币之国与宗主，同盟各国
     private static void LinkTributaries(Action<Religion, Religion, float> link, float weight)

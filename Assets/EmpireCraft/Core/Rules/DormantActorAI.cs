@@ -26,13 +26,11 @@ public static class DormantActorAI
     private static readonly Dictionary<long, (double mod, double vanilla)> Last = new();
     private static object _world;
 
-#if EC_PENDING
     public static bool Dormant(Person actor) =>
         CityPopulationSystem.AbstractPopulationEnabled && actor?.Record != null && !actor.IsGone() && actor.Alive &&
         actor.IsSapient() && actor.HasCity() && !actor.IsRuler() && !actor.IsCityLeader() && !actor.IsWarrior() &&
-        !actor.HasArmy() && (actor.plot == null || EmpireCraft.Core.DecisionSystem.Manages(actor.plot.getAsset())) && !actor.IsFavorite() && !actor.isCameraFollowingUnit() &&
+        !actor.HasArmy() && (actor.Plot == null || EmpireCraft.Core.DecisionSystem.Manages(actor.Plot.GetKind())) && !actor.IsFavorite() && !actor.IsCameraFollowingUnit() &&
         !CorpsSystem.IsGeneral(actor) && !AncientWarfareCompatibility.OwnsObject(actor);
-#endif
 
     // 该做的下一件事：到时候了跑一次模组的人物逻辑，或让原版决策一次(返回 null)，否则闲居
     public static string NextTask(Person actor)

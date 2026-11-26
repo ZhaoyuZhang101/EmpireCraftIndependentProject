@@ -10,13 +10,12 @@ namespace EmpireCraft.Core
 // not the delivery quantity. Refund cargo is owned stock, never newly produced goods.
 public static class CityResourceTransferSystem
 {
-#if EC_PENDING
     public static int Move(City seller, City buyer, string resource, int requested)
     {
         if (seller?.Record == null || buyer?.Record == null || seller.IsGone() || buyer.IsGone() || seller == buyer ||
             string.IsNullOrEmpty(resource) || requested <= 0) return 0;
-        int sellerBefore = seller.getResourcesAmount(resource);
-        int buyerBefore = buyer.getResourcesAmount(resource);
+        int sellerBefore = seller.GetResourcesAmount(resource);
+        int buyerBefore = buyer.GetResourcesAmount(resource);
         // A saturated native quantity query may hide extra escrow stock. Do not
         // infer a delivery from a capped counter or overflow the receiver query.
         if (sellerBefore <= 0 || sellerBefore == int.MaxValue || buyerBefore < 0) return 0;
@@ -27,19 +26,19 @@ public static class CityResourceTransferSystem
         CityPopulationData owner = seller.GetOrCreate().population ??= new CityPopulationData();
         var cargo = owner.resource_returns ??= new Dictionary<string, int>();
         using var scope = PopulationEconomySystem.PrivateUse();
-        try { seller.takeResource(resource, amount); }
+        try { seller.TakeResource(resource, amount); }
         catch (Exception exception)
         {
             LogService.LogWarning($"[EmpireCraft][货物转移] 出库异常，按实际数量结算: {exception.Message}");
         }
-        int removed = Delta(seller.getResourcesAmount(resource), sellerBefore, amount);
+        int removed = Delta(seller.GetResourcesAmount(resource), sellerBefore, amount);
         if (removed == 0) return 0;
-        try { buyer.addResourcesToRandomStockpile(resource, removed); }
+        try { buyer.AddResourcesToRandomStockpile(resource, removed); }
         catch (Exception exception)
         {
             LogService.LogWarning($"[EmpireCraft][货物转移] 入库异常，保留未送达货物: {exception.Message}");
         }
-        int delivered = Delta(buyerBefore, buyer.getResourcesAmount(resource), removed);
+        int delivered = Delta(buyerBefore, buyer.GetResourcesAmount(resource), removed);
         int returned = removed - delivered;
         if (returned > 0)
         {
@@ -48,11 +47,10 @@ public static class CityResourceTransferSystem
             // through the resource hooks until a real warehouse has room.
             cargo.TryGetValue(resource, out int have);
             cargo[resource] = checked(Math.Max(0, have) + returned);
-            seller._storage_version++;
+            seller.StorageVersion++;
         }
         return delivered;
     }
-#endif
 
     private static int Delta(int before, int after, int maximum) =>
         (int)Math.Max(0L, Math.Min(Math.Max(0, maximum), (long)after - before));

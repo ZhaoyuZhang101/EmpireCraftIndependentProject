@@ -11,7 +11,6 @@ public static class ImperialLegitimacyChallengeService
 {
     private const string AnlePeerageKey = "tang_honorary_anle_gong";
 
-#if EC_PENDING
     public static bool TryFindTarget(Realm kingdom, out Empire target)
     {
         target = null;
@@ -58,7 +57,6 @@ public static class ImperialLegitimacyChallengeService
         }
         return false;
     }
-#endif
 
     private static bool SharesLandBorder(Realm challenger, Empire incumbent)
     {
@@ -96,11 +94,10 @@ public static class ImperialLegitimacyChallengeService
         return false;
     }
 
-#if EC_PENDING
     public static bool CanChallenge(Person actor)
     {
         return actor != null && !actor.IsGone() && actor.IsRuler() && actor.Realm?.Ruler == actor &&
-               actor.plot?.isActive() != true && TryFindTarget(actor.Realm, out _);
+               actor.Plot?.IsActive() != true && TryFindTarget(actor.Realm, out _);
     }
 
     public static bool CanContinueChallenge(Person actor)
@@ -157,7 +154,6 @@ public static class ImperialLegitimacyChallengeService
         RecordDeclaration(challenger, incumbent, actor, incumbent.Emperor);
         return true;
     }
-#endif
 
     // 僭越称帝：与主法理所在核心的现存帝国并立，互为正统对手(先不开战)；
     // 天命在称帝路线的初始值(CompleteFormation 刚定下)上打折扣，见 EmpireFormationService.GetUsurpationMandate
@@ -179,7 +175,6 @@ public static class ImperialLegitimacyChallengeService
     }
 
     // 互为正统对手且领土接壤的两个帝国：较强的一方(双方之间没有战争时)可以发起正统之争。
-#if EC_PENDING
     public static bool TryStartRivalryWar(Empire empire)
     {
         if (!IsActiveEmpire(empire) || !empire.data.legitimacy_rivalry_recognized) return false;
@@ -204,12 +199,10 @@ public static class ImperialLegitimacyChallengeService
         RecordDeclaration(empire, rival, empire.Emperor, rival.Emperor);
         return true;
     }
-#endif
 
     private const float RivalryWarChance = 0.1f;
 
     // 分立的两朝互为正统对手(见 EmpirePartitionSystem)：claimant 是分出来的一朝；war 为真时当即开战
-#if EC_PENDING
     public static void DeclareDynasticRivals(Empire claimant, Empire incumbent, bool war)
     {
         if (!IsActiveEmpire(claimant) || !IsActiveEmpire(incumbent) || claimant == incumbent) return;
@@ -226,7 +219,6 @@ public static class ImperialLegitimacyChallengeService
         foreach (Realm member in incumbent.kingdoms_list.ToList())
             if (member != null && member != rivalCore && !member.IsGone()) started.JoinDefenders(member);
     }
-#endif
 
     public static bool AreRecognizedRivals(Empire first, Empire second)
     {

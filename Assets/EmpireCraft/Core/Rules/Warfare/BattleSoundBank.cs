@@ -51,7 +51,7 @@ internal static class BattleSoundBank
             return false;
         }
         _tried = true;
-        var watch = Stopwatch.StartNew();
+        var watch = SimWatch.StartNew();
         try
         {
             _group = FmodBridge.CreateGroup("EmpireCraftBattle", true, out _lowpass);

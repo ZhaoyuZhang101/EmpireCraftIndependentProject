@@ -1107,7 +1107,6 @@ public partial class Empire : RecordObject<EmpireData>
     // 用户 2026-10-17 "藩王都是有谥号的""皇帝也要显示一样的"：以前只有今上发起"追封"决议才定，无小人时这条决议
     // 几乎没人发起，历代先帝都没有谥号；现在每年由今上自动为先帝定谥(见 EmpireCraftEmpireBehCheckMandate，决议照旧可用)。
     // 自动定谥一次补了好几位(旧存档)时只为最近的一位弹提示，史册照记每一位
-#if EC_PENDING
     public int ConferPosthumousNames(Person conferrer, bool announceAll = false)
     {
         DropCourtNames();
@@ -1149,7 +1148,6 @@ public partial class Empire : RecordObject<EmpireData>
         }
         return pending.Count;
     }
-#endif
 
     public bool IsNeedToSetPosthumous()
     {
@@ -3178,7 +3176,7 @@ public partial class Empire : RecordObject<EmpireData>
         for (int j = 0; j < zones.Count; j++)
         {
             Cell tileZone3 = zones[j];
-            float num4 = Toolbox.SquaredDist((float)tileZone3.Center.X, (float)tileZone3.Center.Y, this._empireCenter.x, this._empireCenter.y);
+            float num4 = EcMath.SquaredDist((float)tileZone3.Center.X, (float)tileZone3.Center.Y, this._empireCenter.x, this._empireCenter.y);
             if (num4 < num3)
             {
                 tileZone = tileZone3;
@@ -3974,7 +3972,6 @@ public partial class Empire : RecordObject<EmpireData>
     }
 
     // realize：亲子都是虚拟族人时落成一位(真要废立时)；只判断有没有人时不落成，见 HasDepositionHeir
-#if EC_PENDING
     private Person GetEmpressDowagerPreferredSon(Person dowager, bool realize = false)
     {
         if (dowager == null || dowager.IsGone()) return null;
@@ -3996,17 +3993,14 @@ public partial class Empire : RecordObject<EmpireData>
         // 纯净地图下亲子多是虚拟族人：真要废立时才落成
         return son ?? (realize ? KinRoster.RealizeFirst(VirtualDowagerSons(dowagerIdentity), IsEligibleSon, 2) : null);
     }
-#endif
 
     // 太后在族谱里的亲子(虚拟族人)：男子、在本帝国、不是今上
-#if EC_PENDING
     private IEnumerable<PersonalClanIdentity> VirtualDowagerSons(PersonalClanIdentity dowager) =>
         dowager == null ? Enumerable.Empty<PersonalClanIdentity>()
             : KinRoster.Children(dowager).Where(person => KinRoster.Virtual(person) && person.sex == Sex.Male &&
                                                           person.mother == dowager.id &&
                                                           KinRoster.KingdomOf(person)?.GetEmpire() == this)
                 .OrderBy(person => person.rank).ThenBy(person => person.id);
-#endif
 
     // 宗室里在本帝国的成年男子(虚拟族人)，年长的在前
     private IEnumerable<PersonalClanIdentity> VirtualDynastMen(long excludeActor) =>
@@ -4034,7 +4028,6 @@ public partial class Empire : RecordObject<EmpireData>
     }
 
     // 废立另立的人：先亲子，没有就挑宗室里年长的成年男子(不是当今皇帝)
-#if EC_PENDING
     private Person GetDepositionHeir(Person actor)
     {
         Person son = GetEmpressDowagerPreferredSon(actor, realize: true);
@@ -4045,10 +4038,8 @@ public partial class Empire : RecordObject<EmpireData>
         return GetUnits().Where(Fit).OrderByDescending(unit => unit.Age()).ThenBy(unit => unit.Key).FirstOrDefault() ??
                KinRoster.RealizeFirst(VirtualDynastMen(Emperor?.Key ?? -1L), Fit, 2);
     }
-#endif
 
     // 有没有可废立另立的人(连虚拟族人一起看，不落成)：权臣图谋每轮都要问，不能每问一次就落成一批
-#if EC_PENDING
     private bool HasDepositionHeir(Person actor)
     {
         if (GetEmpressDowagerPreferredSon(actor) != null) return true;
@@ -4102,7 +4093,6 @@ public partial class Empire : RecordObject<EmpireData>
         ClearPowerfulMinister();
         return true;
     }
-#endif
 
     // 逼宫废立(朝堂兵谏没有成员国可起兵时，见 CourtSystem.Escalate)：派系在都城逼今上退位，另立宗室里年长的成年男子
     // (先挑本派的)；宗室里没人就作罢。宫廷内部易位，不走篡位叛乱那一套；返回新君
@@ -4410,6 +4400,7 @@ public partial class Empire : RecordObject<EmpireData>
         ClearPowerfulMinister();
         return Emperor?.Key == actor.Key;
     }
+#endif
 
     private Person GetLegalPeerageCandidate(KingdomTitle title, out PersonalClanIdentity predecessor)
     {
@@ -4440,11 +4431,9 @@ public partial class Empire : RecordObject<EmpireData>
 
         return GetLegalPeerageCrownCandidate();
     }
-#endif
 
     // 朝廷另选王爵人选：皇帝的兄弟优先，其次太子以外的皇子。excludeId 用于诸侯请封被驳回时
     // 排除原嗣君。
-#if EC_PENDING
     private Person GetLegalPeerageCrownCandidate(long excludeId = -1L)
     {
         bool IsAvailable(Person actor) => actor != null && !actor.IsGone() && !actor.IsRuler() &&
@@ -4483,7 +4472,6 @@ public partial class Empire : RecordObject<EmpireData>
                 .OrderBy(identity => identity.rank));
         return KinRoster.RealizeFirst(virtualKin, IsAvailable, 2);
     }
-#endif
 
     private bool GrantLegalPeerage(Person actor, KingdomTitle title, PersonalClanIdentity predecessor = null)
     {
@@ -4531,7 +4519,6 @@ public partial class Empire : RecordObject<EmpireData>
         return true;
     }
 
-#if EC_PENDING
     private void ProcessLegalPeerageSuccession()
     {
         data.legal_peerage_holders ??= new Dictionary<long, long>();
@@ -4582,6 +4569,7 @@ public partial class Empire : RecordObject<EmpireData>
         }
     }
 
+#if EC_PENDING
     public void AutoEnfeoff()
     {
         Realm coreKingdom = CoreKingdom;
@@ -4827,7 +4815,6 @@ public partial class Empire : RecordObject<EmpireData>
                !AncientWarfareCompatibility.Owns(kingdom) && kingdom.GetEmpire() == this;
     }
 
-#if EC_PENDING
     private void CompleteTitlePartition(KingdomTitle title, List<Realm> targets,
         HashSet<long> protectedCities, bool atWar)
     {
@@ -4851,10 +4838,8 @@ public partial class Empire : RecordObject<EmpireData>
             EmpireCraftKingdomBehCheckKingdomType.SyncKingdomStatus(target);
         title.RefreshAdministrativeDivisionNames();
     }
-#endif
 
     // 治所隔着长城的行政区不归(见 FrontierWalls)：长城那边的城不并进这一侧的行政区
-#if EC_PENDING
     private static Realm SelectNearestPartition(City city, List<Realm> targets)
     {
         if (city == null || targets == null) return null;
@@ -4863,7 +4848,6 @@ public partial class Empire : RecordObject<EmpireData>
             .OrderBy(target => Vector2.Distance(city.Center, target.Capital.Center))
             .ThenBy(target => target.Key).FirstOrDefault();
     }
-#endif
 
     private bool CanTransferPartitionCity(City city, Realm target)
     {
@@ -5104,14 +5088,14 @@ public partial class Empire : RecordObject<EmpireData>
         if (pKingdom == null || pKingdom.asset == null || capital.IsGone() ||
             EnfeoffmentHelper.IsRealmCapital(capital) || !king.CanFoundCivKingdom()) return null;
         king.ClearDisposedKingdom();
-        capital.removeFromCurrentKingdom();
+        capital.RemoveFromCurrentKingdom();
         capital.RemoveLeader();
         Realm kingdom = EmpireWorld.Current.LiveRealms.makeNewCivKingdom(king, pLog:false);
         kingdom.copyMetasFromOtherKingdom(pKingdom);
         kingdom.UpdateColor(pKingdom.GetColor());
-        capital.newForceKingdomEvent(base.units, capital._boats, kingdom, null);
-        capital.setKingdom(kingdom);
-        capital.switchedKingdom();
+        capital.NewForceKingdomEvent(base.units, capital.Boats, kingdom, null);
+        capital.SetKingdom(kingdom);
+        capital.SwitchedKingdom();
         kingdom.setCityMetas(capital);
         EmpireWorld.Current.Zones.MarkDirty();
         return kingdom;

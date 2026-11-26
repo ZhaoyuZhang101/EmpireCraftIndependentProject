@@ -120,7 +120,6 @@ public static class DisasterSystem
         data.disaster_last_major = now;
     }
 
-#if EC_PENDING
     private static void Roll(Realm head, double now)
     {
         KingdomExtension.KingdomExtraData data = head.GetOrCreate();
@@ -139,7 +138,6 @@ public static class DisasterSystem
         foreach (City city in stricken) Strike(city, level, kind, now);
         if (level >= Moderate && stricken.Count > 0) Record(head, stricken, level, kind);
     }
-#endif
 
     // 帝国：核心与全体成员的城；古战模组的成员不算
     private static List<City> RealmCities(Realm head)
@@ -159,7 +157,6 @@ public static class DisasterSystem
     }
 
     // 从人均粮食最少的那批城里随机抽；正在受灾的城尽量不重复抽
-#if EC_PENDING
     private static List<City> Pick(List<City> cities, int level)
     {
         int total = cities.Count;
@@ -178,10 +175,8 @@ public static class DisasterSystem
         }
         return pool.Take(count).ToList();
     }
-#endif
 
     // 人均粮食：无小人模式按一年的粮食产出(见 PopulationEconomySystem)，还没结算过的、小人模式按存粮
-#if EC_PENDING
     private static float FoodScore(City city)
     {
         float households = Mathf.Max(1, CityPopulationSystem.Households(city));
@@ -191,7 +186,7 @@ public static class DisasterSystem
             if (population != null && population.last_food_output > 0f) return population.last_food_output / households;
         }
         float food = 0f;
-        try { food = city.getTotalFood(); }
+        try { food = city.GetTotalFood(); }
         catch
         {
             // 读不到存粮按中等处理
@@ -199,7 +194,6 @@ public static class DisasterSystem
         }
         return food / households;
     }
-#endif
 
     // 已在受灾的城：取重的那级，减产期取长的
     private static void Strike(City city, int level, string kind, double now)
@@ -255,7 +249,7 @@ public static class DisasterSystem
         float share = (1f - HarvestFactor(city)) * MonthlyStockLoss;
         if (share <= 0f) return;
         int stock;
-        try { stock = city.getTotalFood(); }
+        try { stock = city.GetTotalFood(); }
         catch { return; }
         int loss = Mathf.FloorToInt(stock * share);
         if (loss > 0) PopulationEconomySystem.TakeFood(city, loss);

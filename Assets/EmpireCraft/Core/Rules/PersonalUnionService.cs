@@ -35,7 +35,6 @@ public static class PersonalUnionService
         InstitutionSystem.IsEnacted(CultureService.GetInstitutionCulture(ruler.Realm), "western_feudalization") &&
         GetRealms(ruler).Count(IsFeudal) >= ModClass.FEUDAL_UNION_REALM_LIMIT;
 
-#if EC_PENDING
     public static bool CrownLocalVassal(Realm realm, Realm overlord)
     {
         Person local = (realm?.People ?? new List<Person>()).ToList()
@@ -48,7 +47,6 @@ public static class PersonalUnionService
         GraceEdictService.Crown(realm, local);
         return realm.Ruler == local && FeudalVassalService.Bind(overlord, realm);
     }
-#endif
 
     // 共主兼领：直接 setKing，不走官职任命(任命会把他迁到对方都城，离开自己的国家)
     public static void CrownInUnion(Realm kingdom, Person ruler)
@@ -242,7 +240,6 @@ public static class PersonalUnionService
 
     // 西方封建制"一法理一国"：索取到的法理不并进获胜国，而是在法理首府另立一国(该法理原属战败国的城市
     // 一并划入)，由获胜国君主兼领。首府已在获胜国手里的法理无法另立，返回在 remaining 里交给原逻辑处理。
-#if EC_PENDING
     public static List<KingdomTitle> InheritTitlesAsUnion(Realm successor, Realm defeated,
         IEnumerable<long> titleIds, out List<long> remaining)
     {
@@ -276,7 +273,7 @@ public static class PersonalUnionService
                 remaining.Add(titleId);
                 continue;
             }
-            if (holder.Ruler?.City == seat) holder.kingFledCity();
+            if (holder.Ruler?.City == seat) holder.KingFledCity();
             // 索取的法理另立一国由胜者兼领(战果)：不许自立的闸放行(见 SecessionGate)
             Realm realm = SecessionGate.Sanctioned(() => seat.MakeOwnRealm(founder));
             if (realm == null)
@@ -301,7 +298,6 @@ public static class PersonalUnionService
         }
         return inherited;
     }
-#endif
 
     public static void JoinAlliance(Realm leader, Realm member)
     {

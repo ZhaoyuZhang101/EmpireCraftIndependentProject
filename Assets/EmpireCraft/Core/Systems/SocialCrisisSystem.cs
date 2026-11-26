@@ -40,7 +40,6 @@ public static class SocialCrisisSystem
     }
 
     // 每年每个帝国算一次全境快照(抽样不超过 SampleCities 座城)
-#if EC_PENDING
     public static Snapshot Capture(Empire empire)
     {
         var snapshot = new Snapshot();
@@ -74,7 +73,7 @@ public static class SocialCrisisSystem
                 if (factors.Famine) famine++;
                 if (factors.Prosperity < 0.5f) poor++;
             }
-            else if (city.getTotalFood() < CityPopulationSystem.Households(city) * 0.5f) famine++;
+            else if (city.GetTotalFood() < CityPopulationSystem.Households(city) * 0.5f) famine++;
             CityStabilityData state = city.GetOrCreate().stability;
             if (state != null && state.owner_id == city.Realm?.Key)
             {
@@ -94,7 +93,6 @@ public static class SocialCrisisSystem
         snapshot.ArrearsMonths = monthly > 0 ? (float)(arrears / (double)monthly) : 0f;
         return snapshot;
     }
-#endif
 
     public static Material For(Snapshot s, SocialClass socialClass)
     {
@@ -151,7 +149,6 @@ public static class SocialCrisisSystem
     }
 
     // 无小人模式没有该阶层的实体人物时，从该阶层人数最多、能起事的非首都城市的虚拟人口里推举一人
-#if EC_PENDING
     public static Person SpawnClassLeader(IEnumerable<Realm> kingdoms, SocialClass socialClass)
     {
         if (!CityPopulationSystem.AbstractPopulationEnabled) return null;
@@ -171,6 +168,5 @@ public static class SocialCrisisSystem
         }
         return best == null ? null : CityPopulationSystem.SpawnCivilianOfClass(best, socialClass);
     }
-#endif
 }
 }

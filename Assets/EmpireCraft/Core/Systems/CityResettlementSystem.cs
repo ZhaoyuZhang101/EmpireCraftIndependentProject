@@ -28,11 +28,10 @@ internal static class CityResettlementSystem
     private static readonly Dictionary<long, Work> Works = new();
     private static readonly Queue<long> Pending = new();
     private static bool Enabled => CityPopulationSystem.AbstractPopulationEnabled && !ModClass.IS_CLEAR;
-#if EC_PENDING
     private static bool Valid(City city) => city?.Record != null && !city.IsGone() &&
         city.Realm != null && !city.Realm.IsGone() && !city.Realm.IsWild &&
         !AncientWarfareCompatibility.OwnsObject(city) && !AncientWarfareCompatibility.Owns(city.Realm) &&
-        city.SeatCell()?.region?.island != null;
+        city.SeatCell()?.Region?.island != null;
 
     private static bool Managed(Realm payer, City city)
     {
@@ -41,12 +40,10 @@ internal static class CityResettlementSystem
         var empire = payer.GetEmpire();
         return empire != null && empire.CoreKingdom == payer && city.Realm.GetEmpire() == empire;
     }
-#endif
 
     private static bool Due(City city) => CityPopulationSystem.Get(city).last_resettlement < 0d ||
         GameClock.MonthsSince(CityPopulationSystem.Get(city).last_resettlement) >= 1;
 
-#if EC_PENDING
     private static bool Empty(City city) => Valid(city) && CityPopulationSystem.GetTotal(city) < 1f &&
         city.People?.Any(actor => actor != null && actor.City == city && !actor.IsGone() && actor.Alive) != true &&
         !StateSettlementSystem.AwaitingPopulation(city) && Due(city) &&
@@ -82,7 +79,6 @@ internal static class CityResettlementSystem
         if (capacity > 0f) seed = Math.Min(seed, Math.Max(1f, capacity - CityPopulationSystem.GetTotal(target)));
         return (float)Math.Floor(Math.Min(people, seed));
     }
-#endif
 
     // 陆路成本(见类头)：查不到(通达层没算好、城不在图上)返回 -1；走不到、太远、要走海路返回 +∞
     private static float LandCost(City source, City target)
@@ -272,27 +268,29 @@ internal static class CityResettlementSystem
         if (!plan.arrived) { Cancel(payer, state, "resettlement_people"); return; }
         Finish(payer, state, target);
     }
+#endif
 
     private static void PlanCargo(CityResettlementProject plan, City source, City target, float people)
     {
         plan.cargo.Clear();
         int need = (int)Math.Ceiling(people / CityPopulationSystem.PeoplePerSlot(target));
-        var foods = AssetManager.resources.list.Where(resource => resource.type == ResType.Food).ToArray();
-        int surplus = Math.Max(0, foods.Sum(resource => source.getResourcesAmount(resource.id)) -
+        var foods = ResourceKinds.Table.list.Where(resource => resource.type == ResType.Food).ToArray();
+        int surplus = Math.Max(0, foods.Sum(resource => source.GetResourcesAmount(resource.id)) -
             (int)Math.Ceiling((CityPopulationSystem.GetTotal(source) - people) / CityPopulationSystem.PeoplePerSlot(source)));
         foreach (var food in foods)
         {
-            int amount = Math.Min(need, Math.Min(surplus, source.getResourcesAmount(food.id)));
+            int amount = Math.Min(need, Math.Min(surplus, source.GetResourcesAmount(food.id)));
             if (amount > 0) plan.cargo.Add(new SettlementCargo { source = source.Key, resource = food.id, amount = amount });
             need -= amount; surplus -= amount;
         }
         foreach (var item in new[] { ("wood", 6), ("stone", 4) })
         {
-            int amount = Math.Min(item.Item2, Math.Max(0, source.getResourcesAmount(item.Item1)));
+            int amount = Math.Min(item.Item2, Math.Max(0, source.GetResourcesAmount(item.Item1)));
             if (amount > 0) plan.cargo.Add(new SettlementCargo { source = source.Key, resource = item.Item1, amount = amount });
         }
     }
 
+#if EC_PENDING
     private static void Finish(Realm payer, StateSettlementData state, City target)
     {
         var plan = state.resettlement;
@@ -307,15 +305,15 @@ internal static class CityResettlementSystem
                 if (!cargo.taken)
                 {
                     int before = Valid(source) && source.Realm.Key == plan.source_owner &&
-                        target.Realm.Key == plan.target_owner && Managed(payer, target) ? source.getResourcesAmount(cargo.resource) : 0;
+                        target.Realm.Key == plan.target_owner && Managed(payer, target) ? source.GetResourcesAmount(cargo.resource) : 0;
                     try
                     {
                         if (before > 0)
-                            using (PopulationEconomySystem.PrivateUse()) source.takeResource(cargo.resource, Math.Min(before, cargo.amount));
+                            using (PopulationEconomySystem.PrivateUse()) source.TakeResource(cargo.resource, Math.Min(before, cargo.amount));
                     }
                     finally
                     {
-                        int taken = Math.Max(0, before - (before > 0 ? source.getResourcesAmount(cargo.resource) : 0));
+                        int taken = Math.Max(0, before - (before > 0 ? source.GetResourcesAmount(cargo.resource) : 0));
                         cargo.in_transit = taken;
                         cargo.public_in_transit = taken > 0 ? PopulationEconomySystem.TakePublicStock(source, cargo.resource, taken) : 0;
                         cargo.taken = true;

@@ -50,7 +50,7 @@ public static class ReignRecordSystem
     //   · 已故各位(共和国元首除外，他们任满没有末条记事)：上一位身后才轮到他，在位年数不会超过"上一位最后一条记事
     //     到他最后一条记事"的年数(他的最后一条是驾崩、退位那条)，超出两年以上的按这个改；
     //   · 当今：即位时间比上一位最后一条记事还早一年以上的，改到上一位最后一条记事那天(年号纪年随之从那天算起)
-    private const double SecondsPerYear = 60d;
+    private const double SecondsPerYear = 12d; // world time counts months here
 
     // 旧核心直接清空死亡君主的王位，史册可能丢页。用同一帝国的登基经历补页，不按姓氏推测继承。
     internal static void RecoverMissingAccessions()

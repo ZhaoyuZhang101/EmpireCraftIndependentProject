@@ -211,7 +211,7 @@ public static class HarshRuleSystem
             _lastKingdomScan = now;
             foreach (Realm kingdom in EmpireWorld.Current.LiveRealms.ToList()) ScanQueue.Enqueue(kingdom);
         }
-        var budget = global::System.Diagnostics.Stopwatch.StartNew();
+        var budget = SimWatch.StartNew();
         while (ScanQueue.Count > 0 && budget.ElapsedMilliseconds < ScanBudgetMs)
         {
             Realm kingdom = ScanQueue.Dequeue();
@@ -308,8 +308,8 @@ public static class HarshRuleSystem
             .SelectMany(kingdom => kingdom.Cities.Where(c => c != null && !c.IsGone() &&
                                                              (c != kingdom.Capital || DynasticCycleRules.CapitalMayRise(unbound,
                                                                  kingdom == empire?.CoreKingdom, kingdom.Cities.Count))))
-            .Where(c => DynasticCycleRules.MayRise(unbound, crisis, c.getLoyalty(), CityStabilitySystem.CanRise(c), CanRiseAgain(c)))
-            .OrderBy(c => c.getLoyalty()).Take(waves).ToList();
+            .Where(c => DynasticCycleRules.MayRise(unbound, crisis, c.GetLoyalty(), CityStabilitySystem.CanRise(c), CanRiseAgain(c)))
+            .OrderBy(c => c.GetLoyalty()).Take(waves).ToList();
         int risen = 0;
         foreach (City city in cities)
         {

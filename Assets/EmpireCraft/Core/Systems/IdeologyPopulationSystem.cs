@@ -364,12 +364,12 @@ public static partial class IdeologyPopulationSystem
         if (city.NeighbourCities == null) return null;
         if (!ConnectivitySystem.Ready)
             return city.NeighbourCities.FirstOrDefault(neighbour => neighbour != null && neighbour.Realm != city.Realm &&
-                                                                   neighbour.PopulationCount() > 0);
+                                                                   neighbour.People.Count > 0);
         City best = null;
         float strongest = -1f;
         foreach (City neighbour in city.NeighbourCities)
         {
-            if (neighbour == null || neighbour.Realm == city.Realm || !(neighbour.PopulationCount() > 0)) continue;
+            if (neighbour == null || neighbour.Realm == city.Realm || !(neighbour.People.Count > 0)) continue;
             float strength = ConnectivitySystem.NeighbourStrength(neighbour, city);
             if (strength < 0f) strength = 1f;
             if (strength <= strongest) continue;

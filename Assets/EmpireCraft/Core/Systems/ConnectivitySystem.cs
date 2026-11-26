@@ -183,7 +183,7 @@ public static class ConnectivitySystem
                     if (!PassDue(world)) return;
                     BeginPass(world);
                 }
-                var clock = Stopwatch.StartNew();
+                var clock = SimWatch.StartNew();
                 double budget = Math.Max(0.25d, Config.frame_ms);
                 while (_phase is Phase.Zones or Phase.Cities or Phase.Links or Phase.Groups &&
                        clock.Elapsed.TotalMilliseconds < budget)
@@ -244,7 +244,7 @@ public static class ConnectivitySystem
     }
 
 #if EC_PENDING
-    private static void SnapshotStep(Stopwatch clock, double budget)
+    private static void SnapshotStep(SimWatch clock, double budget)
     {
         switch (_phase)
         {
@@ -294,6 +294,7 @@ public static class ConnectivitySystem
                 return;
         }
     }
+#endif
 
     private static void SnapshotZone(Cell zone)
     {
@@ -341,7 +342,6 @@ public static class ConnectivitySystem
         if (count != list.Length) Array.Resize(ref list, count);
         _nbrBuild[id] = list;
     }
-#endif
 
     private static byte TerrainClass(FrontTerrain terrain) => terrain switch
     {
@@ -431,7 +431,6 @@ public static class ConnectivitySystem
 #endif
 
     // 要寻路的城对：原版邻城、只隔无人区的邻城、同一块陆地上 link_tiles 格内的城
-#if EC_PENDING
     private static void CollectLinks(int index)
     {
         City city = PassNodeCities[index];
@@ -457,7 +456,6 @@ public static class ConnectivitySystem
             }
         }
     }
-#endif
 
     private static Dictionary<long, int> _cityNode;
 

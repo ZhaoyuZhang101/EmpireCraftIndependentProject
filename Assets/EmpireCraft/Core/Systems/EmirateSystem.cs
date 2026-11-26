@@ -92,7 +92,6 @@ public static class EmirateSystem
     }
 
     // 每年一次(由 Empire.update 调用)
-#if EC_PENDING
     public static void Tick(Empire empire)
     {
         if (empire?.data == null || EmpireWorld.Current == null || !Applies(empire)) return;
@@ -141,10 +140,8 @@ public static class EmirateSystem
         }
         Breakaway(empire, legitimacy, distantChances, beyond, now);
     }
-#endif
 
     // 都城在哈里发都城控制范围之外的成员(只按哈里发都城算，见 AdministrativeControlSystem.BeyondCourt)
-#if EC_PENDING
     private static HashSet<long> BeyondCourt(Empire empire)
     {
         var result = new HashSet<long>();
@@ -156,12 +153,10 @@ public static class EmirateSystem
                 result.Add(kingdom.Key);
         return result;
     }
-#endif
 
     #region 割据
 
     // 世袭满年限的埃米尔各掷一次，机会大的先掷；每个帝国每年至多脱离一家
-#if EC_PENDING
     private static void Breakaway(Empire empire, int legitimacy, Dictionary<long, float> distantChances, HashSet<long> beyond,
         double now)
     {
@@ -208,14 +203,12 @@ public static class EmirateSystem
             if (Secede(empire, kingdom, legitimacy, chance)) return;
         }
     }
-#endif
 
     private static float Might(Realm kingdom) =>
         kingdom?.Record == null || kingdom.IsGone() ? 0f
             : kingdom.Warriors() + (kingdom.Cities ?? new List<City>()).Sum(city => CorpsSystem.EquivalentAt(city));
 
     // 正统 PeacefulLegitimacy(65)以上和平脱离(朝贡、附庸或自立)，不到 65 举兵自立
-#if EC_PENDING
     private static bool Secede(Empire empire, Realm kingdom, int legitimacy, float chance)
     {
         // 不许自立(见 SecessionGate)：和平脱离也不走(不记叛离，Empire.leave 那道门拦不到)
@@ -257,7 +250,6 @@ public static class EmirateSystem
             return false;
         }
     }
-#endif
 
     #endregion
 

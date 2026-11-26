@@ -114,12 +114,10 @@ namespace EmpireCraft.Core
             EmpireCraft.Core.RealmNamingSystem.MultiCapitalEnabled = on;
         }
         // 无人区：连片的山脉、沙漠、冻土雪原、丛林、沼泽划成不归任何城的无人区(见 WildernessSystem)；设置里没有这一项时默认开
-#if EC_PENDING
         public static void WildernessCallBack(bool on)
         {
             EmpireCraft.Core.WildernessSystem.SetEnabled(on);
         }
-#endif
         // 雨林全开发：玩家自己的图上雨林算开发完毕、不划无人区，世界地图剧本不受影响(见 WildernessSystem.JungleDeveloped)；设置里没有这一项时默认开
         public static void WildernessJungleDevelopedCallBack(bool on)
         {
@@ -230,7 +228,6 @@ namespace EmpireCraft.Core
 
         // 纯净地图模式(见 PureMapMode)下次启动生效：启动读设置时定下本次是否开启，游戏中切换只存下来、提示重启
         private static bool _pureMapLoaded;
-#if EC_PENDING
         public static void PureMapCallBack(bool on)
         {
             if (!_pureMapLoaded)
@@ -242,6 +239,5 @@ namespace EmpireCraft.Core
             if (on != ModClass.PURE_MAP_MODE)
                 WorldTip.showNow(LM.Get("pure_map_toggle_restart"), false, "top", 4f);
         }
-#endif
     }
 }

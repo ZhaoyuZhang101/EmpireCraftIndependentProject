@@ -36,7 +36,6 @@ public static class NomadAppanageSystem
     }
 
     // 每帧(EmpireCraftStrategicScheduler)
-#if EC_PENDING
     public static void Tick()
     {
         if (!ReferenceEquals(_world, EmpireWorld.Current))
@@ -62,7 +61,6 @@ public static class NomadAppanageSystem
             }
         }
     }
-#endif
 
     private static bool Due(Realm kingdom, Person khan)
     {
@@ -79,7 +77,6 @@ public static class NomadAppanageSystem
         return EcRandom.value < Mathf.Min(MaxChance, BaseChance + PerCity * (scale - MinCities));
     }
 
-#if EC_PENDING
     private static void Partition(Realm kingdom, Person khan)
     {
         int total = kingdom.Cities.Count;
@@ -120,7 +117,6 @@ public static class NomadAppanageSystem
         LogService.LogInfo($"[EmpireCraft][诸子分帐] {kingdom.GetKingdomName()} 新汗 {khan.FullName()} 即位，分出 " +
                            $"{string.Join("、", made.Select(tent => $"{tent.GetKingdomName()}({tent.Cities?.Count ?? 0}城)"))}，汗帐剩 {kingdom.Cities.Count}/{total} 城");
     }
-#endif
 
     // 新汗的兄弟(先汗诸子)：成年、不是君主、在本国，年长的在前
     private static List<Person> Brothers(Realm kingdom, Person khan)

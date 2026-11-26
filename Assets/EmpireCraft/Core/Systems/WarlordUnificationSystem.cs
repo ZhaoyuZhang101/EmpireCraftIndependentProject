@@ -80,7 +80,6 @@ public static partial class WarlordEraSystem
     }
 
     // 2. 中央主动统一
-#if EC_PENDING
     private static void LaunchUnificationWar(EmpireCore core, Dictionary<Realm, int> held, Empire central,
         HashSet<Empire> representatives)
     {
@@ -101,7 +100,6 @@ public static partial class WarlordEraSystem
         EventRecorder.Record(centralKingdom, string.Format(LM.Get("warlord_unify_war_history"),
             central.GetBaseEmpireFullName(), HolderName(target)));
     }
-#endif
 
     // 3. 民心所向
 #if EC_PENDING
@@ -181,7 +179,6 @@ public static partial class WarlordEraSystem
         };
 
     // 5. 大势所趋。leftoversOnly：统一之后清剩下的地方武装(见 AbsorbLeftovers)，正在造反的、与中央交战的不动
-#if EC_PENDING
     private static void Bandwagon(EmpireCore core, Dictionary<Realm, int> held, int total, Empire central,
         bool leftoversOnly = false)
     {
@@ -207,7 +204,6 @@ public static partial class WarlordEraSystem
                 HolderName(holder), central.GetBaseEmpireFullName()));
         }
     }
-#endif
 
     // 开国雄主的望风归附、兴兵讨伐本是"每年一次"，这个"每年"只靠 WarlordEraSystem.UpdateWorld 的年度闸把着。
     // 神力加冕(EmpireFormButton.Refresh)调的是 UpdateWorld(force: true)，会绕开那道闸、把全世界的
@@ -229,7 +225,6 @@ public static partial class WarlordEraSystem
     // 接壤、尚未入帝国、没有宗主的本核心割据政权每年按控制比例有一定概率归附(与"大势所趋"同一套概率与归附方式)。
     // 只剩一两座城的小国才不战而降(用户 2026-10-19 选"一并改成战线崩溃"：以前多大的割据政权都整国倒过来)
     private const int BandwagonMaxCities = 2;
-#if EC_PENDING
     private static void FounderBandwagon(EmpireCore core, Dictionary<Realm, int> held, int total)
     {
         if (total <= 0 || NationalSentimentSystem.InUnitedFront(TianxiaSystem.Lead(core))) return;
@@ -259,7 +254,6 @@ public static partial class WarlordEraSystem
                 RulerTraitSystem.FounderTitle(founder.Emperor)));
         }
     }
-#endif
 
     // 开国雄主志在一统(古代王朝，不限军阀时期)：开国雄主在位的帝国每年几乎必定对接壤的本核心割据政权(不在帝国里、
     // 不是自己的附庸，含同核心的对立王朝)兴兵讨伐，同时至多 MaxFounderWars 场；不看兵力对比(雄主不等时机)，
@@ -267,7 +261,6 @@ public static partial class WarlordEraSystem
     private const int MaxFounderWars = 2;
     private const float FounderWarChance = 0.9f;
 
-#if EC_PENDING
     private static void FounderDrive(EmpireCore core, Dictionary<Realm, int> held)
     {
         if (NationalSentimentSystem.InUnitedFront(TianxiaSystem.Lead(core))) return;
@@ -299,12 +292,10 @@ public static partial class WarlordEraSystem
                 founder.Emperor?.FullName() ?? "", target.GetKingdomFullName()));
         }
     }
-#endif
 
     // 每月：开国雄主的统一战争里，被讨伐的割据政权正规军打垮、又丢了都城或三分之一的城，兵败如山倒——战线崩溃、
     // 推进加快，城仍一座座打(见 FrontCollapse；用户 2026-10-19 选"一并改成战线崩溃"，以前丢一块地就每月有几率举国归附)。
     // 军阀时期的内战照旧：与中央交战的一方地盘被中央占得越多越可能举国归附
-#if EC_PENDING
     public static void FounderCapitulation()
     {
         if (EmpireWorld.Current?.LiveWars == null) return;
@@ -364,16 +355,13 @@ public static partial class WarlordEraSystem
                     HolderName(rival), founder.GetBaseEmpireFullName()));
         }
     }
-#endif
 
     // 刚议和的(各守旧土、岁币求和)停战期内不再兴兵，岁币照付的对象也不打——以前中央、开国雄主每年挑最弱的割据政权开战，
     // 刚和完第二年又打同一家，看上去反复投降反复进攻。停战年限同原版挑战争目标(minimum_years_between_wars)
-#if EC_PENDING
     private static bool InTruce(Realm kingdom, Realm target, Empire government) =>
         government?.given_Kingdoms != null && government.given_Kingdoms.Contains(target) ||
         GameClock.YearsSince(EmpireWorld.Current.Diplomacy.GetRelation(kingdom, target).Record.LastWarEnded) <
-        SimGlobals.m.minimum_years_between_wars;
-#endif
+        WorldRules.m.minimum_years_between_wars;
 
     // 与这个帝国接壤：本国有城市与帝国的城市相邻
     private static bool Borders(Realm kingdom, Empire empire) =>
@@ -414,7 +402,6 @@ public static partial class WarlordEraSystem
 
     // 易帜归附：先按宗属绑定并尝试并入政府；并入不了(法统判定对不上等)就直接加入政府成为正式成员，
     // 只有加入也失败才保留附庸身份。返回是否已归附(成员或附庸)。
-#if EC_PENDING
     internal static bool AbsorbDefector(Empire central, Realm holder)
     {
         Realm centralKingdom = central?.CoreKingdom;
@@ -438,7 +425,6 @@ public static partial class WarlordEraSystem
         FeudalVassalService.MarkDefected(holder);
         return true;
     }
-#endif
 
     private static Empire RulingGovernment(Realm kingdom) =>
         kingdom.GetEmpire() ?? Government(FeudalVassalService.GetOverlord(kingdom));

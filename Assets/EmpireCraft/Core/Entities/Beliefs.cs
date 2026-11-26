@@ -80,6 +80,8 @@ namespace EmpireCraft.Core
     {
         readonly EmpireWorld _world;
         public CultureStore(EmpireWorld world) { _world = world; }
+        // The map's culture colours are redrawn by the client; nothing to mark here.
+        public void SetDirtyCities() { }
         public override Culture NewObjectFromKey(long key)
         {
             var made = base.NewObjectFromKey(key);

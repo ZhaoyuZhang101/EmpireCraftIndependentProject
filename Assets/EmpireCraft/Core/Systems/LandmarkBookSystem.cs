@@ -134,7 +134,6 @@ public static class LandmarkBookSystem
         }
     }
 
-#if EC_PENDING
     public static void YearlyCheck(string culture, List<City> cities, CultureTechState state)
     {
         state.landmark_books ??= new List<string>();
@@ -150,7 +149,6 @@ public static class LandmarkBookSystem
         }
         WriteScholarlyBooks(cities);
     }
-#endif
 
     #region 士人著述
 
@@ -163,11 +161,10 @@ public static class LandmarkBookSystem
     private const int ScholarLiterateCap = 5;
     private const float ScholarMaxChance = 0.3f;
 
-#if EC_PENDING
     private static void WriteScholarlyBooks(List<City> cities)
     {
         if (cities == null || EmpireWorld.Current?.Books == null) return;
-        using var timing = new PerfTimer("士人著述");
+        using var timing = FrameProfiler.Measure("士人著述");
         int budget = Math.Max(1, cities.Count / 4);
         foreach (City city in cities.OrderBy(_ => EcRandom.value))
         {
@@ -201,7 +198,6 @@ public static class LandmarkBookSystem
             }
         }
     }
-#endif
 
     private static bool IsLiterate(Person actor) =>
         actor.HasTrait("juren") || actor.HasTrait("gongshi") ||
@@ -209,7 +205,6 @@ public static class LandmarkBookSystem
 
     #endregion
 
-#if EC_PENDING
     private static bool TryWrite(string culture, List<City> cities, LandmarkBookConfig config)
     {
         List<City> eligibleCities = cities?.Where(city => MeetsEnvironment(city, config)).ToList() ?? new List<City>();
@@ -228,7 +223,7 @@ public static class LandmarkBookSystem
         }
         if (book == null) return false;
         string title = GetTitle(config.id, culture);
-        book.setName(title);
+        book.SetName(title);
         BookNamingSystem.MarkUsed(title);
         BookExtension.BookExtraData data = book.GetOrCreate();
         data.id = book.Key;
@@ -246,11 +241,9 @@ public static class LandmarkBookSystem
         WorldTip.showNow(text, false, "top", 5f);
         return true;
     }
-#endif
 
     // 问世提示从 Books/LandmarkBookLogs.csv(或文化专属的 <文化>LandmarkBookLogs.csv)里随机抽一句：
     // {0} 文化  {1} 作者  {2} 书名  {3} 作者所在城市(作者没有城市时只抽不带 {3} 的句子)
-#if EC_PENDING
     private static string BuildAnnouncement(string culture, Person author, string title)
     {
         string cityName = author.City?.Name;
@@ -267,7 +260,6 @@ public static class LandmarkBookSystem
             return string.Format(LM.Get("landmark_book_log_plain"), culture.GetCultureTranslate(), author.FullName(), title);
         }
     }
-#endif
 
     // 本文化里最有学识的成年人，所在城市要有能放书的建筑
     private static Person PickAuthor(List<City> cities)
@@ -333,7 +325,6 @@ public static class LandmarkBookSystem
 
     // 理念随书流入(边境往来，见 IdeologySpreadSystem)：本文化收到这部奠基名著的一个抄本，
     // 放进一座能藏书的城、算作被读到。没有能藏书的城时传不进来，返回 false；已经有这部书返回 true
-#if EC_PENDING
     public static bool ReceiveFoundingBook(string culture, PartyIdeology ideology)
     {
         LandmarkBookConfig config = FoundingBook(ideology);
@@ -349,7 +340,7 @@ public static class LandmarkBookSystem
             Book book = copyist == null ? null : EmpireWorld.Current.Books.GenerateNewBook(copyist);
             if (book != null)
             {
-                book.setName(title);
+                book.SetName(title);
                 BookExtension.BookExtraData data = book.GetOrCreate();
                 data.id = book.Key;
                 data.landmark_id = config.id;
@@ -365,7 +356,6 @@ public static class LandmarkBookSystem
         Announce(culture, null, string.Format(LM.Get("landmark_book_spread_log"), title, culture.GetCultureTranslate()), -1L);
         return true;
     }
-#endif
 
     // 写出这部名著的文化(没写出来过返回 null)
     private static string OriginCulture(LandmarkBookConfig config)
@@ -572,7 +562,7 @@ public static class LandmarkBookSystem
 
     private static void InfluenceFromCity(City city)
     {
-        if (city == null || city.IsGone() || city.People == null || city.PopulationCount() == 0) return;
+        if (city == null || city.IsGone() || city.People == null || city.People.Count == 0) return;
         Dictionary<PartyIdeology, float> influences = GetCityBookInfluences(city);
         // 手抄本出不了城，雕版印刷开始外溢到邻城，机械印刷外溢更广(见 MediaSystem)；
         // 通达层算好后(用户 2026-11-06，见 ConnectivitySystem)外溢到每座邻城再乘两城之间的通达强度：隔山隔江的邻城读到得少

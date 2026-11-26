@@ -29,7 +29,6 @@ public static class ResourceTributeSystem
     }
 
     // 每月看一次(挂 WarReparationsSystem 的月度扫描)，各笔满一年送一次
-#if EC_PENDING
     public static void TryMonthlyScan()
     {
         if (EmpireWorld.Current?.LiveRealms == null) return;
@@ -56,10 +55,10 @@ public static class ResourceTributeSystem
                 {
                     City from = debtor.Capital, to = creditor.Capital;
                     if (from?.Record == null || to?.Record == null) continue;
-                    int paid = Math.Min(item.amount, Math.Max(0, from.getResourcesAmount(item.resource)));
+                    int paid = Math.Min(item.amount, Math.Max(0, from.GetResourcesAmount(item.resource)));
                     if (paid <= 0) continue;
-                    from.takeResource(item.resource, paid);
-                    to.addResourcesToRandomStockpile(item.resource, paid);
+                    from.TakeResource(item.resource, paid);
+                    to.AddResourcesToRandomStockpile(item.resource, paid);
                 }
                 catch (Exception exception)
                 {
@@ -68,6 +67,5 @@ public static class ResourceTributeSystem
             }
         }
     }
-#endif
 }
 }

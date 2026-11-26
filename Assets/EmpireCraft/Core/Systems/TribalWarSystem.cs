@@ -44,7 +44,6 @@ public static class TribalWarSystem
     public static bool Settling(War war) => war?.Record != null && Settled.Contains(war.Key);
 
     // 破城时调用：是部落之间的仗就按上面的规矩了结，返回 true(城不易主)
-#if EC_PENDING
     public static bool TrySubmit(City city, Realm winner)
     {
         Realm loser = city?.Realm;
@@ -63,7 +62,7 @@ public static class TribalWarSystem
             Settled.Add(war.Key);
             try
             {
-                war.lostWar(loser);
+                war.Lost(loser);
                 if (!war.HasEnded() && (war.IsAttacker(loser) || war.IsDefender(loser))) war.Leave(loser);
             }
             finally
@@ -77,7 +76,6 @@ public static class TribalWarSystem
         }
         return true;
     }
-#endif
 
     // 战功换天命(用户 2026-10-26 选"战功换天命和爵位")：胜者所在的部落联盟(胜者自己是共主，或胜者共事的共主)每胜一场记一分战功，
     // 新收服一部再记一分，败者带着自己的共事部落一同归附的每部再记一分(EmpireData.tribal_war_merit)；天命按这一仗新记的战功每分 +1，
@@ -132,7 +130,6 @@ public static class TribalWarSystem
     }
 
     // 退还胜者一方(胜者与它的友军)在败者各城占的地；不相干的第三方照旧
-#if EC_PENDING
     private static void ReturnLand(Realm loser, Realm winner)
     {
         foreach (City own in loser.Cities?.ToList() ?? new List<City>())
@@ -151,6 +148,5 @@ public static class TribalWarSystem
             }
         }
     }
-#endif
 }
 }

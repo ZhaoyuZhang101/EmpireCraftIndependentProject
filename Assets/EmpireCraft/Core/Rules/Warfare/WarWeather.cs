@@ -13,7 +13,7 @@ namespace EmpireCraft.Core
 //     在外打仗的军冻馁、染疫、缺水减员(见 AttritionRate，接在后勤结算上；预备、溃退、船上的不算，防守的减半)；
 //   · 惯了的不怕：游牧、阿拉伯不怕沙漠，游牧、斯拉夫不怕雪原，打折与减员减半；电气时代以后的军队减半(两者可叠)；
 //   · AI 挑战线时避开正当严酷时令的地形(见 Harshness)。
-public static class WarWeather
+public static partial class WarWeather
 {
     public enum Kind { Clear, Frost, Rains, Heat, Bitter }
 
@@ -48,9 +48,12 @@ public static class WarWeather
     private static bool RainMonth(int month) => month is 5 or 6 or 7;
     private static bool HeatMonth(int month) => month is 6 or 7 or 8;
 
-#if EC_PENDING
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
     private static bool IceAge => World.world_era?.flag_winter == true;
+#endif
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
     private static bool RainAge => World.world_era?.overlay_rain == true;
+#endif
 
     public static Kind KindOf(FrontTerrain terrain)
     {
@@ -86,7 +89,6 @@ public static class WarWeather
         Kind.Bitter => BitterCold,
         _ => None
     };
-#endif
 
     // 打折与减员还剩几成：惯了这种地的减半，电气时代以后的军队减半
     private static float Exposure(Realm kingdom, FrontTerrain terrain)
@@ -108,7 +110,6 @@ public static class WarWeather
     }
 
     // 交战地形效果叠上时令
-#if EC_PENDING
     public static TerrainEffect Apply(TerrainEffect ground, FrontTerrain terrain, Realm attacker)
     {
         Hardship hardship = HardshipOf(terrain);
@@ -120,15 +121,11 @@ public static class WarWeather
     }
 
     public static bool SlowsMarch(Cell zone) => zone != null && HardshipOf(TerrainSystem.Of(zone)).Slow;
-#endif
 
     // 这种地形眼下有多难打(0~1)：AI 挑战线时打折
-#if EC_PENDING
     public static float Harshness(FrontTerrain terrain) => Mathf.Clamp01((1f - HardshipOf(terrain).Attack) * 4f);
-#endif
 
     // 这支军这个月的非战斗减员比例
-#if EC_PENDING
     public static float AttritionRate(Realm kingdom, CorpsData corps)
     {
         if (corps == null || corps.embarked || corps.task is not ("attack" or "defend" or "march")) return 0f;
@@ -139,25 +136,19 @@ public static class WarWeather
         if (rate <= 0f) return 0f;
         return rate * Exposure(kingdom, terrain) * (corps.task == "defend" ? 0.5f : 1f);
     }
-#endif
 
     public static string Name(Kind kind) => kind == Kind.Clear ? null : LM.Get("war_weather_" + kind.ToString().ToLowerInvariant());
 
-#if EC_PENDING
     public static string Name(FrontTerrain terrain) => Name(KindOf(terrain));
-#endif
 
     // 地形名后面带上时令：雪原 · 严冬
-#if EC_PENDING
     public static string Tag(FrontTerrain terrain)
     {
         string name = Name(terrain);
         return name == null ? TerrainSystem.Name(terrain) : $"{TerrainSystem.Name(terrain)} · {name}";
     }
-#endif
 
     // 眼下各地的时令(军事页一行)；没有就返回 null
-#if EC_PENDING
     public static string SeasonLine()
     {
         if (EmpireWorld.Current == null) return null;
@@ -171,6 +162,5 @@ public static class WarWeather
         }
         return parts.Count == 0 ? null : string.Join("；", parts);
     }
-#endif
 }
 }

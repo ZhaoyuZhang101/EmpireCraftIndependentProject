@@ -21,7 +21,6 @@ public static class SmallStateSubmissionSystem
 
     private static bool Alive(Realm kingdom) => kingdom?.Record != null && !kingdom.IsGone();
 
-#if EC_PENDING
     public static void Tick()
     {
         EmpireWorld world = EmpireWorld.Current;
@@ -56,7 +55,6 @@ public static class SmallStateSubmissionSystem
             LogService.LogWarning($"[EmpireCraft][小国归附] 结算失败: {exception.Message}");
         }
     }
-#endif
 
     private static bool Candidate(Realm small)
     {
@@ -72,13 +70,12 @@ public static class SmallStateSubmissionSystem
     }
 
     // 陆上四邻里占 MinShare 以上的那一家(宗主、帝国中央)，国力够、两家不交战
-#if EC_PENDING
     private static Realm Dominant(Realm small)
     {
         var contacts = new Dictionary<Realm, int>();
         int total = 0;
         foreach (City city in small.Cities)
-            foreach (Cell zone in city?.border_zones ?? new HashSet<Cell>())
+            foreach (Cell zone in city?.BorderZones ?? new HashSet<Cell>())
                 foreach (Cell next in zone?.Neighbours ?? Array.Empty<Cell>())
                 {
                     Realm other = next?.City?.Realm;
@@ -95,13 +92,11 @@ public static class SmallStateSubmissionSystem
         if (best.Value < total * MinShare || lord.IsAtWarWith(small) || FrontSystem.Hostile(lord, small)) return null;
         return WarSituation.Power(lord) >= WarSituation.Power(small) * PowerRatio ? lord : null;
     }
-#endif
 
     // 行封建附庸的为附庸，收朝贡的帝国为朝贡国；都不行就不归附。
     // 附庸按和平收附庸的规矩(FeudalVassalService.Bind：宗主收得了附庸、层级、冷却……)——以前用强制附庸，宗主文化行封建附庸、
     // 政体却不是封建的(收不得附庸)，当月月度同步就把它放了，不留记录：世界日志说称臣、地图上仍是独立之国
     // (玩家："就是这样称臣又独立""也没有进附庸和属国"，用户 2026-10-27 转)
-#if EC_PENDING
     public static bool Submit(Realm lord, Realm small)
     {
         if (FeudalVassalService.TooFar(lord, small)) return false;
@@ -116,6 +111,5 @@ public static class SmallStateSubmissionSystem
         LogService.LogInfo($"[EmpireCraft][小国归附] {small.GetKingdomName()}({small.Cities.Count}城) 向 {lordName} 称臣");
         return true;
     }
-#endif
 }
 }

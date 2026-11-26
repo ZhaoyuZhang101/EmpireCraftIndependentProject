@@ -346,7 +346,6 @@ public static class ScenarioWilderness
 
     #region 取样、归类、连片
 
-#if EC_PENDING
     private static Layout Build(WorldMapFrame frame, Vector2Int size, int sizeIndex, string table, int key, int sampleKey)
     {
         frame.Bounds(size, out float bottom, out float degrees);
@@ -558,7 +557,6 @@ public static class ScenarioWilderness
         History(layout);
         return layout;
     }
-#endif
 
     // 高原哪一边(同 TerrainSystem.PlateauSide 的口径；预览里只数得出高寒高原)：高原格过半是高原面 1，一成五以下是平地 0，其间是外缘 255
     private const byte RimSide = 255;
@@ -659,7 +657,6 @@ public static class ScenarioWilderness
     }
 
     // 取样：每格取最近的预览像素(同 EarthTerrain.TypeAt 就近取地球网格)，数各块各类格子；地球地图画大河水道
-#if EC_PENDING
     private static Sampled Sample(WorldMapFrame frame, Vector2Int size, int key)
     {
         frame.Bounds(size, out float bottom, out float degrees);
@@ -732,7 +729,6 @@ public static class ScenarioWilderness
         }
         return sampled;
     }
-#endif
 
     private static WildKind Classify(int land, int water, int rock, int hills, int frozen, int sand, int jungle, int swamp, int lava,
         int plateau)
@@ -761,7 +757,6 @@ public static class ScenarioWilderness
     }
 
     // 大河水道(同 EarthTerrain.DrawRivers：图边一格不画)
-#if EC_PENDING
     private static bool[] Rivers(WorldMapFrame frame, Vector2Int size)
     {
         string key = frame.id + "|" + size.x + "|" + size.y;
@@ -776,7 +771,6 @@ public static class ScenarioWilderness
         _riverKey = key;
         return river;
     }
-#endif
 
     // 城心按 2° 一格分桶(开发度按离最近的城多远算，远过几度就当没有)
     private static int SeatCell(float lon, float lat) => Mathf.FloorToInt(lon / 2f) * 1000 + Mathf.FloorToInt(lat / 2f);
@@ -940,7 +934,6 @@ public static class ScenarioWilderness
     }
 
     // 时代文件的史实归属(地球地图；见 WorldMapWilderness.HistoricalOwner)：各无人区地块落在哪个写了归属的地理单元里
-#if EC_PENDING
     private static void History(Layout layout)
     {
         WorldMapEra era = ScenarioEditing.Era;
@@ -959,7 +952,6 @@ public static class ScenarioWilderness
             }
         }
     }
-#endif
 
     private static void Center(Layout layout, int z, out float lon, out float lat)
     {
@@ -1117,7 +1109,6 @@ public static class ScenarioWilderness
     // 先后同开局(WorldMapScenario.SpreadTerritory)：城心；刷的地块(p:、r: 归那国、那块法理最近的城，c: 归那座城，水面多的只有 c: 才领，
     // 取值同 PaintTerritory)；再从这些地一起按地形代价往外铺(各等城走得多远、领几块同 TerritoryBudget、TerritoryCap，不进无人区、不过长城)。
     // 照原图分地的不往外铺。没算好返回 false
-#if EC_PENDING
     public static bool Preview(ref int[] owner, ref bool[] painted)
     {
         Layout layout = _layout;
@@ -1219,7 +1210,6 @@ public static class ScenarioWilderness
             if (owner[z] >= seats) owner[z] = NearestSeat(layout, seatCities[owner[z] - seats], z % layout.W * 8 + 4, z / layout.W * 8 + 4);
         return true;
     }
-#endif
 
     // 这国某行政区(-1 京畿)放得下的城：Seats 的下标。按城排一遍留着，国家、城、行政区没变不重排(几百座城几百个行政区，挨个查太慢)
     private static Dictionary<(WorldMapPolity, int), List<int>> _seatsByDivision;
@@ -1265,7 +1255,6 @@ public static class ScenarioWilderness
     private static Layout _boundaryLayout;
     private static int _boundaryRevision = int.MinValue;
 
-#if EC_PENDING
     private static int[] BoundaryOwners(Layout layout, WorldMapEra era)
     {
         if (_boundaryOwners != null && _boundaryLayout == layout && _boundaryRevision == ScenarioEditing.StructureRevision) return _boundaryOwners;
@@ -1302,7 +1291,6 @@ public static class ScenarioWilderness
             }
         return _boundaryOwners = owners;
     }
-#endif
 
     // 压着长城的地块(按折线；开局的走向还要沿山脊、河谷弯折，见 WorldMapWalls.Plan，这里差一两块)
     private static bool[] WallZones(Layout layout, WorldMapEra era)

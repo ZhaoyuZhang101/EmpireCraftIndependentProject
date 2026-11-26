@@ -120,7 +120,6 @@ public static class RoadNetwork
     public static void MarkDirty() => _dirty = true;
 
     // 神力修了、画了路(见 RoadBuildingSystem.ConnectByPower、RoadPaintSystem)：当场重收路格、换版本号，不等下一秒的结算
-#if EC_PENDING
     public static void RefreshNow()
     {
         if (EmpireWorld.Current?.AllCells == null) return;
@@ -128,7 +127,6 @@ public static class RoadNetwork
         CollectRoads();
         Version++;
     }
-#endif
 
     // 地形变了(图层城墙转换、还原)：路线全部重算(修了的路照旧保留，只是重新找路)
     public static void Replan()
@@ -197,7 +195,6 @@ public static class RoadNetwork
         Version++;
     }
 
-#if EC_PENDING
     public static void Tick()
     {
         if (EmpireWorld.Current?.Cities == null || EmpireWorld.Current.Zones == null) return;
@@ -212,7 +209,7 @@ public static class RoadNetwork
         using var timing = FrameProfiler.Measure("路网·结算");
         try
         {
-            var budget = global::System.Diagnostics.Stopwatch.StartNew();
+            var budget = SimWatch.StartNew();
             // 全量扫描(各城的路、规划、航线)每五秒一次；规划还没算完时每秒接着算
             if (!PlansComplete || now >= _nextScan || _nextScan - now > ScanSeconds)
             {
@@ -245,7 +242,6 @@ public static class RoadNetwork
             LogService.LogWarning($"[EmpireCraft][路网] 结算失败: {exception.Message}");
         }
     }
-#endif
 
     private static void Collect(Dictionary<(long, long), RoadPlan> routes, HashSet<int> zones, HashSet<int> tiles)
     {
@@ -275,7 +271,6 @@ public static class RoadNetwork
     }
 
     // 只收修通的路(按等级)；在修的路从起点画到修到的地方
-#if EC_PENDING
     private static void CollectRoads()
     {
         RoadZones.Clear();
@@ -318,7 +313,6 @@ public static class RoadNetwork
         }
         ConnectCorners();
     }
-#endif
 
     // 只有一个角相接的两格路(格子寻路八方向、直线落格，斜着走的地方就是这样)：画出来是断的，路两侧还描着深色的边，
     // 一格一格像虚线(用户 2026-10-22 "无论是大路还是小路总是保证他们是连接的""不要有断开")。
@@ -326,7 +320,6 @@ public static class RoadNetwork
     // 等级取两格较低的。大路、小路、神力画的路一视同仁。接头只管画(路格)，不算进有路的地块(不改行军、教化、后勤)
     private const int BridgeGrade = 3;
 
-#if EC_PENDING
     private static void ConnectCorners()
     {
         if (EmpireWorld.Current?.AllCells == null || TileGrades.Count == 0) return;
@@ -339,7 +332,7 @@ public static class RoadNetwork
             for (int dy = -1; dy <= 1; dy += 2)
             {
                 Cell corner = EmpireWorld.Current.CellAt(tile.X + 1, tile.Y + dy);
-                if (corner?.data == null || !TileGrades.TryGetValue(corner.Index, out int other)) continue;
+                if (corner?.Record == null || !TileGrades.TryGetValue(corner.Index, out int other)) continue;
                 Cell side = EmpireWorld.Current.CellAt(tile.X + 1, tile.Y), across = EmpireWorld.Current.CellAt(tile.X, tile.Y + dy);
                 if (IsRoadTile(side) || IsRoadTile(across) || side != null && joints.ContainsKey(side.Index) ||
                     across != null && joints.ContainsKey(across.Index)) continue;
@@ -358,23 +351,18 @@ public static class RoadNetwork
             TileGrades[pair.Key] = pair.Value;
         }
     }
-#endif
 
     // 这一格上有没有修通的路(各国修的干道、神力画的路)；军牌沿路走也用(见 CorpsSystem.MarchLine、TerrainSystem.StepCost)
-#if EC_PENDING
-    internal static bool IsRoadTile(Cell tile) => tile?.data != null && TileGrades.ContainsKey(tile.Index);
-#endif
+    internal static bool IsRoadTile(Cell tile) => tile?.Record != null && TileGrades.ContainsKey(tile.Index);
 
     // 能补成接头的格：走得了(不是山、城墙、岩浆)；water 为假时只要陆地，为真时水面要能架桥的等级
-#if EC_PENDING
     private static Cell JointTile(Cell tile, int grade, bool water = false)
     {
-        if (tile?.data == null || tile.Zone == null || tile.Type.Ocean || TileStep(tile) < 0f) return null;
+        if (tile?.Record == null || tile.Zone == null || tile.Type.Ocean || TileStep(tile) < 0f) return null;
         bool wet = tile.Type.Liquid;
         if (!water) return wet ? null : tile;
         return wet && grade >= BridgeGrade ? tile : null;
     }
-#endif
 
     private static bool Fresh(Dictionary<(long, long), RoadPlan> routes, (long, long) key, float now) =>
         routes.TryGetValue(key, out RoadPlan route) && now - route.at < StaleSeconds && now >= route.at;
@@ -390,10 +378,9 @@ public static class RoadNetwork
 
     #region 陆路
 
-    private static bool Spent(global::System.Diagnostics.Stopwatch budget) => budget.ElapsedMilliseconds >= BudgetMs;
+    private static bool Spent(SimWatch budget) => budget.ElapsedMilliseconds >= BudgetMs;
 
-#if EC_PENDING
-    private static void TickRoads(float now, global::System.Diagnostics.Stopwatch budget)
+    private static void TickRoads(float now, SimWatch budget)
     {
         var wanted = new HashSet<(long, long)>();
         bool pending = false;
@@ -448,12 +435,10 @@ public static class RoadNetwork
         if (Roads.Count != planned) _trailsDirty = true;
         PlansComplete = !pending;
     }
-#endif
 
     // 规划一条路(已修的路线不再重算，免得路自己挪地方)；返回是不是因为本次时间用完还没算
-#if EC_PENDING
     private static bool Plan((long, long) key, Cell from, Cell to, float now,
-        global::System.Diagnostics.Stopwatch budget, HashSet<(long, long)> wanted)
+        SimWatch budget, HashSet<(long, long)> wanted)
     {
         wanted.Add(key);
         bool built = RoadBuildingSystem.Get(key) is { } link && (link.grade > 0 || link.building > 0);
@@ -470,7 +455,6 @@ public static class RoadNetwork
         if (built) _dirty = true;
         return false;
     }
-#endif
 
     // 两城之间另有一座城比它们彼此都近：经那座城走，不另修直路
     private static bool Bypassed(City a, City b, Cell ta, Cell tb)
@@ -486,7 +470,6 @@ public static class RoadNetwork
     }
 
     // 隔着无人区的两城：另有一座城(地块相接的或也隔着无人区的)比它们彼此都近，就经那座城走，走廊不至于铺满一片无人区
-#if EC_PENDING
     private static bool BypassedAcross(City a, City b, Cell ta, Cell tb)
     {
         if (Bypassed(a, b, ta, tb)) return true;
@@ -499,11 +482,9 @@ public static class RoadNetwork
         }
         return false;
     }
-#endif
 
     private static float Squared(Cell a, Cell b) => (a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y);
 
-#if EC_PENDING
     private static RoadPlan BuildRoad(Cell from, Cell to, float now)
     {
         var route = new RoadPlan { at = now };
@@ -542,10 +523,8 @@ public static class RoadNetwork
                              MountainShare(zone) >= MountainZoneShare)) return -1f;
         return (RoadZones.Contains(zone.Index) ? RoadCost : 1f) * Terrain(zone);
     }
-#endif
 
     // 地块里山、高峰格子占几成(地形少变，算一次记下)
-#if EC_PENDING
     private static float MountainShare(Cell zone)
     {
         if (MountainShares.TryGetValue(zone.Index, out float share)) return share;
@@ -560,24 +539,19 @@ public static class RoadNetwork
         MountainShares[zone.Index] = share;
         return share;
     }
-#endif
 
     // 山、高峰、原版城墙与图层城墙(见 MapWallSystem)：路不走；丘陵可以。城墙不算进地块的山地占比(一格宽的线，绕过去就行)。
     // 关城压着的关门(见 WallGateSystem)照走：以前城墙格一律当山，关挨着墙筑也过不去
-#if EC_PENDING
     private static bool Mountain(Cell tile) => tile.Type != null &&
         (tile.Type.Mountains || tile.Type.Block && !tile.Type.Wall || MapWallSystem.Blocks(tile));
-#endif
 
     // 走进这一格的代价：山不走，丘陵加倍，水面是桥，已有的路便宜
-#if EC_PENDING
     private static float TileStep(Cell tile)
     {
         if (tile?.Type == null || Mountain(tile) || tile.Type.Lava) return -1f;
         float cost = tile.Type.Liquid ? BridgeTileCost : tile.Type.Rocks ? HillTileCost : 1f;
         return RoadTiles.Contains(tile.Index) ? cost * RoadCost : cost;
     }
-#endif
 
     // 走廊：地块路线经过的地块及其周围 ring 圈
     private static HashSet<int> Corridor(List<Cell> path, int ring)
@@ -605,7 +579,6 @@ public static class RoadNetwork
     }
 
     // 格子一级的 A*(八方向，斜走乘 1.41)，只走走廊里的格子；两端是城心
-#if EC_PENDING
     private static List<Cell> FindTiles(Cell from, Cell to, HashSet<int> corridor)
     {
         if (from == null || to == null) return null;
@@ -645,7 +618,6 @@ public static class RoadNetwork
         path.Reverse();
         return path;
     }
-#endif
 
     private static void PushTile(List<(float key, Cell tile)> heap, (float key, Cell tile) item)
     {
@@ -681,7 +653,6 @@ public static class RoadNetwork
 
     // 格子路线落成路：拉直成几段(拉直的线不压山、不比原路贵)，削角平滑两遍；平滑后压到山就用拉直的线，
     // 再不行用原路。过水处照画(桥)
-#if EC_PENDING
     private static void DrawRoad(List<Cell> path, List<int> tiles)
     {
         var prefix = new float[path.Count];
@@ -714,10 +685,8 @@ public static class RoadNetwork
             last = id;
         }
     }
-#endif
 
     // 两格之间的直线(不含起点)的代价；压到山返回 -1
-#if EC_PENDING
     private static float LineCost(Cell a, Cell b)
     {
         float total = 0f;
@@ -738,10 +707,8 @@ public static class RoadNetwork
         }
         return total;
     }
-#endif
 
     // 折线落到格子上(不分水陆)；压到山返回 null
-#if EC_PENDING
     private static List<Cell> Raster(List<Vector2> points)
     {
         var result = new List<Cell>();
@@ -772,7 +739,6 @@ public static class RoadNetwork
         }
         return result;
     }
-#endif
 
     // 地形代价：平地 1，山地沼泽丛林乘 RoughCost，多水的地块(大河、湖)乘 RiverCost
     private static float Terrain(Cell zone)
@@ -787,8 +753,7 @@ public static class RoadNetwork
 
     #region 海路
 
-#if EC_PENDING
-    private static void TickLanes(float now, global::System.Diagnostics.Stopwatch budget)
+    private static void TickLanes(float now, SimWatch budget)
     {
         if (now >= _nextPorts || _nextPorts - now > PortSeconds)
         {
@@ -831,7 +796,6 @@ public static class RoadNetwork
         Draw(Smooth(path, from.SeatCell(), to.SeatCell()), route.tiles, liquid: true, dashed: true);
         return route;
     }
-#endif
 
     // 海上寻路(航线、运兵船、舰队共用)：海面代价 1，航线上 0.6，近岸与海峡 3，两端港口城(登陆城)的地块 2，陆地不走。
     // allowed：额外限制能走的海面(运兵只走航线上的海区)；ports：两端可以穿过的城
@@ -857,7 +821,6 @@ public static class RoadNetwork
     #region 平滑与落格
 
     // 地块中心各偏开一两格，两端是城心(或给定的格)，再削角平滑两遍；返回格坐标(世界坐标与格坐标一致)
-#if EC_PENDING
     public static List<Vector2> Smooth(IReadOnlyList<Cell> path, Cell start = null, Cell end = null)
     {
         var points = new List<Vector2>();
@@ -871,7 +834,6 @@ public static class RoadNetwork
         for (int pass = 0; pass < 2; pass++) points = Chaikin(points);
         return points;
     }
-#endif
 
     public static Vector2 Jittered(Cell zone)
     {
@@ -880,7 +842,6 @@ public static class RoadNetwork
             zone.Y * Land.ZoneSize + 4 + (int)((hash >> 8) % 5) - 2);
     }
 
-#if EC_PENDING
     private static List<Vector2> Chaikin(List<Vector2> points)
     {
         if (points.Count < 3) return points;
@@ -894,7 +855,6 @@ public static class RoadNetwork
         result.Add(points[points.Count - 1]);
         return result;
     }
-#endif
 
     // 折线落到格子上：陆路只落在陆地格，海路只落在水格；虚线按走过的格数断开
     private static void Draw(List<Vector2> points, List<int> tiles, bool liquid, bool dashed)

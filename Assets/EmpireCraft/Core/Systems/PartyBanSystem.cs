@@ -663,7 +663,7 @@ public static class PartyBanSystem
 
         // 代表按人口派驻到各行政区，只影响议员从哪个区推选
         List<Realm> districts = empire.kingdoms_list.Where(kingdom => kingdom != null && !kingdom.IsGone() &&
-            kingdom.PopulationCount() > 0).OrderByDescending(kingdom => kingdom.PopulationCount()).ToList();
+            kingdom.People.Count > 0).OrderByDescending(kingdom => kingdom.People.Count).ToList();
         int index = 0;
         foreach (KeyValuePair<FixedFaction, int> pair in national.OrderByDescending(pair => pair.Value))
             for (int i = 0; i < pair.Value; i++)

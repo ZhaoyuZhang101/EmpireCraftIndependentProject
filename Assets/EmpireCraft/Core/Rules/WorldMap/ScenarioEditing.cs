@@ -46,7 +46,6 @@ public static class ScenarioEditing
     #region 打开、新建、保存
 
     // 从剧本文件夹重读一份来编(没保存的改动不影响列表里的那份)
-#if EC_PENDING
     public static bool Open(WorldMapEra custom)
     {
         if (custom == null || !custom.Custom || !WorldMapData.EnsureLoaded()) return false;
@@ -75,7 +74,6 @@ public static class ScenarioEditing
             return false;
         }
     }
-#endif
 
     private static void Normalize(WorldMapEra era)
     {

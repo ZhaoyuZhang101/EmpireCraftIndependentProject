@@ -157,7 +157,8 @@ namespace EmpireCraft.Core
         }
 
         // Stand-in loyalty: firm at the capital, thinning with distance from it.
-        static int Loyalty(EmpireWorld w, Realm realm, City city)
+        // A city's attachment to its realm: full at the capital, less the farther it lies (also what City.GetLoyalty answers).
+        public static int Loyalty(EmpireWorld w, Realm realm, City city)
         {
             if (realm.Capital == null || realm.Capital == city) return 30;
             float distance = w.Distance(realm.Capital.Tile, city.Tile);
@@ -182,6 +183,7 @@ namespace EmpireCraft.Core
         {
             w.Activate();
             EcRandom.Seed(w.Seed, w.Month + 1);
+            SkeletonRules.PopulationElsewhere = PortedSystems.Enabled && CityPopulationSystem.AbstractPopulationEnabled;
             using (FrameProfiler.Measure("empire.skeleton")) SkeletonRules.Month(w);
             using (FrameProfiler.Measure("empire.accounts.month")) RealmAccounts.Month(w);
             if (w.Month % 12 == 0)

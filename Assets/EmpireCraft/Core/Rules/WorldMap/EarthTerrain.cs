@@ -81,7 +81,6 @@ public static class EarthTerrain
     private static byte[] _grid;
     private static string[] _types;
 
-#if EC_PENDING
     public static bool EnsureLoaded()
     {
         if (_grid != null) return true;
@@ -123,7 +122,6 @@ public static class EarthTerrain
             return false;
         }
     }
-#endif
 
     // 剧本刷的地形(ScenarioCells.TerrainStep 一格 → 地块写法，见 ScenarioEditing)：铺地表时盖过网格
     private static Dictionary<int, string> _overrides;
@@ -143,6 +141,7 @@ public static class EarthTerrain
 
 #if EC_PENDING
     public static Color32 PreviewColorOf(string type) => PreviewColor(type ?? "");
+#endif
 
     public static void UseGrid(byte[] grid, int cols, int rows, float step)
     {
@@ -164,7 +163,6 @@ public static class EarthTerrain
         _step = step;
         Imported = true;
     }
-#endif
 
     public static void UseEarth()
     {
@@ -217,7 +215,6 @@ public static class EarthTerrain
 #endif
 
     // 与 Preview 同样取样的地块编号(下标即 Types；剧本编辑器预测无人区按它判格子，见 ScenarioWilderness)
-#if EC_PENDING
     public static byte[] PreviewCodes(int stride)
     {
         if (!EnsureLoaded() || stride < 1) return null;
@@ -228,7 +225,6 @@ public static class EarthTerrain
             codes[y * width + x] = _grid[y * stride * _cols + x * stride];
         return codes;
     }
-#endif
 
     // 地形大类(剧本编辑器铺图层颜色按它算代价)：0 水，1 平原，2 高原，3 丘陵，4 山地，5 雪山，6 荒漠冻土，7 雪丘
     public static byte ClassOf(string type)
@@ -250,7 +246,6 @@ public static class EarthTerrain
     }
 
     // 与 Preview 同样取样的地形大类
-#if EC_PENDING
     public static byte[] PreviewClasses(int stride)
     {
         if (!EnsureLoaded() || stride < 1) return null;
@@ -267,6 +262,7 @@ public static class EarthTerrain
         return classes;
     }
 
+#if EC_PENDING
     private static Color32 PreviewColor(string type)
     {
         switch (type)
@@ -340,7 +336,7 @@ public static class EarthTerrain
                     int split = id.IndexOf(':');
                     parts = split < 0
                         ? (id, null)
-                        : (id.Substring(0, split), AssetManager.top_tiles.get(id.Substring(split + 1)));
+                        : (id.Substring(0, split), TerrainLayers.Top.get(id.Substring(split + 1)));
                     resolved[id] = parts;
                 }
                 Cell tile = EmpireWorld.Current.CellAt(x, y);
@@ -359,7 +355,6 @@ public static class EarthTerrain
     private const int FordEvery = 14, FordWidth = 2;
     private static List<(int rank, Vector2[] points)> _rivers;
 
-#if EC_PENDING
     private static bool EnsureRivers()
     {
         if (_rivers != null) return true;
@@ -390,6 +385,7 @@ public static class EarthTerrain
         }
     }
 
+#if EC_PENDING
     public static void DrawRivers(WorldMapFrame frame, Vector2Int size)
     {
         int width = EmpireWorld.Current.Width, height = EmpireWorld.Current.Height;
@@ -420,7 +416,6 @@ public static class EarthTerrain
 
     // 大河水道落在哪些格上(DrawRivers 的走法，渡口已留开)：visit 收格坐标，出界、本来就是水面的由调用处判
     // (剧本编辑器预测无人区也照这个画水道，见 ScenarioWilderness)
-#if EC_PENDING
     public static void RiverTiles(WorldMapFrame frame, Vector2Int size, Action<int, int> visit)
     {
         if (visit == null || !EnsureRivers()) return;
@@ -447,6 +442,7 @@ public static class EarthTerrain
         }
     }
 
+#if EC_PENDING
     private static void Wet(int x, int y, int width, int height)
     {
         if (x < 1 || y < 1 || x >= width - 1 || y >= height - 1) return;

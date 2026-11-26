@@ -119,7 +119,7 @@ internal sealed class SettlementSeaSearch
                         seaQueue.Enqueue(new SeaNode { tile = tile, parent = node, portCity = node.portCity,
                             distance = node.distance + 1, range = node.range });
                 }
-                else if (tile?.Type?.Ground == true && tile.region?.island != null &&
+                else if (tile?.Type?.Ground == true && tile.Region?.island != null &&
                     !tile.IsSameIsland(source.SeatCell()) && tile.Zone != null &&
                     (tile.Zone.City == null || tile.Zone.City == existingTarget) && landSeen.Add(tile.Zone.Index))
                     landQueue.Enqueue(Landing.Create(tile.Zone, tile, node, 0));
@@ -159,8 +159,10 @@ internal sealed class SettlementSeaSearch
     private static SettlementRoutePoint Point(Cell tile) => new() { x = tile.X, y = tile.Y };
 #if EC_PENDING
     internal static bool Navigable(Cell tile) => tile?.Type != null && tile.isGoodForBoat();
-    internal static Building Port(City city) => city?.getBuildingOfType("type_docks", pCountOnlyFinished: true, pRandom: false);
+#endif
+    internal static Building Port(City city) => city?.GetBuildingOfType("type_docks", pCountOnlyFinished: true, pRandom: false);
 
+#if EC_PENDING
     private static bool EligiblePortCity(City city, City source) => city?.Record != null && !city.IsGone() &&
         !AncientWarfareCompatibility.OwnsObject(city) && city.SeatCell() != null &&
         StateSettlementSystem.FundingRealm(city.Realm) == StateSettlementSystem.FundingRealm(source.Realm) &&
@@ -239,7 +241,7 @@ internal sealed class SettlementSeaSearch
         }
         landfall = EmpireWorld.Current.CellAt(project.landfall.x, project.landfall.y);
         return landfall?.Type?.Ground == true && landfall.Zone != null &&
-            (landfall.Zone.City == null || landfall.Zone.City == existingTarget) && landfall.region?.island != null &&
+            (landfall.Zone.City == null || landfall.Zone.City == existingTarget) && landfall.Region?.island != null &&
             !landfall.IsSameIsland(source.SeatCell()) && Adjacent(previous, landfall);
     }
 #endif

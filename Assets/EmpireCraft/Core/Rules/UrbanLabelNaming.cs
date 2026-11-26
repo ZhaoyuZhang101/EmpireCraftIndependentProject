@@ -15,10 +15,9 @@ public static class UrbanLabelNaming
     private static readonly Dictionary<string, string[]> Pools = new(StringComparer.OrdinalIgnoreCase);
     private static string _language;
 
-#if EC_PENDING
     public static Names For(City city)
     {
-        string language = LocalizedTextManager.instance?.language ?? "cz";
+        string language = LM.Language ?? "cz";
         if (language is not ("cz" or "ch" or "en")) language = "en";
         Load(language);
         string culture = CultureService.GetMainCulture(city, initialize: false);
@@ -26,7 +25,6 @@ public static class UrbanLabelNaming
             culture = CultureService.GetRealmCulture(city.Realm);
         return new Names(culture ?? "", language, city?.GetCityName() ?? "");
     }
-#endif
 
     public sealed class Names
     {

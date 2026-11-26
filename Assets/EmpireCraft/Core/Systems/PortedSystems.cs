@@ -56,10 +56,76 @@ namespace EmpireCraft.Core
             if (ms > slot.WorstMs) { slot.WorstMs = ms; slot.WorstMonth = EmpireWorld.Current == null ? -1 : EmpireWorld.Current.Month; }
         }
 
+        // How often a realm looks at its standing as an empire (proclaiming one, its yearly upkeep): every
+        // RealmCheckMonths months, realms spread over them by id.
+        public const int RealmCheckMonths = 3;
+        // The decision system works in slices with a time budget (in the mod it ran a little every frame);
+        // a month gives it this many slices.
+        const int DecisionSlices = 4;
+        // Time a month step may take in the systems' own budgets: in effect, all it needs.
+        const double HeadlessStepMilliseconds = 1e12;
+        // At most this many calls to settle a month of corps (each works through a slice of the realms).
+        const int CorpsMonthSlices = 256;
+        const int PopulationMonthSlices = 1024;
+
+        // The kinds of plot, and the decision system told of every plot started. Code, not data: done once.
+        static void Prepare()
+        {
+            if (PlotKinds.Library.get("become_empire") == null) EmpireCraftPlotsAddition.init();
+            PlotStore.Started = DecisionSystem.OnPlotCreated;
+            // A city taken in war and a city changing hands go through the mod's city rules (CityPatch).
+            WorldActions.CaptureHandler = CityPatch.FinishedCapture;
+            WorldActions.JoinHandler = CityPatch.joinAnotherKingdom;
+            WorldActions.BeforeSetKingdom = CityPatch.setKingdom;
+            WorldActions.AfterSetKingdom = CityPatch.setKingdom_Postfix;
+        }
+
         // Called by EmpireSimulation after the skeleton and the books, with the world current and the random stream seeded.
         public static void Month(EmpireWorld w)
         {
             if (!Enabled) return;
+            Prepare();
+            // A month is one step here, with no frame to keep smooth inside it: the mod's own headless-core mode, where
+            // the background gets as much time as the step needs. Each system then finishes its month in the step, so the
+            // world does not depend on how fast the machine is (the same seed gives the same world).
+            double? budget = SimulationFrameBudget.ServerMilliseconds;
+            SimulationFrameBudget.ServerMilliseconds = HeadlessStepMilliseconds;
+            SimWatch.Frozen = true;
+            try { MonthBody(w); }
+            finally { SimWatch.Frozen = false; SimulationFrameBudget.ServerMilliseconds = budget; }
+        }
+
+        static void MonthBody(EmpireWorld w)
+        {
+
+            // The skeleton's changes to head counts go into the population groups first (see PopulationBridge).
+            Run("population in", () => PopulationBridge.Before(w));
+
+            // Each realm's own routine: is it an empire, should it proclaim one (which starts the plot that prepares it).
+            Run("realm empire check", () =>
+            {
+                var check = new EmpireCraftKingdomBehCheckEmpire();
+                foreach (var realm in w.LiveRealms.ToArray())
+                    if (realm.Alive && (realm.Id + w.Month) % RealmCheckMonths == 0) check.Execute(realm);
+            });
+            // Plots under way move on, those due are weighed and started, finished ones take effect.
+            Run("decisions", () => { for (int i = 0; i < DecisionSlices; i++) DecisionSystem.Tick(); });
+            Run("plots sweep", () => w.Plots.Sweep());
+            // Corps and fronts: levies, mustering, marching, the fronts' push and the fighting, a month's worth. The mod
+            // settled the month a few realms a frame; here the month is settled before the world steps on.
+            Run("corps and fronts", () =>
+            {
+                CorpsSystem.Update();
+                for (int slice = 0; slice < CorpsMonthSlices && CorpsSystem.MonthPending; slice++) CorpsSystem.Update();
+            });
+            // The cities' month: levies, marching off, migration, plague, reading, growth (see the CityPopulationSystem seam).
+            Run("population", () =>
+            {
+                CityPopulationSystem.Tick();
+                for (int slice = 0; slice < PopulationMonthSlices && CityPopulationSystem.MonthPending; slice++) CityPopulationSystem.Tick();
+            });
+            Run("small states submit", SmallStateSubmissionSystem.Tick);
+            Run("national unification", NationalUnificationSystem.Tick);
 
             // A person's year turns on the month of their birth: standing fades a little and is earned again.
             Run("renown", () =>
@@ -75,14 +141,34 @@ namespace EmpireCraft.Core
             Run("privy purse", PrivyPurse.Tick);
             Run("treasury hoard", TreasuryHoardSystem.Tick);
             Run("offices", OfficeManager.Tick);
-            Run("war objectives", WarObjective.Tick);
+            // Peace settlements hand over what was won (and check each war's objective).
+            Run("war goals", WarGoalSystem.Tick);
             Run("roads", RoadBuildingSystem.Tick);
             Run("tribal council", TribalCouncilSystem.Monthly);
             Run("abdication", ShanrangSystem.Monthly);
             Run("steppe order", SteppeOrderSystem.Monthly);
             Run("palace army", () => { foreach (var realm in w.LiveRealms.ToArray()) PalaceArmySystem.Monthly(realm); });
 
-            if (w.Month % 12 != 0) return;
+            // The world's yearly scans, in the mod's order (it ran one of them a frame; each keeps its own calendar and
+            // returns at once until it is due). Those not listed still wait on parts not brought over.
+            Run("scan: clan branches", ClanBranchSystem.TryYearlyScan);
+            Run("scan: ideology spread", IdeologySpreadSystem.TryYearlyScan);
+            Run("scan: technology", TechnologySystem.TryYearlyScan);
+            Run("scan: institution drift", InstitutionSystem.TryYearlyCultureDrift);
+            Run("scan: capital loss naming", CapitalLossNamingSystem.TryYearlyScan);
+            Run("scan: wartime custody", WartimeCustodySystem.TryMonthlyScan);
+            Run("scan: jimi frontier", JimiSystem.TryMonthlyScan);
+            Run("scan: internal boundaries", InternalBoundarySystem.TryYearlyScan);
+            Run("scan: state debt", StateDebtSystem.TryMonthlyScan);
+            Run("scan: old capital restored", CoreCapitalRestorationSystem.TryMonthlyScan);
+            Run("scan: feudal tribute", FeudalVassalService.TryYearlyTribute);
+            Run("scan: great powers", GreatPowerDiplomacy.TryYearlyScan);
+            Run("scan: institution contact", InstitutionSystem.TryYearlyWorldPass);
+            Run("scan: institution realms", InstitutionSystem.TryYearlyKingdomScan);
+            Run("scan: papacy", PapacySystem.TryYearlyDiagnose);
+            Run("scan: legacy institutions", LegacyInstitutionSystem.TryYearlyScan);
+
+            if (w.Month % 12 != 0) { Run("population out", () => PopulationBridge.After(w)); return; }
             // Realms, cities and people that came about during the year take the culture of where they are.
             Run("culture upkeep", () => CultureGeography.Upkeep(w));
             Run("ambition", AmbitionSystem.Yearly);
@@ -90,6 +176,7 @@ namespace EmpireCraft.Core
             Run("road treaties", RoadTreatySystem.Yearly);
             foreach (var empire in w.Empires.list.ToArray())
                 if (empire.Alive && empire.CoreKingdom != null && empire.CoreKingdom.Alive) EmpireYear(empire);
+            Run("population out", () => PopulationBridge.After(w));
         }
 
         // An empire's year. In the mod one chain ran it (the empire's update, then its constitutional and economic

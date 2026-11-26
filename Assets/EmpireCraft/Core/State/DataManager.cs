@@ -32,7 +32,7 @@ public static class DataManager
     }
 
     // 读档各段耗时(玩家截图 2026-10-27：读档里"LOADING EMPIRE MOD DATA"一步 8.7 秒)：结束时一行日志 [读档耗时]
-    private static global::System.Diagnostics.Stopwatch _loadWatch;
+    private static SimWatch _loadWatch;
     private static global::System.Text.StringBuilder _loadLaps;
 
     private static void Lap(string phase)
@@ -45,7 +45,7 @@ public static class DataManager
 #if EC_PENDING
     public static void LoadAll(string loadRootPath)
     {
-        _loadWatch = global::System.Diagnostics.Stopwatch.StartNew();
+        _loadWatch = SimWatch.StartNew();
         _loadLaps = new global::System.Text.StringBuilder();
         try
         {
@@ -545,7 +545,7 @@ public static class DataManager
         }
         string savePath = Path.Combine(saveRootPath, EmpireCraftSaveFileName);
         CurrentSaveDataPath = savePath;
-        var saveTimer = global::System.Diagnostics.Stopwatch.StartNew();
+        var saveTimer = SimWatch.StartNew();
         CultureService.MigrateWorldCultureData();
         SaveData saveData = new SaveData();
         saveData.actorsExtraData = EmpireWorld.Current.Living.Select(a=>a.GetExtraData<Person, ActorExtraData>(true)).Where(ed=>ed!=null).ToList();
