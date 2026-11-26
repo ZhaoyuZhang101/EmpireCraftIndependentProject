@@ -97,7 +97,7 @@ float ScrollMoistAerosol(float3 p,float cloudDensity,float litOpening)
  // droplets there let an unblocked sunlight path show up inside a cloud gap.
  float4 weather=tex2Dlod(_ScrollWeatherTex,float4(uv,0,0));
  float moisture=smoothstep(.10,.64,weather.r)*(.5+.5*weather.b);
- return max(moisture,litOpening)*exp2(-height/max(1e-6,4200*_CloudHeightScale))*(1-smoothstep(.005,.14,cloudDensity));
+ return max(moisture,litOpening)*exp2(-height/max(1e-6,5200*_CloudHeightScale))*(1-smoothstep(.005,.14,cloudDensity));
 }
 #endif
    float HG(float cosine,float g)
@@ -121,16 +121,24 @@ float2 OrbisLightSegment(float index,float count,float span)
 float2 LightField(float3 p,float3 sun,float density,float baseFootprint)
 {
  if(OrbisSunVisible(p,sun)<.5)return float2(30.0,0);
- // Bound light-march exit cleanly above local cloud tops (2x tighter than 40 km stratosphere
- // without over-compressing step 0 inside low marine stratocumulus pillows!)
+ // Bound light-march exit tightly to the actual 13.5 km troposphere ceiling (not 40 km stratosphere!)
+ // so Balanced q=1 4-step sun marching resolves genuine 3D self-shadowing inside every cumulus puff!
  float lightTop=ORBIS_CLOUD_TOP;
+ float actualSlab=max(.012,13500.0*max(1e-7,_CloudHeightScale));
  #ifdef ORBIS_SHARED_SCROLL_WEATHER
  if(_ScrollCloudSource>.5)
-  lightTop=min(ORBIS_CLOUD_TOP,max(1.0+22000.0*max(1e-7,_CloudHeightScale),length(p)+18000.0*max(1e-7,_CloudHeightScale)));
+ {
+  float localGround=ScrollCloudGroundFast(OrbisFastWeatherUV(p));
+  lightTop=min(ORBIS_CLOUD_TOP,max(localGround+actualSlab+.0006,length(p)+3200.0*max(1e-7,_CloudHeightScale)));
+ }
  #endif
  float lengthToExit=max(0.0,OrbisSphere(p,sun,lightTop).y);
  float2 inner=OrbisSphere(p,sun,ORBIS_CLOUD_BASE);
  if(inner.x>0)lengthToExit=min(lengthToExit,inner.x);
+ #ifdef ORBIS_SHARED_SCROLL_WEATHER
+ if(_ScrollCloudSource>.5)
+  lengthToExit=min(lengthToExit,actualSlab*1.35);
+ #endif
  if(lengthToExit<=0.0)return float2(0.0,0);
  // The loop cap and quadrature divisor MUST use the same bounded count.
  bool allowEarlyOut=_CloudLightSimple>.5;
@@ -141,12 +149,12 @@ float2 LightField(float3 p,float3 sun,float density,float baseFootprint)
   if(j>=lightSteps)break;
   float2 segment=OrbisLightSegment(j,lightSteps,lengthToExit);
   float sampleTau=0;
-  // Skip remaining light steps once Beer-Lambert extinction & HanPi diffuse are saturated (totalTau >= 4.2)
-  [branch] if(!allowEarlyOut||totalTau<4.2)
+  // Skip remaining light steps once Beer-Lambert, 3-octave MS, and HanPi diffuse are saturated (totalTau >= 5.5)
+  [branch] if(!allowEarlyOut||totalTau<5.5)
   {
    float t=(segment.x+segment.y)*.5;
-   // Progressive mip footprint along sun light ray (HPVolumeCloud style: smoother soft self-shadowing & cache-friendly 3D fetches)
-   float lightFoot=max(baseFootprint*1.25,t*.30);
+   // Progressive mip footprint along sun light ray: sharp near-field self-shadowing inside puffs, soft far shadows
+   float lightFoot=max(baseFootprint*1.10,t*.22);
    float2 lightDensity=OrbisCloudDensitiesMip(p+sun*t,allowEarlyOut,lightFoot);
    sampleTau=(lightDensity.x+lightDensity.y)*ORBIS_EXTINCTION*(segment.y-segment.x);
   }
@@ -233,11 +241,13 @@ void OrbisIntegrateSample(float3 p,float3 rd,float ds,float2 cloudLayers,float3 
    shadowT=paths.x;
    // Volumetric cloud-gap opening: crisp golden beams piercing broken clouds, zero glare in open clear sky,
    // and cleanly faded out before solid cloud walls so shafts never paint bright bands onto cloud faces.
-   float clearAir=1.0-smoothstep(.001,.028,cloudDensity);
-   float opening=smoothstep(.016,.42,paths.x-paths.y)*smoothstep(.06,.80,paths.x);
+   float clearAir=1.0-smoothstep(.001,.026,cloudDensity);
+   float opening=smoothstep(.014,.38,paths.x-paths.y)*smoothstep(.06,.76,paths.x);
+   float forwardBeam=lerp(.65,1.55,smoothstep(.15,.86,mu));
    if(dot(p,p)<1.045*1.045&&clearAir>.01&&(opening>.004||!fastDense))
     moistScatter=ScrollMoistAerosol(pShaft,cloudDensity,opening)*clearAir*_AtmoBetaMie.rgb*
-                ((.12+24.0*opening)*max(0,_Haze)*_AirDensity*saturate(_Atmosphere)*saturate(_ShadowStrength)*
+                ((.12+30.0*opening*forwardBeam)*max(0,_Haze)*max(_AirDensity,.32*saturate(_Atmosphere))*
+                 saturate(_Atmosphere)*saturate(_ShadowStrength)*
                  smoothstep(.001,.08,max(sunT.r,max(sunT.g,sunT.b))));
   }
  }
@@ -294,27 +304,26 @@ void OrbisIntegrateSample(float3 p,float3 rd,float ds,float2 cloudLayers,float3 
   #endif
   float highWeight=cloudLayers.y/max(cloudDensity,1e-6);
   float cloudAlt=saturate((rLen-ORBIS_CLOUD_BASE)/max(1e-5,13200.0*max(1e-7,_CloudHeightScale)));
-  // Three-octave Hillaire multi-scattering (HPVolumeCloud style): luminous snow-white sunlit puffs,
-  // soft translucent shoulders, and sculpted 3D shadow valleys without over-brightening thin veils into solid white.
+  // Three-octave Hillaire multi-scattering (PlanetCloudDemo / HPVolumeCloud style):
+  // creamy sunlit crowns, silky backlit silver linings, and deep cool blue-grey shadow valleys.
   float phase0=lerp(phaseCloud,phaseHigh,highWeight);
-  float t0=exp(-min(sunTau*1.54,30.0));
-  float t1=exp(-min(sunTau*.54,30.0));
-  float t2=exp(-min(sunTau*.19,30.0));
-  float directScatter=t0*phase0*.70+t1*phaseMid*.22+t2*.52*.08;
+  float t0=exp(-min(sunTau*1.28,30.0));
+  float t1=exp(-min(sunTau*.46,30.0));
+  float t2=exp(-min(sunTau*.16,30.0));
+  float directScatter=t0*phase0*.62+t1*phaseMid*.26+t2*.58*.12;
   // Angle-gated PowderEffect (HPVolumeCloud): preserves luminous backlit silver-lining toward sun (mu > 0.45)
-  float powderDark=saturate((1.0-exp(-cloudDensity*4.5))*1.8);
-  float powder=lerp(1.0,lerp(1.0,powderDark,smoothstep(.45,-.55,mu)),.34*(1.0-highWeight*.75));
-  float corePop=1.0+.14*smoothstep(.04,.20,cloudDensity)*smoothstep(.25,.78,t0);
-  float3 direct=directScatter*(.95*powder*corePop)*sunT;
-  // HPVolumeCloud upwardAO driven by actual sunTau (so low 2 km sunlit marine Sc tops stay bright
-  // snow-white just like tall 12 km Cb crowns, while shadowed cloud undersides at ANY altitude stay cool slate-blue!)
-  float upwardAO=exp(-min(sunTau,12.0)*max(.28,sinElev)*.36);
-  float cloudAO=lerp(.50,1.0,upwardAO);
-  float3 shadowTint=lerp(float3(.70,.84,1.10),float3(1,1,1),smoothstep(.08,.60,t0*.68+t1*.32));
+  float powderDark=saturate((1.0-exp(-cloudDensity*3.8))*1.55);
+  float powder=lerp(1.0,lerp(1.0,powderDark,smoothstep(.45,-.55,mu)),.30*(1.0-highWeight*.75));
+  float3 direct=directScatter*(1.02*powder)*sunT;
+  // Sculpted 3D upwardAO driven by actual sunTau: keeps sunlit crowns bright snow-white at any altitude
+  // while giving shadowed cumulus undersides and crevices authentic cool slate-blue depth.
+  float upwardAO=exp(-min(sunTau,12.0)*max(.30,sinElev)*.42);
+  float cloudAO=lerp(.44,1.0,upwardAO);
+  float3 shadowTint=lerp(float3(.64,.80,1.12),float3(1,1,1),smoothstep(.06,.62,t0*.62+t1*.38));
   // HanPi phi_fwd isotropic diffuse field with gentle vertical depth bias (strictly additive to radiance ONLY!)
-  float depthPhi=lerp(.68,1.14,smoothstep(.04,.74,cloudAlt));
-  float denseGate=smoothstep(.004,.075,cloudDensity);
-  float3 multiple=fields.y*_CloudMS*_ScatteringStrength*.94*cloudAO*depthPhi*shadowTint*sunT*denseGate;
+  float depthPhi=lerp(.62,1.18,smoothstep(.04,.76,cloudAlt));
+  float denseGate=smoothstep(.003,.065,cloudDensity);
+  float3 multiple=fields.y*_CloudMS*_ScatteringStrength*1.02*cloudAO*depthPhi*shadowTint*sunT*denseGate;
   float3 nightCloud=0;
   if(nightW>1e-5)
   {
@@ -323,15 +332,16 @@ void OrbisIntegrateSample(float3 p,float3 rd,float ds,float2 cloudLayers,float3 
        lerp(.70,1.30,exp(-cloudDensity*.75));
    nightCloud=nightDiffuse+moonScatter;
   }
-  float3 verticalAmbient=lerp(float3(.84,.92,1.08),float3(1.06,1.04,1.00),smoothstep(.06,.78,cloudAlt));
-  float3 skyBounce=OrbisDaySkyFill(p,sun)*(.98*cloudAO*shadowTint*verticalAmbient);
+  float3 verticalAmbient=lerp(float3(.80,.90,1.10),float3(1.06,1.04,1.00),smoothstep(.06,.78,cloudAlt));
+  float3 skyBounce=OrbisDaySkyFill(p,sun)*(.96*cloudAO*shadowTint*verticalAmbient);
   float3 radiance=(direct+multiple+skyBounce)*max(.1,_SolarEnergy)+
       nightCloud+OrbisLightningLight(p)*3.5;
   float dayHemi=saturate(sinElev*2.4+.22);
-  float3 ambientFloor=lerp(float3(.036,.054,.086),float3(.076,.092,.120),smoothstep(.04,.76,cloudAlt))*dayHemi;
+  float3 ambientFloor=lerp(float3(.032,.050,.084),float3(.074,.090,.120),smoothstep(.04,.76,cloudAlt))*dayHemi;
   if(_Night<.5)radiance=max(radiance,ambientFloor);
+  // Higher highlight knee preserves creamy sunlit cumulus crown gradation without flat posterized capping.
   float peakR=max(radiance.r,max(radiance.g,radiance.b));
-  float knee=peakR>1.06?(1.06+(peakR-1.06)/(1.0+(peakR-1.06)*.56))/peakR:1.0;
+  float knee=peakR>1.22?(1.22+(peakR-1.22)/(1.0+(peakR-1.22)*.48))/peakR:1.0;
   radiance*=knee;
   if(_CloudDebug==1)radiance=cloudDensity.xxx;
   if(_CloudDebug==2)radiance=direct;
@@ -361,7 +371,7 @@ float OrbisIGN(float2 pixelPos)
 {
  return frac(52.9829189*frac(dot(floor(pixelPos),float2(0.06711056,0.00583715))));
 }
-OrbisVolumeResult OrbisMarchRayFootprint(float3 ro,float3 rd,float endDistance,float sceneDepth,float jitter,float pixelAngle)
+OrbisVolumeResult OrbisMarchRayFootprintEx(float3 ro,float3 rd,float endDistance,float sceneDepth,float jitter,float pixelAngle,float baseFoot)
 {
  OrbisVolumeResult result;result.light=0;result.transmission=1;result.sceneDepth=sceneDepth;
  float2 visibleRange=OrbisGLSLViewInterval(ro,rd,endDistance);
@@ -380,22 +390,25 @@ OrbisVolumeResult OrbisMarchRayFootprint(float3 ro,float3 rd,float endDistance,f
  }
  float3 sun=normalize(_Sun);float mu=dot(rd,sun);
  float2 phaseAir=OrbisGLSLPhase(mu);
- // Forward-peaked moist aerosol lobe reveals distinct volumetric shafts pouring through sunlit cloud gaps.
- float moistPhase=lerp(phaseAir.y,HG(mu,.72)/(4*ORBIS_PI),.72);
- float phaseCloud=min(4.2,.64*HG(mu,.72)+.24*HG(mu,-.38)+.24);
- float phaseMid=min(2.4,.58*HG(mu,.38)+.42);
- float phaseHigh=min(3.2,.64*HG(mu,.52)+.24*HG(mu,-.35)+.24);
+ // Smooth dual-lobe Mie phase: luminous silver-lining halo toward sun without a hard min(4.2) clip ring!
+ float moistPhase=lerp(phaseAir.y,HG(mu,.76)/(4*ORBIS_PI),.76);
+ float rawCloudPhase=.52*HG(mu,.78)+.26*HG(mu,.36)+.22*HG(mu,-.32)+.16;
+ float phaseCloud=rawCloudPhase/(1.0+rawCloudPhase*.14);
+ float phaseMid=min(2.4,.56*HG(mu,.36)+.44);
+ float rawHighPhase=.56*HG(mu,.60)+.24*HG(mu,-.30)+.20;
+ float phaseHigh=rawHighPhase/(1.0+rawHighPhase*.16);
  float moonMu=dot(rd,_OrbisMoon.xyz);
  float2 phaseMoon=OrbisGLSLPhase(moonMu);
  float phaseMoonCloud=min(2.0,.85*HG(moonMu,.45)+.15*HG(moonMu,-.15));
  float3 light=0,transmission=1;
  int nextInterval=0,sampleIndex=0,sampleCount=0;
- float segmentBegin=0,segmentEnd=0,cursor=0,ds=0,crustStart=0,grazing=0,nearCam=0,insideShell=0;
+ float segmentBegin=0,segmentEnd=0,cursor=0,ds=0,crustStart=0,grazing=0,nearCam=0,insideShell=0,closeCam=0;
+ float localCloudTop=ORBIS_CLOUD_TOP;
  bool segmentHasCloud=false,prevHit=false;
  float actualSlab=max(.012,13500.0*max(1e-7,_CloudHeightScale));
  // Smooth coherent raymarching (single probe + single full-density call site, ZERO cloud-density IGN stipple):
- // rapid stratosphere stride above 1.023 saves steps for the actual troposphere, crustStart-anchored refinement
- // resolves fluffy oblique cloud tops & shafts smoothly while staying fast in q=1 Balanced mode.
+ // rapid stratosphere stride above localCloudTop reallocates budget into the real 13.5 km troposphere so
+ // 36-55% unfold and low-angle cumulus get 5-8 smooth volumetric steps per puff in q=1 Balanced mode.
  [loop] [fastopt] for(int traversal=0;traversal<1285;traversal++)
  {
   float maxTrans=max(transmission.r,max(transmission.g,transmission.b));
@@ -420,10 +433,21 @@ OrbisVolumeResult OrbisMarchRayFootprint(float3 ro,float3 rd,float endDistance,f
    float camR=length(ro);
    float lowOrbit=1.0-smoothstep(1.38,1.72,camR);
    nearCam=cloud?(1.0-smoothstep(1.08,1.44,camR)):0.0;
+   closeCam=cloud?(1.0-smoothstep(1.32,1.90,camR)):0.0;
    // Strictly inside/adjacent to the cloud shell (0.0 for all orbital/low-orbit views R >= 1.12):
    // prevents long tangent-chord minStep from snapping inside typhoon eyes & near-cloud views into horizontal layer rings.
    insideShell=cloud?(1.0-smoothstep(1.04,1.12,camR)):0.0;
    grazing=cloud?max(smoothstep(.058,.088,len)*lowOrbit,nearCam):0.0;
+   localCloudTop=ORBIS_CLOUD_TOP;
+   #ifdef ORBIS_SHARED_SCROLL_WEATHER
+   if(cloud&&_ScrollCloudSource>.5)
+   {
+    float gA=ScrollCloudGroundFast(OrbisFastWeatherUV(ro+rd*segmentBegin));
+    float gM=ScrollCloudGroundFast(OrbisFastWeatherUV(ro+rd*((segmentBegin+segmentEnd)*.5)));
+    float gB=ScrollCloudGroundFast(OrbisFastWeatherUV(ro+rd*segmentEnd));
+    localCloudTop=min(ORBIS_CLOUD_TOP,max(gA,max(gM,gB))+actualSlab+.0015);
+   }
+   #endif
   }
   float stepSize=min(ds,segmentEnd-cursor);float2 density=0;
   if(segmentHasCloud)
@@ -434,45 +458,50 @@ OrbisVolumeResult OrbisMarchRayFootprint(float3 ro,float3 rd,float endDistance,f
    float minCap=lerp(.00004,actualSlab/28.0,nearCam);
    float cap=min(max(cursor*.125,minCap),lerp(slab/16,slab/2,pow(saturate((cursor-crustStart)/.08),2)));
    float rProbe=length(ro+rd*cursor);
-   // Smooth stratosphere transition across 1.012..1.032 (replaces binary rProbe>1.026 / rProbe<1.015 cliffs
-   // that stamped a faint concave-up clear-sky arc in upward MRT transmittance).
-   float hiWeight=prevHit?0.0:smoothstep(1.022,1.032,rProbe);
-   float lowEmpty=(grazing>.01&&!prevHit)?min(ds,actualSlab*lerp(.22,.09,grazing)):ds;
+   // Smooth stratosphere transition across localCloudTop (no hard step cliffs or concave-up sky arcs)
+   float hiWeight=prevHit?0.0:smoothstep(localCloudTop-.0015,localCloudTop+.0055,rProbe);
+   float lowEmpty=(grazing>.01&&!prevHit)?min(ds,actualSlab*lerp(.20,.085,grazing)):min(ds,actualSlab*.16);
    if(!prevHit&&nearCam>.10&&_GodRays>.5)
-    lowEmpty=lerp(lowEmpty,min(lowEmpty,actualSlab*.08),1.0-smoothstep(1.012,1.020,rProbe));
-   float emptyCap=lerp(lowEmpty,max(ds*1.5,minStep),hiWeight);
+    lowEmpty=lerp(lowEmpty,min(lowEmpty,actualSlab*.075),1.0-smoothstep(localCloudTop-.008,localCloudTop,rProbe));
+   float emptyCap=lerp(lowEmpty,min(.0075,max(ds*2.2,minStep)),hiWeight);
    // Smooth budget tail instead of a hard step cliff at sampleCount-10; probe far-edge on empty
    // spans so upward/oblique rays never skip half a step past the LCL cloud base into concentric arcs.
    float emptyTail=smoothstep((float)sampleCount-14.0,(float)sampleCount-6.0,(float)sampleIndex);
-   float emptyFloor=lerp(lerp(minStep,min(minStep,actualSlab*.09),insideShell),minStep,emptyTail);
+   float emptyFloor=lerp(lerp(minStep,min(minStep,actualSlab*.085),insideShell),minStep,emptyTail);
    float large=min(segmentEnd-cursor,max(lerp(min(emptyCap,cap),emptyCap,hiWeight),emptyFloor));
    float probeOffset=(!prevHit&&large<=actualSlab*.16)?large:(large*.5);
-   float probeFoot=(cursor+probeOffset)*pixelAngle;
+   float probeFoot=baseFoot+(cursor+probeOffset)*pixelAngle;
    float2 probe=OrbisCloudDensitiesMip(ro+rd*(cursor+probeOffset),true,probeFoot);
    bool hitProbe=(probe.x+probe.y)>.0005;
    if(hitProbe)
    {
     if(!prevHit){crustStart=cursor;prevHit=true;}
     float refine=clamp(_CloudRefinement,1,4);
-    if(_CloudLightSimple>.5)refine=lerp(lerp(1.0,refine,insideShell*.5),refine,smoothstep(.08,.56,maxTrans));
+    if(_CloudLightSimple>.5)refine=lerp(lerp(1.25,refine,insideShell*.5),refine,smoothstep(.04,.48,maxTrans));
     float baseFine=min(ds,cap)*rcp(refine);
-    float crustBoost=grazing*smoothstep(.22,.82,maxTrans);
-    float crustCap=lerp(actualSlab/24.0,actualSlab/4.0,pow(saturate((cursor-crustStart)/.034),1.4));
-    float fineStep=min(baseFine,lerp(baseFine,crustCap,crustBoost));
+    // Bound fine steps to the ACTUAL 13.5 km troposphere (not 40 km ORBIS_CLOUD_TOP), scaled cleanly by
+    // _CloudRefinement so q=0 stays fast while q=1 Balanced resolves plump 36-55% unfold cumulus smoothly.
+    float nearWeight=saturate(max(grazing,closeCam));
+    float refineTier=saturate((_CloudRefinement-1.0)+.45);
+    float tropoDiv=lerp(16.0,lerp(22.0,38.0,nearWeight),refineTier);
+    float tropoFineCap=actualSlab/tropoDiv;
+    float crustBoost=max(grazing,nearWeight*.72)*smoothstep(.18,.82,maxTrans);
+    float crustCap=lerp(actualSlab/34.0,actualSlab/10.0,pow(saturate((cursor-crustStart)/.030),1.35));
+    float fineStep=min(min(baseFine,tropoFineCap),lerp(baseFine,crustCap,crustBoost));
     float fineTail=smoothstep((float)sampleCount-14.0,(float)sampleCount-4.0,(float)sampleIndex);
-    float allowFine=saturate(max(smoothstep(.02,.15,crustBoost),insideShell));
+    float allowFine=saturate(max(smoothstep(.02,.15,crustBoost),max(insideShell,closeCam*.85)));
     float safeMinStep=minStep*lerp(1.0,fineTail,allowFine);
     stepSize=min(segmentEnd-cursor,max(fineStep,safeMinStep));
-    // Keep primary view-ray density model continuous (never flip to simpleMode at maxTrans<0.16,
-    // which stamped sharp flat-sheet cutouts into upward/oblique clouds). LightField keeps _CloudLightSimple fast.
+    // Keep primary view-ray density model continuous (never flip to simpleMode mid-cloud).
     float sampleDistance=cursor+stepSize*.5;
-    float sampleFoot=sampleDistance*pixelAngle;
-    // Body noise changes about 3.6 times faster vertically than horizontally.
-    // Band-limit the march to about two stretched sample strides in nearby clouds.
-    float radialRate=dot(ro,rd)+sampleDistance;
-    float stretchedStride=max(ds,stepSize)*sqrt(1.0+11.6*radialRate*radialRate);
-    float rayFoot=min(actualSlab*.40,2.0*stretchedStride)*smoothstep(.12,.70,grazing);
-    density=OrbisCloudDensitiesMip(ro+rd*sampleDistance,false,sampleFoot,rayFoot);
+    float sampleFoot=baseFoot+sampleDistance*pixelAngle;
+    // 3D billow noise is isotropic (~1.18:1, not legacy 3.56x pancake); band-limit strictly by actual stepSize
+    // so foreground/lower-viewport clouds stay fluffy instead of over-blurring into low-res MIP-3 smudges.
+    float3 samplePos=ro+rd*sampleDistance;
+    float radialCos=dot(normalize(samplePos),rd);
+    float isoStride=stepSize*sqrt(1.0+.40*radialCos*radialCos);
+    float rayFoot=min(actualSlab*.16,1.15*isoStride)*smoothstep(.15,.75,grazing);
+    density=OrbisCloudDensitiesMip(samplePos,false,sampleFoot,rayFoot);
    }
    else
    {
@@ -483,7 +512,7 @@ OrbisVolumeResult OrbisMarchRayFootprint(float3 ro,float3 rd,float endDistance,f
   }
   float sampleDist=cursor+stepSize*.5;
   float3 p=ro+rd*sampleDist;
-  OrbisIntegrateSample(p,rd,stepSize,density,sun,mu,phaseAir,moistPhase,phaseCloud,phaseMid,phaseHigh,phaseMoon,phaseMoonCloud,sampleDist*pixelAngle,jitter,light,transmission);
+  OrbisIntegrateSample(p,rd,stepSize,density,sun,mu,phaseAir,moistPhase,phaseCloud,phaseMid,phaseHigh,phaseMoon,phaseMoonCloud,baseFoot+sampleDist*pixelAngle,jitter,light,transmission);
   cursor=min(segmentEnd,cursor+stepSize);
   sampleIndex++;
  }
@@ -491,13 +520,17 @@ OrbisVolumeResult OrbisMarchRayFootprint(float3 ro,float3 rd,float endDistance,f
  result.light=light*volumeWeight;result.transmission=lerp(float3(1,1,1),transmission,volumeWeight);
  return result;
 }
+OrbisVolumeResult OrbisMarchRayFootprint(float3 ro,float3 rd,float endDistance,float sceneDepth,float jitter,float pixelAngle)
+{
+ return OrbisMarchRayFootprintEx(ro,rd,endDistance,sceneDepth,jitter,pixelAngle,0.0);
+}
 OrbisVolumeResult OrbisMarchRayJittered(float3 ro,float3 rd,float endDistance,float sceneDepth,float jitter)
 {
- return OrbisMarchRayFootprint(ro,rd,endDistance,sceneDepth,jitter,0.0);
+ return OrbisMarchRayFootprintEx(ro,rd,endDistance,sceneDepth,jitter,0.0,0.0);
 }
 OrbisVolumeResult OrbisMarchRay(float3 ro,float3 rd,float endDistance,float sceneDepth)
 {
- return OrbisMarchRayFootprint(ro,rd,endDistance,sceneDepth,.5,0.0);
+ return OrbisMarchRayFootprintEx(ro,rd,endDistance,sceneDepth,.5,0.0,0.0);
 }
 
 float3 OrbisLocalCloudDirection(float2 uv)
@@ -518,21 +551,32 @@ OrbisVolumeResult OrbisMarchPixel(float2 uv,float2 pixelPos)
  float3 rayDx=OrbisViewRay(uv+float2(texel.x,0))-ray;
  float3 rayDy=OrbisViewRay(uv+float2(0,texel.y))-ray;
  float pixelAngle=max(length(rayDx),length(rayDy))/max(1e-5,length(ray));
+ // Account for orthographic origin shift during mixed projection (morph > 0.62) so mip footprint never collapses to 0!
+ float baseFoot=max(length(_OrbisRayOriginRight)*(2.0*texel.x),length(_OrbisRayOriginUp)*(2.0*texel.y));
  #ifdef ORBIS_SHARED_SCROLL_WEATHER
  if(_LocalCloudMap>.5&&_CloudViewBlend>0)
  {
   // Continuously transport the existing view ray into the local geographic
   // column. Never fade clouds out to expose their shadow, then enable a second
   // cloud pass at a mode threshold: that produced the black flash at 46-50%.
+  float perspDist=distance;
   float3 up=OrbisLocalCloudDirection(uv);
+  float3 upDx=OrbisLocalCloudDirection(uv+float2(texel.x,0))-up;
+  float3 upDy=OrbisLocalCloudDirection(uv+float2(0,texel.y))-up;
+  float localFoot=max(length(upDx),length(upDy));
   float ground=ScrollCloudGround(OrbisWeatherUV(up));
   float3 end=lerp(ro+rd*distance,up*ground,_CloudViewBlend);
   ro=lerp(ro,up*(ground+max(0,_CloudCameraHeight)*_CloudHeightScale),_CloudViewBlend);
   float3 delta=end-ro;distance=length(delta);rd=delta/max(1e-7,distance);
+  // Keep pixel footprint continuous across 12%-78% unfold (no mip collapse or scroll shimmer).
+  float foot0=lerp(baseFoot,localFoot,_CloudViewBlend);
+  float foot1=lerp(baseFoot+perspDist*pixelAngle,localFoot,_CloudViewBlend);
+  baseFoot=foot0;
+  pixelAngle=max(0.0,(foot1-foot0)/max(1e-5,distance));
  }
  #endif
  // Pass OrbisIGN strictly for clear-air 2D shaft sub-step smoothing (never used on 3D cloud ray steps!)
- return OrbisMarchRayFootprint(ro,rd,distance,eye,OrbisIGN(pixelPos),pixelAngle);
+ return OrbisMarchRayFootprintEx(ro,rd,distance,eye,OrbisIGN(pixelPos),pixelAngle,baseFoot);
 }
 OrbisVolumeResult OrbisMarch(float2 uv)
 {
@@ -554,12 +598,25 @@ OrbisVolumeResult OrbisMarchMap(float2 uv)
  #ifdef ORBIS_SHARED_SCROLL_WEATHER
  if(_ScrollCloudSource>.5)ground=ScrollCloudGround(OrbisWeatherUV(up));
  #endif
- if(_LocalCloudMap>.5)
+ float mapBaseFoot=0.0;
+ if(_VolumeTexelSize.x>1e-7)
  {
-  float altitude=max(0,_CloudCameraHeight)*_CloudHeightScale;
-  return OrbisMarchRay(up*(ground+altitude),-up,altitude,8);
+  if(_LocalCloudMap>.5)
+  {
+   float3 uDx=OrbisLocalCloudDirection(uv+float2(_VolumeTexelSize.x,0))-up;
+   float3 uDy=OrbisLocalCloudDirection(uv+float2(0,_VolumeTexelSize.y))-up;
+   mapBaseFoot=max(length(uDx),length(uDy));
+  }
+  else
+  {
+   float3 dpX=(_MapBR-_MapBL)*_VolumeTexelSize.x;
+   float3 dpY=(_MapTL-_MapBL)*_VolumeTexelSize.y;
+   mapBaseFoot=max(length(dpX),length(dpY));
+  }
  }
- return OrbisMarchRay(up*ORBIS_AIR_RADIUS,-up,ORBIS_AIR_RADIUS-ground,8);
+ // Single call site avoids duplicating the entire raymarcher inside MAP_VOLUME / MRT_MAP_VOLUME.
+ float altitude=_LocalCloudMap>.5?max(0,_CloudCameraHeight)*_CloudHeightScale:max(0,ORBIS_AIR_RADIUS-ground);
+ return OrbisMarchRayFootprintEx(up*(ground+altitude),-up,altitude,8,.5,0.0,mapBaseFoot);
 }
 float3 OrbisTone(float3 color){return OrbisDisplay(color);}
 #endif

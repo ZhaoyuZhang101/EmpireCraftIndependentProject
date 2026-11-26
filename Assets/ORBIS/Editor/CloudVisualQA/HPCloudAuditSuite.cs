@@ -30,6 +30,7 @@ namespace Orbis.Editor.CloudVisualQA
         const string KeyOut = "Orbis.HPCloudAudit.Out";
         const string KeyExit = "Orbis.HPCloudAudit.Exit";
         const string KeyTag = "Orbis.HPCloudAudit.Tag";
+        const string KeyMode = "Orbis.HPCloudAudit.Mode";
         const BindingFlags Private = BindingFlags.NonPublic | BindingFlags.Instance;
         const float CameraFovDeg = 42f;
 
@@ -109,13 +110,24 @@ namespace Orbis.Editor.CloudVisualQA
         }
 
         [MenuItem("Tools/ORBIS/Cloud Visual QA/Run HPVolumeCloud Audit Suite (D3D11)")]
-        public static void RunMenu() => StartBatch("ValidationOutput/CloudAudit_20261125", "before");
+        public static void RunMenu() => StartBatch("ValidationOutput/CloudAudit_20261125", "before", "full");
+
+        [MenuItem("Tools/ORBIS/Cloud Visual QA/Run Cloud Optics Separation Audit (D3D11)")]
+        public static void RunOpticsMenu() => StartBatch("ValidationOutput/CloudOptics_20261126", "after", "optics");
 
         public static void RunBatch()
         {
             string outDir = Arg("-orbisCloudAuditOut") ?? "ValidationOutput/CloudAudit_20261125";
             string tag = Arg("-orbisCloudAuditTag") ?? "before";
-            StartBatch(outDir, tag);
+            string mode = Arg("-orbisCloudAuditMode") ?? "full";
+            StartBatch(outDir, tag, mode);
+        }
+
+        public static void RunOpticsBatch()
+        {
+            string outDir = Arg("-orbisCloudAuditOut") ?? "ValidationOutput/CloudOptics_20261126";
+            string tag = Arg("-orbisCloudAuditTag") ?? "after";
+            StartBatch(outDir, tag, "optics");
         }
 
         public static void RunSharedRegressionsBatch()
@@ -174,7 +186,7 @@ namespace Orbis.Editor.CloudVisualQA
             return null;
         }
 
-        static void StartBatch(string outDir, string tag)
+        static void StartBatch(string outDir, string tag, string mode = "full")
         {
             string fullOut = Path.IsPathRooted(outDir)
                 ? Path.GetFullPath(outDir)
@@ -183,6 +195,7 @@ namespace Orbis.Editor.CloudVisualQA
             SessionState.SetBool(KeyActive, true);
             SessionState.SetString(KeyOut, fullOut);
             SessionState.SetString(KeyTag, tag);
+            SessionState.SetString(KeyMode, mode ?? "full");
             SessionState.SetInt(KeyExit, -1);
 
             if (!EditorApplication.isPlaying)
@@ -219,10 +232,14 @@ namespace Orbis.Editor.CloudVisualQA
 
             string outDir = SessionState.GetString(KeyOut, Path.GetFullPath("ValidationOutput/CloudAudit_20261125"));
             string tag = SessionState.GetString(KeyTag, "before");
+            string mode = SessionState.GetString(KeyMode, "full");
             int exitCode = 0;
             try
             {
-                ExecuteAudit(app, Path.Combine(outDir, tag));
+                if (string.Equals(mode, "optics", StringComparison.OrdinalIgnoreCase))
+                    ExecuteOpticsSeparationAudit(app, Path.Combine(outDir, tag));
+                else
+                    ExecuteAudit(app, Path.Combine(outDir, tag));
             }
             catch (Exception ex)
             {
@@ -1064,6 +1081,412 @@ namespace Orbis.Editor.CloudVisualQA
                 EditorSettings.asyncShaderCompilation = savedEditorAsync;
                 ShaderUtil.allowAsyncCompilation = savedAsync;
                 File.WriteAllLines(Path.Combine(outDir, "audit_report.txt"), log, new UTF8Encoding(false));
+            }
+        }
+
+        static void ExecuteOpticsSeparationAudit(FlatWorldApp app, string outDir)
+        {
+            Directory.CreateDirectory(outDir);
+            Directory.CreateDirectory(Path.Combine(outDir, "unfold_36_55"));
+            Directory.CreateDirectory(Path.Combine(outDir, "low_angle"));
+            Directory.CreateDirectory(Path.Combine(outDir, "inside_cloud"));
+            Directory.CreateDirectory(Path.Combine(outDir, "mrt_separation"));
+            Directory.CreateDirectory(Path.Combine(outDir, "motion"));
+            Directory.CreateDirectory(Path.Combine(outDir, "preserve"));
+
+            var inv = CultureInfo.InvariantCulture;
+            var log = new List<string>();
+            void Log(string s) { log.Add(s); Debug.Log("[HPCloudOptics] " + s); }
+
+            bool savedAsync = ShaderUtil.allowAsyncCompilation;
+            bool savedEditorAsync = EditorSettings.asyncShaderCompilation;
+            ShaderUtil.allowAsyncCompilation = false;
+            EditorSettings.asyncShaderCompilation = false;
+
+            var baseEarth = LoadEarth512();
+            var world = ClimateCloudQaScenarios.DeepCloneWorld(baseEarth);
+            world.Day = 195.067;
+            world.Cyclones = FlatCycloneWeather.SpinUp(world);
+            InstallWorldSync(app, world);
+
+            var appType = typeof(FlatWorldApp);
+            var camera = appType.GetField("viewCamera", Private).GetValue(app) as Camera;
+            var map = appType.GetField("map", Private).GetValue(app) as FlatMapRenderer;
+            var globe = appType.GetField("globe", Private).GetValue(app) as FlatGlobePresenter;
+            var nav = app.Navigation;
+            var lens = camera.GetComponent<OrbisCelestialLens>();
+            var atmo = Array.Find(camera.GetComponents<OrbisAtmosphereRenderer>(), a => a.enabled && a.view == globe.View);
+            var mrtHook = camera.gameObject.AddComponent<MrtProbeHook>();
+
+            var oldTarget = camera.targetTexture;
+            var oldRect = camera.pixelRect;
+            var oldActive = RenderTexture.active;
+            const int W = 1280, H = 720;
+            var rt = RenderTexture.GetTemporary(W, H, 24, RenderTextureFormat.ARGB32);
+            var readTex = new Texture2D(W, H, TextureFormat.RGBA32, false);
+            var read1 = new Texture2D(1, 1, TextureFormat.RGB24, false);
+
+            Color32[] CapturePng(string relPath, bool captureMrt = false)
+            {
+                if (captureMrt)
+                {
+                    mrtHook.CloudMaterial = globe.View.CloudMaterial;
+                    mrtHook.Captured = false;
+                    mrtHook.Arm = true;
+                }
+                camera.targetTexture = rt;
+                camera.pixelRect = new Rect(0, 0, W, H);
+                camera.Render();
+                RenderTexture.active = rt;
+                readTex.ReadPixels(new Rect(0, 0, W, H), 0, 0);
+                readTex.Apply(false, false);
+                var px = readTex.GetPixels32();
+                if (!string.IsNullOrEmpty(relPath))
+                    File.WriteAllBytes(Path.Combine(outDir, relPath), readTex.EncodeToPNG());
+                return px;
+            }
+
+            void SaveMrtSet(string prefix)
+            {
+                if (!mrtHook.Captured || mrtHook.Radiance == null || mrtHook.Transmittance == null) return;
+                int mw = mrtHook.Width, mh = mrtHook.Height;
+                SaveFloatFieldPng(mrtHook.Radiance, mw, mh, Path.Combine(outDir, $"mrt_separation/{prefix}_mrt_radiance.png"),
+                    c => new Color(Mathf.Clamp01(c.r), Mathf.Clamp01(c.g), Mathf.Clamp01(c.b), 1));
+                SaveFloatFieldPng(mrtHook.Transmittance, mw, mh, Path.Combine(outDir, $"mrt_separation/{prefix}_mrt_transmittance.png"),
+                    c => new Color(Mathf.Clamp01(c.r), Mathf.Clamp01(c.g), Mathf.Clamp01(c.b), 1));
+                // Pure-volume tone-mapped over black sky (ACES + sRGB) so volumetric scattering & soft edges
+                // are directly readable with zero ocean/terrain/water reflection underneath.
+                static float AcesSrgb(float x)
+                {
+                    x = Mathf.Max(0f, x);
+                    float t = Mathf.Clamp01((x * (2.51f * x + 0.03f)) / (x * (2.43f * x + 0.59f) + 0.14f));
+                    return Mathf.LinearToGammaSpace(t);
+                }
+                SaveFloatFieldPng(mrtHook.Radiance, mw, mh, Path.Combine(outDir, $"mrt_separation/{prefix}_pure_volume.png"),
+                    c => new Color(AcesSrgb(c.r), AcesSrgb(c.g), AcesSrgb(c.b), 1f));
+            }
+
+            void SetUnfoldPose(WorldData w, double visualClock, double lonDeg, double latDeg, float targetMorph, double day, int q, bool fullRes, bool cloudsOn, bool msOn, bool godRays)
+            {
+                var loc = PlanetCoordinateSystem.FromMapUV((lonDeg + 180.0) / 360.0, (latDeg + 90.0) / 180.0);
+                nav.Home(day); nav.Tick(3f, day);
+                nav.Recenter(loc, day);
+                nav.SetViewport(new Rect(0, 0, W, H));
+                nav.Tick(0f, day);
+                float targetAlt = 0.60f - Mathf.Clamp01(targetMorph) * 0.38f;
+                float homeZoom = Mathf.Log(2.1f / 0.22f) / 0.075f;
+                float targetZoom = Mathf.Log(Mathf.Max(0.22f, targetAlt) / 0.22f) / 0.075f;
+                float deltaZoom = targetZoom - homeZoom;
+                while (Mathf.Abs(deltaZoom) > 0.01f)
+                {
+                    float step = Mathf.Clamp(deltaZoom, -20f, 20f);
+                    nav.Wheel(step, camera.pixelRect.center, day);
+                    nav.Tick(3f, day);
+                    deltaZoom -= step;
+                }
+                nav.Tick(3f, day);
+
+                var s = globe.Snapshot.settings;
+                s.exposure = ClimateCloudQaScenarios.DefaultExposure;
+                s.cloudQuality = q;
+                s.cloudCover = 1f;
+                s.cloudDensity = 1f;
+                s.clouds = cloudsOn;
+                s.cloudShadows = true;
+                s.godRays = godRays;
+                s.atmosphere = true;
+                s.night = true;
+                s.multipleScattering = msOn;
+                if (lens) lens.strength = 0f;
+                atmo.enabled = true;
+                atmo.fullResolutionReference = fullRes;
+                atmo.referenceCloudIntegration = false;
+                atmo.cloudDebug = 0;
+
+                Vector3 sunL = map.Sky.Sun(180f, day, true);
+                map.Configure(false, nav.PixelsPerTile, 0f);
+                map.SetVegetationDay(w.Day);
+                map.Sky.Bind(map.Material, sunL, cloudsOn, true, true, true, false, false, true, 0f);
+                map.Material.SetFloat("_WaterClock", 0f);
+                nav.SyncMaterials();
+                globe.TickScroll(0f, visualClock, w.Day, nav.DisplaySpin, nav.Morph, cloudsOn, true, true, cloudsOn, sunL, true);
+            }
+
+            void SetAltitudePose(WorldData w, double lonDeg, double latDeg, float altM, Vector3 lookW, double spinDay, double sunDay, int q, bool fullRes, bool godRays, bool msOn)
+            {
+                var loc = PlanetCoordinateSystem.FromMapUV((lonDeg + 180.0) / 360.0, (latDeg + 90.0) / 180.0);
+                nav.Home(spinDay); nav.Tick(3f, spinDay);
+                nav.Recenter(loc, spinDay);
+                nav.SetViewport(new Rect(0, 0, W, H));
+                nav.Tick(0f, spinDay);
+
+                Vector3 localDir = SurfaceNormalLocal(lonDeg, latDeg);
+                Quaternion spinQ = Quaternion.AngleAxis(nav.DisplaySpin * Mathf.Rad2Deg, Vector3.up);
+                Vector3 worldNormal = (spinQ * ReflectZ(localDir)).normalized;
+                float altR = altM * OrbisWeatherField.HeightScale;
+                camera.targetTexture = rt;
+                camera.orthographic = false;
+                camera.fieldOfView = CameraFovDeg;
+                camera.nearClipPlane = Mathf.Clamp(altR * 0.25f, 0.00004f, 0.002f);
+                camera.farClipPlane = 80f;
+                camera.ResetProjectionMatrix();
+                camera.transform.SetPositionAndRotation(worldNormal * (1f + altR), Quaternion.LookRotation(lookW.normalized, worldNormal));
+
+                var s = globe.Snapshot.settings;
+                s.exposure = ClimateCloudQaScenarios.DefaultExposure;
+                s.cloudQuality = q;
+                s.cloudCover = 1f;
+                s.cloudDensity = 1f;
+                s.clouds = true;
+                s.cloudShadows = true;
+                s.godRays = godRays;
+                s.atmosphere = true;
+                s.night = true;
+                s.multipleScattering = msOn;
+                if (lens) lens.strength = 0f;
+                atmo.enabled = true;
+                atmo.fullResolutionReference = fullRes;
+                atmo.referenceCloudIntegration = false;
+                atmo.cloudDebug = 0;
+
+                Vector3 sunL = map.Sky.Sun(180f, sunDay, true);
+                map.Configure(false, nav.PixelsPerTile, 0f);
+                map.SetVegetationDay(w.Day);
+                map.Sky.Bind(map.Material, sunL, true, true, true, true, false, false, true, 0f);
+                map.Material.SetFloat("_WaterClock", 0f);
+                nav.SyncMaterials();
+                globe.TickScroll(0f, ClimateCloudQaScenarios.DefaultVisualClock, w.Day, nav.DisplaySpin, 0f, true, true, true, true, sunL, true);
+            }
+
+            try
+            {
+                PublishSkyExact(map, world, ClimateCloudQaScenarios.DefaultVisualClock, 1024, world.Day + 0.25);
+
+                // ============================================================
+                // A. 36% / 45% / 55% UNFOLD FACTOR SEPARATION (q=0, q=1, q=2)
+                //    Separates: (1) Multi-pass (no-volume), (2) Single-volume
+                //    (pure MRT + debug density/direct/multiple + phi_fwd A/B),
+                //    (3) Upsampling (0.68x MRT vs 1.0x FullResReference).
+                // ============================================================
+                Log("=== A. 36%-55% UNFOLD SEPARATION MATRIX (MULTI-PASS / VOLUME / UPSAMPLE) ===");
+                const double uLon = 124.0, uLat = 24.5;
+                foreach (float targetMorph in new[] { 0.36f, 0.45f, 0.55f })
+                {
+                    int pct = Mathf.RoundToInt(targetMorph * 100f);
+                    SetUnfoldPose(world, ClimateCloudQaScenarios.DefaultVisualClock, uLon, uLat, targetMorph, 195.067, 1, fullRes: false, cloudsOn: true, msOn: true, godRays: true);
+                    var pxMrt = CapturePng($"unfold_36_55/unfold_{pct}pct_q1_mrt068.png", captureMrt: true);
+                    var mrtTrOn = mrtHook.Transmittance;
+                    SaveMrtSet($"unfold_{pct}pct_q1");
+                    double lapMrt = ComputeHighFreqLaplacian(pxMrt, W, H, W / 8, H / 8, W * 7 / 8, H * 7 / 8);
+
+                    // Debug channels (density / direct / multiple)
+                    atmo.cloudDebug = 1; CapturePng($"mrt_separation/unfold_{pct}pct_q1_debug_density.png");
+                    atmo.cloudDebug = 2; CapturePng($"mrt_separation/unfold_{pct}pct_q1_debug_direct.png");
+                    atmo.cloudDebug = 3; CapturePng($"mrt_separation/unfold_{pct}pct_q1_debug_multiple.png");
+                    atmo.cloudDebug = 0;
+
+                    // Upsampling isolation: Full-res 1.0x reference vs 0.68x MRT
+                    SetUnfoldPose(world, ClimateCloudQaScenarios.DefaultVisualClock, uLon, uLat, targetMorph, 195.067, 1, fullRes: true, cloudsOn: true, msOn: true, godRays: true);
+                    var pxFull = CapturePng($"unfold_36_55/unfold_{pct}pct_q1_fullres.png");
+                    double lapFull = ComputeHighFreqLaplacian(pxFull, W, H, W / 8, H / 8, W * 7 / 8, H * 7 / 8);
+
+                    // Multi-pass isolation: No-volume (clouds off, atmosphere off via atmo.enabled=false)
+                    SetUnfoldPose(world, ClimateCloudQaScenarios.DefaultVisualClock, uLon, uLat, targetMorph, 195.067, 1, fullRes: false, cloudsOn: false, msOn: true, godRays: false);
+                    var pxNoCloudVol = CapturePng($"unfold_36_55/unfold_{pct}pct_q1_no_cloud_volume.png");
+                    atmo.enabled = false;
+                    var pxNoAtmo = CapturePng($"unfold_36_55/unfold_{pct}pct_q1_no_volume_surface_only.png");
+                    atmo.enabled = true;
+
+                    // phi_fwd invariance on 36-55% unfold
+                    SetUnfoldPose(world, ClimateCloudQaScenarios.DefaultVisualClock, uLon, uLat, targetMorph, 195.067, 1, fullRes: false, cloudsOn: true, msOn: false, godRays: true);
+                    var pxMsOff = CapturePng($"mrt_separation/unfold_{pct}pct_q1_phifwd_off.png", captureMrt: true);
+                    double maxTrDiff = 0;
+                    if (mrtHook.Captured && mrtTrOn != null && mrtHook.Transmittance.Length == mrtTrOn.Length)
+                        for (int i = 0; i < mrtTrOn.Length; i++)
+                            maxTrDiff = Math.Max(maxTrDiff, Math.Abs(mrtTrOn[i].r - mrtHook.Transmittance[i].r));
+
+                    Log(string.Format(inv,
+                        "UNFOLD_{0}PCT_Q1 | actualMorph={1:F3} | mrtVsFullDN={2:F2} | cloudContributionDN={3:F2} | atmoVsSurfaceDN={4:F2} | phiFwdDN={5:F2} | mrtMaxTrDiff={6:F7} | hfLapMrt={7:F2} hfLapFull={8:F2}",
+                        pct, nav.Morph, MeanRgbDiff(pxMrt, pxFull), MeanRgbDiff(pxMrt, pxNoCloudVol),
+                        MeanRgbDiff(pxNoCloudVol, pxNoAtmo), MeanRgbDiff(pxMrt, pxMsOff), maxTrDiff, lapMrt, lapFull));
+
+                    if (pct == 36)
+                    {
+                        foreach (int qTier in new[] { 0, 2 })
+                        {
+                            SetUnfoldPose(world, ClimateCloudQaScenarios.DefaultVisualClock, uLon, uLat, targetMorph, 195.067, qTier, fullRes: false, cloudsOn: true, msOn: true, godRays: true);
+                            CapturePng($"unfold_36_55/unfold_36pct_q{qTier}.png");
+                        }
+                    }
+                }
+
+                // Exact user-feedback date/time repro (Year 1 Jan 5 05:49, Day=4.2423611, lon=45.7E lat=-8.2N, morph=36% & 55%, Balanced q=1)
+                {
+                    var jan5World = ClimateCloudQaScenarios.DeepCloneWorld(baseEarth);
+                    jan5World.Day = 4.0 + (5.0 * 60.0 + 49.0) / 1440.0;
+                    jan5World.Cyclones = FlatCycloneWeather.SpinUp(jan5World);
+                    InstallWorldSync(app, jan5World);
+                    map = appType.GetField("map", Private).GetValue(app) as FlatMapRenderer;
+                    globe = appType.GetField("globe", Private).GetValue(app) as FlatGlobePresenter;
+                    nav = app.Navigation;
+                    atmo = Array.Find(camera.GetComponents<OrbisAtmosphereRenderer>(), a => a.enabled && a.view == globe.View);
+                    double jan5Clock = FlatSkyCalendar.ToWeatherTime(jan5World.Day);
+                    PublishSkyExact(map, jan5World, jan5Clock, 1024, jan5World.Day, animate: false);
+                    foreach (float tm in new[] { 0.36f, 0.55f })
+                    {
+                        int pct = Mathf.RoundToInt(tm * 100f);
+                        SetUnfoldPose(jan5World, jan5Clock, 45.7, -8.2, tm, jan5World.Day, 1, fullRes: false, cloudsOn: true, msOn: true, godRays: true);
+                        var pxJ5Mrt = CapturePng($"unfold_36_55/user_repro_jan5_{pct}pct_q1_mrt068.png", captureMrt: true);
+                        SaveMrtSet($"user_repro_jan5_{pct}pct_q1");
+                        SetUnfoldPose(jan5World, jan5Clock, 45.7, -8.2, tm, jan5World.Day, 1, fullRes: true, cloudsOn: true, msOn: true, godRays: true);
+                        var pxJ5Full = CapturePng($"unfold_36_55/user_repro_jan5_{pct}pct_q1_fullres.png");
+                        SetUnfoldPose(jan5World, jan5Clock, 45.7, -8.2, tm, jan5World.Day, 1, fullRes: false, cloudsOn: false, msOn: true, godRays: false);
+                        var pxJ5NoCloud = CapturePng($"unfold_36_55/user_repro_jan5_{pct}pct_q1_no_cloud.png");
+                        Log(string.Format(inv, "USER_REPRO_JAN5_{0}PCT | actualMorph={1:F3} | mrtVsFullDN={2:F2} | cloudDN={3:F2}",
+                            pct, nav.Morph, MeanRgbDiff(pxJ5Mrt, pxJ5Full), MeanRgbDiff(pxJ5Mrt, pxJ5NoCloud)));
+                    }
+                    // Restore primary Day 195.067 world for wheel-scroll, low-angle, and inside-cloud checks
+                    InstallWorldSync(app, world);
+                    map = appType.GetField("map", Private).GetValue(app) as FlatMapRenderer;
+                    globe = appType.GetField("globe", Private).GetValue(app) as FlatGlobePresenter;
+                    nav = app.Navigation;
+                    atmo = Array.Find(camera.GetComponents<OrbisAtmosphereRenderer>(), a => a.enabled && a.view == globe.View);
+                    PublishSkyExact(map, world, ClimateCloudQaScenarios.DefaultVisualClock, 1024, world.Day + 0.25);
+                }
+
+                // ============================================================
+                // B. WHEEL-SCROLL MOTION STABILITY (36% -> 55% UNFOLD)
+                //    Directly separates 0.68x MRT upsampling shimmer vs 1.0x full-res!
+                // ============================================================
+                Log("=== B. WHEEL-SCROLL MOTION STABILITY (36% -> 55% UNFOLD, q=1) ===");
+                foreach (bool fullRes in new[] { false, true })
+                {
+                    SetUnfoldPose(world, ClimateCloudQaScenarios.DefaultVisualClock, uLon, uLat, 0.34f, 195.067, 1, fullRes: fullRes, cloudsOn: true, msOn: true, godRays: true);
+                    var frames = new List<Color32[]>();
+                    Vector3 sunL = map.Sky.Sun(180f, 195.067, true);
+                    for (int k = 0; k < 10; k++)
+                    {
+                        nav.Wheel(-0.42f, camera.pixelRect.center, 195.067);
+                        nav.Tick(1f / 30f, 195.067);
+                        map.Configure(false, nav.PixelsPerTile, 0f);
+                        map.Sky.Bind(map.Material, sunL, true, true, true, true, false, false, true, 0f);
+                        nav.SyncMaterials();
+                        globe.TickScroll(0f, ClimateCloudQaScenarios.DefaultVisualClock, world.Day, nav.DisplaySpin, nav.Morph, true, true, true, true, sunL, true);
+                        string snap = (k == 0 || k == 5 || k == 9) ? $"motion/wheel_{(fullRes ? "fullres" : "mrt068")}_f{k:D2}_m{Mathf.RoundToInt(nav.Morph * 100)}.png" : null;
+                        frames.Add(CapturePng(snap));
+                    }
+                    var mf = ComputeMotionFlicker(frames, W, H, W / 8, H / 8, W * 7 / 8, H * 7 / 8);
+                    Log(string.Format(inv, "WHEEL_FLICKER | {0,-8} | endMorph={1:F3} | hfMean={2:F3} hfP95={3:F3} hfMax={4:F2} lumaStep={5:F3}",
+                        fullRes ? "fullres" : "mrt068", nav.Morph, mf.meanHfDiff, mf.p95HfDiff, mf.maxHfDiff, mf.meanLumaStep));
+                }
+
+                // ============================================================
+                // C. LOW-ANGLE BACKLIT (迎光 + 穿云间隙光) & FRONTLIT (背光)
+                // ============================================================
+                Log("=== C. LOW-ANGLE BACKLIT (CREPUSCULAR SHAFTS) & FRONTLIT ===");
+                const double lowLon = 130.8, lowLat = 19.4;
+                Vector3 lowNormLocal = SurfaceNormalLocal(lowLon, lowLat);
+                double lowSunDay = FindSunDayForElevation(map.Sky, lowNormLocal, 195.0, 22f, afternoon: true);
+                nav.Home(lowSunDay); nav.Tick(3f, lowSunDay);
+                Quaternion lowSpin = Quaternion.AngleAxis(nav.DisplaySpin * Mathf.Rad2Deg, Vector3.up);
+                Vector3 lowNormW = (lowSpin * ReflectZ(lowNormLocal)).normalized;
+                Vector3 lowSunW = (lowSpin * ReflectZ(map.Sky.Sun(180f, lowSunDay, true))).normalized;
+                Vector3 toSunH = Vector3.ProjectOnPlane(lowSunW, lowNormW).normalized;
+                Vector3 rightH = Vector3.Cross(lowNormW, toSunH).normalized;
+
+                // Backlit: 14 deg azimuth off sun, +14 deg elevation (looking into sunlit cloud gaps & silver linings)
+                Vector3 backHoriz = (toSunH * Mathf.Cos(14f * Mathf.Deg2Rad) + rightH * Mathf.Sin(14f * Mathf.Deg2Rad)).normalized;
+                Vector3 backLook = (backHoriz * Mathf.Cos(14f * Mathf.Deg2Rad) + lowNormW * Mathf.Sin(14f * Mathf.Deg2Rad)).normalized;
+                // Frontlit: 155 deg away from sun, +16 deg elevation (sun behind camera illuminating fluffy white billows)
+                Vector3 frontHoriz = (toSunH * Mathf.Cos(155f * Mathf.Deg2Rad) + rightH * Mathf.Sin(155f * Mathf.Deg2Rad)).normalized;
+                Vector3 frontLook = (frontHoriz * Mathf.Cos(16f * Mathf.Deg2Rad) + lowNormW * Mathf.Sin(16f * Mathf.Deg2Rad)).normalized;
+
+                SetAltitudePose(world, lowLon, lowLat, 260f, backLook, lowSunDay, lowSunDay, 1, false, godRays: true, msOn: true);
+                var pxBackOn = CapturePng("low_angle/01_backlit_260m_q1_godrays_on.png", captureMrt: true);
+                SaveMrtSet("low_backlit_260m_q1");
+                SetAltitudePose(world, lowLon, lowLat, 260f, backLook, lowSunDay, lowSunDay, 1, false, godRays: false, msOn: true);
+                var pxBackNoShaft = CapturePng("low_angle/01_backlit_260m_q1_godrays_off.png");
+                SetAltitudePose(world, lowLon, lowLat, 260f, backLook, lowSunDay, lowSunDay, 2, false, godRays: true, msOn: true);
+                CapturePng("low_angle/01_backlit_260m_q2.png");
+                Log(string.Format(inv, "LOW_BACKLIT_260M | godRayShaftDeltaDN={0:F2} | hfLap={1:F2}",
+                    MeanRgbDiff(pxBackOn, pxBackNoShaft), ComputeHighFreqLaplacian(pxBackOn, W, H, W / 8, H / 4, W * 7 / 8, H * 7 / 8)));
+
+                SetAltitudePose(world, lowLon, lowLat, 260f, frontLook, lowSunDay, lowSunDay, 1, false, godRays: true, msOn: true);
+                var pxFrontOn = CapturePng("low_angle/02_frontlit_260m_q1.png", captureMrt: true);
+                SaveMrtSet("low_frontlit_260m_q1");
+                SetAltitudePose(world, lowLon, lowLat, 260f, frontLook, lowSunDay, lowSunDay, 2, false, godRays: true, msOn: true);
+                CapturePng("low_angle/02_frontlit_260m_q2.png");
+
+                // Low-angle backlit yaw flicker
+                var backFrames = new List<Color32[]>();
+                for (int k = 0; k < 8; k++)
+                {
+                    Vector3 bLook = Quaternion.AngleAxis(-1.05f + k * 0.30f, lowNormW) * backLook;
+                    SetAltitudePose(world, lowLon, lowLat, 260f, bLook, lowSunDay, lowSunDay, 1, false, godRays: true, msOn: true);
+                    backFrames.Add(CapturePng(null));
+                }
+                var bf = ComputeMotionFlicker(backFrames, W, H, W / 8, H / 4, W * 7 / 8, H * 7 / 8);
+                Log(string.Format(inv, "LOW_BACKLIT_FLICKER | hfMean={0:F3} hfP95={1:F3} hfMax={2:F2}", bf.meanHfDiff, bf.p95HfDiff, bf.maxHfDiff));
+
+                // ============================================================
+                // D. INSIDE CLOUD (云内, alt=2200m, BACKLIT & FRONTLIT)
+                // ============================================================
+                Log("=== D. INSIDE CLOUD (alt=2200m, BACKLIT & FRONTLIT) ===");
+                Vector3 inBackLook = (backHoriz * Mathf.Cos(3f * Mathf.Deg2Rad) + lowNormW * Mathf.Sin(3f * Mathf.Deg2Rad)).normalized;
+                Vector3 inFrontLook = (frontHoriz * Mathf.Cos(3f * Mathf.Deg2Rad) + lowNormW * Mathf.Sin(3f * Mathf.Deg2Rad)).normalized;
+                SetAltitudePose(world, lowLon, lowLat, 2200f, inBackLook, lowSunDay, lowSunDay, 1, false, godRays: true, msOn: true);
+                var pxInBack = CapturePng("inside_cloud/01_inside_backlit_2200m_q1.png", captureMrt: true);
+                SaveMrtSet("inside_backlit_2200m_q1");
+                SetAltitudePose(world, lowLon, lowLat, 2200f, inFrontLook, lowSunDay, lowSunDay, 1, false, godRays: true, msOn: true);
+                CapturePng("inside_cloud/02_inside_frontlit_2200m_q1.png", captureMrt: true);
+                SaveMrtSet("inside_frontlit_2200m_q1");
+                var inFrames = new List<Color32[]>();
+                for (int k = 0; k < 8; k++)
+                {
+                    Vector3 iLook = Quaternion.AngleAxis(-1.05f + k * 0.30f, lowNormW) * inBackLook;
+                    SetAltitudePose(world, lowLon, lowLat, 2200f, iLook, lowSunDay, lowSunDay, 1, false, godRays: true, msOn: true);
+                    inFrames.Add(CapturePng(null));
+                }
+                var inf = ComputeMotionFlicker(inFrames, W, H, W / 8, H / 4, W * 7 / 8, H * 7 / 8);
+                Log(string.Format(inv, "INSIDE_CLOUD_FLICKER | hfMean={0:F3} hfP95={1:F3} hfMax={2:F2}", inf.meanHfDiff, inf.p95HfDiff, inf.maxHfDiff));
+
+                // ============================================================
+                // E. PRESERVATION CHECKS (TYPHOON EYE + HIGH CIRRUS + SHADOWS)
+                // ============================================================
+                Log("=== E. PRESERVATION CHECKS (TYPHOON EYE & CLOUD SHADOWS) ===");
+                var tyWorld = CreateCat5TyphoonWorld(baseEarth, 228.068, 127.2, 19.2, 4.15);
+                InstallWorldSync(app, tyWorld);
+                map = appType.GetField("map", Private).GetValue(app) as FlatMapRenderer;
+                globe = appType.GetField("globe", Private).GetValue(app) as FlatGlobePresenter;
+                nav = app.Navigation;
+                atmo = Array.Find(camera.GetComponents<OrbisAtmosphereRenderer>(), a => a.enabled && a.view == globe.View);
+                PublishSkyExact(map, tyWorld, ClimateCloudQaScenarios.DefaultVisualClock, 1024, tyWorld.Day + 0.25);
+
+                const double tyLon = 127.42, tyLat = 19.32;
+                Vector3 tyNormLocal = SurfaceNormalLocal(tyLon, tyLat);
+                double tySunDay = FindSunDayForElevation(map.Sky, tyNormLocal, 228.0, 38f, afternoon: true);
+                nav.Home(tySunDay); nav.Tick(3f, tySunDay);
+                Quaternion tySpin = Quaternion.AngleAxis(nav.DisplaySpin * Mathf.Rad2Deg, Vector3.up);
+                Vector3 tyNormW = (tySpin * ReflectZ(tyNormLocal)).normalized;
+                Vector3 tyEyeW = (tySpin * ReflectZ(SurfaceNormalLocal(127.2, 19.2))).normalized;
+                Vector3 tyHoriz = Vector3.ProjectOnPlane(tyEyeW - tyNormW, tyNormW).normalized;
+                Vector3 tyLook = (tyHoriz * Mathf.Cos(2f * Mathf.Deg2Rad) + tyNormW * Mathf.Sin(2f * Mathf.Deg2Rad)).normalized;
+                SetAltitudePose(tyWorld, tyLon, tyLat, 8800f, tyLook, tySunDay, tySunDay, 1, false, godRays: true, msOn: true);
+                CapturePng("preserve/01_typhoon_eyewall_q1.png", captureMrt: true);
+                SaveMrtSet("typhoon_eyewall_q1");
+            }
+            finally
+            {
+                if (mrtHook) UnityEngine.Object.DestroyImmediate(mrtHook);
+                camera.targetTexture = oldTarget;
+                nav.SetViewport(oldRect);
+                RenderTexture.active = oldActive;
+                RenderTexture.ReleaseTemporary(rt);
+                UnityEngine.Object.DestroyImmediate(readTex);
+                UnityEngine.Object.DestroyImmediate(read1);
+                EditorSettings.asyncShaderCompilation = savedEditorAsync;
+                ShaderUtil.allowAsyncCompilation = savedAsync;
+                File.WriteAllLines(Path.Combine(outDir, "optics_separation_report.txt"), log, new UTF8Encoding(false));
             }
         }
     }
