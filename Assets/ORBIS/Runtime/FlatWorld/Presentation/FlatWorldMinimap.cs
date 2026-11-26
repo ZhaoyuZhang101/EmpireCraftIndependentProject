@@ -31,6 +31,8 @@ namespace Orbis.Flat
         float previousSpin, previousMorph, nextRefresh;
         int previousRevision, basemapRevision, pointer = -1;
         bool previousAtlas, valid, wholeAtlas;
+        internal bool Collapsed { get; set; }
+        internal VisualElement Frame => frame;
 
         internal FlatWorldMinimap(VisualElement viewport, Action<PlanetLocation> recenter)
         {
@@ -46,15 +48,20 @@ namespace Orbis.Flat
             viewport.RegisterCallback<GeometryChangedEvent>(e => Resize(e.newRect.size));
             map.generateVisualContent += Draw;
             frame.RegisterCallback<PointerDownEvent>(e => {
-                if (e.button == 0 && pointer < 0)
+                var point = map.WorldToLocal(e.position);
+                if (e.button == 0 && pointer < 0 && map.contentRect.Contains(point))
                 {
                     pointer = e.pointerId;
                     frame.CapturePointer(pointer);
                     viewport.Focus();
+                    e.StopPropagation();
                 }
-                e.StopPropagation();
+                else if (e.button == 0)
+                {
+                    e.StopPropagation();
+                }
             });
-            frame.RegisterCallback<PointerMoveEvent>(e => e.StopPropagation());
+            frame.RegisterCallback<PointerMoveEvent>(e => { if (pointer == e.pointerId) e.StopPropagation(); });
             frame.RegisterCallback<PointerUpEvent>(e => {
                 if (pointer == e.pointerId && e.button == 0)
                 {
@@ -67,8 +74,8 @@ namespace Orbis.Flat
                         recenter(location);
                         nextRefresh = 0;
                     }
+                    e.StopPropagation();
                 }
-                e.StopPropagation();
             });
             frame.RegisterCallback<PointerCaptureOutEvent>(e => { pointer = -1; e.StopPropagation(); });
             frame.RegisterCallback<WheelEvent>(e => e.StopPropagation());
@@ -78,7 +85,17 @@ namespace Orbis.Flat
         {
             float width = Mathf.Max(0, Mathf.Min(240, Mathf.Min(size.x * .26f, size.y * .46f)));
             frame.style.width = width;
-            frame.style.height = (width - 8) * .5f + 8;
+            bool hasHeader = frame.childCount > 1;
+            if (hasHeader)
+            {
+                frame.style.height = StyleKeyword.Auto;
+                map.style.height = Mathf.Max(0, (width - 16) * .5f);
+            }
+            else
+            {
+                frame.style.height = (width - 8) * .5f + 8;
+                map.style.height = StyleKeyword.Null;
+            }
             nextRefresh = 0;
             valid = false;
         }
@@ -105,12 +122,27 @@ namespace Orbis.Flat
             scaleDistance.text = rounded >= 1000 ? $"{rounded / 1000:N0} 公里" : $"{rounded} 米";
         }
 
+        internal bool Bound { get; private set; }
+
+        internal void SetCollapsed(bool collapsed)
+        {
+            Collapsed = collapsed;
+            frame.style.display = (!Bound || Collapsed) ? DisplayStyle.None : DisplayStyle.Flex;
+            if (Bound && !Collapsed)
+            {
+                Resize(viewport.contentRect.size);
+                valid = false;
+                nextRefresh = 0;
+            }
+        }
+
         internal void Bind(FlatScrollNavigator navigator, FlatMapRenderer renderer)
         {
             navigation = navigator;
             terrain = renderer;
+            Bound = true;
             basemapRevision = int.MinValue;
-            frame.style.display = DisplayStyle.Flex;
+            frame.style.display = Collapsed ? DisplayStyle.None : DisplayStyle.Flex;
             valid = false;
             nextRefresh = 0;
             Resize(viewport.contentRect.size);

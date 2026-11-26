@@ -110,6 +110,7 @@ namespace EmpireCraft.EditorTools
         {
             var (theme, shot) = plan[index];
             Call(app, "CloseHudWindow");
+            Call(app, "ResetHudLayout", false);
             Call(app, "ApplyHudTheme", theme);
             double day = app.CalendarDay;
             var location = PlanetCoordinateSystem.FromMapUV((tile % app.World.Width + .5) / app.World.Width, (tile / app.World.Width + .5) / app.World.Height);

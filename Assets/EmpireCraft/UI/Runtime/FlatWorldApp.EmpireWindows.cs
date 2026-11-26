@@ -7,8 +7,9 @@ using UnityEngine.UIElements;
 
 namespace Orbis.Flat
 {
-    // 卷册 wide windows of the civilization HUD. Live pages are rebuilt once a second while
-    // open; pages with input fields are static so typing is never interrupted.
+    // 卷册 wide windows of the civilization HUD. Every window is draggable by its title bar
+    // and collapsible into a draggable thumbnail pill. All ORBIS & EmpireCraft settings are
+    // consolidated cleanly inside OpenHudWorld (世界设置).
     public sealed partial class FlatWorldApp
     {
         string hudWindowKey;
@@ -19,16 +20,32 @@ namespace Orbis.Flat
         {
             hudWindows.Clear();
             hudWindow = window; hudWindowKey = key; hudWindowAge = 0;
-            hudWindows.Add(window.Root);
             hudWindows.RemoveFromClassList("ec-hidden");
+            hudWindows.RemoveFromClassList("ec-window-collapsed");
+            hudWindows.pickingMode = PickingMode.Position;
+            hudWindows.Add(window.Root);
+            window.AttachFloating(hudWindows, OnHudWindowCollapsedChanged);
+            hudWindows.BringToFront();
             window.Show(page);
+            TickEmpireHud();
+        }
+
+        void OnHudWindowCollapsedChanged(bool collapsed)
+        {
+            if (hudWindows == null) return;
+            hudWindows.EnableInClassList("ec-window-collapsed", collapsed);
+            hudWindows.pickingMode = collapsed ? PickingMode.Ignore : PickingMode.Position;
+            if (!collapsed) hudWindows.BringToFront();
         }
 
         void CloseHudWindow()
         {
             hudWindows.Clear();
             hudWindows.AddToClassList("ec-hidden");
+            hudWindows.RemoveFromClassList("ec-window-collapsed");
+            hudWindows.pickingMode = PickingMode.Position;
             hudWindow = null; hudWindowKey = null;
+            TickEmpireHud();
         }
 
         void CountHudNations()
@@ -171,15 +188,22 @@ namespace Orbis.Flat
             OpenHudWindow("war", w);
         }
 
-        // ---------- 世界设置 ----------
+        // ---------- 统一设置中心（世界设置） ----------
         void OpenHudWorld(int page)
         {
-            if (hudWindowKey == "world") { CloseHudWindow(); return; }
-            var w = new ScrollWindow("世界设置", "civ_globe", CloseHudWindow);
-            w.Add("界面主题", "TabColor", BuildHudThemePage);
+            if (hudWindowKey == "world" && hudWindow != null)
+            {
+                if (hudWindow.IsCollapsed) { hudWindow.SetCollapsed(false); return; }
+                CloseHudWindow();
+                return;
+            }
+            var w = new ScrollWindow("世界设置", "TabColor", CloseHudWindow);
+            w.Add("界面与布局", "TabColor", BuildHudThemePage);
+            w.Add("画面与显示", "nat_cloud", BuildHudViewPage);
             w.Add("开辟世界", "civ_globe", BuildHudGeneratePage);
-            w.Add("存档", "iconHistory", BuildHudFilesPage);
-            w.Add("画面", "nat_cloud", BuildHudViewPage);
+            w.Add("行星气候", "nat_climate", BuildHudPlanetPage);
+            w.Add("灾害演示", "nat_cyclone", BuildHudHazardsPage);
+            w.Add("存档与高度图", "iconHistory", BuildHudFilesPage);
             OpenHudWindow("world", w, page);
         }
 
@@ -193,7 +217,7 @@ namespace Orbis.Flat
 
         void BuildHudThemePage(VisualElement page)
         {
-            page.Add(Hud.Header("界面主题", "即时生效，自动记住"));
+            page.Add(Hud.Header("界面与布局", "主题、面板折叠与拖动位置均自动记住"));
             var row = new VisualElement(); row.AddToClassList("ec-two");
             for (int i = 0; i < HudThemes.Length; i++)
             {
@@ -208,8 +232,18 @@ namespace Orbis.Flat
                 row.Add(card);
             }
             page.Add(row);
-            var classic = Hud.Card("经典面板", "nat_grid");
-            classic.Add(Hud.Text("ORBIS 原有的侧栏（全部图层、操作与调试信息）可作为抽屉打开，与新界面并用。", "ec-text"));
+
+            var layout = Hud.Card("悬浮面板布局", "civ_atlas", "所有选单与略缩按钮均可折叠和拖动");
+            layout.Add(Hud.Text("按住任意选单标题栏或握把可自由拖动，点击右上角「−」折叠为可拖动的略缩按钮；单击略缩按钮即在当前位置展开。", "ec-text"));
+            var lb = new VisualElement(); lb.AddToClassList("ec-btns");
+            lb.Add(Hud.Button("ec-btn", null, "全部折叠", () => { SetAllHudPanelsCollapsed(true); }));
+            lb.Add(Hud.Button("ec-btn", null, "全部展开", () => { SetAllHudPanelsCollapsed(false); }));
+            lb.Add(Hud.Button("ec-btn", null, "重置全部位置与展开状态", () => { ResetHudLayout(true); SetStatus("已重置所有悬浮面板的位置与折叠状态。"); }));
+            layout.Add(lb);
+            page.Add(layout);
+
+            var classic = Hud.Card("经典调试侧栏", "nat_grid");
+            classic.Add(Hud.Text("ORBIS 原有侧栏保留为可选调试抽屉；日常设置均已统一到本设置窗口各页。", "ec-text"));
             var b = new VisualElement(); b.AddToClassList("ec-btns");
             b.Add(Hud.Button("ec-btn", null, root.ClassListContains("ec-classic") ? "收起经典面板" : "打开经典面板",
                 () => { root.ToggleInClassList("ec-classic"); CloseHudWindow(); }));
@@ -217,11 +251,11 @@ namespace Orbis.Flat
             page.Add(classic);
         }
 
-        static DropdownField HudMirror(string label, DropdownField source)
+        static DropdownField HudMirror(string label, DropdownField source, Action<int> onChanged = null)
         {
             var d = new DropdownField(label, new List<string>(source.choices), source.index);
             d.AddToClassList("ec-field");
-            d.RegisterValueChangedCallback(_ => source.index = d.index);
+            d.RegisterValueChangedCallback(_ => { source.index = d.index; onChanged?.Invoke(d.index); });
             return d;
         }
 
@@ -233,6 +267,24 @@ namespace Orbis.Flat
             return t;
         }
 
+        void BuildHudViewPage(VisualElement page)
+        {
+            page.Add(Hud.Header("画面与显示", "所有图面与气象显示开关统一在此管理"));
+            var card = Hud.Card("云层与图面显示", "nat_cloud", null, true);
+            card.Add(HudMirror("画面与云层质量", cloudQuality));
+            card.Add(HudMirror("云层与云影", cloudToggle));
+            if (volumetricToggle != null) card.Add(HudMirror("体积云", volumetricToggle));
+            card.Add(HudMirror("等高线 (快捷键 C)", contourToggle));
+            card.Add(HudMirror("地块网格 (快捷键 G)", gridToggle));
+            if (hazardLiveWeatherToggle != null) card.Add(HudMirror("接通实时台风与暴雨事件", hazardLiveWeatherToggle));
+            page.Add(card);
+
+            var sky = Hud.Card("天空与水面状态", "nat_daynight");
+            sky.Add(Hud.Text(string.IsNullOrEmpty(skyStatus.text) ? "天空系统待命。" : skyStatus.text, "ec-text"));
+            sky.Add(Hud.Text(string.IsNullOrEmpty(waterStatus.text) ? "局部水面待命。" : waterStatus.text, "ec-text"));
+            page.Add(sky);
+        }
+
         void BuildHudGeneratePage(VisualElement page)
         {
             page.Add(Hud.Header("开辟世界", World == null ? null : "当前 " + World.Width + " × " + World.Height + " · " + World.Seed));
@@ -241,22 +293,119 @@ namespace Orbis.Flat
             seed.AddToClassList("ec-field");
             seed.RegisterValueChangedCallback(e => seedField.value = e.newValue);
             card.Add(seed);
-            card.Add(HudMirror("大小", sizeField));
-            card.Add(HudMirror("地形", presetField));
+            card.Add(HudMirror("地图大小", sizeField));
+            card.Add(HudMirror("地形预设", presetField));
             var b = new VisualElement(); b.AddToClassList("ec-btns");
             b.Add(Hud.Button("ec-btn", "civ_globe", "生成新世界", () => { Generate(); CloseHudWindow(); }));
-            b.Add(Hud.Button("ec-btn", "nat_rebuild", "重算当前世界", () => { RebuildFromHud(); CloseHudWindow(); }));
-            b.Add(Hud.Button("ec-btn", "population_add", "播种文明", SeedNationsFromHud));
             card.Add(b);
             page.Add(card);
             var note = Hud.Card("说明", null);
-            note.Add(Hud.Text("生成在后台进行，完成前当前世界照常运行。「地球」使用内置真实高程、海湖与河道资料。", "ec-text"));
+            note.Add(Hud.Text("生成在后台进行，完成前当前世界照常运行。「地球」使用内置真实高程、海湖与河道资料。地形重算请使用「塑造 › 地形 › 重算」，播种文明请使用「文明 › 列国 › 播种文明」。", "ec-text"));
             page.Add(note);
+        }
+
+        void BuildHudPlanetPage(VisualElement page)
+        {
+            page.Add(Hud.Header("行星气候", "ExoPlaSim 轨道与温室气体配置"));
+            var card = Hud.Card("行星与温室气候 (ExoPlaSim)", "nat_climate", null, true);
+            Label summary = Hud.Text(planetSummaryLabel != null ? planetSummaryLabel.text : "", "ec-text");
+            Label co2Val = null, obliqVal = null;
+            SliderInt co2 = null;
+            Slider obliq = null;
+
+            if (planetPresetField != null)
+            {
+                card.Add(HudMirror("行星预设", planetPresetField, _ =>
+                {
+                    if (co2 != null && planetCo2Slider != null)
+                    {
+                        co2.SetValueWithoutNotify(planetCo2Slider.value);
+                        if (co2Val != null) co2Val.text = planetCo2Slider.value + " ppm";
+                    }
+                    if (obliq != null && planetObliqSlider != null)
+                    {
+                        obliq.SetValueWithoutNotify(planetObliqSlider.value);
+                        if (obliqVal != null) obliqVal.text = planetObliqSlider.value.ToString("F1") + "°";
+                    }
+                    if (planetSummaryLabel != null) summary.text = planetSummaryLabel.text;
+                }));
+            }
+            if (planetCo2Slider != null)
+            {
+                var row = new VisualElement(); row.AddToClassList("ec-slider-row");
+                co2 = new SliderInt("CO2 (ppm)", planetCo2Slider.lowValue, planetCo2Slider.highValue) { value = planetCo2Slider.value };
+                co2.AddToClassList("ec-field");
+                co2Val = Hud.Text(co2.value + " ppm", "ec-slider-val");
+                co2.RegisterValueChangedCallback(e =>
+                {
+                    planetCo2Slider.value = e.newValue;
+                    co2Val.text = e.newValue + " ppm";
+                    if (planetSummaryLabel != null) summary.text = planetSummaryLabel.text;
+                });
+                row.Add(co2); row.Add(co2Val);
+                card.Add(row);
+            }
+            if (planetObliqSlider != null)
+            {
+                var row = new VisualElement(); row.AddToClassList("ec-slider-row");
+                obliq = new Slider("地轴倾角 (°)", planetObliqSlider.lowValue, planetObliqSlider.highValue) { value = planetObliqSlider.value };
+                obliq.AddToClassList("ec-field");
+                obliqVal = Hud.Text(obliq.value.ToString("F1") + "°", "ec-slider-val");
+                obliq.RegisterValueChangedCallback(e =>
+                {
+                    planetObliqSlider.value = e.newValue;
+                    obliqVal.text = e.newValue.ToString("F1") + "°";
+                    if (planetSummaryLabel != null) summary.text = planetSummaryLabel.text;
+                });
+                row.Add(obliq); row.Add(obliqVal);
+                card.Add(row);
+            }
+            card.Add(summary);
+            var btns = new VisualElement(); btns.AddToClassList("ec-btns");
+            btns.Add(Hud.Button("ec-btn", "nat_climate", "应用行星气候并重算", () => { ApplyPlanetClimate(); CloseHudWindow(); }));
+            card.Add(btns);
+            page.Add(card);
+        }
+
+        void BuildHudHazardsPage(VisualElement page)
+        {
+            page.Add(Hud.Header("灾害演示", IsDemoWorldActive ? "当前处于隔离演示：" + activeDemoLabel : "64×64 SWE 局部水灾与隔离地球气象演示"));
+            var local = Hud.Card("局部水灾情景 (64×64 SWE)", "nat_rain", null, true);
+            var row1 = new VisualElement(); row1.AddToClassList("ec-btns");
+            row1.Add(Hud.Button("ec-btn", "nat_rainfall", "降雨漫堤洪水", () => { TriggerHazard(FlatHazardKind.RainFlood); CloseHudWindow(); }));
+            row1.Add(Hud.Button("ec-btn", "nat_cyclone", "台风风暴潮", () => { TriggerHazard(FlatHazardKind.TyphoonSurge); CloseHudWindow(); }));
+            row1.Add(Hud.Button("ec-btn", "nat_current", "海床位移海啸", () => { TriggerHazard(FlatHazardKind.Tsunami); CloseHudWindow(); }));
+            local.Add(row1);
+            var row2 = new VisualElement(); row2.AddToClassList("ec-btns");
+            row2.Add(Hud.Button("ec-btn", "civ_surface", "定位灾区", () => { FocusActiveHazard(); CloseHudWindow(); }));
+            row2.Add(Hud.Button("ec-btn", null, "清理退水", () =>
+            {
+                if (map && map.LocalWater)
+                {
+                    map.LocalWater.ClearHazard();
+                    navigation?.SyncMaterials();
+                    UpdateHUD();
+                    SetStatus("已清理局部水灾并恢复基准河湖海材质。");
+                }
+                hudWindow?.Refresh();
+            }));
+            local.Add(row2);
+            page.Add(local);
+
+            var demo = Hud.Card("隔离地球气象演示", "nat_cyclone", "原局日历与存档完全受保护");
+            var row3 = new VisualElement(); row3.AddToClassList("ec-btns");
+            row3.Add(Hud.Button("ec-btn", "nat_cyclone", "东海台风登陆", () => { StartEarthStormScenario(FlatStormScenario.EastChinaSeaLandfall); CloseHudWindow(); }));
+            row3.Add(Hud.Button("ec-btn", "nat_cyclone", "北大西洋飓风登陆", () => { StartEarthStormScenario(FlatStormScenario.NorthAtlanticLandfall); CloseHudWindow(); }));
+            if (IsDemoWorldActive)
+                row3.Add(Hud.Button("ec-btn", "iconHistory", "返回原局", () => { ExitIsolatedDemoWorld(); CloseHudWindow(); }));
+            demo.Add(row3);
+            demo.Add(Hud.Text(string.IsNullOrEmpty(waterStatus.text) ? "提示：实时台风与暴雨总开关在「画面与显示」页中统一管理。" : waterStatus.text, "ec-text"));
+            page.Add(demo);
         }
 
         void BuildHudFilesPage(VisualElement page)
         {
-            page.Add(Hud.Header("存档", Application.persistentDataPath));
+            page.Add(Hud.Header("存档与高度图", Application.persistentDataPath));
             var save = Hud.Card("世界存档", "iconHistory", null, true);
             save.Add(Hud.Row("存档位置", SavePath, false));
             var b = new VisualElement(); b.AddToClassList("ec-btns");
@@ -265,12 +414,12 @@ namespace Orbis.Flat
             b.Add(Hud.Button("ec-btn", null, "打开文件夹", () => Application.OpenURL(new Uri(Application.persistentDataPath + Path.DirectorySeparatorChar).AbsoluteUri)));
             save.Add(b);
             page.Add(save);
-            var raster = Hud.Card("高度图", "nat_relief");
-            var path = new TextField("文件") { value = pathField.value };
+            var raster = Hud.Card("高度图导入 / 导出", "nat_relief");
+            var path = new TextField("文件路径") { value = pathField.value };
             path.AddToClassList("ec-field");
             path.RegisterValueChangedCallback(e => pathField.value = e.newValue);
             raster.Add(path);
-            raster.Add(HudMirror("保留米制高程", root.Q<Toggle>("preserveElevation")));
+            raster.Add(HudMirror("按米保留原图高程", root.Q<Toggle>("preserveElevation")));
             var r = new VisualElement(); r.AddToClassList("ec-btns");
             r.Add(Hud.Button("ec-btn", null, "导出", () =>
             {
@@ -282,22 +431,6 @@ namespace Orbis.Flat
             raster.Add(r);
             raster.Add(Hud.Text("灰度高度图：黑 −4000 米，白 4000 米。", "ec-text"));
             page.Add(raster);
-        }
-
-        void BuildHudViewPage(VisualElement page)
-        {
-            page.Add(Hud.Header("画面"));
-            var card = Hud.Card("云与图面", "nat_cloud", null, true);
-            card.Add(HudMirror("云层质量", cloudQuality));
-            card.Add(HudMirror("云层", cloudToggle));
-            if (volumetricToggle != null) card.Add(HudMirror("体积云", volumetricToggle));
-            card.Add(HudMirror("等高线", contourToggle));
-            card.Add(HudMirror("网格", gridToggle));
-            page.Add(card);
-            var sky = Hud.Card("天空与水面", "nat_daynight");
-            sky.Add(Hud.Text(skyStatus.text, "ec-text"));
-            sky.Add(Hud.Text(waterStatus.text, "ec-text"));
-            page.Add(sky);
         }
     }
 }

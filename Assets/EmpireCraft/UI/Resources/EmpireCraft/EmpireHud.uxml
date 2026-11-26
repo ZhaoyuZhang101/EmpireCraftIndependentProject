@@ -1,50 +1,71 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements">
  <!-- Civilization HUD: mode bar (观察/塑造/文明/营建), per-mode category rail with a
-      popout tool grid, tile card, world chronicle and 卷册 wide windows. Content is
-      filled by FlatWorldApp.EmpireHud.cs; this file only fixes the anchors.
-      EmpireHudStyle.uss is attached to the panel root because it also restyles the
-      ORBIS viewport, minimap and the classic sidebar drawer. -->
+      popout tool grid, tile card, legend, world chronicle and 卷册 wide windows.
+      Every panel is collapsible into a draggable thumbnail pill and freely draggable
+      when expanded. Layout and controls are managed by FlatWorldApp.EmpireHud.cs. -->
  <ui:VisualElement name="ecHud" class="ec-hud" picking-mode="Ignore">
   <ui:VisualElement name="ecEra" class="ec-frame ec-era">
+   <ui:VisualElement name="ecEraGrip" class="ec-bar-ctl"/>
    <ui:VisualElement class="ec-era-text" picking-mode="Ignore">
     <ui:Label name="ecDate" class="ec-date" picking-mode="Ignore"/>
     <ui:Label name="ecDateSub" class="ec-date-sub" picking-mode="Ignore"/>
    </ui:VisualElement>
    <ui:VisualElement name="ecClock" class="ec-ctl"/>
   </ui:VisualElement>
-  <ui:VisualElement name="ecModes" class="ec-frame ec-modes"/>
-  <ui:VisualElement name="ecViews" class="ec-frame ec-views"/>
-  <ui:VisualElement name="ecRail" class="ec-frame ec-rail"/>
+  <ui:VisualElement name="ecModes" class="ec-frame ec-modes">
+   <ui:VisualElement name="ecModesGrip" class="ec-bar-ctl"/>
+   <ui:VisualElement name="ecModesBody" class="ec-bar-body"/>
+  </ui:VisualElement>
+  <ui:VisualElement name="ecViews" class="ec-frame ec-views">
+   <ui:VisualElement name="ecViewsGrip" class="ec-bar-ctl"/>
+   <ui:VisualElement name="ecViewsBody" class="ec-bar-body"/>
+  </ui:VisualElement>
+  <ui:VisualElement name="ecRail" class="ec-frame ec-rail">
+   <ui:VisualElement name="ecRailHead" class="ec-rail-hd"/>
+   <ui:VisualElement name="ecRailList"/>
+  </ui:VisualElement>
   <ui:VisualElement name="ecPop" class="ec-frame ec-pop ec-hidden">
-   <ui:VisualElement class="ec-ch" picking-mode="Ignore">
+   <ui:VisualElement name="ecPopHead" class="ec-ch">
     <ui:VisualElement name="ecPopIcon" class="ec-icon" picking-mode="Ignore"/>
     <ui:Label name="ecPopTitle" class="ec-ch-title" picking-mode="Ignore"/>
     <ui:Label name="ecPopNote" class="ec-ch-note" picking-mode="Ignore"/>
+    <ui:VisualElement name="ecPopActions" class="ec-ch-actions"/>
    </ui:VisualElement>
    <ui:VisualElement name="ecPopGrid" class="ec-grid"/>
    <ui:Label name="ecPopHint" class="ec-hint" picking-mode="Ignore"/>
   </ui:VisualElement>
   <ui:VisualElement name="ecInfo" class="ec-frame ec-info">
-   <ui:VisualElement class="ec-ch" picking-mode="Ignore">
+   <ui:VisualElement name="ecInfoHead" class="ec-ch">
     <ui:VisualElement name="ecInfoIcon" class="ec-icon" picking-mode="Ignore"/>
     <ui:Label name="ecInfoTitle" class="ec-ch-title" picking-mode="Ignore"/>
     <ui:Label name="ecInfoNote" class="ec-ch-note" picking-mode="Ignore"/>
+    <ui:VisualElement name="ecInfoActions" class="ec-ch-actions"/>
    </ui:VisualElement>
    <ui:ScrollView name="ecInfoRows" class="ec-info-rows"/>
    <ui:VisualElement name="ecInfoButtons" class="ec-btns"/>
   </ui:VisualElement>
-  <ui:VisualElement name="ecLegend" class="ec-frame ec-legend" picking-mode="Ignore">
-   <ui:Label name="ecLegendTitle" class="ec-ch-title" picking-mode="Ignore"/>
-   <ui:Label name="ecLegendText" class="ec-legend-text" picking-mode="Ignore"/>
+  <ui:VisualElement name="ecLegend" class="ec-frame ec-legend">
+   <ui:VisualElement name="ecLegendHead" class="ec-ch">
+    <ui:VisualElement name="ecLegendIcon" class="ec-icon ec-sm" picking-mode="Ignore"/>
+    <ui:Label name="ecLegendTitle" class="ec-ch-title" picking-mode="Ignore"/>
+    <ui:VisualElement name="ecLegendActions" class="ec-ch-actions"/>
+   </ui:VisualElement>
+   <ui:ScrollView name="ecLegendScroll" class="ec-legend-scroll" mode="Vertical">
+    <ui:Label name="ecLegendText" class="ec-legend-text" picking-mode="Ignore"/>
+   </ui:ScrollView>
   </ui:VisualElement>
   <ui:VisualElement name="ecFeed" class="ec-frame ec-feed">
-   <ui:VisualElement class="ec-ch" picking-mode="Ignore">
+   <ui:VisualElement name="ecFeedHead" class="ec-ch">
     <ui:VisualElement name="ecFeedIcon" class="ec-icon" picking-mode="Ignore"/>
     <ui:Label text="天下大事" class="ec-ch-title" picking-mode="Ignore"/>
+    <ui:VisualElement name="ecFeedActions" class="ec-ch-actions"/>
    </ui:VisualElement>
-   <ui:VisualElement name="ecFeedRows"/>
+   <ui:ScrollView name="ecFeedRows" class="ec-feed-rows" mode="Vertical"/>
   </ui:VisualElement>
-  <ui:VisualElement name="ecBrush" class="ec-frame ec-brush ec-hidden"/>
+  <ui:VisualElement name="ecBrush" class="ec-frame ec-brush ec-hidden">
+   <ui:VisualElement name="ecBrushGrip" class="ec-bar-ctl"/>
+   <ui:VisualElement name="ecBrushBody" class="ec-bar-body"/>
+  </ui:VisualElement>
   <ui:VisualElement name="ecWindows" class="ec-window-layer ec-hidden"/>
  </ui:VisualElement>
 </ui:UXML>
