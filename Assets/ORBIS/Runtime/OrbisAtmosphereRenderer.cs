@@ -37,9 +37,10 @@ namespace Orbis
         bool hasPreviousState;
         Matrix4x4 prevWorldToClip;
         Vector3 prevCamLocal,prevCamFwd,prevSunLocal;
+        Vector4 prevCycloneNorth,prevCycloneSouth;
         float prevMorph,prevCover,prevDensity,prevCloudsUniform,prevGodRaysUniform,prevMSUniform,prevWeatherTime,prevLensStrength;
         int prevQuality=-1,prevDebug=-1,prevFrameCount=-1;
-        bool prevMap,prevAtmo,prevCloudsSetting,prevGodRaysSetting,prevMSSetting;
+        bool prevMap,prevAtmo,prevScrollSource,prevCloudsSetting,prevGodRaysSetting,prevMSSetting;
         Texture prevWeatherTex;
         Material cachedMarkleyMat;
         bool cachedHasMarkley;
@@ -87,6 +88,10 @@ namespace Orbis
         static readonly int IdCloudMS=Shader.PropertyToID("_CloudMS");
         static readonly int IdScrollWeatherTex=Shader.PropertyToID("_ScrollWeatherTex");
         static readonly int IdScrollWeatherTime=Shader.PropertyToID("_ScrollWeatherTime");
+        static readonly int IdFlowPhase=Shader.PropertyToID("_FlowPhase");
+        static readonly int IdAtmosLayers=Shader.PropertyToID("_AtmosLayers");
+        static readonly int IdCycloneNorth=Shader.PropertyToID("_OrbisCycloneNorth");
+        static readonly int IdCycloneSouth=Shader.PropertyToID("_OrbisCycloneSouth");
         static readonly int IdSun=Shader.PropertyToID("_Sun");
         static readonly int IdMainTex=Shader.PropertyToID("_MainTex");
         static readonly int IdVolumeTexelSize=Shader.PropertyToID("_VolumeTexelSize");
@@ -177,11 +182,15 @@ namespace Orbis
             }
         }
 
+        static float ReadFloatOr(Material mat,int id,float fallback)=>mat&&mat.HasFloat(id)?mat.GetFloat(id):fallback;
+        static Vector4 ReadVectorOr(Material mat,int id,Vector4 fallback)=>mat&&mat.HasVector(id)?mat.GetVector(id):fallback;
+        static Texture ReadTextureOr(Material mat,int id)=>mat&&mat.HasTexture(id)?mat.GetTexture(id):null;
+
         bool HasMarkleyProperty(Material m)
         {
             if(ReferenceEquals(m,cachedMarkleyMat))return cachedHasMarkley;
             cachedMarkleyMat=m;
-            cachedHasMarkley=m&&m.HasProperty(IdMarkleyDirections);
+            cachedHasMarkley=m&&m.HasTexture(IdMarkleyDirections);
             return cachedHasMarkley;
         }
 
@@ -213,7 +222,7 @@ namespace Orbis
             if(scroll)
             {
                 bool local=!scroll.IsAtlas;
-                if(m==view.CloudMaterial?HasMarkleyProperty(m):m.HasProperty(IdMarkleyDirections))Orbis.Planet.MarkleyProjection.Bind(m);
+                if(m==view.CloudMaterial?HasMarkleyProperty(m):m.HasTexture(IdMarkleyDirections))Orbis.Planet.MarkleyProjection.Bind(m);
                 m.SetFloat(IdMarkleyMap,local?0:1);
                 m.SetFloat(IdLocalCloudMap,local?1:0);
                 if(local)
@@ -353,23 +362,28 @@ namespace Orbis
             Vector3 currCamLocal=view.transform.InverseTransformPoint(cameraComponent.transform.position);
             Vector3 currCamFwd=view.transform.InverseTransformDirection(cameraComponent.transform.forward).normalized;
             Vector3 currSunLocal=view.VisualSunLocal.normalized;
-            float currCloudsU=m.GetFloat(IdClouds);
-            float currCoverU=m.GetFloat(IdCover);
-            float currDensityU=m.GetFloat(IdDensity);
-            float currGodRaysU=m.GetFloat(IdGodRays);
-            float currMSU=m.GetFloat(IdCloudMS);
-            float currWeatherTime=m.GetFloat(IdScrollWeatherTime);
+            bool isScrollSource=ReadFloatOr(m,IdScrollCloudSource,0f)>.5f;
+            float currCloudsU=ReadFloatOr(m,IdClouds,settings.clouds?1f:0f);
+            float currCoverU=ReadFloatOr(m,IdCover,settings.cloudCover);
+            float currDensityU=ReadFloatOr(m,IdDensity,settings.cloudDensity);
+            float currGodRaysU=ReadFloatOr(m,IdGodRays,settings.godRays?1f:0f);
+            float currMSU=ReadFloatOr(m,IdCloudMS,settings.multipleScattering?1f:0f);
+            float currWeatherTime=isScrollSource?ReadFloatOr(m,IdScrollWeatherTime,0f):ReadFloatOr(m,IdFlowPhase,0f);
             float currLensStrength=(lens&&lens.isActiveAndEnabled)?lens.strength:0f;
             int currFrame=Time.frameCount;
-            Texture currWeatherTex=m.GetTexture(IdScrollWeatherTex);
+            Texture currWeatherTex=isScrollSource?ReadTextureOr(m,IdScrollWeatherTex):ReadTextureOr(m,IdAtmosLayers);
+            Vector4 currCycNorth=isScrollSource?ReadVectorOr(m,IdCycloneNorth,Vector4.zero):Vector4.zero;
+            Vector4 currCycSouth=isScrollSource?ReadVectorOr(m,IdCycloneSouth,Vector4.zero):Vector4.zero;
             Matrix4x4 currWorldToClip=cameraComponent.projectionMatrix*cameraComponent.worldToCameraMatrix*view.transform.localToWorldMatrix;
 
-            // Tight 0.08 weather-time guard (~4.6 min game time; 1 day = 25.0 units) guarantees 100% instant reset
-            // and 0.000 DN ghosting on any calendar fast-forward, rewind, quality switch, or A/B render!
+            // Tight weather-time & cyclone guard guarantees 100% instant reset and 0.000 DN ghosting
+            // across calendar fast-forward/rewind, hurricane demo switches, quality changes, and A/B renders!
+            float weatherDelta=isScrollSource?Mathf.Abs(currWeatherTime-prevWeatherTime):Mathf.Min(Mathf.Abs(currWeatherTime-prevWeatherTime),1f-Mathf.Abs(currWeatherTime-prevWeatherTime));
             bool frameAdvanced=allowSameFrameTemporal||(currFrame!=prevFrameCount);
             bool historyValid=false;
             if(useTemporal&&hasPreviousState&&frameAdvanced&&prevQuality==q&&prevMap==map&&prevDebug==cloudDebug&&
                prevAtmo==settings.atmosphere&&
+               prevScrollSource==isScrollSource&&
                prevCloudsSetting==settings.clouds&&
                prevGodRaysSetting==settings.godRays&&
                prevMSSetting==settings.multipleScattering&&
@@ -380,7 +394,9 @@ namespace Orbis
                Mathf.Abs(currDensityU-prevDensity)<1e-4f&&
                Mathf.Abs(currLensStrength-prevLensStrength)<1e-4f&&
                ReferenceEquals(currWeatherTex,prevWeatherTex)&&
-               Mathf.Abs(currWeatherTime-prevWeatherTime)<.08f&&
+               weatherDelta<(isScrollSource?.08f:.04f)&&
+               (currCycNorth-prevCycloneNorth).sqrMagnitude<1e-4f&&
+               (currCycSouth-prevCycloneSouth).sqrMagnitude<1e-4f&&
                Vector3.Dot(currSunLocal,prevSunLocal)>.9994f&&
                Mathf.Abs(currMorph-prevMorph)<=.10f&&
                Vector3.Dot(currCamFwd,prevCamFwd)>.90f)
@@ -467,10 +483,11 @@ namespace Orbis
                     hasPreviousState=true;
                     prevWorldToClip=currWorldToClip;
                     prevCamLocal=currCamLocal;prevCamFwd=currCamFwd;prevSunLocal=currSunLocal;
+                    prevCycloneNorth=currCycNorth;prevCycloneSouth=currCycSouth;
                     prevMorph=currMorph;prevCover=currCoverU;prevDensity=currDensityU;
                     prevCloudsUniform=currCloudsU;prevGodRaysUniform=currGodRaysU;prevMSUniform=currMSU;
                     prevWeatherTime=currWeatherTime;prevWeatherTex=currWeatherTex;prevLensStrength=currLensStrength;
-                    prevQuality=q;prevDebug=cloudDebug;prevMap=map;prevAtmo=settings.atmosphere;prevFrameCount=currFrame;
+                    prevQuality=q;prevDebug=cloudDebug;prevMap=map;prevAtmo=settings.atmosphere;prevScrollSource=isScrollSource;prevFrameCount=currFrame;
                     prevCloudsSetting=settings.clouds;prevGodRaysSetting=settings.godRays;prevMSSetting=settings.multipleScattering;
                 }
                 else

@@ -19,6 +19,16 @@ Shader "ORBIS/Clouds"
   [HideInInspector] _ScrollMonthBlend("Upper cloud wind month blend",Float)=0
   [HideInInspector] _ScrollHeightTex("Regional ground height",2D)="black"{}
   [HideInInspector] _ScrollCloudSource("Use regional weather",Float)=0
+  [HideInInspector] _ScrollWeatherTime("Regional weather time",Float)=0
+  [HideInInspector] _FlowPhase("Legacy flow phase",Float)=0
+  [HideInInspector] _AtmosLayers("Legacy weather layers",3D)="black"{}
+  [HideInInspector] _Clouds("Clouds enabled",Float)=1
+  [HideInInspector] _Cover("Cloud coverage",Float)=1
+  [HideInInspector] _Density("Cloud density",Float)=1
+  [HideInInspector] _GodRays("God rays enabled",Float)=0
+  [HideInInspector] _CloudMS("Multiple scattering",Float)=1
+  [HideInInspector] _OrbisCycloneNorth("Staged northern cyclone",Vector)=(0,0,0,0)
+  [HideInInspector] _OrbisCycloneSouth("Staged southern cyclone",Vector)=(0,0,0,0)
  }
  SubShader
  {
