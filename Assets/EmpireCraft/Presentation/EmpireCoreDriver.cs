@@ -58,12 +58,12 @@ namespace EmpireCraft.Presentation
             if (!Directory.Exists(GameData.Folder)) { Debug.LogWarning("[EmpireCraft] rule data folder missing: " + GameData.Folder); return; }
             try
             {
-                InstitutionDefinitionRegistry.Load();
                 OnomasticsRule.ReadSetting();
                 string texts = Path.Combine(GameData.Folder, "Locales", LM.Language + ".json");
                 if (File.Exists(texts)) LM.LoadFile(texts);
-                // Regime templates and their titles; realms take theirs from their people when a world opens.
+                // Regime templates, their titles and institution trees; realms take theirs from their people when a world opens.
                 RegimeManager.init();
+                if (InstitutionDefinitionRegistry.Lines.Count == 0) InstitutionDefinitionRegistry.Load();
             }
             catch (Exception e) { Debug.LogException(e); }
         }

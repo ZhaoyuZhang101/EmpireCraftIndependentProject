@@ -765,11 +765,19 @@ public static class RulesChecks
         {
             Check(InstitutionDefinitionRegistry.GetRootNodes(line).Count > 0, line + " has no root node");
             Check(InstitutionDefinitionRegistry.TryGetRootRegime(line, out _), line + " root declares no regime");
-            foreach (var node in InstitutionDefinitionRegistry.GetForLine(line))
+            var ordered = InstitutionDefinitionRegistry.GetForTreeLayout(line);
+            var index = ordered.Select((n, i) => (n.id, i)).ToDictionary(x => x.id, x => x.i, StringComparer.Ordinal);
+            foreach (var node in ordered)
+            {
                 Check(InstitutionDefinitionRegistry.ArePrerequisitesMet(node, id => true), node.id + " has unreachable prerequisites");
+                foreach (string req in InstitutionDefinitionRegistry.GetAllPrerequisites(node))
+                    if (index.TryGetValue(req, out int reqIdx))
+                        Check(reqIdx < index[node.id], line + ": prerequisite " + req + " must precede " + node.id + " in tree layout");
+            }
         }
         Check(InstitutionDefinitionRegistry.GetNodesWithFeature(PartySystem.FeaturePartyPolitics).Any(), "some line opens party politics");
         int institutionWarnings = LogService.Warnings - warnings;
+        Check(institutionWarnings == 0, "institution trees must load without warnings, got " + institutionWarnings + ": " + string.Join(" | ", lines.Take(3)));
         OnomasticsRule.ReadSetting();
         Check(OnomasticsRule.ALL_CULTURE_RULE.Count >= 27, "culture rules: " + OnomasticsRule.ALL_CULTURE_RULE.Count);
         Check(OnomasticsRule.ALL_CULTURE_RULE.ContainsKey("Huaxia") && "Youmu".IsNomadCulture() && !"Huaxia".IsNomadCulture(), "culture traits");

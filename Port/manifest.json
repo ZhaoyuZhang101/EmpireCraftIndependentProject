@@ -5177,6 +5177,9 @@
         "namespace EmpireCraft.Core",
         "dropped using NeoModLoader",
         "ModClass._declare.FolderPath -> EmpireData.Folder"
+      ],
+      "notes": [
+        "Validate allows acyclic same-advancement prerequisites (tiers 2..5 use intra-tier milestone chains just like tier 1) and warns only when prerequisite.advancement > node.advancement; added GetIntraTierDepth and GetForTreeLayout for topological intra-tier ordering."
       ]
     },
     {

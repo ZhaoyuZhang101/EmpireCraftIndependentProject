@@ -285,13 +285,12 @@ public static class InstitutionDefinitionRegistry
             foreach (string required in GetAllPrerequisites(node))
             {
                 if (Definitions.TryGetValue(required, out InstitutionNodeConfig prerequisite) &&
-                    prerequisite.advancement >= node.advancement && node.advancement > 1)
+                    prerequisite.advancement > node.advancement)
                 {
-                    // 只是警告：树状图按等级分层布点，前置等级不低于自己会让连线往回画。
-                    // 等级 1 的节点排在顶上一行，按前后次序从左到右排(如华夏的母系→父系→部落联盟→家天下→宗法)，不算异常
+                    // 只是警告：树状图按等级分层、同级内按前置深度排布，只有前置等级高于自己才会让连线往回跨层。
                     LogService.LogWarning(
                         $"制度节点 {node.id}(等级 {node.advancement}) 的前置 {required}" +
-                        $"(等级 {prerequisite.advancement}) 等级不低于它，树状图分层会显示异常。");
+                        $"(等级 {prerequisite.advancement}) 等级高于它，树状图分层会显示异常。");
                 }
             }
 
@@ -469,6 +468,40 @@ public static class InstitutionDefinitionRegistry
         return string.IsNullOrWhiteSpace(tree?.name_key)
             ? $"institution_line_{(line ?? "").ToLower()}"
             : tree.name_key;
+    }
+
+    // 同一文明推进等级内的前置拓扑深度（0 起）：用于树状图在同级内将前置节点排在后继节点之前。
+    public static int GetIntraTierDepth(InstitutionNodeConfig node) =>
+        ComputeIntraTierDepth(node, new HashSet<string>(StringComparer.Ordinal));
+
+    private static int ComputeIntraTierDepth(InstitutionNodeConfig node, HashSet<string> visiting)
+    {
+        if (node == null || string.IsNullOrWhiteSpace(node.id) || !visiting.Add(node.id)) return 0;
+        int depth = 0;
+        foreach (string required in GetAllPrerequisites(node))
+        {
+            if (Definitions.TryGetValue(required, out InstitutionNodeConfig prerequisite) &&
+                IsValid(prerequisite) && prerequisite.advancement == node.advancement)
+            {
+                depth = Math.Max(depth, ComputeIntraTierDepth(prerequisite, visiting) + 1);
+            }
+        }
+        visiting.Remove(node.id);
+        return depth;
+    }
+
+    // 树状图分层排布顺序：先按推进等级分层，同级内按前置深度拓扑排序，再按分支与 id 稳定排列。
+    public static IReadOnlyList<InstitutionNodeConfig> GetForTreeLayout(string line)
+    {
+        if (string.IsNullOrWhiteSpace(line)) return Array.Empty<InstitutionNodeConfig>();
+        return Definitions.Values
+            .Where(node => IsValid(node) && string.Equals(node.line, line, StringComparison.Ordinal))
+            .OrderBy(node => node.advancement)
+            .ThenBy(GetIntraTierDepth)
+            .ThenBy(node => Array.IndexOf(PreferredBranchOrder, node.branch) is var idx && idx >= 0 ? idx : int.MaxValue)
+            .ThenBy(node => node.branch, StringComparer.Ordinal)
+            .ThenBy(node => node.id, StringComparer.Ordinal)
+            .ToList();
     }
 
     // 一条线的全部节点，按等级、分支、id 稳定排序（树状图布点直接吃这个顺序）
