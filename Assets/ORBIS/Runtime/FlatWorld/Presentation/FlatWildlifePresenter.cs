@@ -184,7 +184,7 @@ namespace Orbis.Flat
         {
             EnsureActorBuffers();
             VisibleActors=0;
-            bool visible=renderNatural&&navigation.IsFlat&&navigation.DetailWeight>.001f;
+            bool visible=renderNatural&&navigation.IsFlat&&!navigation.UsingShaderPreview&&navigation.DetailWeight>.001f;
             if(!visible){display.enabled=false;return;}
             material.CopyPropertiesFromMaterial(navigation.SurfaceMaterial);
             material.renderQueue=(int)RenderQueue.Transparent-10;

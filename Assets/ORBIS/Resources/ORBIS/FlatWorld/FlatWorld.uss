@@ -73,3 +73,6 @@ Button.active-tab { background-color: rgb(77,106,83); color: rgb(255,241,207); b
 .map-scale { position: absolute; bottom: 12px; left: 12px; align-items: center; background-color: rgba(17,27,30,.84); padding: 2px 6px 5px 6px; border-radius: 2px; }
 .map-scale Label { font-size: 12px; color: rgb(240,236,215); -unity-text-align: middle-center; }
 .map-scale-line { height: 5px; border-bottom-width: 2px; border-left-width: 1px; border-right-width: 1px; border-color: rgb(240,236,215); }
+.loading-cover { position: absolute; left: 0; right: 0; top: 0; bottom: 0; align-items: center; justify-content: center; background-color: rgba(11,22,26,0.94); padding: 24px; }
+.loading-title { font-size: 18px; -unity-font-style: bold; color: rgb(238,228,198); margin-bottom: 8px; -unity-text-align: middle-center; }
+.loading-detail { font-size: 12px; color: rgb(168,194,187); max-width: 460px; white-space: normal; -unity-text-align: middle-center; }

@@ -27,7 +27,20 @@ namespace Orbis.Flat
         FlatWildlifePresenter wildlife;
         FlatWorldMinimap minimap;
         internal FlatClimateStatisticsPanel ClimateStatisticsPanel { get; private set; }
-        VisualElement root,viewport;Label info,stats,notice,nations;Button modeButton,pauseButton,speedButton,returnOriginalButton;
+        VisualElement root,viewport,loadingCover;Label info,stats,notice,nations,loadingTitle,loadingDetail;Button modeButton,pauseButton,speedButton,returnOriginalButton;
+        sealed class StagedWorldInstall
+        {
+            public WorldData World;
+            public GameObject MapObject;
+            public FlatMapRenderer Map;
+            public Material SurfaceProbe;
+            public int SurfacePass,DepthPass,SkyWarmupTicks;
+            public MapLayer TargetLayer;
+            public bool SeedOnInstall,WasFlat;
+            public Vector2 PreviousCenter;
+            public int PreviousWidth,PreviousHeight;
+        }
+        StagedWorldInstall stagedInstall;
         sealed class SavedSessionSnapshot
         {
             public WorldData World;
@@ -63,7 +76,7 @@ namespace Orbis.Flat
         bool pointerOnTerrain,editPickValid;
         bool mapKeyHeld;
         int editHit,editRevision;
-        public bool Busy { get { return pending!=null; } }
+        public bool Busy { get { return pending!=null||stagedInstall!=null; } }
         public FlatScrollNavigator Navigation { get { return navigation; } }
         public bool GlobeMode { get { return globeMode; } }
         public string SavePath { get { return Path.Combine(Application.persistentDataPath,"orbis-flat-world-v1.orbis"); } }
@@ -93,7 +106,7 @@ namespace Orbis.Flat
         }
         void BindUI()
         {
-            viewport=root.Q("viewport");info=root.Q<Label>("tileInfo");stats=root.Q<Label>("stats");notice=root.Q<Label>("notice");nations=root.Q<Label>("nations");
+            viewport=root.Q("viewport");loadingCover=root.Q("loadingCover");loadingTitle=root.Q<Label>("loadingTitle");loadingDetail=root.Q<Label>("loadingDetail");info=root.Q<Label>("tileInfo");stats=root.Q<Label>("stats");notice=root.Q<Label>("notice");nations=root.Q<Label>("nations");
             seedField=root.Q<TextField>("seed");seedField.value=initialSeed;seedField.maxLength=128;
             var sizes=Resources.Load<TextAsset>("ORBIS/FlatWorld/PlayerWidths");
             playerWidths=Array.ConvertAll(sizes.text.Split((char[])null,StringSplitOptions.RemoveEmptyEntries),int.Parse);
@@ -139,16 +152,17 @@ namespace Orbis.Flat
             // Trickle-down sees the minimap and other overlays before they consume pointer events.
             root.RegisterCallback<PointerMoveEvent>(e=>{editPointer=e.position;pointerOnTerrain=e.target==viewport;},TrickleDown.TrickleDown);
             viewport.RegisterCallback<PointerOutEvent>(e=>{if(e.target==viewport)pointerOnTerrain=false;});
-            viewport.RegisterCallback<PointerDownEvent>(e=>{dragging=true;moved=false;pointer=e.pointerId;lastPointer=downPointer=e.position;viewport.CapturePointer(pointer);viewport.Focus();e.StopPropagation();});
+            viewport.RegisterCallback<PointerDownEvent>(e=>{if(Busy)return;dragging=true;moved=false;pointer=e.pointerId;lastPointer=downPointer=e.position;viewport.CapturePointer(pointer);viewport.Focus();e.StopPropagation();});
             viewport.RegisterCallback<PointerMoveEvent>(e=>
             {
-                if(!dragging)return;Vector2 now=e.position;if(Vector2.Distance(now,downPointer)>4)moved=true;
+                if(!dragging||Busy)return;Vector2 now=e.position;if(Vector2.Distance(now,downPointer)>4)moved=true;
                 if(moved){Vector2 delta=now-lastPointer;if(navigation)navigation.Drag(new Vector2(delta.x,-delta.y)*(Screen.height/Mathf.Max(1,root.resolvedStyle.height)));}
                 lastPointer=now;
             });
             viewport.RegisterCallback<PointerUpEvent>(e=>
             {
                 if(!dragging||e.pointerId!=pointer)return;dragging=false;viewport.ReleasePointer(pointer);pointer=-1;
+                if(Busy)return;
                 if(!moved&&e.button==0)Pick(e.position);else if(!moved&&e.button==1)
                 {
                     if(toolField.value==SeaRouteToolName){ResetSeaRoute();SetStatus("点击海面选择新的出发点。");}
@@ -156,7 +170,7 @@ namespace Orbis.Flat
                 }
             });
             viewport.RegisterCallback<PointerCaptureOutEvent>(e=>{dragging=false;pointer=-1;});
-            viewport.RegisterCallback<WheelEvent>(e=>{Zoom(e.delta.y,e.mousePosition);e.StopPropagation();});
+            viewport.RegisterCallback<WheelEvent>(e=>{if(Busy)return;Zoom(e.delta.y,e.mousePosition);e.StopPropagation();});
             root.RegisterCallback<KeyDownEvent>(MapShortcut,TrickleDown.TrickleDown);
             root.RegisterCallback<KeyUpEvent>(e=>{if(e.keyCode==KeyCode.M)mapKeyHeld=false;},TrickleDown.TrickleDown);
             viewport.RegisterCallback<KeyDownEvent>(e=>
@@ -369,7 +383,7 @@ namespace Orbis.Flat
             pendingDemoWorld=null;pendingDemoLabel=null;pendingDemoFocusTile=-1;pendingDemoHazard=FlatHazardKind.None;pendingDemoLiveWeather=false;pendingDemoPlan=null;
             seedOnInstall=false;
             Install(savedSession.World);
-            return savedSession==null;
+            return savedSession==null||(stagedInstall!=null&&ReferenceEquals(stagedInstall.World,savedSession.World));
         }
         void CompleteIsolatedDemoInstall(WorldData installed)
         {
@@ -511,9 +525,27 @@ namespace Orbis.Flat
         }
         bool Ready()
         {if(World==null||Busy){SetStatus("世界数据正在生成或重建；完成后才能修改。 ");return false;}if(!navigation||!navigation.IsFlat){SetStatus("请展开到二维地图后操作文明和地形。 ");return false;}return true;}
-        void SetStatus(string text) { status=text;if(notice!=null)notice.text=text; }
+        void SetStatus(string text) { status=text;if(notice!=null)notice.text=text;UpdateLoadingCover(); }
+        void UpdateLoadingCover()
+        {
+            if(loadingCover==null)return;
+            bool show=!screenshotMode&&(World==null||stagedInstall!=null);
+            loadingCover.EnableInClassList("is-hidden",!show);
+            if(!show)return;
+            if(loadingTitle!=null)loadingTitle.text=stagedInstall!=null?"正在预热完整地表…":"正在生成世界…";
+            if(loadingDetail!=null)loadingDetail.text=string.IsNullOrWhiteSpace(status)?"正在预热地形纹理、河网与地表着色器，就绪后自动进入完整画面。":status;
+        }
+        void DisposeStagedInstall()
+        {
+            if(stagedInstall==null)return;
+            var s=stagedInstall;stagedInstall=null;
+            if(s.SurfaceProbe)Destroy(s.SurfaceProbe);
+            if(s.MapObject){s.MapObject.SetActive(false);Destroy(s.MapObject);}
+            UpdateLoadingCover();
+        }
         void CancelPending()
         {
+            DisposeStagedInstall();
             var task=pending;var old=cancellation;pending=null;cancellation=null;
             if(old==null)return;old.Cancel();
             if(task==null){old.Dispose();return;}
@@ -586,21 +618,111 @@ namespace Orbis.Flat
                 if(dem && water)world.WaterReference=FlatWaterReference.Read(world.Width,dem.bytes,water.bytes,world.UsesSurveyedLakeBeds,world.UsesSurveyedStraits,world.UsesGlobalStraits);
             }
             if(PrepareGeographicSurface(world))return;
-            var simulation=new FlatSimulation(world);if(seedOnInstall)simulation.SeedNations(4);
+            DisposeStagedInstall();
+            MapLayer targetLayer=(MapLayer)Mathf.Clamp(layerField.index,0,(int)MapLayer.ExoPastaClimate);
+            if(pendingDemoWorld!=null&&ReferenceEquals(world,pendingDemoWorld))targetLayer=MapLayer.Natural;
+            else if(savedSession!=null&&ReferenceEquals(world,savedSession.World))targetLayer=savedSession.Layer;
             var nextObject=new GameObject("Authoritative 2D map / render-data provider");nextObject.transform.SetParent(transform,false);
             var next=nextObject.AddComponent<FlatMapRenderer>();
+            Material surfaceProbe=null;
+            try
+            {
+                next.Initialize(world);next.GetComponent<MeshRenderer>().enabled=false;
+                next.SetLayer(targetLayer);
+                next.SetClimateYearOffset(climateYearField.index);
+                next.CompleteLayerWarmup();
+                next.Configure(gridToggle.value,16f,(float)circulationClock);
+                next.SetVegetationDay(world.Day);
+                ApplyWaterSettings(next.Material);
+                var localShader=Resources.Load<Shader>("ORBIS/FlatWorld/LocalSurface");
+                if(localShader)surfaceProbe=new Material(localShader){hideFlags=HideFlags.HideAndDontSave};
+            }
+            catch
+            {
+                if(surfaceProbe)Destroy(surfaceProbe);
+                Destroy(nextObject);
+                throw;
+            }
+            var staged=new StagedWorldInstall
+            {
+                World=world,MapObject=nextObject,Map=next,SurfaceProbe=surfaceProbe,
+                SurfacePass=surfaceProbe?surfaceProbe.FindPass("SCROLL_SURFACE"):-1,
+                DepthPass=surfaceProbe?surfaceProbe.FindPass("SCROLL_DEPTH"):-1,
+                TargetLayer=targetLayer,SeedOnInstall=seedOnInstall,
+                WasFlat=navigation&&navigation.IsFlat,
+                PreviousCenter=navigation?navigation.CenterTile:Vector2.zero,
+                PreviousWidth=World==null?world.Width:World.Width,
+                PreviousHeight=World==null?world.Height:World.Height
+            };
+            // Keep the loading cover over the viewport until initial textures, river field,
+            // sky cache and target surface shader pass are warm so Frame 0 never flashes ORBIS_PREVIEW.
+            if(TryAdvanceStagedInstall(staged))
+            {
+                CommitStagedInstall(staged);
+                return;
+            }
+            stagedInstall=staged;
+            SetStatus("正在预热地表着色器与河网数据，就绪后自动显示完整地形…");
+        }
+        bool TryAdvanceStagedInstall(StagedWorldInstall staged)
+        {
+            staged.Map.Flush();
+            staged.Map.CompleteLayerWarmup();
+            staged.Map.Configure(gridToggle.value,16f,(float)circulationClock);
+            staged.Map.SetVegetationDay(staged.World.Day);
+            ApplyWaterSettings(staged.Map.Material);
+            bool natural=staged.TargetLayer==MapLayer.Natural||staged.TargetLayer==MapLayer.Nations;
+            bool skyNeeded=natural&&cloudToggle!=null&&cloudToggle.value;
+            bool skyReady=!skyNeeded||staged.Map.Sky.Ready||staged.SkyWarmupTicks>=8;
+            if(skyNeeded&&!staged.Map.Sky.Ready&&staged.SkyWarmupTicks<8)
+            {
+                staged.SkyWarmupTicks++;
+                staged.Map.Sky.Tick(0,true,false,false,cloudQuality.index==0?512:1024,staged.World.Day,
+                    new Vector2(staged.World.Width*.5f,staged.World.Height*.5f),false);
+                skyReady=staged.Map.Sky.Ready||staged.SkyWarmupTicks>=8;
+            }
+            bool shaderReady=true;
+#if UNITY_EDITOR
+            if(staged.SurfaceProbe&&staged.SurfacePass>=0)
+            {
+                staged.SurfaceProbe.CopyPropertiesFromMaterial(staged.Map.Material);
+                shaderReady=FlatShaderPreview.WarmPassAsync(staged.SurfaceProbe,staged.SurfacePass,staged.DepthPass);
+            }
+#endif
+            return staged.Map.InitialSurfaceReady&&skyReady&&shaderReady;
+        }
+        void TickStagedInstall()
+        {
+            if(stagedInstall==null)return;
+            try
+            {
+                if(TryAdvanceStagedInstall(stagedInstall))
+                {
+                    var ready=stagedInstall;stagedInstall=null;
+                    CommitStagedInstall(ready);
+                }
+                else UpdateLoadingCover();
+            }
+            catch(Exception e)
+            {
+                DisposeStagedInstall();
+                RecoverDemoIsolationOnAsyncAbort();
+                SetStatus("地表预热失败，保留原世界："+e.Message);
+                Debug.LogException(e);
+            }
+        }
+        void CommitStagedInstall(StagedWorldInstall staged)
+        {
+            var world=staged.World;var nextObject=staged.MapObject;var next=staged.Map;
+            if(staged.SurfaceProbe)Destroy(staged.SurfaceProbe);
+            var simulation=new FlatSimulation(world);if(staged.SeedOnInstall)simulation.SeedNations(4);
             var navObject=new GameObject("Shared globe-to-scroll presentation");navObject.SetActive(false);navObject.transform.SetParent(transform,false);
             var nextNav=navObject.AddComponent<FlatScrollNavigator>();
             var nextWildlife=navObject.AddComponent<FlatWildlifePresenter>();
             var globeObject=new GameObject("Native atmosphere from the same 2D world");globeObject.SetActive(false);globeObject.transform.SetParent(transform,false);
             var nextGlobe=globeObject.AddComponent<FlatGlobePresenter>();
-            bool wasFlat=navigation&&navigation.IsFlat;Vector2 previousCenter=navigation?navigation.CenterTile:Vector2.zero;
-            int previousWidth=World==null?world.Width:World.Width,previousHeight=World==null?world.Height:World.Height;
             try
             {
-                next.Initialize(world);next.GetComponent<MeshRenderer>().enabled=false;
-                next.SetLayer((MapLayer)Mathf.Clamp(layerField.index,0,(int)MapLayer.ExoPastaClimate));
-                next.SetClimateYearOffset(climateYearField.index);
                 nextNav.Initialize(world,viewCamera,next);
                 nextGlobe.Initialize(world,viewCamera,next,true);nextGlobe.PrepareScroll();
                 nextWildlife.Initialize(world,nextNav,next,viewCamera);
@@ -624,19 +746,47 @@ namespace Orbis.Flat
             seedField.SetValueWithoutNotify(world.Seed);presetField.SetValueWithoutNotify(presetField.choices[(int)world.Preset]);
             int sizeIndex=Array.IndexOf(playerWidths,world.Width);
             if(sizeIndex>=0)sizeField.SetValueWithoutNotify(sizeField.choices[sizeIndex]);
-            if(wasFlat)
+            if(staged.WasFlat)
             {
-                int x=Mathf.Clamp((int)(previousCenter.x/previousWidth*world.Width),0,world.Width-1);
-                int y=Mathf.Clamp((int)(previousCenter.y/previousHeight*world.Height),0,world.Height-1);
+                int x=Mathf.Clamp((int)(staged.PreviousCenter.x/staged.PreviousWidth*world.Width),0,world.Width-1);
+                int y=Mathf.Clamp((int)(staged.PreviousCenter.y/staged.PreviousHeight*world.Height),0,world.Height-1);
                 navigation.Focus(y*world.Width+x,CalendarDay);
             }
+            if(root.focusController?.focusedElement==null)viewport.Focus();
+            SetStatus("世界就绪：默认星球。滚轮进入局部地表，拖动可连续穿过日期线和极区；全球总览独立打开。");
+            CompleteIsolatedDemoInstall(world);
+            SyncInitialPresentation();
+        }
+        void SyncInitialPresentation()
+        {
+            if(World==null||!map||!navigation)return;
+            map.CompleteLayerWarmup();
             UpdateViewportRect();
             navigation.Tick(0,CalendarDay);
-            navigation.SyncMaterials();
+            globeMode=!navigation.IsFlat;pixelsPerTile=navigation.PixelsPerTile;pan=navigation.CenterTile;
+            map.Configure(gridToggle.value,pixelsPerTile,(float)circulationClock);
+            map.SetVegetationDay(CalendarDay);
+            bool natural=map.VisibleLayer==MapLayer.Natural||map.VisibleLayer==MapLayer.Nations;
+            bool skyNeeded=natural&&cloudToggle!=null&&cloudToggle.value;
+            for(int s=0;s<5&&skyNeeded&&!map.Sky.Ready;s++)
+                map.Sky.Tick(0,true,false,false,cloudQuality.index==0?512:1024,CalendarDay,pan,navigation.Morph>.5f);
+            Vector3 sun=map.Sky.Sun(180f,CalendarDay,true);
+            bool waterView=natural||map.VisibleLayer==MapLayer.Water;
+            if(hazardLiveWeatherToggle!=null)map.LocalWater.AutoWeatherEvents=hazardLiveWeatherToggle.value;
+            bool flatWaterVisible=navigation.IsFlat&&waterView&&(pixelsPerTile>=6f||map.LocalWater.HasActiveHazard);
+            map.LocalWater.Tick(0,pan.x,pan.y,flatWaterVisible,false,CalendarDay);
+            BindSky(map.Material,sun);ApplyWaterSettings(map.Material);navigation.SyncMaterials();
+            if(wildlife)wildlife.Tick(0,CalendarDay,sun,natural,0);
+            if(globe)
+            {
+                globe.Snapshot.settings.cloudQuality=Mathf.Clamp(cloudQuality.index,0,2);
+                globe.TickScroll(0,visualClock,CalendarDay,navigation.DisplaySpin,navigation.Morph,
+                    cloudToggle.value,true,true,cloudToggle.value,sun,natural);
+            }
             minimap.Bind(navigation,map);
-            if(root.focusController?.focusedElement==null)viewport.Focus();
-            UpdateHUD();SetStatus("世界就绪：默认星球。滚轮进入局部地表，拖动可连续穿过日期线和极区；全球总览独立打开。");
-            CompleteIsolatedDemoInstall(world);
+            if(!screenshotMode)minimap.Tick(viewCamera);
+            UpdateLoadingCover();
+            UpdateHUD();
         }
         void Update()
         {
@@ -645,6 +795,7 @@ namespace Orbis.Flat
                 var completed=pending;pending=null;var source=cancellation;cancellation=null;
                 try{Install(completed.GetAwaiter().GetResult());}catch(OperationCanceledException){RecoverDemoIsolationOnAsyncAbort();SetStatus("已取消，保留原世界。");}catch(Exception e){RecoverDemoIsolationOnAsyncAbort();SetStatus("操作失败，保留原世界："+e.Message);Debug.LogException(e);}finally{source?.Dispose();}
             }
+            TickStagedInstall();
             if(World==null||!navigation)return;
             PublishSeaRoute();
             if(ClimateStatisticsPanel!=null && ClimateStatisticsPanel.IsOpen) ClimateStatisticsPanel.Tick(World,World.Day);

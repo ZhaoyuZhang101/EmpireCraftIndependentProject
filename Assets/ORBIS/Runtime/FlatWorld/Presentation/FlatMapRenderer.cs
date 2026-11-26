@@ -47,6 +47,14 @@ namespace Orbis.Flat
         FlatRiverAtlas riverAtlas;
         FlatEarthPolarRelief earthRelief;
         public bool RiverAtlasReady {get{return riverAtlas!=null&&riverAtlas.Ready;}}
+        public bool InitialSurfaceReady
+        {
+            get
+            {
+                return World!=null&&renderJobs!=null&&!renderJobs.Pending&&VisibleLayer==Layer&&
+                    dataRevision==World.TerrainRevision&&(riverAtlas==null||riverAtlas.InitialFieldReady);
+            }
+        }
         public Texture2D RiverAtlasTexture {get{return riverAtlas==null?null:riverAtlas.Texture;}}
         public bool PreparationPending {get{return renderJobs!=null&&renderJobs.Pending||riverAtlas!=null&&riverAtlas.Pending;}}
         public int RejectedPreparationBatches {get{return renderJobs==null?0:renderJobs.RejectedBatches;}}
@@ -140,6 +148,12 @@ namespace Orbis.Flat
             renderJobs=new FlatMapRenderJobs(world);Flush(true);renderJobs.CompleteInitialWarmup();Flush();Select(-1);
         }
         public void SetLayer(MapLayer layer) { if(Layer==layer)return;Layer=layer;Flush(true); }
+        internal void CompleteLayerWarmup()
+        {
+            if(World==null||renderJobs==null)return;
+            if(!renderJobs.Pending&&(VisibleLayer!=Layer||dataRevision!=World.TerrainRevision))Flush(true);
+            if(renderJobs.Pending){renderJobs.CompleteInitialWarmup();Flush();}
+        }
         public void SetClimateYearOffset(int offset)
         {
             if(offset==ClimateYearOffset)return;

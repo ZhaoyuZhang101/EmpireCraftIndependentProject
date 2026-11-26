@@ -34,6 +34,7 @@ namespace Orbis.Flat
         public Texture2D Texture {get;private set;}
         public Vector4 Layout {get;private set;}
         public bool Ready {get;private set;}
+        internal bool InitialFieldReady => Ready || previewReady || exhausted || requestedCurves == null;
         public bool Pending
         {
             get
@@ -81,9 +82,12 @@ namespace Orbis.Flat
         {
             // Separate the expensive temporary D8 reconstruction from the
             // resident distance and vector fields in production fragment shaders.
+            // Pre-select the surveyed vector keyword on Earth before GeometryPages
+            // publishes so the shader pass never flips mid-session into ORBIS_PREVIEW.
             bool published=Ready||previewReady;
             bool rivers=!target.IsKeywordEnabled(DiagnosticKeyword);
-            bool vectors=rivers&&published&&Layout.z<0;
+            bool preferVectors=!published&&!exhausted&&requestedCurves!=null&&requestedCurves.HasSurvey;
+            bool vectors=rivers&&(published?Layout.z<0:preferVectors);
             bool raster=rivers&&!vectors&&(published||surveyVisible||(requestedCurves!=null&&!exhausted));
             if(vectors)target.EnableKeyword("ORBIS_RIVER_VECTORS");else target.DisableKeyword("ORBIS_RIVER_VECTORS");
             if(raster)target.EnableKeyword("ORBIS_RIVER_RASTER");else target.DisableKeyword("ORBIS_RIVER_RASTER");

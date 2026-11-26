@@ -9,6 +9,10 @@
    <ui:VisualElement name="minimapFrame" class="minimap-frame" tooltip="点击小地图定位，保留当前缩放">
     <ui:VisualElement name="minimap" class="minimap"/>
    </ui:VisualElement>
+   <ui:VisualElement name="loadingCover" class="loading-cover">
+    <ui:Label name="loadingTitle" text="正在准备世界…" class="loading-title"/>
+    <ui:Label name="loadingDetail" text="正在预热地形纹理、河网与地表着色器，就绪后自动进入完整画面。" class="loading-detail"/>
+   </ui:VisualElement>
   </ui:VisualElement>
   <ui:VisualElement class="header">
    <ui:VisualElement class="title-row">

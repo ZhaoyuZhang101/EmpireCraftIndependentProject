@@ -14,6 +14,24 @@ namespace Orbis.Flat
 
         internal Material ForDraw(Material detailed, int pass) => ForDraw(detailed, pass, -1);
 
+        // Non-blocking initial warmup used behind the loading cover before presenting a new world.
+        internal static bool WarmPassAsync(Material detailed, int pass, int depthPass)
+        {
+            if (!detailed || pass < 0) return true;
+            if (depthPass >= 0 && depthPass != pass && !ShaderUtil.IsPassCompiled(detailed, depthPass))
+                ShaderUtil.CompilePass(detailed, depthPass, true);
+            if (!EditorSettings.asyncShaderCompilation || ShaderUtil.IsPassCompiled(detailed, pass))
+                return true;
+            bool previous = ShaderUtil.allowAsyncCompilation;
+            try
+            {
+                ShaderUtil.allowAsyncCompilation = true;
+                ShaderUtil.CompilePass(detailed, pass, false);
+            }
+            finally { ShaderUtil.allowAsyncCompilation = previous; }
+            return ShaderUtil.IsPassCompiled(detailed, pass);
+        }
+
         internal Material ForDraw(Material detailed, int pass, int depthPass)
         {
             if (depthPass >= 0 && depthPass != pass && !ShaderUtil.IsPassCompiled(detailed, depthPass))
