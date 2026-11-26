@@ -110,13 +110,10 @@ float3 FlatReflectWater(float3 color,float2 cell,float4 field,float waterHeight,
     float reflectedLake=surface.skyWeight*skyVisible;
     float3 lakeResult=transmitted+sky*reflectedLake;
     // SW3 River-tuned reflection: steep Fresnel exponent (6.0) clears overhead
-    // sky haze so the riverbed stays crisp, while ripple facets catch sky/clouds
-    // with subtle prismatic edge dispersion.
+    // sky haze so the riverbed stays crisp, while ripple facets catch clean sky/clouds.
     float rippleTilt=saturate(length(reflNormal.xy)*1.85);
-    float riverFresnel=(.008+.58*pow(1-nv,6)+rippleTilt*rippleTilt*.078)*surface.visible*skyVisible;
-    float prismSign=clamp(dot(reflNormal.xy,float2(.78,-.62))*2.2,-1,1)*rippleTilt;
-    float3 prismTint=float3(1+.16*prismSign,1+.02*abs(prismSign),1-.16*prismSign);
-    float3 riverSky=sky*float3(.90,1.03,1.12)*prismTint;
+    float riverFresnel=(.008+.56*pow(1-nv,6)+rippleTilt*rippleTilt*.072)*surface.visible*skyVisible;
+    float3 riverSky=sky*float3(.93,1.02,1.08);
     float3 riverResult=transmitted*(1-riverFresnel*.28)+riverSky*riverFresnel;
     color=lerp(lerp(transmitted,sky,weight),lakeResult,surface.lake);
     color=lerp(color,riverResult,surface.river);
