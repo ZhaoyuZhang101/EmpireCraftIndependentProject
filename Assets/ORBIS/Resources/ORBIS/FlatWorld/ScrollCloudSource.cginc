@@ -127,17 +127,18 @@ float2 ScrollClimateDensitiesMip(float3 p,bool simpleMode,float pixelFootprint,f
  }
 
  if(coverage+highWeather<.006)return 0;
- // Physically matched trilinear 3D mip levels from true screen pixel footprint & isotropic ray stride:
- // prevents sub-pixel Value(16)/Value(32) grain and wheel-scroll moire while keeping close-up cumulus plump!
+ // Physically matched trilinear 3D mip levels calibrated to each noise channel's true Nyquist frequency:
+ // _CloudNoise peaks at Value(16) (64 = 2x Nyquist) and _CloudDetailNoise Worley(4/8)/Value(16) peak at 32,
+ // while Value(32) (.a) is explicitly damped above mip 0.15 -> crisp fluffy 36-70% unfold with zero shimmer!
  float fp=max(0.0,pixelFootprint);
- float macroMip=clamp(log2(max(1.0,fp*6.4*128.0))-.20,0.0,4.5);
- float angularBodyMip=clamp(log2(max(1.0,fp*30.0*128.0))-.15,0.0,5.0);
- float closeUp=1.0-smoothstep(.35,1.75,angularBodyMip);
- float isoRayFoot=rayFootprint*lerp(.55,.28,closeUp);
+ float macroMip=clamp(log2(max(1.0,fp*6.4*64.0))-.15,0.0,4.5);
+ float angularBodyMip=clamp(log2(max(1.0,fp*30.0*64.0))-.10,0.0,5.0);
+ float closeUp=1.0-smoothstep(.35,1.65,angularBodyMip);
+ float isoRayFoot=rayFootprint*lerp(.35,.10,closeUp);
  float filteredFoot=max(fp,isoRayFoot);
- float bodyMip=clamp(log2(max(1.0,filteredFoot*30.0*128.0))-.10,0.0,5.0);
- float detailMip=clamp(log2(max(1.0,filteredFoot*84.0*64.0))+.55,0.0,5.5);
- float cirrusMip=clamp(log2(max(1.0,filteredFoot*34.0*64.0))+.10,0.0,4.5);
+ float bodyMip=clamp(log2(max(1.0,filteredFoot*30.0*64.0))-.10,0.0,5.0);
+ float detailMip=clamp(log2(max(1.0,filteredFoot*96.0*32.0))-.15,0.0,5.5);
+ float cirrusMip=clamp(log2(max(1.0,filteredFoot*34.0*32.0))-.15,0.0,4.5);
 
  float low=0,high=0;
  if(coverage>.004&&z<13100)
@@ -155,7 +156,7 @@ float2 ScrollClimateDensitiesMip(float3 p,bool simpleMode,float pixelFootprint,f
    float3 q0=mul(frame,a);
 
    float shape=0,worleyMeso=.5,effCov=coverage,scCobbleGain=1.0;
-   float4 erosion=float4(.80,.80,.24,.24);
+   float4 erosion=float4(.76,.76,.30,.30);
    bool evalLow=false;
    float cdoEff=cdoSmooth*(1.0-.52*closeUp);
    if(simpleMode)
@@ -176,7 +177,7 @@ float2 ScrollClimateDensitiesMip(float3 p,bool simpleMode,float pixelFootprint,f
     float openWallS=smoothstep(.30,.68,1.0-(body.b*.76+body.g*.24))*openCellS;
     baseS=max(baseS,max(.64*scOvercastS,.68*openWallS));
     worleyMeso=max(worleyMeso,max(.66*scOvercastS,.70*openWallS));
-    erosion=float4(.80,.80,.24,.24);
+    erosion=float4(.76,.76,.30,.30);
     float covActive=smoothstep(.04,.20,coverage);
     shape=saturate((baseS-(1.0-worleyMeso)*.16*(1.0-.36*cdoEff))/.84+coverage*.06+.12*smoothstep(.06,.52,coverage)+.07*covActive);
     effCov=saturate(coverage+.10*covActive);
@@ -222,24 +223,24 @@ float2 ScrollClimateDensitiesMip(float3 p,bool simpleMode,float pixelFootprint,f
     // early-cull them on raw pre-sculpt shape (which caused hard cookie-cutter cliffs at coverage <= 0.52).
     if(pow(shape,.58)>.86-covBound||coverage>.52||(convection<.52&&coverage>.06)||inMidBand)
     {
-     float detailFade=1.0-smoothstep(1.35,3.25,detailMip);
+     float detailFade=1.0-smoothstep(1.80,3.55,detailMip);
      float4 eroNeutral=float4(.64,.64,.46,.46);
      if(detailFade>.02)
      {
       float3 curl=(body.gba-.5)*.20;
-      // 2.8x ratio above body (84 vs 30) closes the spectral gap between meso billows and fine erosion
-      // so 36-55% unfold stays fluffy and coherent instead of breaking into isolated confetti dots.
-      float3 dPos0=q0*84.0+radAxis*(altitude*.96)+windShear*.62+curl;
+      // 3.2x ratio above body (96 vs 30) gives crisp fluffy cauliflower billows at 36-70% unfold
+      // without breaking into sub-pixel confetti or blurring into low-res smudges.
+      float3 dPos0=q0*96.0+radAxis*(altitude*1.08)+windShear*.65+curl;
       float4 eroRaw=tex3Dlod(_CloudDetailNoise,float4(dPos0,detailMip));
       [branch] if(cycFlowKeep>.01&&detailMip<2.2)
       {
-       float3 dPos1=q1*84.0+radAxis*(altitude*.96)+windShear*.62+curl;
+       float3 dPos1=q1*96.0+radAxis*(altitude*1.08)+windShear*.65+curl;
        eroRaw=lerp(eroRaw,tex3Dlod(_CloudDetailNoise,float4(dPos1,detailMip)),phase);
       }
-      // Damp contrast amplification and Value(32) channel A above mip 0.35 so sub-pixel detail never shimmers!
-      float eroBoost=lerp(1.0,invStd,.55*detailFade*(1.0-smoothstep(.50,1.60,detailMip)));
+      // Damp contrast boost smoothly and attenuate ONLY Value(32) (.a) above mip 0.15 so Worley(4/8) stays crisp!
+      float eroBoost=lerp(1.0,invStd,.58*detailFade*(1.0-smoothstep(.55,1.70,detailMip)));
       erosion=lerp(eroNeutral,saturate(.5+(eroRaw-.5)*eroBoost),detailFade);
-      erosion.a=lerp(erosion.a,.48,smoothstep(.35,1.35,detailMip));
+      erosion.a=lerp(erosion.a,.48,smoothstep(.15,1.10,detailMip));
      }
      else
      {
@@ -307,13 +308,13 @@ float2 ScrollClimateDensitiesMip(float3 p,bool simpleMode,float pixelFootprint,f
     float mipBlur=smoothstep(.55,2.35,angularBodyMip);
     float stormProtect=saturate(cdoSmooth*1.4);
     float orbitM=mipBlur*(1.0-.90*stormProtect);
-    float thinMist=lerp(.032,.23,smoothstep(.04,.48,effCov))*lerp(1.0,.66,orbitM*(1.0-smoothstep(.04,.28,effCov)));
-    float coreExp=lerp(1.68,2.85,orbitM);
-    float coreScale=lerp(1.16,.86,orbitM*(1.0-smoothstep(.45,.88,effCov)));
+    float thinMist=lerp(.030,.24,smoothstep(.04,.48,effCov))*lerp(1.0,.66,orbitM*(1.0-smoothstep(.04,.28,effCov)));
+    float coreExp=lerp(1.48,2.90,orbitM);
+    float coreScale=lerp(1.24,.85,orbitM*(1.0-smoothstep(.45,.88,effCov)));
     float denseCore=coreScale*pow(smoothstep(.34,.94,effCov),coreExp);
     float scLow=1.0-smoothstep(.08,.20,convection);
-    float cuLwcBoost=lerp(1.0,lerp(1.78,1.22,tower)*(1.0-.38*scLow),closeUp*smoothstep(.20,.68,effCov));
-    float opticalGain=(thinMist+denseCore)*lerp(.88,1.20,tower)*scCobbleGain*cuLwcBoost;
+    float cuLwcBoost=lerp(1.0,lerp(2.75,1.48,tower)*(1.0-.48*scLow),closeUp*smoothstep(.18,.64,effCov));
+    float opticalGain=(thinMist+denseCore)*lerp(.88,1.22,tower)*scCobbleGain*cuLwcBoost;
     low=OrbisHPLowDensityDetailed(z,.14+.86*effCov,convection,shape,erosion,.42+.58*worleyMeso)*opticalGain;
    }
   }
@@ -379,7 +380,7 @@ float2 ScrollClimateDensitiesMip(float3 p,bool simpleMode,float pixelFootprint,f
    float4 tapB0=tex3Dlod(_CloudDetailNoise,float4(cRotB*34.0+float3(0,0,altZ*.26)+(ice.b-.5)*.26,cirrusMip));
    float4 tapA=lerp(tapA0,tapB0,hiBlend);
    float4 tapB=lerp(tapA1,tapB0,hiBlend*.5);
-   float streakFine=lerp((tapA.a+tapB.a)*.5,.5,smoothstep(.45,1.45,cirrusMip));
+   float streakFine=lerp((tapA.a+tapB.a)*.5,.5,smoothstep(.15,1.10,cirrusMip));
    float streakA=(tapA.b+tapB.b)*.5;
    float streakB=(tapA.g+tapB.g)*.5;
    float streakBase=(tapA.r+tapB.r)*.5;
