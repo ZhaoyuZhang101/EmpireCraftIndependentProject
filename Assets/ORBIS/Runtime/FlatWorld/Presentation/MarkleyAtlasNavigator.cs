@@ -77,6 +77,17 @@ namespace Orbis.Flat
         internal bool IsFocusing => focusZoom;
         public Vector2 CenterTile {get{return Vector2.Scale(MarkleyProjection.GeoUV(pan.x/world.Width,pan.y/MapHeight),new Vector2(world.Width,world.Height));}}
         public Material SurfaceMaterial { get { return surface; } }
+        public bool UsingShaderPreview
+        {
+            get
+            {
+#if UNITY_EDITOR
+                return editorPreview.IsActive;
+#else
+                return false;
+#endif
+            }
+        }
         public int VertexCount { get { return lattice ? lattice.vertexCount : 0; } }
         public int ActiveSheets { get; private set; }
         public string ModeName { get { return IsFlat ? (IsDetailed ? "2D 详细图" : "2D 总览") : IsGlobe ? "星球" : "大气展开 " + Mathf.RoundToInt(morph * 100) + "%"; } }
@@ -149,7 +160,8 @@ namespace Orbis.Flat
         }
         public void SetViewport(Rect screenRect)
         {
-            if (screenRect.width > 8 && screenRect.height > 8) viewCamera.pixelRect = screenRect;
+            if (FMath.Finite(screenRect.x) && FMath.Finite(screenRect.y) && FMath.Finite(screenRect.width) && FMath.Finite(screenRect.height) && screenRect.width > 8 && screenRect.height > 8)
+                viewCamera.pixelRect = screenRect;
         }
         static Vector3 ToVector3(PlanetVector p) { return new Vector3((float)p.X,(float)p.Y,(float)p.Z); }
         static Vector3 Reflect(Vector3 p) { p.z = -p.z; return p; }
@@ -252,8 +264,9 @@ namespace Orbis.Flat
             {
                 viewCamera.orthographic = false;
                 float gap = Mathf.Lerp(StartDistance - 1, endGap, morph);
-                Vector3 planetPosition = orbit * new Vector3(0, 0, -Mathf.Max(StartDistance, distance));
-                viewCamera.transform.SetPositionAndRotation(Vector3.Lerp(planetPosition, normal * (1 + gap), morph), Quaternion.Slerp(orbit, Quaternion.LookRotation(-normal, north), morph));
+                Quaternion pose = Quaternion.Slerp(orbit, Quaternion.LookRotation(-normal, north), morph);
+                float cameraDistance = morph <= 0 ? distance : 1 + gap;
+                viewCamera.transform.SetPositionAndRotation(pose * new Vector3(0, 0, -cameraDistance), pose);
                 if (morph <= 0)
                 {
                     viewCamera.ResetProjectionMatrix();
@@ -379,6 +392,10 @@ namespace Orbis.Flat
             // Input callbacks can run AFTER FlatWorldApp.Update. Rebase the material and
             // culling copies together; never expose new sheet visibility with yesterday's pan.
             if(surface)ApplyProjection(surface);
+#if UNITY_EDITOR
+            if(surfaces.Count>0&&surfaces[0]&&surfaces[0].sharedMaterial&&surfaces[0].sharedMaterial!=surface)
+                ApplyProjection(surfaces[0].sharedMaterial);
+#endif
             UpdateSheets(); UpdateRoute();
         }
         void UpdateSheets()
@@ -406,7 +423,7 @@ namespace Orbis.Flat
             surface.CopyPropertiesFromMaterial(maps.Material);
             CommitProjection();
 #if UNITY_EDITOR
-            var draw = editorPreview.ForDraw(surface, surface.FindPass("SCROLL_SURFACE"));
+            var draw = editorPreview.ForDraw(surface, surface.FindPass("SCROLL_SURFACE"), surface.FindPass("SCROLL_DEPTH"));
             if (surfaces[0].sharedMaterial != draw)
                 foreach (var sheet in surfaces) sheet.sharedMaterial = draw;
 #endif

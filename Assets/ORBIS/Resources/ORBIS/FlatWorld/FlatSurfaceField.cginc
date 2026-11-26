@@ -50,7 +50,7 @@ float FlatShoreDetail(float2 cell)
     float anchor=smoothstep(0,.08,dot(offset,offset));
     float lon=(cell.x*_MapSize.z-.5)*6.283185307,lat=(cell.y*_MapSize.w-.5)*3.141592654;
     float3 p=float3(sin(lon)*cos(lat),sin(lat),cos(lon)*cos(lat));
-    float detail=.65*sin(p.x*157+p.z*93+sin(p.y*83))+.35*sin(p.x*311-p.z*193+p.y*137);
+    float detail=.50*sin(p.x*157+p.z*93+sin(p.y*83))+.30*sin(p.x*311-p.z*193+p.y*137)+.20*sin(p.x*643+p.y*419-p.z*521);
     return detail*.045*anchor;
 }
 // R metres; G signed Euclidean shoreline (positive in area water); B metres depth;
@@ -254,6 +254,7 @@ float4 FlatNaturalGround(sampler2D geometry,float2 cell,float4 centre,float pixe
     {
         float2 tile=(floor(cell)+.5)*_MapSize.zw,offset=frac(cell)-.5;
         float2 neighbour=sign(offset)*_MapSize.zw,blend=abs(offset);
+        blend=blend*blend*(3-2*blend);
         float4 x=FlatGroundProperties(tex2Dlod(geometry,float4(tile+float2(neighbour.x,0),0,0)));
         float4 y=FlatGroundProperties(tex2Dlod(geometry,float4(tile+float2(0,neighbour.y),0,0)));
         float4 xy=FlatGroundProperties(tex2Dlod(geometry,float4(tile+neighbour,0,0)));
@@ -387,6 +388,10 @@ float3 FlatTerrainFine(float3 col,float2 cell,float pixelsPerTile,float2 heightG
             float3 north=float3(-sin(latitude)*sin(longitude),cos(latitude),-sin(latitude)*cos(longitude));
             float2 ridgeGradient=float2(dot(ridgeDerivative,east),dot(ridgeDerivative,north));
             float bevel=clamp(1-dot(ridgeGradient,light.xy)*light.w*.17,.82,1.16);
+            // Subtle sphere-anchored mesoscale landform shading breaks up coarse bilinear
+            // DEM facets on rolling-to-steep slopes while remaining zero on level ground.
+            float slopeRelief=smoothstep(22,180,slope)*(1-exposed*.72);
+            result*=lerp(1,clamp(1-dot(ridgeGradient,light.xy)*light.w*.10,.88,1.12),fineWeight*slopeRelief);
             rock*=lerp(1,bevel,fineWeight)*(.90+.16*grain);
             result=lerp(result,rock,exposed*terrainWeight*.72);
         }

@@ -630,7 +630,9 @@ namespace Orbis.Flat
                 int y=Mathf.Clamp((int)(previousCenter.y/previousHeight*world.Height),0,world.Height-1);
                 navigation.Focus(y*world.Width+x,CalendarDay);
             }
+            UpdateViewportRect();
             navigation.Tick(0,CalendarDay);
+            navigation.SyncMaterials();
             minimap.Bind(navigation,map);
             if(root.focusController?.focusedElement==null)viewport.Focus();
             UpdateHUD();SetStatus("世界就绪：默认星球。滚轮进入局部地表，拖动可连续穿过日期线和极区；全球总览独立打开。");
@@ -690,8 +692,12 @@ namespace Orbis.Flat
         void UpdateViewportRect()
         {
             if(screenshotMode){navigation.SetViewport(new Rect(0,0,Screen.width,Screen.height));return;}
-            Rect r=viewport.worldBound;Vector3 lower=ScreenPoint(new Vector2(r.xMin,r.yMax)),upper=ScreenPoint(new Vector2(r.xMax,r.yMin));
-            navigation.SetViewport(Rect.MinMaxRect(lower.x,lower.y,upper.x,upper.y));
+            Rect r=viewport.worldBound;
+            if(!FMath.Finite(r.xMin)||!FMath.Finite(r.yMin)||!FMath.Finite(r.width)||!FMath.Finite(r.height)||r.width<=1||r.height<=1)return;
+            Vector3 lower=ScreenPoint(new Vector2(r.xMin,r.yMax)),upper=ScreenPoint(new Vector2(r.xMax,r.yMin));
+            float xMin=Mathf.Clamp(lower.x,0,Screen.width),xMax=Mathf.Clamp(upper.x,0,Screen.width);
+            float yMin=Mathf.Clamp(lower.y,0,Screen.height),yMax=Mathf.Clamp(upper.y,0,Screen.height);
+            navigation.SetViewport(Rect.MinMaxRect(xMin,yMin,xMax,yMax));
         }
         void OpenAtlas()
         {
@@ -705,7 +711,13 @@ namespace Orbis.Flat
             ClimateStatisticsPanel.Open(World,World.Day,selected,biomeReferences);
         }
         Vector3 ScreenPoint(Vector2 panelPoint)
-        {Vector2 p=root.WorldToLocal(panelPoint);return new Vector3(p.x/Mathf.Max(1,root.resolvedStyle.width)*Screen.width,(1-p.y/Mathf.Max(1,root.resolvedStyle.height))*Screen.height,10);}
+        {
+            float rootWidth=root.resolvedStyle.width,rootHeight=root.resolvedStyle.height;
+            if(!FMath.Finite(rootWidth)||rootWidth<1)rootWidth=Mathf.Max(1,Screen.width);
+            if(!FMath.Finite(rootHeight)||rootHeight<1)rootHeight=Mathf.Max(1,Screen.height);
+            Vector2 p=root.WorldToLocal(panelPoint);
+            return new Vector3(p.x/rootWidth*Screen.width,(1-p.y/rootHeight)*Screen.height,10);
+        }
         void Zoom(float wheel,Vector2 position)
         {if(World==null||!navigation)return;navigation.Wheel(wheel,ScreenPoint(position),CalendarDay);}
         void UpdateLocalEditTarget()
@@ -865,7 +877,7 @@ namespace Orbis.Flat
             modeButton.text=navigation.HasStrategicReturn?"M  返回原视图":"M  全球总览";pauseButton.text=paused?"继续":"暂停";speedButton.text=speed+"×";
             Array.Clear(zoneCounts,0,zoneCounts.Length);for(int z=0;z<World.ZoneCount;z++){int ownerId=World.ZoneOwner[z];if(ownerId>=0)zoneCounts[ownerId]++;}
             var text=nationText;text.Clear();for(int c=0;c<World.Nations.Count;c++){var n=World.Nations[c];int zones=zoneCounts[c];text.Append(c==activeNation?"● ":"○ ").Append(n.Name).Append(" · ").Append(zones).Append("区 · 粮 ").Append(n.Food.ToString("N0")).Append('\n');}nations.text=text.ToString();
-            skyStatus.text=map.Sky.Status+(globeMode&&globe.View.UsingSurfaceFallback?"\n警告：球体当前为简化 fallback，需检查 Shader。":"");
+            skyStatus.text=map.Sky.Status+(globeMode&&globe.View.UsingSurfaceFallback?"\n警告：球体当前为简化 fallback，需检查 Shader。":"")+(navigation&&navigation.UsingShaderPreview?"\n地表高精度着色器编译中（当前为平滑预览，就绪后自动切换）。":"");
             legend.text=FlatPalette.Legend(map.Layer);waterStatus.text=globeMode&&!map.LocalWater.HasActiveHazard?"摄影模式不运行局部 SWE。":map.LocalWater.Status;
             if(selected<0){info.text="点击地表查看位置，按 F 聚焦。\n\n每个 Zone 包含 4×4 个模拟格。";return;}
             int i=selected,zone=World.ZoneOf(i),level=HeightBands.Level(World.Elevation[i]);string owner=World.Owner[i]<0?"无主":World.Nations[World.Owner[i]].Name;

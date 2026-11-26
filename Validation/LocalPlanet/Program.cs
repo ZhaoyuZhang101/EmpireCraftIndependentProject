@@ -10,6 +10,7 @@ class Program
   checks+=UnfoldRoundTrips();
   checks+=TransportedAnchors();
   checks+=MinimapProjection();
+  checks+=ZoomUnfoldAndWidescreenCoverage();
   foreach(double lat in new[]{-Math.PI/2,-1.0,0,1.0,Math.PI/2})
   foreach(double lon in new[]{-Math.PI,0,Math.PI-.00001})
   {
@@ -184,6 +185,124 @@ class Program
    var north=PlanetCoordinateSystem.LocalFrame(chart.Center,new PlanetVector(),1).North;
    Require(PlanetVector.Dot(north,chart.Frame.North)>1-1e-10,"geographic north restored after leaving the polar cap");checks++;
   }
+  return checks;
+ }
+
+ static int ZoomUnfoldAndWidescreenCoverage()
+ {
+  int checks=0;
+  const double fov=42.0,localHeightSpan=21000.0*(2.5/6371008.8),reliefTilt=.72,reliefCameraHeight=.18;
+  double halfTan=Math.Tan(fov*Math.PI/360.0);
+  double foldZoom=PlanetScrollNavigationMath.ZoomFor(PlanetScrollNavigationMath.Start-1);
+  double maxZoom=PlanetScrollNavigationMath.ZoomFor(PlanetScrollNavigationMath.MaxAltitude);
+  double minZoom=PlanetScrollNavigationMath.ZoomFor(PlanetScrollNavigationMath.EndGap/4.0);
+
+  // 1. Globe retains full spherical silhouette radius at morph == 0.
+  foreach(double aspect in new[]{1.0,16.0/9.0,2.003,21.0/9.0,32.0/9.0,3840.0/720.0})
+  {
+   double globeRadius=PlanetScrollNavigationMath.ComputeLocalRadius(.23,aspect,0,localHeightSpan,reliefTilt,reliefCameraHeight,0);
+   Require(Math.Abs(globeRadius-PlanetScrollNavigationMath.MaxLocalRadius)<1e-12,"globe must retain full spherical silhouette");
+   checks++;
+  }
+
+  // 2. Unfold camera distance stays locked to 1 + gap (zero central scale lag/hump) and continuous at endpoints.
+  double prevDist=double.PositiveInfinity;
+  foreach(double m in new[]{0.0,0.01,0.10,0.36,0.50,0.62,0.85,0.95,1.0})
+  {
+   double altitude=PlanetScrollNavigationMath.EndGap+(PlanetScrollNavigationMath.Start-1-PlanetScrollNavigationMath.EndGap)*(1-m);
+   double rawDistance=m<=0?1+altitude:PlanetScrollNavigationMath.Start+(1.08-PlanetScrollNavigationMath.Start)*m;
+   double camDist=PlanetScrollNavigationMath.CameraDistanceForUnfold(rawDistance,altitude,m);
+   Require(Math.Abs(camDist-(1+altitude))<1e-12,"camera unfold distance matches 1+gap at morph="+m);
+   Require(camDist<=prevDist+1e-12,"camera distance strictly decreases as morph increases");
+   prevDist=camDist;checks+=2;
+  }
+
+  // 3. Widescreen coverage across 16:9, 2.003 (screenshot viewport), 21:9, 32:9, 5.33:1 at 36%, 85%, 100% and all unfold steps.
+  foreach(double aspect in new[]{4.0/3.0,16.0/9.0,2.003,21.0/9.0,32.0/9.0,3840.0/720.0})
+  {
+   for(int step=1;step<=100;step++)
+   {
+    double m=step/100.0;
+    double gap=PlanetScrollNavigationMath.EndGap+(PlanetScrollNavigationMath.Start-1-PlanetScrollNavigationMath.EndGap)*(1-m);
+    double camDist=1+gap;
+    double ortho=gap*halfTan;
+    double diag=ortho*Math.Sqrt(1+aspect*aspect);
+    double t=m<=.62?0:m>=1?1:((m-.62)/.38)*((m-.62)/.38)*(3-2*((m-.62)/.38));
+    double radius=PlanetScrollNavigationMath.ComputeLocalRadius(ortho,aspect,m,localHeightSpan,reliefTilt,reliefCameraHeight,0);
+    double maxNdcAll=0,maxNdcInR=0;
+    for(int i=1;i<=314;i++)
+    {
+     double s=PlanetScrollNavigationMath.MaxLocalRadius*i/314.0;
+     double angle=(1-m)*s+2*m*Math.Atan(s*.5);
+     double x=(1-m)*Math.Sin(angle)+m*s;
+     double z=(1-m)*Math.Cos(angle)+m;
+     double dEye=camDist-z;
+     if(dEye<=.001)continue;
+     double clipW=(1-t)*(dEye/gap)+t;
+     double ndc=x/(diag*clipW);
+     if(ndc>maxNdcAll)maxNdcAll=ndc;
+     if(s<=radius&&ndc>maxNdcInR)maxNdcInR=ndc;
+    }
+    if(maxNdcAll>=1.0) Require(maxNdcInR>=1.0,"local radius must fill widescreen corners; aspect="+aspect+" morph="+m+" ndc="+maxNdcInR);
+    else Require(maxNdcInR>=maxNdcAll-1e-3,"local radius must not clip visible dome limb; aspect="+aspect+" morph="+m);
+    checks++;
+   }
+   // Flat zoomed-in & entry states cover worst-case relief-displaced corners with >= 1.30x margin.
+   foreach(double ortho in new[]{.004,.015,.04,PlanetScrollNavigationMath.EndGap*halfTan})
+   {
+    double radius=PlanetScrollNavigationMath.ComputeLocalRadius(ortho,aspect,1.0,localHeightSpan,reliefTilt,reliefCameraHeight,0);
+    double corner=ortho*Math.Sqrt(1+aspect*aspect);
+    double needed=corner*(1+localHeightSpan/reliefCameraHeight)+localHeightSpan*reliefTilt;
+    Require(radius>=needed*1.30,"flat radius covers relief-displaced widescreen corners; aspect="+aspect+" ortho="+ortho);
+    checks++;
+   }
+   // Off-axis Focus() transition keeps patch edge beyond shifted view axis.
+   double focusRadius=PlanetScrollNavigationMath.ComputeLocalRadius(.084,aspect,.85,localHeightSpan,reliefTilt,reliefCameraHeight,.35);
+   Require(focusRadius>.80,"off-axis Focus() expands local patch to prevent exposed circular rim");
+   checks++;
+  }
+
+  // 4. Real wheel zoom-in / zoom-out sequences (including 36%, 85%, 100%) and fast direction reversal without overshoot.
+  double zoom=PlanetScrollNavigationMath.ZoomFor(PlanetScrollNavigationMath.HomeAltitude),target=zoom,vel=0;
+  bool saw36=false,saw85=false,saw100=false;
+  for(int notch=0;notch<20;notch++)
+  {
+   target=PlanetScrollNavigationMath.ApplyWheelTarget(zoom,target,ref vel,-3,minZoom,maxZoom);
+   for(int frame=0;frame<12;frame++)
+   {
+    double before=zoom;
+    PlanetScrollNavigationMath.StepZoomSpring(ref zoom,ref vel,target,minZoom,maxZoom,1.0/60.0);
+    Require(zoom<=before+1e-9,"inward wheel never rebounds outward");
+    double m=PlanetScrollNavigationMath.MorphForAltitude(PlanetScrollNavigationMath.Altitude(zoom));
+    if(m>=.25&&m<=.48)saw36=true;
+    if(m>=.78&&m<=.92)saw85=true;
+    if(m>=1.0)saw100=true;
+   }
+   checks++;
+  }
+  Require(saw36&&saw85&&saw100,"inward wheel passes smoothly through ~36%, ~85% and 100%");
+  // Now simulate fast outward flick followed immediately by inward reversal near the fold threshold:
+  // previously stale outward velocity overshot past FoldZoom into morph == 0 (circular globe).
+  zoom=foldZoom-1.2;target=zoom;vel=0;
+  target=PlanetScrollNavigationMath.ApplyWheelTarget(zoom,target,ref vel,+6,minZoom,maxZoom);
+  for(int frame=0;frame<3;frame++)PlanetScrollNavigationMath.StepZoomSpring(ref zoom,ref vel,target,minZoom,maxZoom,1.0/60.0);
+  Require(vel>5,"outward flick builds significant outward spring velocity");
+  double atReversal=zoom;
+  target=PlanetScrollNavigationMath.ApplyWheelTarget(zoom,target,ref vel,-3,minZoom,maxZoom);
+  Require(vel==0,"reversing wheel clears opposing spring velocity");
+  for(int frame=0;frame<30;frame++)
+  {
+   PlanetScrollNavigationMath.StepZoomSpring(ref zoom,ref vel,target,minZoom,maxZoom,1.0/60.0);
+   Require(zoom<=atReversal+1e-9,"inward reversal never overshoots outward into circular globe");
+  }
+  // Zoom all the way back out to globe and verify clean clamp at MaxZoom.
+  for(int notch=0;notch<25;notch++)
+  {
+   target=PlanetScrollNavigationMath.ApplyWheelTarget(zoom,target,ref vel,+3,minZoom,maxZoom);
+   for(int frame=0;frame<12;frame++)PlanetScrollNavigationMath.StepZoomSpring(ref zoom,ref vel,target,minZoom,maxZoom,1.0/60.0);
+  }
+  Require(PlanetScrollNavigationMath.MorphForAltitude(PlanetScrollNavigationMath.Altitude(zoom))==0&&zoom<=maxZoom+1e-9,"outward wheel returns cleanly to circular globe");
+  checks+=6;
   return checks;
  }
 }

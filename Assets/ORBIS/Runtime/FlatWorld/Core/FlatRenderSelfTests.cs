@@ -113,12 +113,23 @@ namespace Orbis.Flat
             for(int j=1;j<flows.Length;j++)Check(w.Facts.HalfWidth[j]>w.Facts.HalfWidth[j-1],"Higher discharge widens the river even below the old extraction threshold");
             for(int j=1;j<flows.Length;j++)Check(FlatTerrainAnalysis.RiverDepth(flows[j],20)>FlatTerrainAnalysis.RiverDepth(flows[j-1],20),"Larger discharge deepens the channel");
             Check(Math.Abs(FlatTerrainAnalysis.RiverMeander(.1f,5,1))>Math.Abs(FlatTerrainAnalysis.RiverMeander(.1f,500,1))*3,"Confined steep rivers meander less than lowland rivers");
+            float shorePeak=0;
             for(int j=0;j<100;j++)
             {
                 float x=j*.17f,y=10+j*.05f;
-                Near(FlatSurfaceSampling.ShoreDetail(x,y,64,32),FlatSurfaceSampling.ShoreDetail(x+64,y,64,32),.0001f,"Shore detail repeats continuously around longitude");
+                float detail=FlatSurfaceSampling.ShoreDetail(x,y,64,32);
+                Near(detail,FlatSurfaceSampling.ShoreDetail(x+64,y,64,32),.0001f,"Shore detail repeats continuously around longitude");
                 Near(FlatSurfaceSampling.ShoreDetail(j%64+.5f,12.5f,64,32),0,.0001f,"Shore detail preserves authoritative tile centres");
+                Check(Math.Abs(detail)<=.04501f,"Shore detail stays strictly within GroundEdge/wildlife clearance");
+                shorePeak=Math.Max(shorePeak,Math.Abs(detail));
             }
+            for(int j=0;j<256;j++)
+            {
+                float detail=FlatSurfaceSampling.ShoreDetail(120+j*.0625f,128+(j%16)*.0625f,512,256);
+                Check(Math.Abs(detail)<=.04501f,"512x256 sub-tile shore detail remains bounded");
+                Near(detail,FlatSurfaceSampling.ShoreDetail(120+j*.0625f+512,128+(j%16)*.0625f,512,256),.0001f,"512x256 shore detail wraps seamlessly");
+            }
+            Check(shorePeak>.015f,"Shore detail supplies meaningful sub-tile coastline articulation");
             Check(w.Facts.HalfWidth[flows.Length-1]<=.24f,"Mouth full width stays below half a tile");
             w.Facts.RiverCurves=null;
             int spring=w.Index(30,16);w.Facts.HalfWidth[spring]=.12f;w.Facts.HalfWidth[w.Neighbor(spring,1)]=.12f;

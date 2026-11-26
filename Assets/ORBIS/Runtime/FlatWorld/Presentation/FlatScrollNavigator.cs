@@ -49,6 +49,17 @@ namespace Orbis.Flat
         public Vector2 ProjectionSize=>new Vector2(world.Width,MapHeight);
         public Vector2 CenterTile {get{var c=projection.Center;return atlasMode?atlas.CenterTile:new Vector2((float)PlanetCoordinateSystem.MapU(c)*world.Width,(float)PlanetCoordinateSystem.MapV(c)*world.Height);}}
         public Material SurfaceMaterial=>atlasMode?atlas.SurfaceMaterial:surface;
+        public bool UsingShaderPreview
+        {
+            get
+            {
+#if UNITY_EDITOR
+                return atlasMode ? (atlas && atlas.UsingShaderPreview) : editorPreview.IsActive;
+#else
+                return false;
+#endif
+            }
+        }
         public int VertexCount=>mesh?mesh.vertexCount:0;
         public int ActiveSheets=>atlasMode?atlas.ActiveSheets:1;
         public string ModeName=>atlasMode?"全球战略图":IsGlobe?"星球":IsFlat?"局部地表":"进入地表 "+Mathf.RoundToInt(morph*100)+"%";
@@ -61,7 +72,16 @@ namespace Orbis.Flat
         static float FoldZoom=>ZoomFor(Start-1);
         float MinZoom=>ZoomForPixels(Mathf.Max(96,EntryPixels*4));
         static float MaxZoom=>ZoomFor(MaxAltitude);
-        float Radius=>Mathf.Lerp(Mathf.PI-.0001f,Mathf.Min(1.4f,Mathf.Max(.04f,viewCamera.orthographicSize*Mathf.Sqrt(1+viewCamera.aspect*viewCamera.aspect)*1.3f+FlatGlobeGeometry.LocalHeightSpan*FlatGlobeGeometry.ReliefTilt)),morph);
+        float Radius
+        {
+            get
+            {
+                float offAxis=IsFlat||morph<=0||!viewCamera?0:Vector3.Angle(viewCamera.transform.rotation*Vector3.back,normal)*Mathf.Deg2Rad;
+                return (float)PlanetScrollNavigationMath.ComputeLocalRadius(
+                    viewCamera.orthographicSize,viewCamera.aspect,morph,
+                    FlatGlobeGeometry.LocalHeightSpan,FlatGlobeGeometry.ReliefTilt,FlatGlobeGeometry.ReliefCameraHeight,offAxis);
+            }
+        }
         Vector4 ReliefParameters
         {
             get
@@ -92,7 +112,13 @@ namespace Orbis.Flat
             Tick(0,0);SyncMaterials();
         }
         void Frame(){normal=Spin*Reflect(V(projection.Frame.Up));east=Spin*Reflect(V(projection.Frame.East));north=Spin*Reflect(V(projection.Frame.North));}
-        public void SetViewport(Rect rect){if(rect.width>8&&rect.height>8)viewCamera.pixelRect=rect;}
+        public void SetViewport(Rect rect)
+        {
+            if(!FMath.Finite(rect.x)||!FMath.Finite(rect.y)||!FMath.Finite(rect.width)||!FMath.Finite(rect.height)||rect.width<=8||rect.height<=8)return;
+            viewCamera.pixelRect=rect;
+            if(atlasMode&&atlas)atlas.SetViewport(rect);
+            else if(surface)Bind();
+        }
         public void Tick(float dt,double day)
         {
             currentDay=day;
@@ -132,7 +158,9 @@ namespace Orbis.Flat
             else
             {
                 Quaternion orbit=orbitRotation;float gap=Mathf.Min(altitude,Start-1);
-                viewCamera.transform.SetPositionAndRotation(Vector3.Lerp(orbit*new Vector3(0,0,-Mathf.Max(Start,distance)),normal*(1+gap),morph),Quaternion.Slerp(orbit,Quaternion.LookRotation(-normal,north),morph));
+                Quaternion pose=Quaternion.Slerp(orbit,Quaternion.LookRotation(-normal,north),morph);
+                float cameraDistance=(float)PlanetScrollNavigationMath.CameraDistanceForUnfold(distance,altitude,morph);
+                viewCamera.transform.SetPositionAndRotation(pose*new Vector3(0,0,-cameraDistance),pose);
                 viewCamera.orthographicSize=gap*HalfTan;
                 // A distant perspective globe covers fewer pixels per ground tile than the fold endpoint.
                 pixels=viewCamera.pixelHeight*TileScale/(2*altitude*HalfTan);
@@ -150,9 +178,9 @@ namespace Orbis.Flat
         {
             if(dt<=0)return;
             // Exact critically damped step: smooth start between wheel notches, no overshoot from rest, stable for any dt.
-            float delta=zoom-targetZoom,temp=(zoomVelocity+ZoomOmega*delta)*dt,decay=Mathf.Exp(-ZoomOmega*dt);
-            zoomVelocity=(zoomVelocity-ZoomOmega*temp)*decay;zoom=targetZoom+(delta+temp)*decay;
-            if(Mathf.Abs(zoom-targetZoom)<.002f&&Mathf.Abs(zoomVelocity)<.05f){zoom=targetZoom;zoomVelocity=0;}
+            double currentZoom=zoom,currentVelocity=zoomVelocity;
+            PlanetScrollNavigationMath.StepZoomSpring(ref currentZoom,ref currentVelocity,targetZoom,MinZoom,MaxZoom,dt);
+            zoom=(float)currentZoom;zoomVelocity=(float)currentVelocity;
         }
         void StopZoom(){targetZoom=zoom;zoomVelocity=0;zoomAnchor=false;atlasExitPending=false;}
         void SetLocalZoomAnchor(Vector2 screen,PlanetVector ground)
@@ -194,29 +222,46 @@ namespace Orbis.Flat
         void Bind()
         {
             if(!surface)return;
-            surface.SetVector("_LocalCenter",V(projection.Frame.Up));surface.SetVector("_LocalEast",V(projection.Frame.East));surface.SetVector("_LocalNorth",V(projection.Frame.North));
-            surface.SetVector("_ScrollNormal",normal);surface.SetVector("_ScrollRight",east);surface.SetVector("_ScrollUp",north);
-            surface.SetFloat("_ScrollMorph",morph);surface.SetFloat("_ScrollSpin",spin);surface.SetFloat("_LocalRadius",Radius);
+            float radius=Radius;
             // Filter when a moving ring spans several source cells. The stationary
             // globe keeps its silhouette and the final plane uses the full relief.
-            float cellsPerRing=Radius/(Rings*TileScale);
+            float cellsPerRing=radius/(Rings*TileScale);
             foldHeightWeight=maps.FoldHeights==null || !IsTransitioning ? 0 :
                 Mathf.SmoothStep(0,1,Mathf.InverseLerp(.5f,2,cellsPerRing))*Mathf.SmoothStep(0,1,morph/.06f);
-            surface.SetFloat("_FoldHeightWeight",foldHeightWeight);
-            if(foldHeightWeight>0)surface.SetTexture("_FoldHeightTex",maps.FoldHeights.Texture);
-            surface.SetFloat("_RiverGlobeNarrowing",FlatRiverCurves.GlobeWidthReduction(world.Preset,morph));
-            surface.SetFloat("_PixelsPerTile",pixels);surface.SetFloat("_DetailWeight",DetailWeight);surface.SetVector("_ScrollPoleHeights",poles);surface.SetFloat("_ScrollHeightScale",FlatGlobeGeometry.HeightScale);
-            surface.SetVector("_ScrollRelief",ReliefParameters);
-            surface.SetVector("_MapSize",new Vector4(world.Width,world.Height,1f/world.Width,1f/world.Height));
+            var relief=ReliefParameters;
+            var mapSize=new Vector4(world.Width,world.Height,1f/world.Width,1f/world.Height);
+            float riverNarrowing=FlatRiverCurves.GlobeWidthReduction(world.Preset,morph);
+            var area=maps.LocalEditFootprint;
+            var footprint=new Vector4(area.x,area.y,area.width,area.height);
+            var focus=ComputeSelectionFocus(area,relief);
             plantHeights.Bind(surface,maps.VisualTexture,Sectors,Rings);
-            BindSelectionFocus();
+            ApplyProjectionProperties(surface,radius,relief,mapSize,riverNarrowing,footprint,focus);
+#if UNITY_EDITOR
+            if(terrain&&terrain.sharedMaterial&&terrain.sharedMaterial!=surface)
+                ApplyProjectionProperties(terrain.sharedMaterial,radius,relief,mapSize,riverNarrowing,footprint,focus);
+#endif
+        }
+        void ApplyProjectionProperties(Material target,float radius,Vector4 relief,Vector4 mapSize,float riverNarrowing,Vector4 footprint,Vector4 focus)
+        {
+            target.SetVector("_LocalCenter",V(projection.Frame.Up));target.SetVector("_LocalEast",V(projection.Frame.East));target.SetVector("_LocalNorth",V(projection.Frame.North));
+            target.SetVector("_ScrollNormal",normal);target.SetVector("_ScrollRight",east);target.SetVector("_ScrollUp",north);
+            target.SetFloat("_ScrollMorph",morph);target.SetFloat("_ScrollSpin",spin);target.SetFloat("_LocalRadius",radius);
+            target.SetFloat("_FoldHeightWeight",foldHeightWeight);
+            if(foldHeightWeight>0)target.SetTexture("_FoldHeightTex",maps.FoldHeights.Texture);
+            target.SetFloat("_RiverGlobeNarrowing",riverNarrowing);
+            target.SetFloat("_PixelsPerTile",pixels);target.SetFloat("_DetailWeight",DetailWeight);target.SetVector("_ScrollPoleHeights",poles);target.SetFloat("_ScrollHeightScale",FlatGlobeGeometry.HeightScale);
+            target.SetVector("_ScrollRelief",relief);
+            target.SetVector("_MapSize",mapSize);
+            target.SetFloat("_LocalPhysicalArtwork",1);
+            target.SetVector("_LocalEditFootprint",footprint);
+            target.SetVector("_LocalFocus",focus);
         }
         public void SyncMaterials()
         {
             if(atlasMode){atlas.SyncMaterials();return;}
             surface.CopyPropertiesFromMaterial(maps.Material);Bind();
 #if UNITY_EDITOR
-            var draw = editorPreview.ForDraw(surface, surface.FindPass("SCROLL_SURFACE"));
+            var draw = editorPreview.ForDraw(surface, surface.FindPass("SCROLL_SURFACE"), surface.FindPass("SCROLL_DEPTH"));
             if (terrain.sharedMaterial != draw) terrain.sharedMaterial = draw;
 #endif
         }
@@ -265,9 +310,11 @@ namespace Orbis.Flat
             if(RouteAtlasWheel(wheel,screen,day))return;
             wheel=Mathf.Clamp(wheel,-24,24);if(Mathf.Abs(wheel)<.00001f)return;
             // Globe, fold and chart share one coordinate, so a burst of notches flows across
-            // the fold without a pause. Reversing direction starts from the displayed zoom.
-            float from=((wheel>0&&targetZoom<zoom)||(wheel<0&&targetZoom>zoom))?zoom:targetZoom;
-            float desired=Mathf.Clamp(from+wheel,MinZoom,MaxZoom);
+            // the fold without a pause. Reversing direction starts from the displayed zoom
+            // and clears opposing spring velocity so fast wheel gestures never overshoot.
+            double velocity=zoomVelocity;
+            float desired=(float)PlanetScrollNavigationMath.ApplyWheelTarget(zoom,targetZoom,ref velocity,wheel,MinZoom,MaxZoom);
+            zoomVelocity=(float)velocity;
             // Unfolding always captures the viewport centre, independent of the wheel cursor.
             if(desired<FoldZoom&&!locked)Capture(viewCamera.pixelRect.center,day);
             if(!IsFlat)zoomAnchor=false;
@@ -457,22 +504,19 @@ namespace Orbis.Flat
             return new Vector4(position.x,position.y,position.z,FlatGlobeGeometry.ReliefClipWeight(radius-1,reliefParameters,morph));
         }
         public int Pick(Vector2 screen)=>TryFlatPoint(screen,out var tile)?FlatScrollMath.Tile(tile.x,Math.Min(world.Height-.0001,tile.y),world.Width,world.Height):-1;
-        void BindSelectionFocus()
+        Vector4 ComputeSelectionFocus(RectInt area,Vector4 relief)
         {
-            surface.SetFloat("_LocalPhysicalArtwork",1);
-            var area=maps.LocalEditFootprint;
-            surface.SetVector("_LocalEditFootprint",new Vector4(area.x,area.y,area.width,area.height));
             var focus=Vector4.zero;int tile=maps.LocalFocusTile;
             if(morph>=1&&tile>=0&&tile<world.Count)
             {
                 var picked = area.width == 0 ? maps.SelectedLocation : null;
                 var location = picked ?? TileLocation(tile);
                 var point=LocalPoint(PlanetCoordinateSystem.SurfaceNormal(location));
-                if(TryRenderedSurface(point,ReliefParameters,false,out var position,out _,out _))
+                if(TryRenderedSurface(point,relief,false,out var position,out _,out _))
                     focus=new Vector4(Vector3.Dot(position-normal,east),Vector3.Dot(position-normal,north),
                         pixels/TileScale,picked.HasValue ? 7 : Mathf.Clamp(pixels*.5f,5,22));
             }
-            surface.SetVector("_LocalFocus",focus);
+            return focus;
         }
         bool TryRenderedSurface(Vector2 point,Vector4 relief,bool needAxes,out Vector3 position,out Vector3 axisX,out Vector3 axisY)
         {

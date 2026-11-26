@@ -262,4 +262,83 @@ namespace Orbis.Planet
             return radius*Math.Atan2(Math.Sqrt(PlanetVector.Dot(cross,cross)),PlanetVector.Dot(a,b));
         }
     }
+
+    // Shared pure navigation math for FlatScrollNavigator and standalone CPU regressions.
+    public static class PlanetScrollNavigationMath
+    {
+        public const double Start = 1.6, EndGap = .22, ZoomRate = .075, ZoomOmega = 18, MaxAltitude = 5, HomeAltitude = 2.1;
+        public const double MaxLocalRadius = Math.PI - .0001;
+
+        static bool Finite(double value) => !double.IsNaN(value) && !double.IsInfinity(value);
+        static double Clamp(double value, double min, double max) => value < min ? min : (value > max ? max : value);
+        static double SmoothStep(double edge0, double edge1, double x)
+        {
+            double t = Clamp((x - edge0) / (edge1 - edge0), 0, 1);
+            return t * t * (3 - 2 * t);
+        }
+
+        public static double ZoomFor(double altitude) => Math.Log(altitude / EndGap) / ZoomRate;
+        public static double Altitude(double zoom) => EndGap * Math.Exp(zoom * ZoomRate);
+        public static double MorphForAltitude(double altitude)
+        {
+            if (altitude >= Start - 1) return 0;
+            if (altitude <= EndGap) return 1;
+            return (Start - 1 - altitude) / (Start - 1 - EndGap);
+        }
+
+        // Keep eye-to-surface distance equal to gap throughout the unfold so perspective/ortho
+        // projection blending maintains exact central scale and never stalls at morph -> 0.
+        public static double CameraDistanceForUnfold(double distance, double altitude, double morph)
+        {
+            if (morph <= 0) return distance;
+            return 1 + Math.Min(altitude, Start - 1);
+        }
+
+        // Covers widescreen viewports (16:9, 21:9, 32:9, 5.33:1), maximum relief displacement/shrink,
+        // and off-axis Focus() transitions, while preserving the full sphere silhouette at morph == 0.
+        public static double ComputeLocalRadius(double orthographicSize, double aspect, double morph,
+            double localHeightSpan, double reliefTilt, double reliefCameraHeight, double offAxisRadians = 0)
+        {
+            double m = Finite(morph) ? Clamp(morph, 0, 1) : 0;
+            if (m <= 0) return MaxLocalRadius;
+            double safeOrtho = Finite(orthographicSize) ? Math.Max(.002, orthographicSize) : .085;
+            double safeAspect = Finite(aspect) ? Clamp(aspect, .25, 16) : 16.0 / 9.0;
+            double safeOffAxis = Finite(offAxisRadians) ? Clamp(offAxisRadians, 0, Math.PI) : 0;
+            double corner = safeOrtho * Math.Sqrt(1 + safeAspect * safeAspect);
+            double reliefPad = localHeightSpan * (reliefTilt + corner / Math.Max(.02, reliefCameraHeight));
+            double flatRequired = Math.Max(.04, (corner + reliefPad) * 1.35 + safeOffAxis * 1.25);
+            // Retain dome coverage until the orthographic projection blend starts at morph == 0.62.
+            double shrink = SmoothStep(.62, 1, m);
+            double blended = MaxLocalRadius * (1 - shrink) + Math.Min(MaxLocalRadius, flatRequired) * shrink;
+            return Clamp(Math.Max(blended, flatRequired), .04, MaxLocalRadius);
+        }
+
+        // Fast wheel direction reversal resets opposing spring velocity so rapid zoom gestures
+        // never overshoot outward back into the circular globe silhouette or jitter at limits.
+        public static double ApplyWheelTarget(double zoom, double targetZoom, ref double velocity,
+            double wheel, double minZoom, double maxZoom)
+        {
+            double clampedWheel = Clamp(wheel, -24, 24);
+            bool reversingTarget = (clampedWheel > 0 && targetZoom < zoom) || (clampedWheel < 0 && targetZoom > zoom);
+            bool reversingVelocity = (clampedWheel > 0 && velocity < 0) || (clampedWheel < 0 && velocity > 0);
+            if (reversingTarget || reversingVelocity) velocity = 0;
+            double from = reversingTarget ? zoom : targetZoom;
+            return Clamp(from + clampedWheel, minZoom, maxZoom);
+        }
+
+        public static void StepZoomSpring(ref double zoom, ref double velocity, double targetZoom,
+            double minZoom, double maxZoom, double dt)
+        {
+            if (dt <= 0) return;
+            double target = Clamp(targetZoom, minZoom, maxZoom);
+            double delta = zoom - target;
+            double temp = (velocity + ZoomOmega * delta) * dt;
+            double decay = Math.Exp(-ZoomOmega * dt);
+            velocity = (velocity - ZoomOmega * temp) * decay;
+            zoom = target + (delta + temp) * decay;
+            if (zoom < minZoom) { zoom = minZoom; velocity = 0; }
+            else if (zoom > maxZoom) { zoom = maxZoom; velocity = 0; }
+            if (Math.Abs(zoom - target) < .002 && Math.Abs(velocity) < .05) { zoom = target; velocity = 0; }
+        }
+    }
 }

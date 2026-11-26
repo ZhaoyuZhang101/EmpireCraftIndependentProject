@@ -84,7 +84,7 @@ namespace Orbis.Flat
             bool published=Ready||previewReady;
             bool rivers=!target.IsKeywordEnabled(DiagnosticKeyword);
             bool vectors=rivers&&published&&Layout.z<0;
-            bool raster=rivers&&!vectors&&(published||surveyVisible||requestedCurves!=null&&requestedCurves.HasSurvey);
+            bool raster=rivers&&!vectors&&(published||surveyVisible||(requestedCurves!=null&&!exhausted));
             if(vectors)target.EnableKeyword("ORBIS_RIVER_VECTORS");else target.DisableKeyword("ORBIS_RIVER_VECTORS");
             if(raster)target.EnableKeyword("ORBIS_RIVER_RASTER");else target.DisableKeyword("ORBIS_RIVER_RASTER");
         }

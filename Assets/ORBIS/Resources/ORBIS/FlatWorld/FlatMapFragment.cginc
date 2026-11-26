@@ -50,23 +50,39 @@
     #else
     float2 uv=MarkleyGeoUV(i.uv);
     #endif
-    float3 colour=tex2D(_MainTex,uv).rgb;
-    if(max(_Natural,_Political)>.5 && _FieldReady>.5)
+    float naturalView=max(_Natural,_Political);
+    float2 cell=float2(frac(uv.x),clamp(uv.y,0,1-_MapSize.w*.0001))*_MapSize.xy;
+    float2 colorUV=lerp((floor(cell)+.5)*_MapSize.zw,FlatBlendUV(cell),_SmoothTerrain*naturalView);
+    float3 colour=tex2D(_MainTex,colorUV).rgb;
+    if(naturalView>.5 && _FieldReady>.5)
     {
-     // The natural RGB texture is the dry ground below the continuous water
-     // mask. Composite the same banks in the temporary editor preview.
-     float2 cell=uv*_MapSize.xy;
+     // Reconstruct smooth shorelines, continuous bathymetry and lightweight relief so
+     // temporary editor shader compilation never shows discrete ocean-kind squares.
      float kind=round(255*tex2Dlod(_InfoTex,float4((floor(cell)+.5)*_MapSize.zw,0,0)).g);
      float4 field=FlatField(cell);
-     float2 gradient=0,coast;
+     float2 gradient=FlatFieldGradient(cell,0),coast=0;
      FlatEarthRelief(uv,field.r,gradient,coast);
      float chart=FlatSurveyBasinShore(uv,cell,_InfoTex,kind,field.g,coast);
      float lake=FlatEarthLake(uv,kind,chart,field.g);
      float aa=FlatEarthShoreAA(uv,clamp(.65/max(1,_PixelsPerTile),.008,.28),chart);
      float wet=smoothstep(-aa,aa,field.g);
-     float3 sea=kind==1?float3(24,57,80):kind==2?float3(36,92,120):float3(68,146,149);
-     float inland=max(lake,step(.5,1-abs(kind-4)));
-     colour=lerp(colour,FlatColor(lerp(sea,float3(89,155,167),inland)/255),wet);
+     float wetSupport;
+     float4 areaOptics=FlatAreaWaterOptics(cell,_InfoTex,float4(max(.15,field.b),0,0,kind),wetSupport);
+     float depth=max(0,lerp(max(0,field.b),areaOptics.r,saturate(wetSupport)));
+     float inland=max(lake,saturate(areaOptics.a-3));
+     float shallow=1-smoothstep(0,180,depth);
+     float mid=smoothstep(120,1400,depth);
+     float deep=smoothstep(1000,4200,depth);
+     float3 sea=lerp(float3(.22,.53,.59),float3(.11,.34,.47),1-shallow);
+     sea=lerp(sea,float3(.06,.19,.30),mid);
+     sea=lerp(sea,float3(.035,.10,.18),deep);
+     float shelfGlow=(1-smoothstep(0,.65,field.g))*(1-inland);
+     sea=lerp(sea,float3(.29,.62,.64),shelfGlow*.35);
+     float3 lakeColor=lerp(float3(.28,.58,.64),float3(.14,.40,.52),smoothstep(4,140,depth));
+     float3 localSun=FlatGeographicLight(uv,normalize(_FlatSun+float3(0,1e-7,0)));
+     float3 reliefLight=lerp(normalize(float3(-.45,.60,.75)),localSun,_FlatDayNight*smoothstep(0,.16,localSun.z));
+     colour*=lerp(FlatGradientRelief(gradient,reliefLight),1,wet);
+     colour=lerp(colour,FlatColor(lerp(sea,lakeColor,inland)),wet);
     }
     if(_Political>.5)
     {
@@ -80,7 +96,7 @@
      float ink=FlatPresentationSample(_RiverOverview,uv,lod).r;
      colour=lerp(colour,FlatColor(float3(.15,.40,.56)),ink);
     }
-    if(max(_Natural,_Political)>.5)colour*=FlatDayLight(FlatRadial(uv),uv);
+    if(naturalView>.5)colour*=FlatDayLight(FlatRadial(uv),uv);
     colour=lerp(colour,FlatColor(float3(1,.91,.61)),FlatPointInk(uv));
     #ifdef UNITY_COLORSPACE_GAMMA
     colour=GammaToLinearSpace(max(0,colour));

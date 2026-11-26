@@ -34,7 +34,7 @@ namespace Orbis.Flat
             float anchor=FMath.Clamp((fx*fx+fy*fy)/.08f,0,1);anchor=anchor*anchor*(3-2*anchor);
             double longitude=(x/width-.5)*Math.PI*2,latitude=(y/height-.5)*Math.PI;
             double px=Math.Sin(longitude)*Math.Cos(latitude),py=Math.Sin(latitude),pz=Math.Cos(longitude)*Math.Cos(latitude);
-            double detail=.65*Math.Sin(px*157+pz*93+Math.Sin(py*83))+.35*Math.Sin(px*311-pz*193+py*137);
+            double detail=.50*Math.Sin(px*157+pz*93+Math.Sin(py*83))+.30*Math.Sin(px*311-pz*193+py*137)+.20*Math.Sin(px*643+py*419-pz*521);
             return (float)detail*.045f*anchor;
         }
         public static float SampleShore(WorldData world,float x,float y)
