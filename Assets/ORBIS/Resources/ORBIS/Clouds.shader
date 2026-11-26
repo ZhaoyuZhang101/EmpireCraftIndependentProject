@@ -34,7 +34,7 @@ Shader "ORBIS/Clouds"
    #include "OrbisAtmosphereCommon.cginc"
    struct MRT {float4 light:SV_Target0;float4 transmission:SV_Target1;};
    MRT frag(v2f_img i)
-   {OrbisVolumeResult r=OrbisMarchPixel(i.uv,i.pos.xy);MRT o;o.light=float4(r.light,r.sceneDepth);o.transmission=float4(r.transmission,r.sceneDepth);return o;}
+   {OrbisVolumeResult r=OrbisMarchPixel(i.uv,i.pos.xy);MRT o;o.light=float4(r.light,r.sceneDepth);o.transmission=float4(r.transmission,r.cloudDepth);return o;}
    ENDCG
   }
   Pass

@@ -142,7 +142,7 @@ namespace Orbis.Editor
                 ShaderUtil.allowAsyncCompilation = false;
                 string[] names = { "Clouds", "CloudShadowCache", "Surface", "RiverWater",
                     "AtmosphereComposite", "Display", "WeatherParticles" };
-                int[] passCounts = { 5, 1, 2, 1, 2, 1, 1 };
+                int[] passCounts = { 5, 1, 2, 1, 3, 1, 1 };
                 string[] cloudPasses = { "MRT_VOLUME", "FULL_RES_VOLUME", "MAP_VOLUME", "MRT_MAP_VOLUME", "SOLAR_APERTURE" };
                 var items = new List<ShaderResult>();
                 bool allPassed = !report.shaderOptimizationDisabled;
