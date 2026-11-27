@@ -36,7 +36,7 @@ namespace Orbis.Flat
         int hudMode, hudCategory = -1, hudTheme;
         bool hudInfoExpanded;
         string hudLastStatus, hudInfoSource;
-        ScrollWindow hudWindow;
+        IHudWindow hudWindow;
         float hudWindowAge;
 
         void InstallEmpireHud()
@@ -199,14 +199,15 @@ namespace Orbis.Flat
 
             var civ = new HudMode { Name = "文明", Icon = "civ_mode" };
             civ.Categories.Add(HudCat("列国", "civ_nations", "立国与扩张",
-                HudEdit("建立文明", "actor_create_kingdom", 1, "点击可居住的无主区域建立文明。"),
-                HudEdit("扩张", "wild_develop", 2, "先点本国地块，再点相邻的无主区域；耗粮 60。"),
-                HudAction("播种文明", "population_add", SeedNationsFromHud, "在世界上随机新增 4 个文明。"),
-                HudWindow("列国榜", "empire_list", OpenHudNations, "各文明的疆域、人口与存粮。"),
-                HudEdit("路径", "road_connect", 7, "显示从首都到所点地块的陆路。"),
+                CoreEnabled ? HudLater("建立文明", "actor_create_kingdom") : HudEdit("建立文明", "actor_create_kingdom", 1, "点击可居住的无主区域建立文明。"),
+                CoreEnabled ? HudLater("扩张", "wild_develop") : HudEdit("扩张", "wild_develop", 2, "先点本国地块，再点相邻的无主区域；耗粮 60。"),
+                CoreEnabled ? HudLater("播种文明", "population_add") : HudAction("播种文明", "population_add", SeedNationsFromHud, "在世界上随机新增 4 个文明。"),
+                HudWindow("列国榜", "empire_list", OpenHudNations, CoreEnabled ? "列国的民族、政体、城池与人口，各民族的时代与制度。" : "各文明的疆域、人口与存粮。"),
+                CoreEnabled ? HudLater("路径", "road_connect") : HudEdit("路径", "road_connect", 7, "显示从首都到所点地块的陆路。"),
                 HudLater("立君", "civ_crown")));
             civ.Categories.Add(HudCat("帝国", "civ_empire", "国务与从属",
-                HudWindow("国务", "TabEmpire", OpenHudState, "选中文明的国力总览。"),
+                HudWindow("国务", "TabEmpire", OpenHudState, "选中之国的君主、国势、文明与城池。"),
+                HudWindow("史书", "iconHistory", OpenCoreAnnals, "天下大事与编年。"),
                 HudLater("称帝", "create_empire"), HudLater("从属", "TabDependencies")));
             civ.Categories.Add(HudCat("法理", "civ_claims", "法理与宣称",
                 HudLater("法理", "iconToolTitleCreate"), HudLater("核心", "iconToolCoreCreate"), HudLater("宣称", "TabClaimScale")));
@@ -214,7 +215,8 @@ namespace Orbis.Flat
                 HudLater("官署", "TabBureau"), HudLater("议会", "TabDiet"), HudLater("量刑", "TabSentencing"),
                 HudLater("宪制", "TabConstitution"), HudLater("制度", "TabInstitutions")));
             civ.Categories.Add(HudCat("人物", "famous_talents", "宗族与名人",
-                HudWindow("宗族", "specificClanIcon", OpenHudClans, "各家门第与族人。"), HudLater("名人", "famous_talents")));
+                HudWindow("宗族", "specificClanIcon", OpenHudClans, "各家门第与族人。"),
+                CoreEnabled ? HudWindow("名人", "famous_talents", () => OpenHudClans(1), "按名望排列的人物。") : HudLater("名人", "famous_talents")));
             civ.Categories.Add(HudCat("宗教", "TabPapacy", "教会与教派", HudLater("宗教", "TabPapacy"), HudLater("圣地", "iconToolHolyCity")));
             civ.Categories.Add(HudCat("外交", "diplomacy", "盟约与往来",
                 HudLater("外交", "diplomacy"), HudLater("结盟", "plot_kingdom_start_join_taken_alliance")));
@@ -361,7 +363,9 @@ namespace Orbis.Flat
             {
                 hudInfoTitle.text = "地块 " + selected % World.Width + ", " + selected / World.Width;
                 int owner = World.Owner[selected];
-                hudInfoNote.text = owner >= 0 && owner < World.Nations.Count ? World.Nations[owner].Name : "无主";
+                string coreNote = CoreTileNote(selected);
+                hudInfoNote.text = coreNote ?? (owner >= 0 && owner < World.Nations.Count ? World.Nations[owner].Name : "无主");
+                var coreCity = CoreHere()?.CityAt(selected);
                 var lines = source.Split('\n');
                 foreach (var raw in lines)
                 {
@@ -369,7 +373,11 @@ namespace Orbis.Flat
                     if (line.Length == 0 || line.StartsWith("TILE") || line.StartsWith("ZONE")) continue;
                     if (!hudInfoExpanded && count >= HudCompactRows) break;
                     int colon = line.IndexOf('：');
-                    if (colon > 0) SetHudInfoRow(count++, line.Substring(0, colon), line.Substring(colon + 1));
+                    string key = colon > 0 ? line.Substring(0, colon) : null;
+                    // With the core on, ownership and people are the core's: the city's realm and its count.
+                    if (coreNote != null && key == "归属") { SetHudInfoRow(count++, "归属", coreNote); continue; }
+                    if (coreNote != null && key == "人口") { SetHudInfoRow(count++, "城中人口", coreCity != null && coreCity.Alive ? coreCity.PopulationCount().ToString("N0") : "—"); continue; }
+                    if (colon > 0) SetHudInfoRow(count++, key, line.Substring(colon + 1));
                     else if (line.EndsWith("以下") || line.Contains(" m · ")) SetHudInfoRow(count++, "海拔", line);
                     else SetHudInfoRow(count++, "", line);
                 }
@@ -393,12 +401,19 @@ namespace Orbis.Flat
         // ---------- chronicle ----------
         void UpdateHudFeed()
         {
-            if (status == hudLastStatus) return;
-            hudLastStatus = status;
-            if (string.IsNullOrWhiteSpace(status)) return;
-            string when = World == null ? "开辟" : "第" + ((int)(CalendarDay / 360) + 1) + "年" + (World.Month + 1) + "月";
-            hudFeed.Insert(0, (when, status.Trim()));
-            if (hudFeed.Count > HudFeedRows) hudFeed.RemoveAt(hudFeed.Count - 1);
+            bool changed = FeedCoreNews();
+            if (status != hudLastStatus)
+            {
+                hudLastStatus = status;
+                if (!string.IsNullOrWhiteSpace(status))
+                {
+                    string when = World == null ? "开辟" : "第" + ((int)(CalendarDay / 360) + 1) + "年" + (World.Month + 1) + "月";
+                    hudFeed.Insert(0, (when, status.Trim()));
+                    if (hudFeed.Count > HudFeedRows) hudFeed.RemoveAt(hudFeed.Count - 1);
+                    changed = true;
+                }
+            }
+            if (!changed) return;
             while (hudFeedPool.Count < HudFeedRows)
             {
                 var row = Hud.Row("", "", hudFeedPool.Count % 2 == 1);
@@ -444,7 +459,7 @@ namespace Orbis.Flat
                 hudDate.text = "第 " + ((int)(day / 360) + 1) + " 年 · " + (World.Month + 1) + " 月";
                 float phase = (float)FlatSolarClock.Phase(day);
                 hudDateSub.text = ((int)(phase * 24)).ToString("00") + ":" + ((int)(phase * 1440) % 60).ToString("00") +
-                    " · 人口 " + Simulation.TotalPopulation().ToString("N0") + (navigation ? " · " + navigation.ModeName : "");
+                    " · 人口 " + (CoreHere() != null ? CoreTotalPopulation(CoreHere()) : (long)Simulation.TotalPopulation()).ToString("N0") + (navigation ? " · " + navigation.ModeName : "");
             }
             else { hudDate.text = "开辟之初"; hudDateSub.text = status; }
             Hud.SetText(hudPause, paused ? "继续" : "暂停");
@@ -457,6 +472,8 @@ namespace Orbis.Flat
             bool legendOn = hudModeList[hudMode].Legend && !string.IsNullOrEmpty(legend.text);
             hudLegend.EnableInClassList("ec-hidden", !legendOn);
             if (legendOn) { hudLegendTitle.text = layerField.value; if (hudLegendText.text != legend.text) hudLegendText.text = legend.text; }
+            SyncCoreTerritory();
+            FollowCoreSelection();
             UpdateHudInfo();
             UpdateHudFeed();
             hudWindowAge += .25f;

@@ -15,7 +15,7 @@ namespace Orbis.Flat
         double[] hudNationPeople = new double[WorldData.MaxNations];
         int[] hudNationZones = new int[WorldData.MaxNations];
 
-        void OpenHudWindow(string key, ScrollWindow window, int page = 0)
+        void OpenHudWindow(string key, IHudWindow window, int page = 0)
         {
             hudWindows.Clear();
             hudWindow = window; hudWindowKey = key; hudWindowAge = 0;
@@ -51,6 +51,7 @@ namespace Orbis.Flat
         // ---------- 列国榜 ----------
         void OpenHudNations()
         {
+            if (CoreEnabled) { OpenCoreNations(); return; }
             var w = new ScrollWindow("列国榜", "empire_list", CloseHudWindow);
             w.Add("列国", "civ_nations", BuildHudNations, true, () => World == null ? null : World.Nations.Count.ToString());
             OpenHudWindow("nations", w);
@@ -105,6 +106,7 @@ namespace Orbis.Flat
         // ---------- 国务 ----------
         void OpenHudState()
         {
+            if (CoreEnabled) { OpenCoreState(activeRealm); return; }
             var w = new ScrollWindow("国务", "TabEmpire", CloseHudWindow);
             w.Add("总览", "civ_empire", BuildHudState, true);
             OpenHudWindow("state", w);
@@ -149,8 +151,11 @@ namespace Orbis.Flat
         }
 
         // ---------- 宗族 / 战争 (systems not ported yet) ----------
-        void OpenHudClans()
+        void OpenHudClans() => OpenHudClans(0);
+
+        void OpenHudClans(int first)
         {
+            if (CoreEnabled) { OpenHudClansCore(first); return; }
             var w = new ScrollWindow("宗族", "specificClanIcon", CloseHudWindow);
             w.Add("门第", "specificClanIcon", page =>
             {
@@ -162,6 +167,7 @@ namespace Orbis.Flat
 
         void OpenHudWar()
         {
+            if (CoreEnabled) { OpenCoreWar(); return; }
             var w = new ScrollWindow("战争", "TabWarfare", CloseHudWindow);
             w.Add("战事", "TabWarfare", page =>
             {
@@ -246,7 +252,7 @@ namespace Orbis.Flat
             var b = new VisualElement(); b.AddToClassList("ec-btns");
             b.Add(Hud.Button("ec-btn", "civ_globe", "生成新世界", () => { Generate(); CloseHudWindow(); }));
             b.Add(Hud.Button("ec-btn", "nat_rebuild", "重算当前世界", () => { RebuildFromHud(); CloseHudWindow(); }));
-            b.Add(Hud.Button("ec-btn", "population_add", "播种文明", SeedNationsFromHud));
+            if (!CoreEnabled) b.Add(Hud.Button("ec-btn", "population_add", "播种文明", SeedNationsFromHud));
             card.Add(b);
             page.Add(card);
             var note = Hud.Card("说明", null);

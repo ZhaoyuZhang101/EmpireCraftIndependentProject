@@ -157,8 +157,9 @@ namespace EmpireCraft.UI
 
     // 卷册 wide window: title bar with 返回 / ×, a page rail on the left and a scrolling
     // main column. Pages build their content on demand; live pages are rebuilt by Refresh().
-    public sealed class ScrollWindow
+    public sealed class ScrollWindow : IHudWindow
     {
+        VisualElement IHudWindow.Root => Root;
         public sealed class Page
         {
             public string Name, Icon;

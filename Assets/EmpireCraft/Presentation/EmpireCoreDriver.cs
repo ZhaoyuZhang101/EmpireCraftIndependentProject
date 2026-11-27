@@ -55,6 +55,9 @@ namespace EmpireCraft.Presentation
                 else if (level == LogLevel.Warning) Debug.LogWarning(message);
             };
             GameData.Folder = DataFolder;
+            // The game's text is Simplified Chinese: the mod's "cz" tables (its "ch" ones are
+            // Traditional, and most peoples carry only a "cz" name).
+            LM.Language = "cz";
             if (!Directory.Exists(GameData.Folder)) { Debug.LogWarning("[EmpireCraft] rule data folder missing: " + GameData.Folder); return; }
             try
             {

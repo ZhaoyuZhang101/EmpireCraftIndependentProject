@@ -171,3 +171,121 @@
 .ec-theme-card { flex-grow: 1; flex-basis: 0; align-items: center; padding: 10px 6px; margin-right: 4px; }
 .ec-theme-swatches { flex-direction: row; margin: 6px 0 4px 0; }
 .ec-theme-swatches > VisualElement { width: 18px; height: 18px; margin: 0 2px; border-width: 1px; border-color: rgb(0, 0, 0); }
+
+/* ---------- 卷册 archive windows (after the mod's wide windows) ---------- */
+/* Figure colours, the same in every theme: good, bad, information, key, cost, muted. */
+.ec-t-g { color: rgb(101, 214, 110); }
+.ec-t-r { color: rgb(255, 102, 102); }
+.ec-t-c { color: rgb(127, 216, 234); }
+.ec-t-y { color: var(--ec-gold); }
+.ec-t-o { color: rgb(233, 168, 91); }
+.ec-t-m { color: var(--ec-grey); }
+.ec-f-g { background-color: rgb(101, 214, 110); }
+.ec-f-r { background-color: rgb(255, 102, 102); }
+.ec-f-c { background-color: rgb(127, 216, 234); }
+.ec-f-y { background-color: var(--ec-gold); }
+.ec-f-o { background-color: rgb(233, 168, 91); }
+.ec-f-m { background-color: var(--ec-grey); }
+
+.ec-arc { width: 1000px; height: 690px; top: 58px; }
+.ec-arc-rail { width: 236px; flex-shrink: 0; margin-right: 8px; }
+.ec-arc-card { margin-bottom: 6px; }
+.ec-arc-grow { flex-grow: 1; }
+
+.ec-arc-id { padding: 9px 11px; margin-bottom: 6px; flex-shrink: 0; }
+.ec-arc-id-top { flex-direction: row; align-items: center; }
+.ec-arc-flag { width: 28px; height: 28px; margin-right: 8px; border-width: 2px; border-color: rgb(0, 0, 0); align-items: center; justify-content: center; flex-shrink: 0; }
+.ec-arc-flag-t { color: rgb(255, 255, 255); font-size: 14px; -unity-font-style: bold; }
+.ec-arc-id-name { color: var(--ec-gold); font-size: 19px; -unity-font-style: bold; flex-shrink: 1; white-space: normal; }
+.ec-arc-id-l1 { color: var(--ec-sub); font-size: 12px; margin-top: 3px; white-space: normal; }
+.ec-arc-id-l2 { color: var(--ec-cyan); font-size: 12px; white-space: normal; }
+.ec-arc-tag { color: var(--ec-gold); font-size: 11px; padding: 0 5px; margin-left: 6px; border-width: 1px; border-color: var(--ec-line); background-color: var(--ec-ins); }
+
+.ec-arc-person { flex-direction: row; align-items: center; padding: 3px 2px; }
+.ec-arc-ava { width: 36px; height: 36px; margin-right: 8px; flex-shrink: 0; align-items: center; justify-content: center;
+    border-width: 2px; border-color: var(--ec-line); background-color: var(--ec-title); }
+.ec-arc-ava-sm { width: 30px; height: 30px; }
+.ec-arc-pcol { flex-shrink: 1; flex-grow: 1; }
+.ec-arc-role { color: var(--ec-cyan); font-size: 11px; }
+.ec-arc-pname { color: var(--ec-gold); font-size: 14px; -unity-font-style: bold; }
+.ec-arc-pnote { color: var(--ec-grey); font-size: 11px; white-space: normal; }
+
+.ec-arc-mhead { color: var(--ec-cyan); font-size: 12px; margin: 2px 0 2px 2px; }
+.ec-arc-mi { flex-direction: row; align-items: center; padding: 3px 6px; min-height: 26px; }
+.ec-arc-mi > .ec-icon { margin-right: 6px; }
+.ec-arc-mi > .ec-label { -unity-text-align: middle-left; flex-grow: 1; font-size: 13px; }
+.ec-arc-mi.ec-active { border-width: 1px; border-color: var(--ec-gold); background-color: var(--ec-title); }
+.ec-arc-mi.ec-active > .ec-label { color: var(--ec-gold); -unity-font-style: bold; }
+.ec-arc-mi.ec-active > .ec-opt-n { color: var(--ec-gold); }
+
+.ec-arc-chips { margin-left: auto; flex-direction: row; align-items: center; }
+.ec-arc-hnote { color: var(--ec-sub); font-size: 12px; margin-right: 6px; }
+.ec-arc-chip { height: 24px; padding: 2px 8px; margin-left: 4px; justify-content: center;
+    border-width: 1px; border-color: var(--ec-line); background-color: var(--ec-ins); }
+.ec-arc-chip > .ec-label { font-size: 12px; }
+.ec-arc-chip.ec-on { border-color: var(--ec-gold); background-color: var(--ec-title); }
+.ec-arc-chip.ec-on > .ec-label { color: var(--ec-gold); }
+.ec-arc .ec-kpi-n { font-size: 22px; }
+.ec-arc .ec-kpis { margin-right: -4px; }
+
+/* USS has no :last-child: the row reaches 6 px past the column and every child keeps its margin. */
+.ec-arc-cols { flex-direction: row; flex-shrink: 0; margin-right: -6px; }
+.ec-arc-cols > * { flex-grow: 1; flex-basis: 0; margin-right: 6px; min-width: 0; }
+
+.ec-arc-bar { flex-direction: row; align-items: center; height: 20px; }
+.ec-arc-bar-l { color: var(--ec-sub); font-size: 12px; width: 70px; flex-shrink: 0; }
+.ec-arc-track { flex-grow: 1; height: 8px; margin: 0 8px; background-color: var(--ec-title); border-width: 1px; border-color: rgb(0, 0, 0); }
+.ec-arc-fill { height: 100%; }
+.ec-arc-bar-v { font-size: 12px; min-width: 52px; -unity-text-align: middle-right; color: var(--ec-val); }
+
+.ec-arc-group { flex-direction: row; align-items: center; height: 26px; padding: 0 10px; margin-bottom: 6px; flex-shrink: 0;
+    border-width: 2px; border-color: var(--ec-line); background-color: var(--ec-ins); }
+.ec-arc-group-t { font-size: 13px; -unity-font-style: bold; }
+.ec-arc-group-n { color: var(--ec-grey); font-size: 12px; margin-left: 6px; }
+
+.ec-arc-line { flex-direction: row; align-items: center; min-height: 22px; padding: 1px 5px; }
+.ec-arc-line.ec-alt { background-color: var(--ec-ins); }
+.ec-arc-line > Label { font-size: 12px; color: var(--ec-val); margin-right: 8px; }
+.ec-arc-line > Label.ec-t-m { color: var(--ec-grey); }
+.ec-arc-line.ec-click:hover { background-color: var(--ec-title); }
+
+.ec-arc-realm { padding-top: 0; }
+.ec-arc-realm.ec-click:hover { border-color: var(--ec-gold); }
+.ec-arc-strip { height: 5px; margin: 0 -2px 6px -2px; }
+.ec-arc-rhead { flex-direction: row; align-items: center; border-bottom-width: 1px; border-bottom-color: var(--ec-line); padding-bottom: 3px; margin-bottom: 3px; }
+.ec-arc-rname { font-size: 15px; -unity-font-style: bold; }
+.ec-arc-rnote { color: var(--ec-grey); font-size: 11px; }
+.ec-arc-stats { flex-direction: row; margin-top: 4px; padding: 3px 6px; background-color: var(--ec-page); border-width: 1px; border-color: var(--ec-line); }
+.ec-arc-stat { flex-grow: 1; flex-basis: 0; }
+.ec-arc-stat-l { color: var(--ec-grey); font-size: 11px; }
+.ec-arc-stat-v { color: var(--ec-val); font-size: 15px; -unity-font-style: bold; }
+
+.ec-arc-year { color: var(--ec-gold); font-size: 13px; -unity-font-style: bold; margin: 5px 0 1px 2px; }
+.ec-arc-ev { flex-direction: row; min-height: 21px; align-items: center; padding: 1px 4px; border-bottom-width: 1px; border-bottom-color: var(--ec-ins); }
+.ec-arc-ev.ec-click:hover { background-color: var(--ec-title); }
+.ec-arc-ev-m { color: var(--ec-grey); font-size: 12px; width: 46px; flex-shrink: 0; }
+.ec-arc-ev-t { color: var(--ec-val); font-size: 12px; white-space: normal; flex-shrink: 1; }
+
+.ec-arc-tiles { flex-direction: row; flex-wrap: wrap; }
+.ec-arc-tile { width: 32%; flex-direction: row; align-items: center; padding: 3px; margin: 0 1% 4px 0;
+    border-width: 1px; border-color: var(--ec-line); background-color: var(--ec-ins); }
+.ec-arc-tile.ec-active { border-color: var(--ec-gold); }
+.ec-arc-tile.ec-click:hover { border-color: var(--ec-gold); }
+.ec-arc-tname { color: var(--ec-val); font-size: 12px; }
+
+/* Labels in the archive windows drop UI Toolkit's default label margin and padding,
+   so the left column (identity, people, figures, menu) fits without scrolling. */
+.ec-arc Label { margin-top: 0; margin-bottom: 0; padding-top: 0; padding-bottom: 0; }
+.ec-arc-rail .ec-arc-card { padding: 6px 8px; margin-bottom: 4px; }
+.ec-arc-rail .ec-arc-id { padding: 7px 10px; margin-bottom: 4px; }
+.ec-arc-rail .ec-row { min-height: 19px; padding: 1px 5px; }
+.ec-arc-rail .ec-arc-person { padding: 1px 0; }
+.ec-arc-rail .ec-arc-ava { width: 30px; height: 30px; }
+.ec-arc-rail .ec-arc-mi { min-height: 23px; padding: 2px 6px; }
+.ec-arc .ec-hd { margin-bottom: 2px; }
+.ec-arc .ec-kpi { padding: 5px 10px; }
+.ec-arc .ec-card { margin-bottom: 5px; }
+.ec-arc .unity-scroller--vertical { width: 8px; }
+.ec-arc .unity-scroller__low-button, .ec-arc .unity-scroller__high-button { display: none; }
+.ec-arc .unity-base-slider__tracker { background-color: var(--ec-ins); border-width: 0; }
+.ec-arc .unity-base-slider__dragger { background-color: var(--ec-line); border-width: 0; }
