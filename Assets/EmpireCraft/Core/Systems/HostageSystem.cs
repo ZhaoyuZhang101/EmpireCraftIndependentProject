@@ -47,7 +47,6 @@ public static class HostageSystem
     }
 
     // 称臣时送质子；送成了返回 true
-#if EC_PENDING
     public static bool Send(Realm lord, Realm subject)
     {
         if (!Alive(lord) || !Alive(subject) || lord == subject || EmpireWorld.Current == null) return false;
@@ -71,7 +70,6 @@ public static class HostageSystem
         LogService.LogInfo($"[EmpireCraft][质子] {subject.GetKingdomName()} 送 {hostage.FullName()} 入质 {lordName}");
         return true;
     }
-#endif
 
     private static void Clear(KingdomExtension.KingdomExtraData data)
     {

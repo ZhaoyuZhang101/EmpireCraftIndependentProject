@@ -137,7 +137,6 @@ public static class CliqueSystem
         faction.CliqueFoundedAt < 0d || GameClock.YearsSince(faction.CliqueFoundedAt) >= MinYearsBeforeMerge;
 
     // 每年(帝国例行检查，见 EmpireCraftEmpireBehCheckMandate)
-#if EC_PENDING
     public static void Yearly(Empire empire)
     {
         if (!Applies(empire) || EmpireWorld.Current == null) return;
@@ -165,7 +164,6 @@ public static class CliqueSystem
             LogService.LogWarning($"[EmpireCraft][朋党] {empire.GetEmpireFullName()} 结算失败: {exception}");
         }
     }
-#endif
 
     // 本朝官员(在任、成年，皇帝除外)
     private static List<Person> Officials(Empire empire) =>
@@ -551,7 +549,6 @@ public static class CliqueSystem
         return regime != null && empire.Emperor?.Record != null && ClassClique(regime, PartyIdeology.Eunuchs)?.GetLeader() != null;
     }
 
-#if EC_PENDING
     public static string PurgeEunuchs(Empire empire)
     {
         if (!CanPurgeEunuchs(empire)) return null;
@@ -561,7 +558,6 @@ public static class CliqueSystem
         Purge(empire, regime, party, empire.Emperor);
         return name;
     }
-#endif
 
     // 党锢：禁锢朝中势力最大、又不投靠上奏一派的学说朋党(至少占一成)
     public static FixedFaction ProscriptionTarget(Empire empire, string proposerId)
@@ -731,7 +727,6 @@ public static class CliqueSystem
         }
     }
 
-#if EC_PENDING
     private static void Eunuchs(Empire empire, Regime regime)
     {
         Person emperor = empire.Emperor;
@@ -802,7 +797,6 @@ public static class CliqueSystem
         empire.AddMandate(5);
         Record(empire, string.Format(LM.Get("clique_eunuch_purged_history"), emperor.FullName(), leaderName, name), emperor);
     }
-#endif
 
     #endregion
 

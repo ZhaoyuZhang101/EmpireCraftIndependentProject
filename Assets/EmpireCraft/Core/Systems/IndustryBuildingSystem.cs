@@ -240,13 +240,11 @@ public static class IndustryBuildingSystem
 
     // ---- 产出(每年，按户数尺度) ----
     // 建成的矿场的产出倍数之和(纯净地图：矿村、林场村折算，见 LivelihoodSystem.Factor)
-#if EC_PENDING
     public static float MineOutputFactor(City city) =>
         LivelihoodSystem.Active ? LivelihoodSystem.Factor(city, LivelihoodSystem.Mine) : OutputFactor(city, IsMine);
 
     public static float LumberOutputFactor(City city) =>
         LivelihoodSystem.Active ? LivelihoodSystem.Factor(city, LivelihoodSystem.Forest) : OutputFactor(city, IsLumber);
-#endif
 
     // 第几级的产出倍数、本城有厂区的加成、纯净地图下一份伐木产出倍数一年出几份木头(见 HarvestTrees)
     public static float TierFactor(int tier) => TierOutput[Mathf.Clamp(tier, 1, TierOutput.Length) - 1];
@@ -290,14 +288,14 @@ public static class IndustryBuildingSystem
             foreach (Cell zone in city.Zones)
             {
                 if (zone == null) continue;
-                int count = zone.getHashset(BuildingList.Trees)?.Count ?? 0;
+                int count = zone.GetHashset(BuildingList.Trees)?.Count ?? 0;
                 if (count > 0) zones.Add((zone, count));
             }
             zones.Sort((a, b) => b.trees.CompareTo(a.trees));
             var felled = new List<Building>();
             foreach ((Cell zone, int _) in zones)
             {
-                foreach (Building tree in zone.getHashset(BuildingList.Trees))
+                foreach (Building tree in zone.GetHashset(BuildingList.Trees))
                 {
                     if (felled.Count >= target) break;
                     if (tree?.Asset == null || tree.chopped || tree.isRuin()) continue;
@@ -371,16 +369,14 @@ public static class IndustryBuildingSystem
 #endif
 
     // 森林多的城可以多建伐木场：领地里每 40 棵树多许一座，最多多 4 座
-#if EC_PENDING
     public static int ForestExtraLimit(City city)
     {
         if (city?.Zones == null) return 0;
         int trees = 0;
         foreach (Cell zone in city.Zones)
-            if (zone != null) trees += zone.getHashset(BuildingList.Trees)?.Count ?? 0;
+            if (zone != null) trees += zone.GetHashset(BuildingList.Trees)?.Count ?? 0;
         return Mathf.Min(4, trees / 40);
     }
-#endif
 
     // 本城有工厂时矿场、伐木场产出多两成五(以前是建在工业区里的)
     private static float OutputFactor(City city, Func<BuildingKind, bool> kind)

@@ -137,7 +137,6 @@ public static partial class GentrySystem
     }
 
     // 每年(Assess)：世家的族众向上限靠；不是世家的散回谱上的人数
-#if EC_PENDING
     private static void UpdateKin(SpecificClan clan, City seat, int named)
     {
         float kin = clan.gentry_kin;
@@ -155,7 +154,6 @@ public static partial class GentrySystem
         if (FamineUnrestSystem.InFamine(seat)) kin *= 1f - KinFamineLoss;
         clan.gentry_kin = Mathf.Max(named, kin);
     }
-#endif
 
     // 族众系数：50 人为 1，每翻一番 +0.5；不到 50 人按比例、至少 0.5
     public static float KinFactor(float kin) =>
@@ -191,7 +189,6 @@ public static partial class GentrySystem
     #region 兼并、荫户、部曲
 
     // 兼并：郡望之城开了土地买卖，族众越多占田越多
-#if EC_PENDING
     private static void Annex(SpecificClan clan, City seat)
     {
         if (!clan.gentry || seat?.Realm == null || clan.gentry_kin <= 0f || !CityPopulationSystem.AbstractPopulationEnabled ||
@@ -206,7 +203,6 @@ public static partial class GentrySystem
         // 仗势占田：在任官员、城主的族人可能暗中记一笔非法侵占土地(日后查办，见 LawEvents.ClanAnnexed)
         if (taken > 0f) LawEvents.ClanAnnexed(clan, seat);
     }
-#endif
 
     // 一家在郡望之城荫庇的份额：田产(份额 × 2 × 门第/100)与族众(每人三口佃客 × 门第/100 ÷ 城里人口)取大
     private static float ShelterOf(SpecificClan clan, City seat, float people)

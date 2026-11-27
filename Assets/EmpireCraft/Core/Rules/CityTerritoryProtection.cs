@@ -25,14 +25,12 @@ public static class CityTerritoryProtection
     public static bool BordersLocked => BordersFixed && !ModClass.IS_CLEAR && GameClock.Running && !GameClock.Loading &&
                                         !WorldMapGenerator.Generating && !WorldMapScenario.AfterLoadPending;
 
-#if EC_PENDING
     private static bool ManualChange => CityExpansionPatch.ManualClaim || CityPlacementSystem.Placing;
 
     public static bool LocksAdd(City city) => BordersLocked && !ManualChange && _founding == 0 && city?.Zones?.Count > 0;
 
     public static bool LocksRemove(City city) => BordersLocked && !ManualChange && city?.Record != null && !city.IsGone() &&
                                                  !Dissolving.Contains(city.Key);
-#endif
 
     // 战争、临时占领都不能触发自动缩界或弃地；只保护辖区，不阻挡整城换国。
     public static bool PreserveWarLayout(City city)
@@ -63,7 +61,6 @@ public static class CityTerritoryProtection
                StateSettlementSystem.AwaitingPopulation(city);
     }
 
-#if EC_PENDING
     public static bool CanRemoveZone(City city, Cell zone)
     {
         if (city == null || zone == null) return false;
@@ -71,6 +68,5 @@ public static class CityTerritoryProtection
         return !city.Zones.Contains(zone) || city.Zones.Count > 1 ||
                !ShouldPreventDestruction(city);
     }
-#endif
 }
 }

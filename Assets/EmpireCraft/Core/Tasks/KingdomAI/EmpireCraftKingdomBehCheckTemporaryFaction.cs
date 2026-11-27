@@ -79,7 +79,7 @@ public class EmpireCraftKingdomBehCheckTemporaryFaction: GameAIKingdomBase
         }
         if (run?.ShowAsPlot??false)
         {
-            if ((pKingdom.Ruler?.plot?.name ?? "") != (run?.type.ToString() ?? "-"))
+            if ((pKingdom.Ruler?.Plot?.Name ?? "") != (run?.type.ToString() ?? "-"))
             {
                 run?.End();
                 return;

@@ -13,7 +13,6 @@ namespace EmpireCraft.Core
 public static class CityAssetSettlement
 {
     // 在迁移人口之前读取 totalBefore(原城背景人口)，迁移完成后再调用
-#if EC_PENDING
     public static void MoveSavingsWithMigrants(City from, City to, float moved, float totalBefore)
     {
         if (!CityPopulationSystem.AbstractPopulationEnabled || from == null || to == null || from == to ||
@@ -31,10 +30,8 @@ public static class CityAssetSettlement
         PopulationEconomySystem.AddSavings(from, source, -amount);
         PopulationEconomySystem.AddSavings(to, destination, amount);
     }
-#endif
 
     // 城市归属变了：旧政权的欠款交还旧政权(由 CityStabilitySystem.State 在发现换主时调用)
-#if EC_PENDING
     public static void ReturnArrearsToDebtor(City city, CityStabilityData old)
     {
         if (old == null || old.arrears <= 0 && old.governance_arrears <= 0 && old.garrison_arrears <= 0 &&
@@ -54,10 +51,8 @@ public static class CityAssetSettlement
         target.military_arrears = Add(target.military_arrears, old.military_arrears);
         target.arrears = target.governance_arrears + target.garrison_arrears + target.military_arrears;
     }
-#endif
 
     // City.destroyCity 之前调用(城市仍在原国家)
-#if EC_PENDING
     public static void OnCityDestroyed(City city)
     {
         if (city?.Record == null) return;
@@ -105,7 +100,6 @@ public static class CityAssetSettlement
             LogService.LogWarning($"[EmpireCraft][财政] 城市销毁结算失败({city.Name}): {exception.Message}");
         }
     }
-#endif
 
     private static long Add(long a, long b) => Math.Min(long.MaxValue / 6, Math.Max(0L, a) + Math.Max(0L, b));
 }

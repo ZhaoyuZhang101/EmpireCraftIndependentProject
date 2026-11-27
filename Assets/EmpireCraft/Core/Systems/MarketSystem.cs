@@ -43,15 +43,14 @@ public static class MarketSystem
     private const float MaxReligionChance = 0.01f;
     private const float ReligionChancePerVolume = 0.0002f;
 
-#if EC_PENDING
-    private static List<ResourceAsset> _food;
+    private static List<ResourceKind> _food;
 
-    private static List<ResourceAsset> FoodAssets()
+    private static List<ResourceKind> FoodAssets()
     {
         if (_food != null) return _food;
-        _food = new List<ResourceAsset>();
-        if (AssetManager.resources?.list != null)
-            foreach (ResourceAsset asset in AssetManager.resources.list)
+        _food = new List<ResourceKind>();
+        if (ResourceKinds.Table?.list != null)
+            foreach (ResourceKind asset in ResourceKinds.Table.list)
                 if (asset != null && asset.type == ResType.Food) _food.Add(asset);
         return _food;
     }
@@ -62,14 +61,13 @@ public static class MarketSystem
         {
             case Good.Food:
                 int food = 0;
-                foreach (ResourceAsset asset in FoodAssets()) food += city.getResourcesAmount(asset.id);
+                foreach (ResourceKind asset in FoodAssets()) food += city.GetResourcesAmount(asset.id);
                 return food;
-            case Good.Wood: return city.getResourcesAmount("wood");
-            case Good.Stone: return city.getResourcesAmount("stone");
-            default: return city.getResourcesAmount("common_metals");
+            case Good.Wood: return city.GetResourcesAmount("wood");
+            case Good.Stone: return city.GetResourcesAmount("stone");
+            default: return city.GetResourcesAmount("common_metals");
         }
     }
-#endif
 
     public static float Reserve(City city, Good good)
     {
@@ -83,10 +81,8 @@ public static class MarketSystem
         };
     }
 
-#if EC_PENDING
     private static float Surplus(City city, Good good) => Mathf.Max(0f, Stock(city, good) - Reserve(city, good) * SurplusCushion);
     private static float Deficit(City city, Good good) => Mathf.Max(0f, Reserve(city, good) - Stock(city, good));
-#endif
 
     public static int Capacity(City city)
     {
@@ -256,7 +252,6 @@ public static class MarketSystem
     private static readonly Dictionary<(object market, Good good), (double at, float price)> PriceCache = new();
 
     // 市场价格：国内市场总需求 ÷ 总供给(每个游戏月重算)
-#if EC_PENDING
     public static float Price(City city, Good good)
     {
         List<City> market = DomesticMarket(city);
@@ -276,7 +271,6 @@ public static class MarketSystem
         if (key != null) PriceCache[(key, good)] = (now, price);
         return price;
     }
-#endif
 
     // ---- 交换(每月随无小人模式的城市结算调用) ----
 
@@ -395,13 +389,12 @@ public static class MarketSystem
         good == Good.Wood ? "wood" : good == Good.Stone ? "stone" : "common_metals";
 
     // 从卖方仓库搬到买方仓库，返回实际搬运的数量
-#if EC_PENDING
     private static int Move(City seller, City buyer, Good good, int amount)
     {
         int moved = 0;
         if (good == Good.Food)
         {
-            foreach (ResourceAsset asset in FoodAssets())
+            foreach (ResourceKind asset in FoodAssets())
             {
                 if (moved >= amount) break;
                 moved += CityResourceTransferSystem.Move(seller, buyer, asset.id, amount - moved);
@@ -410,7 +403,6 @@ public static class MarketSystem
         }
         return CityResourceTransferSystem.Move(seller, buyer, MaterialId(good), amount);
     }
-#endif
 
     // 商路传播：理念、宗教、(跨国时)语言；通达层算好后按两城之间(人员口径)的通达强度打折(cost 为 -1 时不打折)
 #if EC_PENDING

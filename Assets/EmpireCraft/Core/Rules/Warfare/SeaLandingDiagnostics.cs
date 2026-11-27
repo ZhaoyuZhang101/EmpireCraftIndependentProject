@@ -53,7 +53,6 @@ public static class SeaLandingDiagnostics
 
     // 本月对这个敌国的登陆：target 选中的城(没有为空)，wanted 第一座够得着的跨海的城，route 航线经过几个海区(陆路接敌为 0)，
     // around：同一片陆地上隔着第三国、沿海渡海
-#if EC_PENDING
     public static void Pair(Realm side, Realm hostile, City target, City wanted, int route, bool around = false)
     {
         if (side?.Record == null || hostile?.Record == null) return;
@@ -78,7 +77,6 @@ public static class SeaLandingDiagnostics
         if (target == null && wanted != null && pair.NoRoute == null)
             pair.NoRoute = SeaLanding.WhyNoBeachhead(side, wanted.SeatCell()?.Zone);
     }
-#endif
 
     // 本月这一路登陆：新派了几支军(sent)、上月派的还在路上或船上(going)；一支没派时 why 写原因
     public static void Landing(Realm side, Realm hostile, int sent, bool going, string why)
@@ -118,7 +116,6 @@ public static class SeaLandingDiagnostics
     }
 
     // 每月(战线结算前)：过了一年就把去年的记下来
-#if EC_PENDING
     public static void MonthTick()
     {
         int year = GameClock.Year;
@@ -166,6 +163,5 @@ public static class SeaLandingDiagnostics
                                $"先遣{state?.Vanguards ?? 0}，在船{embarked}，靠岸{state?.Landed ?? 0}，断补给{cut}{why}");
         }
     }
-#endif
 }
 }

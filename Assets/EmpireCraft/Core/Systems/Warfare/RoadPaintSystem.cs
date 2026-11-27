@@ -64,10 +64,9 @@ public static class RoadPaintSystem
     }
 
     // 这一格画路画几等(画不上为 0)：画路与城池全图一键连路的寻路(见 CityPlanWorks.ConnectAll)同一个规矩
-#if EC_PENDING
     public static int GradeAt(Cell tile)
     {
-        if (tile?.data == null || tile.Type == null || tile.Type.Ocean || Blocked(tile)) return 0;
+        if (tile?.Record == null || tile.Type == null || tile.Type.Ocean || Blocked(tile)) return 0;
         City city = tile.City;
         // 不修路的城(游牧营地等)的领地上不画，同修路的规矩(见 RoadBuildingSystem.Refresh)
         if (city?.Record != null && !city.IsGone() && CityStyleSystem.Roadless(city)) return 0;
@@ -77,10 +76,8 @@ public static class RoadPaintSystem
         // 河湖浅水：能架桥的等级才画得过去
         return tile.Type.Liquid && grade < BridgeGrade ? 0 : grade;
     }
-#endif
 
     // 画一格；画上了(或升了等级)返回 true
-#if EC_PENDING
     public static bool Paint(Cell tile)
     {
         int grade = GradeAt(tile);
@@ -92,14 +89,12 @@ public static class RoadPaintSystem
         RoadNetwork.MarkDirty();
         return true;
     }
-#endif
 
     // 丝绸之路的一格(见 SilkRoadSystem)：山、高峰、城墙(关门照走)上不铺，过河的至少架桥那一等；已有更高等级的不降，
     // 记作丝路。铺上了(或升了等级)返回 true
-#if EC_PENDING
     public static bool Lay(Cell tile, int grade)
     {
-        if (tile?.data == null || tile.Type == null || tile.Type.Ocean || Blocked(tile) || grade <= 0) return false;
+        if (tile?.Record == null || tile.Type == null || tile.Type.Ocean || Blocked(tile) || grade <= 0) return false;
         if (tile.Type.Liquid) grade = Mathf.Max(grade, BridgeGrade);
         int id = tile.Index;
         if (_tiles.TryGetValue(id, out PaintedRoad road))
@@ -113,31 +108,25 @@ public static class RoadPaintSystem
         RoadNetwork.MarkDirty();
         return true;
     }
-#endif
 
     public static bool IsSilk(int tileId) => _tiles.TryGetValue(tileId, out PaintedRoad road) && road.silk;
 
-#if EC_PENDING
     public static bool Erase(Cell tile)
     {
-        if (tile?.data == null || !_tiles.Remove(tile.Index)) return false;
+        if (tile?.Record == null || !_tiles.Remove(tile.Index)) return false;
         _pending = true;
         RoadNetwork.MarkDirty();
         return true;
     }
-#endif
 
     // 山、高峰、城墙(同路网寻路，见 RoadNetwork.Mountain；关城的关门照走)、岩浆
-#if EC_PENDING
     private static bool Blocked(Cell tile) =>
         tile.Type.Mountains || tile.Type.Block && !tile.Type.Wall || MapWallSystem.Blocks(tile) || tile.Type.Lava;
-#endif
 
     // 路网变了要马上重画(神力连路，见 RoadBuildingSystem.ConnectByPower)
     public static void RequestRedraw() => _pending = true;
 
     // 路网图层该重画了(画、擦过，至多每 RedrawSeconds 秒一次；见 RoadOverlay)：顺带把路格并进路网
-#if EC_PENDING
     public static bool TakeRedraw(float now)
     {
         if (!_pending || now - _flushedAt < RedrawSeconds && now >= _flushedAt) return false;
@@ -146,7 +135,6 @@ public static class RoadPaintSystem
         RoadNetwork.RefreshNow();
         return true;
     }
-#endif
 
     // 交战的城的领地上每月受损(同干道)
     internal static bool MonthlyWarDamage(float amount)

@@ -71,7 +71,6 @@ public static partial class NomadRaidSystem
     }
 
     // 每月：待办的成雄主、内讧
-#if EC_PENDING
     private static void Aftermath()
     {
         foreach (Realm kingdom in EmpireWorld.Current.LiveRealms.ToList())
@@ -91,10 +90,8 @@ public static partial class NomadRaidSystem
             }
         }
     }
-#endif
 
     // 盟主成雄主：称汗建国(或大汗得雄主之号)，这回出兵的各部并入为兀鲁思
-#if EC_PENDING
     private static void PromoteHero(Realm leader, SteppeState steppe)
     {
         steppe.hero_pending = false;
@@ -141,10 +138,8 @@ public static partial class NomadRaidSystem
         LogService.LogInfo($"{LogTag} 雄主出：{khan?.FullName()}({leader.GetKingdomName()}){(founded ? "称汗建国" : "得雄主之号")}" +
                            $"{empire.GetEmpireName()}，并入{joined.Count}部");
     }
-#endif
 
     // 失败内讧：兀鲁思离心而去，独立的部与盟主兵戎相见(至多一场)
-#if EC_PENDING
     private static void Rift(Realm leader, SteppeState steppe)
     {
         List<long> rivals = steppe.rift_members;
@@ -170,6 +165,5 @@ public static partial class NomadRaidSystem
             fought = true;
         }
     }
-#endif
 }
 }

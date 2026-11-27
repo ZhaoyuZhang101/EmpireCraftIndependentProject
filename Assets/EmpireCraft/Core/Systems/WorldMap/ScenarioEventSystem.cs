@@ -158,14 +158,12 @@ public static class ScenarioEventSystem
     public static bool IsReserved(Person actor) => actor?.Record != null && _reservedNow.Contains(actor.Key);
 
     // 戏份没演完的人：刀兵、老病、政争都不死，血补满。事件安排的身故放行；过了预定年份太久也放手(见 ScenarioPlotRules)
-#if EC_PENDING
     public static bool Shield(Person actor, bool countDeath)
     {
         if (!countDeath || _scriptedDeath || _state == null || !IsProtected(actor)) return false;
-        actor.Record.health = actor.GetMaxHealth();
+        actor.Record.Health = actor.GetMaxHealth();
         return true;
     }
-#endif
 
     public static bool IsProtected(Person actor) =>
         actor?.Record != null && _plot.Count > 0 && ScenarioPlotRules.Protected(_plot, actor.Key, YearsSinceStart());
@@ -676,7 +674,6 @@ public static class ScenarioEventSystem
     // 每年结算，一年至多 RallyMaxPerYear 家；压力见 ConquestPressure，机会见 ScenarioPlotRules.RallyChance
     private const int RallyMaxPerYear = 2;
 
-#if EC_PENDING
     private static void Rally()
     {
         if (_state.rally == null) return;
@@ -701,7 +698,6 @@ public static class ScenarioEventSystem
             if (Submit(kingdom, conqueror, court, target, pressure)) joined++;
         }
     }
-#endif
 
     // 剧本点名的流寇(闯军、西军，起兵时写了 roving)：打仗时以战养战，照起义军养兵(见 CorpsSystem.Insurgent)；
     // 归附朝廷以后不算(见 Submit)
@@ -728,7 +724,6 @@ public static class ScenarioEventSystem
     // 独立势力：同族、自己做主(不是帝国的成员、附庸、殖民地)、够得着朝廷、国力比朝廷小；称了帝的也算(大顺、大西去帝号来投)；
     // 起兵的领头人还在世的不来(见 LedByRebelFounder)；要是从本朝出去的(反过本朝、或从本朝分出去)，又走投无路(见 Desperate)。
     // 以前朝鲜这样的外藩也"迫于清兵势"并进了明
-#if EC_PENDING
     private static bool RallyCandidate(Realm kingdom, Realm conqueror, Realm court, Empire target, string culture, float pressure)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || !kingdom.IsCivilized() || !kingdom.HasRuler() || (kingdom.Cities?.Count ?? 0) == 0 ||
@@ -741,7 +736,6 @@ public static class ScenarioEventSystem
         return WarSituation.Power(kingdom) < WarSituation.Power(court) && WarReach.Reachable(court, kingdom) &&
                Desperate(kingdom, conqueror, pressure);
     }
-#endif
 
     // 一国(帝国连同成员)现有几城，顺手记下见过的最多城数
     private static int RealmCities(Realm kingdom)
@@ -789,7 +783,6 @@ public static class ScenarioEventSystem
     }
 
     // 也给南明结成用(见 SouthernRetreatSystem)
-#if EC_PENDING
     internal static bool Submit(Realm kingdom, Realm conqueror, Realm court, Empire target, float pressure)
     {
         // 和朝廷打着的先罢兵；称了帝的先去帝号，手下的成员各自散去
@@ -811,10 +804,8 @@ public static class ScenarioEventSystem
         LogService.LogInfo($"[EmpireCraft][剧情事件] 号召归附：压力 {pressure:P0}，{kingdom.GetKingdomName()} 归附 {target.GetEmpireName()}");
         return true;
     }
-#endif
 
     // 起兵的领头人落到朝廷手里怎么办(见 ScenarioPlotRules.FateOfRebelLeader)；名单就几个人，每帧看也花不了什么
-#if EC_PENDING
     private static void WatchRebelLeaders()
     {
         List<ScenarioRebelLeader> leaders = _state.rebel_leaders;
@@ -855,7 +846,6 @@ public static class ScenarioEventSystem
             }
         }
     }
-#endif
 
     // 点名的人没了，由城主代领：华夏不立女主
     private static bool MayLead(Person actor, City seat) =>
@@ -963,7 +953,6 @@ public static class ScenarioEventSystem
     }
 
     // 人物身故：person 里还活着的按写的顺序走(储君写在君主前面，君主一死就轮到后面的人继位)；走正常的死亡与继位流程
-#if EC_PENDING
     private static string Dies(WorldMapEventStep step)
     {
         List<Person> people = People(step.person);
@@ -979,7 +968,6 @@ public static class ScenarioEventSystem
         }
         return null;
     }
-#endif
 
     // 卸去本国官职、城主之位(改投新国前)
     private static void Leave(Person actor)

@@ -43,7 +43,7 @@ public static partial class InstitutionSystem
     private const int MembersPerRealm = 3;
     // 王国两次扫描之间按实际年数补改革进度：至少半年(同一年不扫两遍)，至多补十年(很久没扫的不一下子跳完)
     private const double MinScanYears = 0.5d, MaxCatchUpYears = 10d;
-    private const double SecondsPerYear = 60d;
+    private const double SecondsPerYear = 12d; // world time counts months here
 
     private static readonly Queue<Realm> KingdomScanQueue = new();
     private static object _kingdomScanWorld;
@@ -52,7 +52,6 @@ public static partial class InstitutionSystem
     #region 年度扫描
 
     // 到期后把国家排成队，每次至多用 KingdomScanBudgetMs 毫秒，没算完的下一轮接着算(仿 HarshRuleSystem.TryYearlyKingdomScan)
-#if EC_PENDING
     public static void TryYearlyKingdomScan()
     {
         if (EmpireWorld.Current?.LiveRealms == null || ModClass.IS_CLEAR) return;
@@ -73,7 +72,7 @@ public static partial class InstitutionSystem
                 if (KingdomReformsEnabledFor(kingdom)) KingdomScanQueue.Enqueue(kingdom);
             _kingdomPassSize = KingdomScanQueue.Count;
         }
-        var budget = global::System.Diagnostics.Stopwatch.StartNew();
+        var budget = SimWatch.StartNew();
         while (KingdomScanQueue.Count > 0 && budget.ElapsedMilliseconds < KingdomScanBudgetMs)
         {
             Realm kingdom = KingdomScanQueue.Dequeue();
@@ -138,7 +137,6 @@ public static partial class InstitutionSystem
         if (state.active_reform != null) AdvanceReform(realm, shares, elapsedYears);
         else TryStartAiReform(realm, shares);
     }
-#endif
 
     // 简化朝堂的年度结算：阶层支持演变、派系占比对上本国政体的派系；全零时按阶层势力播种
     private static void TickKingdomCourt(InstitutionRealm realm, Dictionary<SocialClass, float> shares)

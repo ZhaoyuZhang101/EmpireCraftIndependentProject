@@ -135,7 +135,6 @@ public static class CityStateService
     }
 
     // CityPatch.FinishedCapture 调用。返回 true 表示已按城邦规则处理，城市不归攻城方。
-#if EC_PENDING
     public static bool TryResolveCapture(City city, Realm captor, Realm defender)
     {
         if (city == null || !IsCityState(captor) || defender == null || defender == captor || defender.IsGone() ||
@@ -156,7 +155,7 @@ public static class CityStateService
         // 否则由本地贵族把这座城立为新城邦，加入攻城方的同盟；找不到人就守不住，城仍归原主
         Person leader = FindLocalLeader(city, defender.Ruler);
         if (leader == null) return true;
-        if (defender.Ruler?.City == city) defender.kingFledCity();
+        if (defender.Ruler?.City == city) defender.KingFledCity();
         Realm newState = SpinOff(city, leader, captor);
         if (newState == null) return true;
         bool spunIntoEmpire = Attach(captor, newState);
@@ -164,7 +163,6 @@ public static class CityStateService
             captorName, newState.GetKingdomName(), leader.FullName());
         return true;
     }
-#endif
 
     private static Realm SpinOff(City city, Person leader, Realm parent)
     {
@@ -210,17 +208,15 @@ public static class CityStateService
         return realm.Ruler == leader;
     }
 
-#if EC_PENDING
     private static void EndWarsBetween(Realm victor, Realm loser)
     {
         foreach (War war in loser.GetWars().ToList())
         {
             bool opposing = (war.Attackers.Contains(victor) && war.Defenders.Contains(loser)) ||
                             (war.Defenders.Contains(victor) && war.Attackers.Contains(loser));
-            if (opposing && war.Alive && !war.HasEnded()) war.lostWar(loser);
+            if (opposing && war.Alive && !war.HasEnded()) war.Lost(loser);
         }
     }
-#endif
 
     // 攻城方/母邦在帝国里：并入该帝国(先退出原版联盟，两者不兼容)，返回 true；否则入盟，返回 false
     private static bool Attach(Realm leader, Realm member)

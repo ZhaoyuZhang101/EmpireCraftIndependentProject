@@ -151,18 +151,19 @@ public static class CityStabilitySystem
             !ReferenceEquals(city.GetOrCreate().stability, work.State) || !work.State.withdrawn)
         { Retiring.Remove(city); return; }
         int visited = 0, retired = 0;
-        while (work.Cursor < city.PopulationCount() && visited < 16 && retired < 4 && SimulationFrameBudget.HasTime)
+        while (work.Cursor < city.People.Count && visited < 16 && retired < 4 && SimulationFrameBudget.HasTime)
         {
             Person soldier = city.People[work.Cursor++]; visited++;
             if (!CanRetire(soldier, city)) continue;
             CityPopulationSystem.DemobilizeSoldier(soldier, city); retired++;
         }
         GuardCounts.Remove(city);
-        if (work.Cursor < city.PopulationCount()) { Retirements.Enqueue(work); return; }
+        if (work.Cursor < city.People.Count) { Retirements.Enqueue(work); return; }
         Retiring.Remove(city);
         CityStabilityBudget budget = CityStabilityMath.Compute(CaptureInput(city));
         ReviewWithdrawal(city, work.State, budget.GuardMonthly + budget.GovernanceAnnual / 12d);
     }
+#endif
 
     public static CityStabilityData State(City city)
     {
@@ -192,7 +193,7 @@ public static class CityStabilitySystem
     private static CityStabilityInput CaptureInput(City city)
     {
         Empire empire = city.Realm.GetEmpire();
-        int loyalty = city.getLoyalty();
+        int loyalty = city.GetLoyalty();
         int legitimacy = empire?.Legitimacy ?? -1;
         float corruption = (float)CorruptionSystem.GetRate(city.Realm);
         float sentiment = NationalSentimentSystem.GetCity(city);
@@ -201,7 +202,7 @@ public static class CityStabilitySystem
         int households = CityPopulationSystem.FiscalHouseholds(city);
         bool famine = CityPopulationSystem.AbstractPopulationEnabled
             ? CityPopulationSystem.GetGrowthFactors(city).Famine
-            : households > 0 && city.getTotalFood() < households * 0.5f;
+            : households > 0 && city.GetTotalFood() < households * 0.5f;
         float grievance = empire == null ? 0f : InstitutionSystem.GetClassGrievances(empire).Values.DefaultIfEmpty(0f).Max();
         var state = city.GetOrCreate().stability;
         return new CityStabilityInput(city.CountLivingPopulation(), households, loyalty, legitimacy, corruption,
@@ -209,7 +210,6 @@ public static class CityStabilitySystem
             state?.governance_policy ?? -1, state?.garrison_policy ?? -1,
             CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.PeoplePerSlot(city) : 1f);
     }
-#endif
 
     private static string Pressure(CityStabilityInput input)
     {
@@ -223,7 +223,6 @@ public static class CityStabilitySystem
         return string.Join(" / ", causes);
     }
 
-#if EC_PENDING
     private static float Natural(City city, out string detail)
     {
         CityStabilityInput input = CaptureInput(city);
@@ -232,7 +231,6 @@ public static class CityStabilitySystem
             input.Landless, input.Famine, input.Grievance);
         return LocalPressures(city, natural, ref detail);
     }
-#endif
 
     // 公式之外按本城情形另扣的自然稳定度(城市稳定度初建、每月结算都要扣——以前只在初建时扣一次，
     // 之后每月按公式重算就没了，难民、异教、鞭长莫及从来没有真正压低过稳定度)
@@ -337,7 +335,6 @@ public static class CityStabilitySystem
         return CityStabilityRules.Clamp(natural - remote);
     }
 
-#if EC_PENDING
     public static float Effective(City city)
     {
         var state = State(city);
@@ -347,7 +344,6 @@ public static class CityStabilitySystem
         float suppression = CityStabilityRules.Suppression(present, state.garrison_required, funding);
         return CityStabilityRules.Clamp(state.stability + suppression + state.fear);
     }
-#endif
 
     // 本国有城拖欠治理/驻军/军费(国债加息用)
     public static bool HasArrears(Realm kingdom)
@@ -362,9 +358,8 @@ public static class CityStabilitySystem
     }
 
     // 人心已散：开着财政看实际稳定度不到起事门槛，不开看忠诚为负(自立成片用，见 SecessionSpread)
-#if EC_PENDING
     public static bool Disaffected(City city) => city?.Record != null && !city.IsGone() &&
-        (TreasurySystem.Enabled(city) ? Effective(city) < CityStabilityRules.RebellionThreshold : city.getLoyalty() < 0);
+        (TreasurySystem.Enabled(city) ? Effective(city) < CityStabilityRules.RebellionThreshold : city.GetLoyalty() < 0);
 
     public static bool CanRise(City city) => city != null && !city.IsGone() &&
         (!TreasurySystem.Enabled(city) || Effective(city) < CityStabilityRules.RebellionThreshold);
@@ -377,7 +372,6 @@ public static class CityStabilitySystem
         return suppression > 0f && CityStabilityRules.Clamp(state.stability + suppression + state.fear) >=
             CityStabilityRules.RebellionThreshold;
     }
-#endif
 
     public static int FundedSlots(City city) => TreasurySystem.Enabled(city) &&
         city.GetOrCreate().stability is CityStabilityData state && state.owner_id == city.Realm.Key && !state.withdrawn
@@ -427,7 +421,6 @@ public static class CityStabilitySystem
     private static long Available(City city) => Math.Max(0, city.GetMoney()) +
         Payers(city).Sum(kingdom => (long)Math.Max(0, kingdom.GetMoney()));
 
-#if EC_PENDING
     private static int Pay(City city, int bill, TreasuryCategory category, bool municipalFirst, bool discretionary = false)
     {
         int remaining = Math.Max(0, bill);
@@ -453,6 +446,7 @@ public static class CityStabilitySystem
         return Math.Max(0, bill) - remaining;
     }
 
+#if EC_PENDING
     private static void Recruit(City city, int needed)
     {
         if (needed <= 0 || !WorldLaws.CivArmy.IsEnabled()) return;
@@ -470,18 +464,18 @@ public static class CityStabilitySystem
             CityPopulationSystem.RaiseMilitia(city, units, people / pool, garrison: true);
             return;
         }
-        if (city.People == null || city.PopulationCount() == 0) return;
+        if (city.People == null || city.People.Count == 0) return;
         int filled = 0, visited = 0;
         RecruitCursors.TryGetValue(city, out int cursor);
         // 不复制整城单位表；未轮到的居民留到下月继续，单城征募最多检查 64 人、补 4 人。
-        while (visited < Math.Min(64, city.PopulationCount()))
+        while (visited < Math.Min(64, city.People.Count))
         {
             if (visited > 0 && !SimulationFrameBudget.HasTime) break;
             if (filled >= Math.Min(4, needed)) break;
-            if (cursor >= city.PopulationCount()) cursor = 0;
+            if (cursor >= city.People.Count) cursor = 0;
             Person actor = city.People[cursor++]; visited++;
             if (actor == null || actor.IsGone() || !actor.Alive || !actor.IsAdult() || actor.IsWarrior() ||
-                actor.IsRuler() || actor.IsCityLeader() || actor.equipment == null || !actor.CanFoundCivKingdom()) continue;
+                actor.IsRuler() || actor.IsCityLeader() || actor.Equipment == null || !actor.CanFoundCivKingdom()) continue;
             city.makeWarrior(actor);
             if (actor.IsWarrior()) filled++;
         }
@@ -594,11 +588,10 @@ public static class CityStabilitySystem
 
     // 城库余钱上缴：超过两年开支(与安全储备)的部分每月上缴一成，按税款分成比例交本国与中央；拒缴的城不交。
     // 以前城市留成而开支极小，城库越攒越多(本地存档里各城合计与全部国库相当)，却从不上缴
-#if EC_PENDING
     private static void RemitSurplus(City city, CityStabilityData state)
     {
         Realm local = city.Realm;
-        if (local == null || !TreasurySystem.Enabled(local) || city.getLoyalty() <= 0 && !ControlsTax(city)) return;
+        if (local == null || !TreasurySystem.Enabled(local) || city.GetLoyalty() <= 0 && !ControlsTax(city)) return;
         long surplus = city.GetTreasuryBalance() - SurplusReserve(city, state);
         if (surplus < 10L) return;
         int remit = (int)Math.Min(int.MaxValue, surplus / 10L);
@@ -611,7 +604,6 @@ public static class CityStabilitySystem
         if (toCentral > 0) central.AddMoney(toCentral, TreasuryCategory.InternalTransfer);
         if (remit > toCentral) local.AddMoney(remit - toCentral, TreasuryCategory.InternalTransfer);
     }
-#endif
 
     // 城库该留的钱：两年开支与安全储备取大的；多出来的是余钱(上缴见 RemitSurplus，积压损耗见 TreasuryHoardSystem)
     public static long SurplusReserve(City city)
@@ -689,6 +681,7 @@ public static class CityStabilitySystem
         EventRecorder.Record(empire, string.Format(LM.Get("stability_release_history"), authority.GetKingdomFullName(),
             city.GetCityName(), state.unfunded_months, state.stability), independent.Ruler, independent);
     }
+#endif
 
     public static string GarrisonText(City city)
     {
@@ -697,7 +690,6 @@ public static class CityStabilitySystem
         Counts(city, out _, out int present);
         return string.Format(LM.Get("city_garrison_format"), present, state.garrison_required);
     }
-#endif
 
     public static string CostText(CityStabilityData state) => string.Format(LM.Get("city_stability_cost_format"),
         state.governance_paid, state.governance_due, state.garrison_paid, state.garrison_due);

@@ -40,7 +40,6 @@ public static class NativeDefenseSystem
         _lastMonth = -1d;
     }
 
-#if EC_PENDING
     public static void Tick()
     {
         EmpireWorld world = EmpireWorld.Current;
@@ -63,7 +62,6 @@ public static class NativeDefenseSystem
             LogService.LogWarning($"[EmpireCraft][御侮] 号召失败: {exception.Message}");
         }
     }
-#endif
 
     // 本土帝国的中央：帝国中央，文化与都城的主流文化同族
     public static bool IsNativeEmpire(Realm realm)
@@ -132,7 +130,6 @@ public static class NativeDefenseSystem
 
     #region 号召
 
-#if EC_PENDING
     private static void Rally(double now)
     {
         foreach (Empire empire in ModClass.EMPIRE_MANAGER?.ToList() ?? new List<Empire>())
@@ -178,10 +175,8 @@ public static class NativeDefenseSystem
         LogService.LogInfo($"[EmpireCraft][御侮] {empire.GetEmpireName()} 抗 {invader.GetKingdomName()}，来援：" +
                            string.Join("、", joined.Select(kin => kin.GetKingdomName())));
     }
-#endif
 
     // 应召的同族本土政权，国力大的在前。向入侵者称臣纳贡、做附庸的不应召(以前明清鼎革开局，刚降清的朝鲜头一个月就举兵抗清)
-#if EC_PENDING
     private static IEnumerable<Realm> Candidates(Realm native, Realm invader, War war)
     {
         Alliance alliance = invader.HasAlliance() ? invader.GetAlliance() : null;
@@ -198,7 +193,6 @@ public static class NativeDefenseSystem
                           (kin.IsNeighbourWith(native) || kin.IsNeighbourWith(invader)))
             .OrderByDescending(WarSituation.Power);
     }
-#endif
 
     #endregion
 }

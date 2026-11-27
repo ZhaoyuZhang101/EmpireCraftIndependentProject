@@ -197,7 +197,6 @@ public static partial class EmpireLawSystem
         actor?.GetPersonalIdentity()?.law_custom_weights?.FirstOrDefault(weight => weight.key == key)?.factor ?? 1f;
 
     // 当场开审：未发之罪逐桩按律论处；了结后保释与自定砝码清掉。返回审了几桩
-#if EC_PENDING
     public static int GodTrial(Person actor)
     {
         if (actor?.Record == null || actor.IsGone() || !actor.Alive) return 0;
@@ -226,7 +225,6 @@ public static partial class EmpireLawSystem
         }
         return tried;
     }
-#endif
 
     #endregion
 }

@@ -64,7 +64,6 @@ public static class VassalReduction
     }
 
     // 这一国对朝廷算哪一类；-1 = 不在可以谈的对象里
-#if EC_PENDING
     public static int KindOf(Realm realm, Realm other)
     {
         if (!Alive(realm) || !Alive(other) || realm == other || other.Cities == null || other.Cities.Count == 0) return -1;
@@ -84,10 +83,8 @@ public static class VassalReduction
         if (!VassalReductionRules.Small(PeaceTermRules.RealmValue(other), direct.Sum(PeaceTermRules.RealmValue))) return -1;
         return WarReach.TouchingFrom(direct, other) ? VassalReductionRules.Neighbour : -1;
     }
-#endif
 
     // 可以谈的对象。nearby：要不要查接壤的独立小国，查哪些(查接壤费工夫，由调用的一方给出已知的邻国)
-#if EC_PENDING
     public static List<(Realm kingdom, int kind)> Candidates(Realm realm, IEnumerable<Realm> nearby)
     {
         var found = new List<(Realm, int)>();
@@ -112,10 +109,8 @@ public static class VassalReduction
         }
         return found;
     }
-#endif
 
     // 称一称：两边各有哪些砝码。加码不在里面(见 Extras)
-#if EC_PENDING
     public static Scale Weigh(Realm realm, Realm other, int kind)
     {
         int basis = Math.Max(1, PeaceTermRules.RealmValue(other));
@@ -130,7 +125,7 @@ public static class VassalReduction
         Add(scale.Resist, "vassal_w_standing_" + kind, VassalReductionRules.Standing(basis, kind));
         Add(scale.Resist, "vassal_w_arms", VassalReductionRules.Arms(basis, theirs, ours));
         Add(scale.Resist, "vassal_w_estranged", VassalReductionRules.Estrangement(basis, opinion));
-        Add(scale.Resist, "vassal_w_lineage", VassalReductionRules.Lineage(basis, other.getAge()));
+        Add(scale.Resist, "vassal_w_lineage", VassalReductionRules.Lineage(basis, other.GetAge()));
         Add(scale.Resist, "vassal_w_custom", VassalReductionRules.Custom(basis,
             !string.IsNullOrEmpty(ourCulture) && !string.IsNullOrEmpty(theirCulture) && ourCulture != theirCulture));
         Empire empire = realm.GetEmpire();
@@ -142,7 +137,6 @@ public static class VassalReduction
         scale.Have = scale.Court.Sum(weight => weight.Value);
         return scale;
     }
-#endif
 
     // 朝廷眼下摆得出的加码
     public static List<Extra> Extras(Realm realm, Realm other, int basis)
@@ -182,7 +176,6 @@ public static class VassalReduction
     }
 
     // 谈成了：兑现加码、收改设之费、改设、其余藩属自危。办不了返回缘由的文字键
-#if EC_PENDING
     public static string Settle(Realm realm, Realm other, int kind, List<Extra> extras)
     {
         long fee = VassalReductionRules.Fee(realm.GetTreasuryBalance()), promised = extras.Where(extra => extra.Tier >= 0).Sum(extra => extra.Money);
@@ -201,10 +194,8 @@ public static class VassalReduction
         LogService.LogInfo($"[EmpireCraft][附庸博弈] {realm.GetKingdomName()} 改设 {name}(类别 {kind}，{(province ? "行政区" : "并入直辖")})");
         return null;
     }
-#endif
 
     // 改设：返回是不是成了行政区(否则各城并入了朝廷直辖)
-#if EC_PENDING
     public static bool Convert(Realm realm, Realm other, int kind)
     {
         double now = GameClock.Now;
@@ -251,10 +242,8 @@ public static class VassalReduction
             if (city.Realm == other) city.JoinRealm(realm);
         return false;
     }
-#endif
 
     // 强推：对方起兵。成了返回 null，开不了战返回缘由的文字键
-#if EC_PENDING
     public static string Rise(Realm realm, Realm other, int kind)
     {
         Empire empire = realm.GetEmpire();
@@ -285,7 +274,6 @@ public static class VassalReduction
         TranslateHelper.LogEventMessage(text, realm);
         return null;
     }
-#endif
 
     // ───────── 其余藩属自危 ─────────
     // 帝国里不是行政区的成员、朝贡国、朝廷的封建附庸，对朝廷的好感各添一笔会淡去的不满

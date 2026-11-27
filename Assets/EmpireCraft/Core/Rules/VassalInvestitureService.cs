@@ -130,7 +130,6 @@ public static class VassalInvestitureService
     #region 实封附庸国
 
     // 附庸国的嗣君刚刚即位(已经是国王)时调用。
-#if EC_PENDING
     public static void OnVassalSuccession(Realm vassal, Person heir)
     {
         if (vassal == null || vassal.IsGone() || vassal.IsEmpire() || !vassal.IsInEmpire()) return;
@@ -179,7 +178,6 @@ public static class VassalInvestitureService
             }
         }
     }
-#endif
 
     // 请封：封国越占上风，天子越不敢驳回。差值 0~20 时驳回概率约 25%~50%，更大则更低。
     private static bool RefusesPetition(float authority, float autonomy)
@@ -235,7 +233,6 @@ public static class VassalInvestitureService
 
     #region 不奉诏战争
 
-#if EC_PENDING
     private static bool StartDefianceWar(Empire empire, Realm vassal, Person heir, Person replacement)
     {
         War war = EmpireWorld.Current.StartWar(empire.CoreKingdom, vassal, WarKinds.Normal);
@@ -247,7 +244,6 @@ public static class VassalInvestitureService
         data.investiture_replacement_id = replacement.Key;
         return true;
     }
-#endif
 
     // 帝国一方控制了抗命封国都城过半的区块，就算王师平定。
     public static bool IsDefiantCapitalTaken(War war)

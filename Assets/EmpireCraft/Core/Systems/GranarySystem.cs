@@ -88,7 +88,6 @@ public static class GranarySystem
     }
 
     // 赈灾：缺粮的城市从国家粮仓调粮，返回调到的数量
-#if EC_PENDING
     public static float Relieve(City city, float shortage)
     {
         Realm realm = ModRealm(city?.Realm);
@@ -102,7 +101,6 @@ public static class GranarySystem
         ReliefThisYear[realm] = (total.cities + 1, total.amount + relief);
         return relief;
     }
-#endif
 
     // 赈灾效率(用户 2026-10-26："朝廷赈灾安抚力度由当前积弊决定(积弊≥80 任何灾都赈不了；50~80 只小灾能赈；
     // 10~50 中小灾能赈；<10 全能赈)")：本模组的赈灾是按缺口调粮，不分灾的大小，改成调粮打折——
@@ -110,7 +108,6 @@ public static class GranarySystem
     //   再乘 (1 − 腐败率×0.5)(层层克扣)、(1 − 吏治败坏×0.25)(MaladySystem 的吏治一条，已有一部分折进腐败)；
     //   没有帝国、不走王朝周期(共和、现代)的只看腐败；最少一成。按政权每月重算一次(腐败率要扫各城)。
     // 国家粮仓赈灾、朝议"赈济灾荒"发粮都乘它
-#if EC_PENDING
     public static float ReliefEfficiency(Realm kingdom)
     {
         Realm realm = ModRealm(kingdom);
@@ -128,7 +125,6 @@ public static class GranarySystem
         EfficiencyCache[realm] = (now, value);
         return value;
     }
-#endif
 
     // 年度损耗；顺便把上一年的赈灾写进史书
     private static void Spoil(Realm realm)

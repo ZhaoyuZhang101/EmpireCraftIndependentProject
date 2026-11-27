@@ -270,7 +270,6 @@ public static class WildernessPlotSystem
     #region 每帧
 
     // 每帧(WildernessDevelopmentSystem.Tick 里，划好区以后)：划区变了就维护、补划县址；设县的队每帧至多设一县；隔几秒给没名的县址起名
-#if EC_PENDING
     public static void Tick()
     {
         try
@@ -302,11 +301,9 @@ public static class WildernessPlotSystem
             LogService.LogWarning($"[EmpireCraft][县址] 结算失败: {exception}");
         }
     }
-#endif
 
     // 每年一回(WildernessDevelopmentSystem.BeginYear 开头，在开满的地块归城之前)：县城没了的回到未设县；已设县的把挨着县城的开满地块领进来
     // (县城到了上限领不下的放出县址，同一年里就照旧归别的城)；未设县、已解锁、有国家来设的排进设县的队(每国每年至多几县，开发得多的先)
-#if EC_PENDING
     public static void Year()
     {
         try
@@ -350,17 +347,15 @@ public static class WildernessPlotSystem
             LogService.LogWarning($"[EmpireCraft][县址] 年度结算失败: {exception}");
         }
     }
-#endif
 
     #endregion
 
     #region 维护与划分
 
     // 划区之后(见 Tick)：维护已有县址(见类头"稳定")、给新地块划县址
-#if EC_PENDING
     private static void Sync()
     {
-        var watch = global::System.Diagnostics.Stopwatch.StartNew();
+        var watch = SimWatch.StartNew();
         ZoneGrid calc = EmpireWorld.Current.Zones;
         bool changed = false;
         int dropped = 0;
@@ -399,7 +394,6 @@ public static class WildernessPlotSystem
         LogService.LogInfo($"[EmpireCraft][县址] 共 {_plots.Count} 县，新划 {added} 县、并进邻县 {attached} 块、去掉 {dropped} 块，" +
                            $"用时 {watch.Elapsed.TotalMilliseconds:0} ms");
     }
-#endif
 
     // 县址里留不留这块地(见类头"稳定")
     private static bool Keeps(Cell zone, City city)
@@ -414,7 +408,6 @@ public static class WildernessPlotSystem
     // 新地块：雨林大泽无人区里还没划进县址、没开满的地块，按连成的块(同一片里四邻相连)分——大块照地形分成若干县(见 Partition)；
     // 小块(不到目标的一半)并进挨着的县址(交界代价最低的，一样低的并进小的；县址已满一倍半的不并；挨着城的小块只隔着平地才并)，
     // 并不进的不划。返回新划几县、并进几块
-#if EC_PENDING
     private static int Divide(ZoneGrid calc, out int attached)
     {
         attached = 0;
@@ -484,7 +477,6 @@ public static class WildernessPlotSystem
         }
         return added;
     }
-#endif
 
     // 零星几块并进挨着的县址(一圈圈往里并)；strict(这几块挨着城)：只隔着平地(交界代价不过 MergeCost)才并。返回并进几块
     private static int Attach(List<int> zones, ZoneGrid calc, int full, bool strict)
@@ -533,7 +525,6 @@ public static class WildernessPlotSystem
         public float[] Pref;
     }
 
-#if EC_PENDING
     private static Graph BuildGraph(List<int> ids, ZoneGrid calc)
     {
         int n = ids.Count;
@@ -566,7 +557,6 @@ public static class WildernessPlotSystem
         }
         return graph;
     }
-#endif
 
     // 走进这块地的代价(见常量)
     private static float Enter(Cell zone)
@@ -582,7 +572,7 @@ public static class WildernessPlotSystem
 
     private static float WaterShare(Cell zone)
     {
-        int size = Land.ZoneSize * Land.ZoneSize;
+        int size = EmpireCraft.Core.Land.ZoneSize * EmpireCraft.Core.Land.ZoneSize;
         return Mathf.Clamp01(1f - zone.GroundCount / (float)size);
     }
 
@@ -592,7 +582,7 @@ public static class WildernessPlotSystem
         if (a == null || b == null) return 1f;
         int dx = b.X - a.X, dy = b.Y - a.Y;
         if (Math.Abs(dx) + Math.Abs(dy) != 1) return 0f;
-        int size = Land.ZoneSize, ox = a.X * size, oy = a.Y * size, open = 0;
+        int size = EmpireCraft.Core.Land.ZoneSize, ox = a.X * size, oy = a.Y * size, open = 0;
         for (int i = 0; i < size; i++)
         {
             int x = dx > 0 ? ox + size - 1 : dx < 0 ? ox : ox + i;
@@ -612,7 +602,6 @@ public static class WildernessPlotSystem
 
     // 县治偏好(1 上下)：临水(这块地有水、或四邻有成片的水：大河、湖、海边)+0.3，宜居 +0.2×宜居度，山地 −0.4；
     // 不可通行、没有落得下城的格(UrbanFabric.ManualGround)的几乎不选
-#if EC_PENDING
     private static float Preference(Cell zone)
     {
         if (zone?.Tiles == null || TerrainSystem.Impassable(zone) || !HasGround(zone)) return 0.05f;
@@ -638,11 +627,9 @@ public static class WildernessPlotSystem
             if (UrbanFabric.ManualGround(tile)) return true;
         return false;
     }
-#endif
 
     // 一块连着的地按地形分成若干县(见类头)：一、撒种子；二、同时往外长、种子挪到各县当中重长；三、并小(不到 min 的并进交界代价
     // 最低的邻县，一样低的并进小的；挨着城又只隔着河岭连着邻县的不并、不划，留给那座城)、拆大(超过 max 的再按这个法子分一回)
-#if EC_PENDING
     private static List<List<int>> Partition(List<int> zones, ZoneGrid calc, bool split)
     {
         Sizes(out int target, out int min, out int max);
@@ -772,7 +759,6 @@ public static class WildernessPlotSystem
         }
         return result;
     }
-#endif
 
     // 各种子同时按代价往外长：每块地归代价最小的那颗(下标)
     private static int[] Grow(Graph graph, List<int> seeds, WorldMapZones.MinHeap heap)
@@ -855,7 +841,6 @@ public static class WildernessPlotSystem
     }
 
     // 一县地块的县治(地块编号)
-#if EC_PENDING
     private static int Center(List<int> zones, ZoneGrid calc)
     {
         if (zones == null || zones.Count == 0) return -1;
@@ -867,7 +852,6 @@ public static class WildernessPlotSystem
         int center = Center(graph, members, owner, 0, new float[graph.Count], new WorldMapZones.MinHeap());
         return graph.Ids[center];
     }
-#endif
 
     #endregion
 
@@ -875,7 +859,6 @@ public static class WildernessPlotSystem
 
     // 设县的国家(见类头)：开发者(各块记的开发者按开发度加权，县治那块加倍)；这一县归了别国(OwnerOf，同一帝国的不算)由那国设；
     // 开发者没了的由挨着这一县城最多的国家设；永久中立区不设
-#if EC_PENDING
     private static Realm FounderOf(WildPlot plot)
     {
         var weights = new Dictionary<long, float>();
@@ -915,7 +898,6 @@ public static class WildernessPlotSystem
         if (Civil(owner)) return developer != null && SameRealm(developer, owner) ? developer : owner;
         return developer ?? Neighbour(plot);
     }
-#endif
 
     // 挨着这一县(八邻)的城最多的文明国家
     private static Realm Neighbour(WildPlot plot)
@@ -977,7 +959,6 @@ public static class WildernessPlotSystem
     }
 
     // 设县(见类头)：每帧至多一县，到时再核一遍
-#if EC_PENDING
     private static void Found(WildPlot plot)
     {
         if (CityOf(plot) != null || !Unlocked(plot, out _)) return;
@@ -1013,11 +994,9 @@ public static class WildernessPlotSystem
         string county = city.EnsureCityCoreName() ?? plot.name ?? city.GetCityName();
         EventRecorder.Record(founder, string.Format(LM.Get("wild_plot_founded_history"), founder.GetKingdomName(), place, county));
     }
-#endif
 
     // 已设县：县址里开满(或已不在无人区里)、空着、挨着县城(四邻，一圈圈连过去)的地块领进县城；
     // 县城到了每城地块上限领不下的放出县址(照旧归别的城)。放了返回 true
-#if EC_PENDING
     private static bool Absorb(WildPlot plot, City city)
     {
         bool grew = true;
@@ -1039,7 +1018,6 @@ public static class WildernessPlotSystem
         Version++;
         return true;
     }
-#endif
 
     // 四邻有城的地(哪座城都算)
     private static bool TouchesCity(Cell zone)
@@ -1060,7 +1038,6 @@ public static class WildernessPlotSystem
 
     // 开满的地块归城(WildernessDevelopmentSystem.Hand 先问这里)：县址里的只归这一县——已设县、县城挨着、没到上限的当即领进；
     // 否则空着留给县城(没设县的等设县，挨不着的等县城一块块领过来，见 Absorb)。返回 true 表示这块地由县址管
-#if EC_PENDING
     public static bool Claim(Cell zone)
     {
         try
@@ -1079,7 +1056,6 @@ public static class WildernessPlotSystem
             return false;
         }
     }
-#endif
 
     // 新城落成(CityPatch.CityBuilt，哪条路建的都算：AI 移民、国家移民、殖民、穿越者、神力建城、本系统设县)：
     // 落在没设县的县址里就是这一县的县城，县治挪到城心那块
@@ -1149,7 +1125,7 @@ public static class WildernessPlotSystem
             if (string.IsNullOrEmpty(plot.name)) (pending ??= new List<WildPlot>()).Add(plot);
         if (pending == null) return;
         bool earth = WorldMapWilderness.OnEarth;
-        float reach = earth ? float.MaxValue : NameReach * Land.ZoneSize;
+        float reach = earth ? float.MaxValue : NameReach * EmpireCraft.Core.Land.ZoneSize;
         var seats = new List<(int x, int y, string culture)>();
         var used = new HashSet<string>();
         foreach (City city in EmpireWorld.Current.Cities)

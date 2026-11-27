@@ -39,7 +39,6 @@ public static class TribalAssemblySystem
     // 讨伐：每月的机会按连续不朝的次数(两次 3%，每多一次再加 3%，封顶 12%)
     private const float PunishChancePerMiss = 0.03f, PunishChanceMax = 0.12f;
 
-#if EC_PENDING
     public static void Monthly()
     {
         if (EmpireWorld.Current?.LiveRealms == null || ModClass.EMPIRE_MANAGER == null) return;
@@ -63,7 +62,6 @@ public static class TribalAssemblySystem
             LogService.LogWarning($"[EmpireCraft][会盟] 结算失败: {exception.Message}");
         }
     }
-#endif
 
     // 到期：上次会盟满 11 个月、又到了本部落联盟的会盟之月(按帝国编号错开)；错过了(一帧跨过几个月)的满 13 个月补开
     private static bool Due(Empire overlord, KingdomExtension.KingdomExtraData data, double now)
@@ -156,7 +154,7 @@ public static class TribalAssemblySystem
     {
         int money = Math.Max(0, tribe.GetMoney());
         if (money <= 0) return 0;
-        int households = CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.Households(tribe) : tribe.PopulationCount();
+        int households = CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.Households(tribe) : tribe.People.Count;
         int cap = Math.Max(TributeCap, households / 2);
         return Math.Min(money, Math.Min(cap, Math.Max(money / 10, TributeFloor)));
     }
@@ -196,7 +194,6 @@ public static class TribalAssemblySystem
     }
 
     // 共主讨伐不臣：养得起兵、手上不到两场仗、过得了开战闸门(停战年限、强弱，见 WarGate)、两边够得着；每个共主每月至多一场
-#if EC_PENDING
     private static void Punish(List<(Realm tribe, Empire overlord)> defiant)
     {
         var busy = new HashSet<long>();
@@ -221,7 +218,6 @@ public static class TribalAssemblySystem
                 logKingdom: core);
         }
     }
-#endif
 
     // 部落之战了结(TribalWarSystem.Concede 之后调用)：共主打赢的，败者重新奉共主(仍记着它，见 TribalFissionService.Incorporate)、
     // 不臣清零；共事的部落反败共主的，就此不再共事、自立一方

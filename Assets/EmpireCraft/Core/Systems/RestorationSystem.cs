@@ -40,7 +40,6 @@ public static class RestorationSystem
     public static string ImperialName(Empire empire) =>
         string.Format(LM.Get("restoration_empire_name"), empire.GetEmpireName());
 
-#if EC_PENDING
     public static void Update(Empire empire, ConstitutionalEconomyState state)
     {
         if (empire?.CoreKingdom == null || state == null || empire.IsGone() || empire.IsArchived()) return;
@@ -61,7 +60,6 @@ public static class RestorationSystem
                 break;
         }
     }
-#endif
 
     private static void TrackTenure(ConstitutionalEconomyState state, Person head)
     {
@@ -98,7 +96,6 @@ public static class RestorationSystem
             empire.GetEmpireFullName(), head.FullName()), head);
     }
 
-#if EC_PENDING
     private static void UpdatePreparation(Empire empire, ConstitutionalEconomyState state, Person head)
     {
         if (head == null || head.IsGone() || head.Key != state.restoration_head_id)
@@ -168,10 +165,8 @@ public static class RestorationSystem
         EventRecorder.Record(empire, string.Format(LM.Get(headGone ? "restoration_end_death_history" : "restoration_end_history"),
             imperialName, empire.GetEmpireFullName()));
     }
-#endif
 
     // 帝制站稳：撤销本文化的"废除君主制"，共和国改回君主制，称帝的元首正式登基
-#if EC_PENDING
     private static void Succeed(Empire empire, ConstitutionalEconomyState state, Person head)
     {
         string imperialName = ImperialName(empire);
@@ -183,7 +178,6 @@ public static class RestorationSystem
         EventRecorder.Record(empire, string.Format(LM.Get("restoration_success_history"), imperialName,
             head.FullName(), culture.GetCultureTranslate(), empire.GetEmpireFullName()), head);
     }
-#endif
 
     private static void Reset(ConstitutionalEconomyState state, bool cooldown)
     {

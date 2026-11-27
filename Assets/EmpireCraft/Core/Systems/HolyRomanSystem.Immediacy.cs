@@ -28,7 +28,6 @@ public static partial class HolyRomanSystem
     private const int AuthMediatized = -3, AuthRedeemed = 3, PawnYearsLimit = 30, RedeemAuthority = 20, MediatizationLogSize = 10;
     public const string RouteDiet = "diet", RouteCourt = "court", RoutePawn = "pawn", RouteVeto = "veto";
 
-#if EC_PENDING
     private static void ImmediacyYearly(Empire empire, HolyRomanState state)
     {
         state.pawns ??= new List<PawnRecord>();
@@ -37,7 +36,6 @@ public static partial class HolyRomanSystem
         if (state.petition_at >= 0d) ResolvePetition(empire, state);
         else TryPetition(empire, state);
     }
-#endif
 
     #region 请愿与裁处
 
@@ -95,7 +93,6 @@ public static partial class HolyRomanSystem
     }
 
     // 裁处(请愿后的下一次年结)：皇帝驳回 → 法院 → 议会
-#if EC_PENDING
     private static void ResolvePetition(Empire empire, HolyRomanState state)
     {
         (Realm lord, Realm small) = PendingPetition(empire);
@@ -131,7 +128,6 @@ public static partial class HolyRomanSystem
             NoteMediatization(state, small.GetKingdomName(), lord.GetKingdomName(), RouteDiet, blocked: true);
         ClearPetition(state);
     }
-#endif
 
     // 维护帝国直属：花权威 10 驳回请愿
     private static void Veto(Empire empire, HolyRomanState state, Realm lord, Realm small)

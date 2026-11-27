@@ -97,13 +97,13 @@ public static class AnimalHusbandrySystem
     }
 
     // 牧场、屠宰场几座(纯净地图：牧村、林场村折算，见 LivelihoodSystem)
-#if EC_PENDING
     public static float Pastures(City city) =>
         LivelihoodSystem.Active ? LivelihoodSystem.Pastures(city) : CountBuildings(city, PastureType);
 
     public static float Slaughterhouses(City city) =>
         LivelihoodSystem.Active ? LivelihoodSystem.Slaughterhouses(city) : CountBuildings(city, SlaughterhouseType);
 
+#if EC_PENDING
     public static float HerdCapacity(City city) =>
         Pastures(city) * HerdPerPasture * (IsNomadic(city?.Realm) ? 2f : 1f) * (0.4f + 1.2f * Rangeland(city));
 #endif
@@ -166,7 +166,7 @@ public static class AnimalHusbandrySystem
         foreach (Cell zone in city.Zones)
         {
             if (zone?.Tiles == null) continue;
-            trees += zone.getHashset(BuildingList.Trees)?.Count ?? 0;
+            trees += zone.GetHashset(BuildingList.Trees)?.Count ?? 0;
             foreach (Cell tile in zone.Tiles)
             {
                 if (tile?.Type == null || tile.Type.Liquid) continue;
@@ -249,12 +249,12 @@ public static class AnimalHusbandrySystem
             Wanted.Clear();
             _groupCities = new List<City>(world.Cities);
             PrewarmTerrain(_groupCities, now);
-            _groupActors = world.Living.getSimpleList();
+            _groupActors = world.Living;
             _groupActorLimit = _groupActors.Count;
             _groupCityIndex = _groupActorIndex = 0;
             _pestControl = CityPopulationSystem.AbstractPopulationEnabled;
         }
-        Stopwatch watch = Stopwatch.StartNew();
+        SimWatch watch = SimWatch.StartNew();
         if (_groupCities != null)
         {
             while (_groupCityIndex < _groupCities.Count && (!_pestControl ||
@@ -303,7 +303,7 @@ public static class AnimalHusbandrySystem
     private static void GroupAnimal(Person actor)
     {
             if (actor?.Record == null || actor.IsGone() || !actor.Alive || actor.Asset == null) return;
-            if (actor.IsFavorite() || actor.isCameraFollowingUnit()) return;
+            if (actor.IsFavorite() || actor.IsCameraFollowingUnit()) return;
             Cell tile = actor.Cell;
             City owner = tile?.Zone?.City;
             if (owner == null) return;

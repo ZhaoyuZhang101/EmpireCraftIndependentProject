@@ -14,7 +14,6 @@ public static class HaremSuccessionSystem
 {
     private const float DissoluteChance = 0.12f, FatuousChance = 0.06f, MurderChance = 0.3f;
 
-#if EC_PENDING
     public static void Yearly(Empire empire)
     {
         try
@@ -70,7 +69,6 @@ public static class HaremSuccessionSystem
             LogService.LogWarning($"[EmpireCraft][后宫] 争储失败: {exception.Message}");
         }
     }
-#endif
 
     private static Person Mother(Person child) =>
         child?.GetParents()?.FirstOrDefault(parent => parent?.Record != null && !parent.IsGone() && parent.IsFemale());

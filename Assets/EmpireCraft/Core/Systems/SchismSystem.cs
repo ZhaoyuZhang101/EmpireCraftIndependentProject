@@ -97,6 +97,8 @@ public static class SchismSystem
     public static bool IsBreakaway(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone()) return false;
+        // 近代国家里割据的地方实力派(见 ModernAutonomySystem)：同样不缴税、不随征、不奉诏
+        if (ModernAutonomySystem.IsDefiant(kingdom)) return true;
         KingdomExtension.KingdomExtraData extra = kingdom.GetOrCreate();
         if (extra.schism_breakaway_at < 0d) return false;
         Empire empire = kingdom.GetEmpire();
@@ -190,7 +192,6 @@ public static class SchismSystem
     #region 每月推进
 
     // 每月(战略调度，见 EmpireCraftStrategicScheduler，挂在帝国存续整理之后)：各帝国的进程往前走一步
-#if EC_PENDING
     public static void Tick()
     {
         if (EmpireWorld.Current == null || ModClass.EMPIRE_MANAGER == null) return;
@@ -251,7 +252,6 @@ public static class SchismSystem
                 return;
         }
     }
-#endif
 
     // 名单上已不在帝国里的(覆灭、被吞、另行离开、成了中央)移出，割据标记一并清掉
     private static void Prune(Empire empire)
@@ -341,7 +341,6 @@ public static class SchismSystem
     #region 争位内战
 
     // 破局(换君类)：割据成员里最强的一家举兵争位，开争位之战(照 HolyRomanSystem.ProclaimAntiKing 的写法)
-#if EC_PENDING
     private static void Proclaim(Empire empire)
     {
         EmpireData data = empire.data;
@@ -404,7 +403,6 @@ public static class SchismSystem
         Chronicle(empire, kind, "contest", empire.GetEmpireName(), data.schism_claimant_name, claimant.GetKingdomName(),
             Title(empire, kind), war.Name);
     }
-#endif
 
     // 争位者：割据成员里国力最强的一家(要有君主、都城，没在叛乱)。汗位、雄主身后先挑君主与本朝同宗的；
     // 哈里发先挑阿拉伯政体的(能称对立哈里发)；苏丹、应仁先挑君主够格执政的(不属皇族一系的成年人，见 MilitaryRegency.CanTakeOver)
@@ -646,7 +644,6 @@ public static class SchismSystem
     #region 土崩瓦解：首义观望
 
     // 破局(土崩瓦解)：割据之省里离心最重的一省首义(ProvincialCollapseSystem.BeginRising)，其余观望
-#if EC_PENDING
     private static void BreakOutCollapse(Empire empire)
     {
         EmpireData data = empire.data;
@@ -666,7 +663,6 @@ public static class SchismSystem
                            $"其余 {watchers.Count} 处割据观望({LogNames(watchers)})，首义声势 ×1.00");
         Chronicle(empire, Collapse, "rising", first.GetKingdomFullName(), empire.GetEmpireFullName(), watchers.Count);
     }
-#endif
 
     // 一省起义(首义或响应，见 ProvincialCollapseSystem.Rise)：记下起事时的城数与都城(声势用)，移出观望名单
     public static void OnRisen(Empire empire, Realm province, int cities, City capital)

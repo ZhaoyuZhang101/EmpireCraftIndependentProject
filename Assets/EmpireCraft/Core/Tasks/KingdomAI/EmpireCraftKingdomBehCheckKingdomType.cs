@@ -258,7 +258,6 @@ public class EmpireCraftKingdomBehCheckKingdomType: GameAIKingdomBase
         }
         return true;
     }
-#if EC_PENDING
     public override BehResult Execute(Realm pKingdom)
     {
         if (pKingdom.IsGone()) return BehResult.Continue;
@@ -290,7 +289,6 @@ public class EmpireCraftKingdomBehCheckKingdomType: GameAIKingdomBase
         if (ked != null) ked.last_kingdom_status_ts = GameClock.Now;
         return BehResult.Continue;
     }
-#endif
 
     private static void SyncOffice(Realm pKingdom)
     {

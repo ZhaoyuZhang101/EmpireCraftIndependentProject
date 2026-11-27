@@ -151,7 +151,6 @@ public static class MilitaryAccessSystem
     }
 
     // 走不到的敌城：与那座城接壤、又与本方接壤的第三国，就是隔在中间的
-#if EC_PENDING
     private static void DemandFromBlocked()
     {
         var near = new Dictionary<long, HashSet<Realm>>();
@@ -173,11 +172,9 @@ public static class MilitaryAccessSystem
             }
         }
     }
-#endif
 
     // ───────── 每年 ─────────
     // 每月(军团月结开头，见 CorpsSystem.BeginMonthCycle)调一次，满十二个月结一年
-#if EC_PENDING
     public static void Monthly()
     {
         if (++_months % 12 != 0) return;
@@ -198,7 +195,6 @@ public static class MilitaryAccessSystem
             Blocked.Clear();
         }
     }
-#endif
 
     // 一方灭亡的删掉；交战、期满、交恶的作废
     private static void Expire()
@@ -228,7 +224,6 @@ public static class MilitaryAccessSystem
     }
 
     // 各国按需求向第三国借道(一国一年至多 AsksPerYear 国，穿得多的先借)；已有的约还剩 RenewYears 年以上的不再借
-#if EC_PENDING
     private static void Ask()
     {
         double now = Now();
@@ -250,10 +245,8 @@ public static class MilitaryAccessSystem
             }
         }
     }
-#endif
 
     // 主国答不答应：借道去打自己人的不许；好感加实力够 ShortScore 许短期，够 LongScore 且借道国对主国好感也够许长期
-#if EC_PENDING
     private static Term Consider(Realm host, Realm guest)
     {
         if (ShieldsEnemy(host, guest)) return Term.None;
@@ -261,10 +254,8 @@ public static class MilitaryAccessSystem
         if (score >= LongScore && Opinion(guest, host) >= LongGuestOpinion) return Term.Long;
         return score >= ShortScore ? Term.Short : Term.None;
     }
-#endif
 
     // 借道国正跟主国的盟友、姻亲、同一帝国(或并肩作战)的国家打仗
-#if EC_PENDING
     private static bool ShieldsEnemy(Realm host, Realm guest)
     {
         foreach (Realm other in Kingdoms())
@@ -274,7 +265,6 @@ public static class MilitaryAccessSystem
         }
         return false;
     }
-#endif
 
     private static float PowerBonus(Realm host, Realm guest)
     {
@@ -290,9 +280,7 @@ public static class MilitaryAccessSystem
 
     private static double Power(Realm kingdom) => kingdom.GetNationalPower();
 
-#if EC_PENDING
     private static bool Bound(Realm host, Realm other) => DiplomacyLedger.Allied(host, other) || RoyalMarriageSystem.Allied(host, other);
-#endif
 
     private static IEnumerable<Realm> Kingdoms() => EmpireWorld.Current.LiveRealms;
 

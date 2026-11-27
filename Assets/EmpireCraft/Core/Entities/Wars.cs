@@ -49,6 +49,17 @@ namespace EmpireCraft.Core
         public bool IsAttacker(Realm realm) => realm != null && Attackers.Contains(realm);
         public bool IsDefender(Realm realm) => realm != null && Defenders.Contains(realm);
         public bool HasRealm(Realm realm) => IsAttacker(realm) || IsDefender(realm);
+        // The two fight each other in this war (on opposite sides).
+        public bool IsInWarWith(Realm a, Realm b) => IsAttacker(a) && IsDefender(b) || IsDefender(a) && IsAttacker(b);
+        // A realm gives up: the main attacker's or defender's surrender ends the war for the other side, anyone else leaves.
+        public void Lost(Realm loser)
+        {
+            var world = EmpireWorld.Current;
+            if (world == null || !Alive || loser == null || !HasRealm(loser)) return;
+            if (loser == MainAttacker) WorldOps.EndWar(world, this, WarOutcome.Defenders);
+            else if (loser == MainDefender) WorldOps.EndWar(world, this, WarOutcome.Attackers);
+            else WorldOps.LeaveWar(world, this, loser);
+        }
         public Realm GetMainAttacker() => MainAttacker;
         public Realm GetMainDefender() => MainDefender;
         public List<Realm> GetAttackers() => Attackers;

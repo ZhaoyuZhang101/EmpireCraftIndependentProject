@@ -57,7 +57,6 @@ public static partial class SteppeOrderSystem
             ? LiveKingdom(state.gift_cut_from)
             : null;
 
-#if EC_PENDING
     private static void TributeYearly(List<Realm> nomads)
     {
         foreach (Realm kingdom in nomads.ToList())
@@ -68,7 +67,6 @@ public static partial class SteppeOrderSystem
             else TrySubmit(kingdom, state);
         }
     }
-#endif
 
     // 赏赐断了：不再称臣
     private static void Renounce(Realm kingdom, SteppeState state)
@@ -84,7 +82,6 @@ public static partial class SteppeOrderSystem
     }
 
     // 手头紧的游牧政权向接壤的强盛定居帝国称臣
-#if EC_PENDING
     private static void TrySubmit(Realm kingdom, SteppeState state)
     {
         if (kingdom.GetEmpire() != null || kingdom.IsEmpire() || TribalFissionService.IsTribal(kingdom) || !kingdom.HasRuler() ||
@@ -109,7 +106,6 @@ public static partial class SteppeOrderSystem
         LogService.LogInfo($"{LogTag} 朝贡换赏赐：{kingdom.GetKingdomName()}(国库压力{state.treasury:0}，草原压力{state.pressure:0})" +
                            $"向{best.GetEmpireName()}(正统{best.Legitimacy}，回赐{SteppeRules.GiftShare(best.Legitimacy, DynasticCycleSystem.InCrisis(best)):0.0}倍)称臣");
     }
-#endif
 
     // 收得了游牧朝贡、给得起赏赐的定居帝国：君主制、施行了朝贡体系、正统够、不在末世
     private static bool Suzerain(Empire empire) =>

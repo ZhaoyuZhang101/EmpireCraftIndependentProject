@@ -48,7 +48,6 @@ public static class DiplomacyActions
         Func<Realm, Realm, string> warn = null) =>
         new() { key = key, check = check, run = run, warn = warn };
 
-#if EC_PENDING
     public static readonly List<Group> Groups = new()
     {
         new Group
@@ -259,7 +258,6 @@ public static class DiplomacyActions
             }
         }
     };
-#endif
 
     private static bool Valid(Realm a, Realm b) =>
         a?.Record != null && b?.Record != null && !a.IsGone() && !b.IsGone() && a != b;
@@ -287,9 +285,7 @@ public static class DiplomacyActions
     // 通达层算好后(用户 2026-11-06 同意，见 ConnectivitySystem)另有两条路(够得着宣战的照旧可以)：结盟——焦点国派使节过去的人员往来强度
     // 不低于 diplomacy_min_strength(0.25，航海档、不要战舰)；关税同盟——两国人员往来强度(取好的一边)不低于 union_min_strength(0.4，
     // 同 AI 并入关税同盟，见 CommodityMarketSystem)
-#if EC_PENDING
     private static bool OutOfReach(Realm a, Realm b) => !_applyingScenario && !WarReach.Reachable(a, b);
-#endif
 
     private static bool ContactReach(Realm a, Realm b) => ConnectivitySystem.CanContact(a, b) == true;
 
@@ -298,13 +294,10 @@ public static class DiplomacyActions
         ConnectivitySystem.Config.union_min_strength;
 
     // 关税同盟能不能并入(外交界面市场页列可并入的市场用)
-#if EC_PENDING
     public static bool CanReachUnion(Realm kingdom, Realm leader) => !OutOfReach(kingdom, leader) || UnionReach(kingdom, leader);
-#endif
 
     // 原版 forceAlliance 只在新建同盟时返回真，并入现有同盟也返回假：以前并入成功了界面却报失败。
     // 两边各有同盟时先退出旧的，不然同时挂在两个同盟的名单里
-#if EC_PENDING
     private static string Ally(Realm a, Realm b)
     {
         Alliance own = a.GetAlliance(), theirs = b.GetAlliance();
@@ -313,10 +306,9 @@ public static class DiplomacyActions
             theirs.Leave(b);
             if (theirs.Members.Count < 2) EmpireWorld.Current.DissolveAlliance(theirs);
         }
-        EmpireWorld.Current.LiveAlliances.forceAlliance(a, b);
+        EmpireWorld.Current.ForceAlliance(a, b);
         return DiplomacyLedger.Allied(a, b) ? null : "diplomacy_reason_failed";
     }
-#endif
 
     // ───────── 借道 ─────────
     // 交战的借不了；同一帝国、并肩作战的本来就能走
@@ -339,20 +331,17 @@ public static class DiplomacyActions
     }
 
     // 宣战的软条件：AI 受它约束，上帝视角只提醒。按 WarGate.Forbidden 的顺序逐条给原因
-#if EC_PENDING
     private static string DeclareWarning(Realm a, Realm b)
     {
         string forbidden = ForbiddenReason(a, b);
         if (forbidden != null) return forbidden;
         double ended = EmpireWorld.Current.Diplomacy?.GetRelation(a, b)?.Record?.LastWarEnded ?? -1d;
         // 剧本按史实定下的宣战不看停战年限(清军入关时与明罢兵，次年南下照样开战)
-        if (!_applyingScenario && ended > 0d && GameClock.YearsSince(ended) < SimGlobals.m.minimum_years_between_wars) return "diplomacy_reason_truce";
+        if (!_applyingScenario && ended > 0d && GameClock.YearsSince(ended) < WorldRules.m.minimum_years_between_wars) return "diplomacy_reason_truce";
         return WarReach.MayDeclare(a, b, WarKinds.Normal) ? null : "diplomacy_reason_unreachable";
     }
-#endif
 
     // 不论强弱都不打的关系，与 WarGate.Forbidden 同一顺序，逐条给原因
-#if EC_PENDING
     public static string ForbiddenReason(Realm a, Realm b)
     {
         if (NationalSentimentSystem.InSameUnitedFront(a, b)) return "diplomacy_reason_united_front";
@@ -378,10 +367,9 @@ public static class DiplomacyActions
 
     internal static void EndWars(Realm a, Realm b)
     {
-        foreach (War war in EmpireWorld.Current.LiveWars.Where(war => war != null && !war.HasEnded() && war.isInWarWith(a, b)).ToList())
+        foreach (War war in EmpireWorld.Current.LiveWars.Where(war => war != null && !war.HasEnded() && war.IsInWarWith(a, b)).ToList())
             EmpireWorld.Current.EndWar(war, WarOutcome.Peace);
     }
-#endif
 
     // ───────── 宗属 ─────────
     private static bool TributaryOf(Realm subject, Realm lord)
@@ -399,7 +387,6 @@ public static class DiplomacyActions
         return FeudalVassalService.IsInChain(a, b) ? "diplomacy_reason_chain" : null;
     }
 
-#if EC_PENDING
     private static string Colonize(Realm a, Realm b, bool company)
     {
         if (FeudalVassalService.GetOverlord(b) != null) FeudalVassalService.Break(b);
@@ -408,7 +395,6 @@ public static class DiplomacyActions
         ColonySystem.Annex(a, b, company);
         return ColonySystem.MetropoleOf(b) == a ? null : "diplomacy_reason_failed";
     }
-#endif
 
     // ───────── 好感修正 ─────────
     // 好感项 opinion_god_favor(见 EmpireCraftOpinionAddition)：main 对 target 的神力修正
@@ -427,7 +413,6 @@ public static class DiplomacyActions
     private const int HistoryOpinionDefault = 30, HistoryOpinionMax = 60;
     private const float HistoryFadeYears = 60f;
 
-#if EC_PENDING
     public static string ApplyScenario(string kind, Realm a, Realm b, WarGoal goal = WarGoal.夺城, int value = 0, City aim = null)
     {
         if (!Valid(a, b)) return "diplomacy_reason_invalid";
@@ -464,7 +449,6 @@ public static class DiplomacyActions
             WarReach.ScenarioDeclaring = false;
         }
     }
-#endif
 
     // 旧谊、宿怨：开局的值从开局起 HistoryFadeYears 年里线性淡去
     public static int HistoryOpinion(Realm main, Realm target)

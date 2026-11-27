@@ -307,7 +307,6 @@ public static partial class NomadRaidSystem
         return state.last_raid_at < 0d || YearsSince(state.last_raid_at) >= RaidCooldownYears;
     }
 
-#if EC_PENDING
     private static void Muster(Realm leader, HashSet<Realm> assigned)
     {
         List<Realm> members = IsNomad(leader) ? Gather(leader, assigned) : new List<Realm> { leader };
@@ -322,7 +321,6 @@ public static partial class NomadRaidSystem
         foreach (Realm member in members) assigned.Add(member);
         Launch(members, target, score);
     }
-#endif
 
     // 召集：接壤的游牧政权(连同本汗国的兀鲁思)按自身压力、亲疏、强弱掷入盟；新入盟的接壤之部也一并召集
     private static List<Realm> Gather(Realm leader, HashSet<Realm> assigned)
@@ -381,16 +379,13 @@ public static partial class NomadRaidSystem
     }
 
     // 盟里各部接壤的定居之国里挑一家
-#if EC_PENDING
     private static (Realm target, double score) PickTarget(Realm leader, List<Realm> members)
     {
         List<(Realm target, double score)> ranked = RankTargets(leader, members);
         return ranked.Count > 0 ? ranked[0] : ((Realm)null, 0d);
     }
-#endif
 
     // 可劫的各家连同分数，从高到低(一样高的照遇到的先后；分数不过零的不算)
-#if EC_PENDING
     private static List<(Realm target, double score)> RankTargets(Realm leader, List<Realm> members)
     {
         double ours = members.Sum(PowerOf);
@@ -410,10 +405,8 @@ public static partial class NomadRaidSystem
                 }
         return found.OrderByDescending(item => item.score).ToList();
     }
-#endif
 
     // 可劫：定居之国，不在盟里、不与盟里同一帝国，五年内没遭劫，过得了开战闸门，没给盟里送岁币，没在被别家劫
-#if EC_PENDING
     private static bool Raidable(Realm leader, List<Realm> members, Realm target)
     {
         if (!Alive(target) || members.Contains(target) || IsNomad(ModRealm(target))) return false;
@@ -433,17 +426,14 @@ public static partial class NomadRaidSystem
         // 开战的是盟主：目标只挨着盟里远处的某部、盟主够不着的，开战会被远战闸拦下(见 WarReach)，劫掠白白作罢
         return WarGate.CanDeclare(leader, target) && WarReach.Reachable(leader, target);
     }
-#endif
 
     // 财富：国库 + 存粮 + 户数(同一量级的粗算)
-#if EC_PENDING
     private static double Wealth(Realm target)
     {
-        double food = target.Cities.Where(city => city?.Record != null && !city.IsGone()).Sum(city => (double)city.getTotalFood());
-        int households = CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.Households(target) : target.PopulationCount();
+        double food = target.Cities.Where(city => city?.Record != null && !city.IsGone()).Sum(city => (double)city.GetTotalFood());
+        int households = CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.Households(target) : target.People.Count;
         return Math.Max(0d, target.GetMoney()) + food + households;
     }
-#endif
 
     // 断了盟里哪部的岁币、互市的那家
     private static bool Grievance(List<Realm> members, Realm target)
@@ -462,7 +452,6 @@ public static partial class NomadRaidSystem
 
     #region 开战
 
-#if EC_PENDING
     private static void Launch(List<Realm> members, Realm target, double score)
     {
         Realm leader = members[0];
@@ -511,7 +500,6 @@ public static partial class NomadRaidSystem
                            (league ? $"，应召{others}" : "") + $"，目标{state.target_name}(打分{score:0}，关隘之固{state.defense:0.00})，" +
                            $"要抢{state.goal:0.#}城，兵{state.troops.Values.Sum():0}");
     }
-#endif
 
     // 记一笔：世界日志一条，涉及各国所在的帝国史书各一条
     private static void Chronicle(string text, IEnumerable<Realm> involved)

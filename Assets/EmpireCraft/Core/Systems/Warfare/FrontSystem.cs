@@ -160,7 +160,6 @@ public static partial class FrontSystem
     }
 
     // 本月的名单换上；变了的几方各城重画
-#if EC_PENDING
     private static void SwapFronts()
     {
         var changed = new HashSet<long>();
@@ -172,7 +171,6 @@ public static partial class FrontSystem
         _frontsNext.Clear();
         if (changed.Count > 0) SmoothBorders.RefreshFronts(changed);
     }
-#endif
 
     public static bool Friendly(Realm a, Realm b) =>
         a?.Record != null && b?.Record != null && (a == b || !Hostile(a, b) && (ModRealm(a) == ModRealm(b) || a.IsOnSameSide(b)));
@@ -284,7 +282,6 @@ public static partial class FrontSystem
         return SectorSignatures[side] = key.ToString();
     }
 
-#if EC_PENDING
     private static List<Sector> CachedSectors(Realm side)
     {
         string signature = SectorSignature(side);
@@ -299,7 +296,6 @@ public static partial class FrontSystem
         SectorCache[signature] = (land, sectors.Count > land.Count);
         return sectors;
     }
-#endif
 
     // 本方(连同所在帝国各成员国)的城
     private static HashSet<City> HomeCities(Realm side)
@@ -317,7 +313,6 @@ public static partial class FrontSystem
     }
 
     // 够得着这座城：本方的城、与本方的城接壤、同一块陆地上离本方某座城不远，或隔海不远
-#if EC_PENDING
     private static bool InReach(Realm side, City city, HashSet<City> home)
     {
         if (home.Contains(city)) return true;
@@ -344,7 +339,6 @@ public static partial class FrontSystem
         }
         return StraitReach.Reaches(side, city);
     }
-#endif
 
     // 陆路：从这座城往外，只经过能走的地块(见 Passable)找得到本方控制的地块；按(本方帝国, 城)缓存三个月。
     // 以前每月清空，每月月初各国对近处每座敌城重新广度搜索(找不到的要搜满 6000 块)；
@@ -422,7 +416,6 @@ public static partial class FrontSystem
     }
 
     // 陆上战线段：敌城(连同己方被占去地块要收复的城)里够得着的
-#if EC_PENDING
     private static List<Sector> LandSectors(Realm side)
     {
         var sectors = new Dictionary<City, Sector>();
@@ -456,10 +449,8 @@ public static partial class FrontSystem
                 if (city?.GetOrCreate().OccupiedStatus?.Count > 0) Collect(city);
         return sectors.Values.ToList();
     }
-#endif
 
     // 陆上战线段之外，按本国都城另开的登陆战线；没有登陆时原样返回陆上那份
-#if EC_PENDING
     private static List<Sector> WithLandings(Realm side, List<Sector> land)
     {
         Cell origin = side.Capital?.SeatCell();
@@ -501,7 +492,6 @@ public static partial class FrontSystem
         }
         return fronts == 0 ? land : sectors.Values.ToList();
     }
-#endif
 
     // 每月至多另开几路登陆；每个敌国至多试几座跨海的城
     private const int MaxLandingFronts = 2, MaxLandingTries = 8;
@@ -511,7 +501,6 @@ public static partial class FrontSystem
     // 与都城同在一片陆地、却隔着第三国走不过去的城(只因水师辐射够得着才算够得着，见 InReach)也按跨海算：要有海滩，
     // 只从临海的地块登陆，同一片陆地上的军也坐船沿海绕过去(见 FrontSystem.Landing)；以前这种城当作陆路，军从第三国的地上穿过去。
     // wanted：第一座够得着的跨海的城(航线不通也算，舰队据此去打通航线)；route：选中那座城的航线经过几个海区(不跨海为 0)
-#if EC_PENDING
     private static Sector LandingSector(Realm side, Realm hostile, HashSet<City> home, Cell origin, out City wanted,
         out int route)
     {
@@ -544,7 +533,6 @@ public static partial class FrontSystem
         }
         return null;
     }
-#endif
 
     #endregion
 
@@ -561,7 +549,6 @@ public static partial class FrontSystem
     private static int _assignFrame = -1;
 
     // 一帧里结完整个月
-#if EC_PENDING
     public static void MonthTick(double now)
     {
         BeginMonth(now);
@@ -614,10 +601,8 @@ public static partial class FrontSystem
         SectorSignatures.Clear();
         _frontsNext.Clear();
     }
-#endif
 
     // upcoming：队里排在后面、这个月还要分派的国(多核时一起算陆上战线段，见 FrontSystem.Parallel)
-#if EC_PENDING
     public static void AssignMonth(Realm kingdom, IEnumerable<Realm> upcoming = null, int maxBatch = int.MaxValue)
     {
         List<CorpsData> list = kingdom?.Record == null || kingdom.IsGone() ? null : kingdom.GetOrCreate().corps;
@@ -669,7 +654,6 @@ public static partial class FrontSystem
         MonthPressure.Clear();
         MonthLandingSectors.Clear();
     }
-#endif
 
     // 过期的交战：一个多月没再打、时间倒退(读了更早的存档)、城已不在了
     private static void PruneBattles(double now)
@@ -680,7 +664,6 @@ public static partial class FrontSystem
             Battles.Remove(id);
     }
 
-#if EC_PENDING
     private static void Assign(Realm kingdom, List<CorpsData> list,
         Dictionary<long, List<(Realm attacker, float strength)>> pressure, Dictionary<long, bool> landingSectors)
     {
@@ -987,7 +970,6 @@ public static partial class FrontSystem
             corps.target_zone_id = StationZone(corps, reserveStations);
         }
     }
-#endif
 
     // 这支军从所在地块走陆路绕得过、或沿路穿得过本方过不去的无人区到得了 goal(见 WildernessPassage.Reachable；隔海的不归这里管)
     private static bool Walkable(Realm kingdom, CorpsData corps, Cell goal) =>
@@ -998,7 +980,6 @@ public static partial class FrontSystem
     private static readonly Dictionary<Sector, float> SectorDefense = new();
 
     // strength：这支军能投到这一段的兵力(跨海时按装得上船的算，见 Shippable)
-#if EC_PENDING
     private static float Score(Realm kingdom, CorpsData corps, Sector sector, Dictionary<Sector, float> attackOn, float strength)
     {
         attackOn.TryGetValue(sector, out float committed);
@@ -1020,7 +1001,6 @@ public static partial class FrontSystem
         float weather = sector.Targets.Count == 0 ? 0f : WarWeather.Harshness(TerrainSystem.Of(sector.Targets[0])) * SeasonAvoid;
         return Mathf.Min(odds, 3f) + capital + spread + recapture + pocket - weather - distance * 0.03f;
     }
-#endif
 
     private const float SeasonAvoid = 0.4f;
 
@@ -1090,7 +1070,6 @@ public static partial class FrontSystem
 
     // 预备军分驻本国各城：都城与边境的城在前(邻国威胁大的先、人多的先)，各军按编号依次轮着分，
     // 一城驻满一支才轮到下一城；义军留在本城。返回 军号 → 驻防地块
-#if EC_PENDING
     private static Dictionary<long, int> Stations(Realm kingdom, List<CorpsData> corps)
     {
         var result = new Dictionary<long, int>();
@@ -1135,7 +1114,6 @@ public static partial class FrontSystem
         Garrison(kingdom, corps, gravest, result);
         return result;
     }
-#endif
 
     // 这座城挨着的外国里威胁最大的那一家(见 BorderThreat)；不挨着外国为 -1
     private static float CityThreat(Realm kingdom, City city)
@@ -1159,7 +1137,6 @@ public static partial class FrontSystem
     private const double GuestCacheSeconds = 60d;
     private static readonly Dictionary<long, (double at, long city)> GuestPosts = new();
 
-#if EC_PENDING
     private static City GuestPost(Realm kingdom)
     {
         Empire empire = kingdom.GetEmpire();
@@ -1209,11 +1186,9 @@ public static partial class FrontSystem
         foreach (CorpsData entry in movable.Skip(movable.Count - send))
             if (Walkable(kingdom, entry, station)) result[entry.id] = station.Index;
     }
-#endif
 
     // 本国的城连成几片：经本方、同一势力和并肩作战的友邦、许本方借道的国家的城连着，或隔着走得通的无人区小径连着；
     // 隔第三国的飞地、隔着本方过不去的无人区的城各成一片。返回 城编号 → 片号
-#if EC_PENDING
     private static Dictionary<long, int> StationPieces(Realm kingdom, List<City> cities)
     {
         var pieces = new Dictionary<long, int>();
@@ -1247,7 +1222,6 @@ public static partial class FrontSystem
         }
         return pieces;
     }
-#endif
 
     // 隔着过不去的无人区回不了驻地那一片的军：就近驻到走得到的本国的城，一座也没有就原地驻防，不再对着无人区干等、反复寻路
     private static int NearestStation(Realm kingdom, CorpsData corps, List<City> cities)
@@ -1350,7 +1324,6 @@ public static partial class FrontSystem
 
     // 纯净地图模式：人物、载具都是数据，不靠 WarBox 的实体载具，火力按这支军的兵种(装备)算(见 CorpsArmSystem.Power)；
     // 其余模式照旧按本国载具数
-#if EC_PENDING
     internal static float Firepower(Realm kingdom, CorpsData corps) =>
         (PureMapMode.Enabled ? CorpsArmSystem.Power(CorpsArmSystem.Of(corps)) : Firepower(kingdom)) *
         // 制空权与末代的军事精进(见 AirPowerSystem)
@@ -1360,14 +1333,13 @@ public static partial class FrontSystem
     {
         if (kingdom == null) return 1f;
         if (FirepowerCache.TryGetValue(kingdom.Key, out float value)) return value;
-        int vehicles = (kingdom.PopulationCount()(actor => actor?.data != null && !actor.IsGone() && actor.Alive &&
+        int vehicles = (kingdom.People?.Count(actor => actor?.Record != null && !actor.IsGone() && actor.Alive &&
                                                       CityPopulationSystem.IsVehicle(actor)) ?? 0) +
                        WarBoxCompatibility.VirtualVehicles(kingdom);
         value = 1f + Mathf.Min(0.6f, vehicles * 0.04f);
         FirepowerCache[kingdom.Key] = value;
         return value;
     }
-#endif
 
     // 团练：没有军驻守时，本城百姓的抵抗(人口的 2%，组织涣散只算六成)；民心归附时不抵抗
     private static float Militia(City city, Realm attacker)
@@ -1411,7 +1383,6 @@ public static partial class FrontSystem
         return false;
     }
 
-#if EC_PENDING
     private static void Resolve(double now, Dictionary<long, bool> landingSectors)
     {
         FirepowerCache.Clear();
@@ -1434,7 +1405,6 @@ public static partial class FrontSystem
         }
         EndMonthPushes();
     }
-#endif
 
     // 集结完再打(群友 2026-11-22 "集结完毕方可进攻""大国军队还在赶路呢")：以前各军走到战线两块地以内就各自开打，
     // 大国的军从各地陆续赶到，先到的一支撞上守方集结好的大军，一支一支送。现在攻方派到这一段的军(连在路上的)
@@ -1483,7 +1453,6 @@ public static partial class FrontSystem
 
     private const float VanguardWall = 1.15f, VanguardHarass = 3f, VanguardLoss = 2f;
 
-#if EC_PENDING
     private static void ResolveCity(City city, List<(Realm kingdom, CorpsData corps)> group, double now, bool landing)
     {
         Realm owner = city.Realm;
@@ -1645,7 +1614,6 @@ public static partial class FrontSystem
         else if (ratio <= 0.4f && standing)
             FamousTalentSystem.OnBattle(holders, city.GetCityName(), holdStrength, attackStrength, false, true);
     }
-#endif
 
     // 攻方下一块要推进的地(与 Advance 的挑法一致)：交战地形按它
     // 推进加速：开国雄主(含中兴雄主) ×2；开国、中兴之君在位的帝国(核心或成员)打不属于任何帝国的一般国家，
@@ -1668,7 +1636,6 @@ public static partial class FrontSystem
     }
 
     // 先挑攻方军团挨着的(Advance 只推这些)，城池放后，不隔城墙的在先(见 FrontSystem.Wall)
-#if EC_PENDING
     private static Cell FrontZone(City city, Realm attacker, List<CorpsData> spearheads)
     {
         List<Cell> targets = AttackZones(attacker, city, spearheads);
@@ -1680,10 +1647,8 @@ public static partial class FrontSystem
             .ThenByDescending(candidate => (candidate.Neighbours ?? Array.Empty<Cell>())
                 .Count(neighbour => Friendly(attacker, Controller(neighbour)))).FirstOrDefault() ?? center;
     }
-#endif
 
     // 攻方占领紧挨着进攻军团的地块(部队没到的地方不推进)；占下后离它最近的进攻军团进驻。守军还在时留下城中最后一块
-#if EC_PENDING
     private static int Advance(City city, Realm attacker, int count, bool defended, List<CorpsData> spearheads)
     {
         Realm owner = city.Realm;
@@ -1724,20 +1689,16 @@ public static partial class FrontSystem
         SweepImpassable(city, attacker, owner);
         return taken;
     }
-#endif
 
     // 地块紧挨着(或就是)其中一支军团的所在地
     private static bool Beside(IEnumerable<CorpsData> corps, Cell zone) =>
         zone != null && corps != null && corps.Any(entry => CorpsSystem.ZoneDistance(CorpsSystem.Zone(entry), zone) <= 1f);
 
     // 挑推进的地块：守军还在时城池(城区那片)放到最后，守军溃散后先取城池
-#if EC_PENDING
     private static int CenterOrder(City city, Cell candidate, Cell center, bool defended) =>
         !CityDistricts.SameDistrict(city, candidate, center) ? 1 : defended ? 2 : 0;
-#endif
 
     // 守军还在、城外还有别的片没打下：城区那片(主城池)先不打，只打城外
-#if EC_PENDING
     private static List<Cell> Outskirts(City city, Realm attacker, List<Cell> targets, Cell center, bool defended)
     {
         if (!defended || center == null) return targets;
@@ -1745,10 +1706,8 @@ public static partial class FrontSystem
                                                   !TerrainSystem.Impassable(zone) && !CityDistricts.SameDistrict(city, zone, center));
         return outsideLeft ? targets.Where(zone => !CityDistricts.SameDistrict(city, zone, center)).ToList() : targets;
     }
-#endif
 
     // 拿下一块地：它那一片里还不归攻方的地块一并占下(平滑国界下直接翻过去)
-#if EC_PENDING
     private static void OccupyDistrict(City city, Realm attacker, Realm owner, Cell taken)
     {
         Realm occupier = Belligerent(attacker, owner);
@@ -1760,10 +1719,8 @@ public static partial class FrontSystem
             if (city.AddOccupiedTileZone(occupier, part, landing: true) && SmoothActive) SmoothBorders.Settle(part);
         }
     }
-#endif
 
     // 收复一块地：它那一片里被敌军占着的一并收回；free(没有攻方来争、不打仗收复)时攻方军团看守着的不收(见 Guarded)
-#if EC_PENDING
     private static void RetakeDistrict(City city, Realm side, Cell retaken, bool free = false)
     {
         foreach (Cell part in CityDistricts.ZonesOf(city, retaken))
@@ -1773,12 +1730,10 @@ public static partial class FrontSystem
             if (city.RemoveOccupiedTileZone(occupier, part) && SmoothActive) SmoothBorders.Settle(part);
         }
     }
-#endif
 
     // 占下一块地(CityExtension.AddOccupiedTileZone 每次都调)：是主城池(城区那片，没有村镇的城就是城心那块)就举城投降
     [ThreadStatic] private static bool _surrendering;
 
-#if EC_PENDING
     public static void OnZoneTaken(City city, Realm occupier, Cell zone)
     {
         Realm owner = city?.Realm;
@@ -1786,10 +1741,8 @@ public static partial class FrontSystem
         if (!CityDistricts.SameDistrict(city, zone, city.SeatCell()?.Zone)) return;
         Surrender(city, occupier, owner);
     }
-#endif
 
     // 主城池陷落：整个行政区投降，余下的地块(连同各村镇)一并归攻方(平滑国界下各块直接翻过去)
-#if EC_PENDING
     private static void Surrender(City city, Realm attacker, Realm owner)
     {
         if (city?.Zones == null || city.Realm != owner || _surrendering) return;
@@ -1817,10 +1770,8 @@ public static partial class FrontSystem
             RuralSettlementSystem.Sparing = sparing;
         }
     }
-#endif
 
     // 城里能走到的地都占了，剩下的高山随城陷落(军团进不去，否则这座城永远打不下)
-#if EC_PENDING
     private static void SweepImpassable(City city, Realm attacker, Realm owner)
     {
         if (city.Realm != owner || city.Zones == null) return;
@@ -1835,11 +1786,9 @@ public static partial class FrontSystem
             if (!city.AddOccupiedTileZone(occupier, zone, landing: true)) break;
         }
     }
-#endif
 
     // 守方(或收复的一方)夺回本城被敌军占去、与己方相连、紧挨着己方军团的地块
     // free：没有攻方来争、不打仗收复(攻方军团看守着的地不收，见 Guarded)
-#if EC_PENDING
     private static int Retake(City city, Realm side, int count, IEnumerable<CorpsData> near, bool free = false)
     {
         int retaken = 0;
@@ -1858,7 +1807,6 @@ public static partial class FrontSystem
         }
         return retaken;
     }
-#endif
 
     // landing：渡海登陆的一仗，标记画在攻方抢滩的那块地(at，见 FrontZone)；不然画在攻方能下手的第一块地
     private static void Record(City city, Realm attacker, Realm defender, float ratio, float attack, float defend,

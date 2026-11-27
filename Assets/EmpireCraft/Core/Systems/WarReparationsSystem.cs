@@ -57,7 +57,6 @@ public static class WarReparationsSystem
     }
 
     // 每月一次(挂 CityPatch 的世界扫描轮转)
-#if EC_PENDING
     public static void TryMonthlyScan()
     {
         if (EmpireWorld.Current?.LiveRealms == null || ModClass.IS_CLEAR) return;
@@ -79,7 +78,6 @@ public static class WarReparationsSystem
             }
         }
     }
-#endif
 
     private static void Service(Realm debtor, List<WarReparation> reparations)
     {

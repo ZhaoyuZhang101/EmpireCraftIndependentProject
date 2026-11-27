@@ -59,7 +59,7 @@ public static class DecisionSystem
     private static readonly List<DecisionCase> Pending = new();
     private static readonly Dictionary<long, double> NextConsider = new();
     private static readonly List<Person> Pool = new();
-    private static readonly Stopwatch Clock = new();
+    private static readonly SimWatch Clock = new();
     private static bool _adopted, _restoring;
     private static int _month = -1;
 
@@ -85,21 +85,16 @@ public static class DecisionSystem
         _queueCursor = _readyCursor = 0;
     }
 
-#if EC_PENDING
     public static bool Manages(PlotKind asset) => asset != null && Adopt() && Defs.ContainsKey(asset.Id);
-#endif
     public static bool Manages(Plot plot) => plot?.data != null && Cases.ContainsKey(plot.data.id);
-#if EC_PENDING
     public static PlotKind Def(string id) => id != null && Adopt() && Defs.TryGetValue(id, out PlotKind asset) ? asset : null;
-#endif
 
     // 接手模组的决议：原版人物 AI(try_new_plot)从 basic_plots 里挑谋划，把模组的拿出来，改由这里发起；
     // 定义里 is_basic_plot 的由人物自行发起，其余只由别处点名发起
-#if EC_PENDING
     private static bool Adopt()
     {
         if (_adopted) return true;
-        PlotsLibrary library = AssetManager.plots_library;
+        PlotsLibrary library = PlotKinds.Library;
         if (library == null || library.list.Count == 0) return false;
         _adopted = true;
         foreach (PlotKind asset in library.list)
@@ -109,14 +104,12 @@ public static class DecisionSystem
             if (!asset.is_basic_plot) continue;
             Initiable.Add(asset);
         }
-        library.basic_plots.RemoveAll(asset => asset != null && Defs.ContainsKey(asset.id));
+        library.basic_plots.RemoveAll(asset => asset != null && Defs.ContainsKey(asset.Id));
         LogService.LogInfo($"[EmpireCraft][决议] 接手 {Defs.Count} 项决议，其中 {Initiable.Count} 项由人物自行发起");
         return true;
     }
-#endif
 
     // ───────── 立项(原版 newPlot 之后，见 DecisionPatch) ─────────
-#if EC_PENDING
     public static void OnPlotCreated(Plot plot, Person author, PlotKind asset)
     {
         if (_restoring || plot?.data == null || author == null || !Manages(asset)) return;
@@ -128,7 +121,6 @@ public static class DecisionSystem
         });
         Started++;
     }
-#endif
 
     private static void Track(DecisionCase item)
     {
@@ -137,7 +129,6 @@ public static class DecisionSystem
     }
 
     // ───────── 每帧(战略调度经 FrameJobs 调来) ─────────
-#if EC_PENDING
     public static void Tick()
     {
         if (EmpireWorld.Current?.Plots == null || !Adopt()) return;
@@ -154,10 +145,8 @@ public static class DecisionSystem
         using (FrameProfiler.Measure("决议·推进")) Advance();
         using (FrameProfiler.Measure("决议·发起")) Dispatch();
     }
-#endif
 
     // 推进到期的决议(每件每月一回，各自的时刻错开)：轮着看，每帧限量限时
-#if EC_PENDING
     private static void Advance()
     {
         if (Queue.Count == 0) return;
@@ -194,23 +183,21 @@ public static class DecisionSystem
             else _queueCursor++;
         }
     }
-#endif
 
     // 推进一件：返回 true = 已了结(办成或作罢)
-#if EC_PENDING
     private static bool Step(DecisionCase item, Plot plot, double now)
     {
         PlotKind def = Def(item.def);
         Person author = plot?.GetAuthor();
-        if (def == null || plot?.data == null || !plot.IsActive() || author == null || !author.Alive || author.plot != plot)
+        if (def == null || plot?.data == null || !plot.IsActive() || author == null || !author.Alive || author.Plot != plot)
         {
             Dropped++;
             Cases.Remove(item.plot);
             // 牌子还挂着(出错时被关掉的、发起人换了别的)：摘下来
-            if (plot?.data != null && plot.getState() == PlotState.Active) plot.finishPlot(PlotState.Cancelled, author);
+            if (plot?.data != null && plot.GetState() == PlotState.Active) plot.Finish(PlotState.Cancelled, author);
             return true;
         }
-        if (def.check_should_continue != null && !def.check_should_continue(author) || !plot.checkInitiatorAndTargets())
+        if (def.check_should_continue != null && !def.check_should_continue(author) || !plot.TargetsStillThere())
             return Close(item, plot, finished: false);
         item.progress = Math.Min(item.effort, item.progress + Pace(author));
         Show(item, plot, now);
@@ -223,7 +210,6 @@ public static class DecisionSystem
         if (def.action != null && def.action(author)) def.post_action?.Invoke(author);
         return Close(item, plot, finished: true);
     }
-#endif
 
     private static float Talent(Person actor) =>
         Math.Max(0, Math.Min(30, Math.Max(Math.Max(actor.Intelligence, actor.Stewardship), Math.Max(actor.Diplomacy, actor.Warfare))));
@@ -234,12 +220,11 @@ public static class DecisionSystem
         Math.Max(LapseMinMonths, (int)Math.Ceiling(item.effort / Pace(author) * LapseFactor));
 
     // 牌子上的进度(游戏里谋划的进度条、别的系统查"进度满了没有")
-#if EC_PENDING
     private static void Show(DecisionCase item, Plot plot, double now)
     {
         plot.data.progress_current = item.progress;
-        plot.progress_target = item.progress;
-        plot.last_update_progress = now;
+        plot.ProgressShown = item.progress;
+        plot.LastProgressAt = now;
     }
 
     private static bool Close(DecisionCase item, Plot plot, bool finished)
@@ -253,10 +238,9 @@ public static class DecisionSystem
             FinishedBy[item.def] = FinishedBy.TryGetValue(item.def, out int done) ? done + 1 : 1;
         }
         else Lapsed++;
-        if (plot?.data != null && plot.IsActive()) plot.finishPlot(finished ? PlotState.Finished : PlotState.Cancelled, author);
+        if (plot?.data != null && plot.IsActive()) plot.Finish(finished ? PlotState.Finished : PlotState.Cancelled, author);
         return true;
     }
-#endif
 
     // ───────── 发起：天平(见 DecisionScale) ─────────
     // 资望：按名望折算的档次，定义里的 min_level 当资望档用(游戏存档里君主名望中位约 220、四分之三位约 340)
@@ -292,7 +276,6 @@ public static class DecisionSystem
     public static Council LastCouncilOf(Realm realm) => realm?.Record != null && LastCouncil.TryGetValue(realm.Key, out Council council) ? council : null;
 
     // 想发起决议的人：各国君主、各城城主、各族族长(每月重排一回)
-#if EC_PENDING
     private static void RebuildPool()
     {
         Pool.Clear();
@@ -303,7 +286,7 @@ public static class DecisionSystem
         }
         foreach (Realm kingdom in EmpireWorld.Current.LiveRealms) Add(kingdom?.Ruler);
         foreach (City city in EmpireWorld.Current.Cities) Add(city?.Leader);
-        foreach (Clan clan in EmpireWorld.Current.Clans) Add(clan?.getChief());
+        foreach (Clan clan in EmpireWorld.Current.Clans) Add(clan?.GetChief());
         if (NextConsider.Count > Pool.Count * 4 + 500) NextConsider.Clear();
         if (Unfit.Count > Pool.Count * 2 + 500) Unfit.Clear();
     }
@@ -327,10 +310,8 @@ public static class DecisionSystem
             if (def.can_be_done_by_clan_member || def.can_be_done_by_leader) ChiefDefInfos.Add(info);
         }
     }
-#endif
 
     // 世界法则每月看一回(过秤时只读这一份)
-#if EC_PENDING
     private static void RefreshLaws()
     {
         bool diplomacy = WorldLaws.Diplomacy?.IsEnabled() != false;
@@ -341,10 +322,8 @@ public static class DecisionSystem
             info.lawsAllow = (!def.requires_diplomacy || diplomacy) && (!def.requires_rebellion || rebellion);
         }
     }
-#endif
 
     // 月初：本月该想事的人取快照(主线程)，交给别的核过秤，过完的排进 ReadyList 等到时候再办
-#if EC_PENDING
     private static void Plan()
     {
         if (Initiable.Count == 0 || Pool.Count == 0) return;
@@ -361,9 +340,9 @@ public static class DecisionSystem
         {
             foreach (Person actor in Pool)
             {
-                if (actor?.Record == null || !actor.Alive || actor.plot != null) continue;
+                if (actor?.Record == null || !actor.Alive || actor.Plot != null) continue;
                 Realm realm = actor.Realm;
-                if (realm?.Record == null || realm.IsGone() || !actor.isKingdomCiv()) continue;
+                if (realm?.Record == null || realm.IsGone() || !actor.IsKingdomCiv()) continue;
                 long id = actor.Key;
                 bool isOfficial = actor.IsRuler() || actor.IsCityLeader();
                 double interval = (isOfficial ? ConsiderMonths : ChiefConsiderMonths) * month;
@@ -396,7 +375,6 @@ public static class DecisionSystem
         _readyCursor = 0;
         ReadyList.Sort((a, b) => a.due.CompareTo(b.due));
     }
-#endif
 
     private static Dictionary<long, int> BusyByRealm()
     {
@@ -410,7 +388,6 @@ public static class DecisionSystem
         return busy;
     }
 
-#if EC_PENDING
     private static DecisionScale.Snapshot Take(Person actor, Realm realm, double now, double month,
         Dictionary<long, DecisionScale.Snapshot> realms, Dictionary<long, int> busy)
     {
@@ -422,7 +399,7 @@ public static class DecisionSystem
             LastDone.TryGetValue(realmId, out var done);
             realms[realmId] = shared = new DecisionScale.Snapshot
             {
-                realm = realmId, realmRenown = realm.getRenown(), treasury = StateSettlementSystem.DiscretionaryFunds(realm),
+                realm = realmId, realmRenown = realm.GetRenown(), treasury = StateSettlementSystem.DiscretionaryFunds(realm),
                 wars = realm.GetWarsCached(false).Count, busy = busy.TryGetValue(realmId, out int count) ? count : 0,
                 authority = Math.Max(0f, Math.Min(1f, authority)), lastByDef = done.byDef, lastByKind = done.byKind
             };
@@ -438,10 +415,8 @@ public static class DecisionSystem
             unfitByDef = Unfit.TryGetValue(actor.Key, out double[] unfit) ? unfit : null
         };
     }
-#endif
 
     // 平时每帧：到了时候的，按候选从高到低跑决议自己的条件(读活的世界，只能在主线程)，过了且付得起就发起
-#if EC_PENDING
     private static void Dispatch()
     {
         if (ReadyList.Count == 0) return;
@@ -464,7 +439,7 @@ public static class DecisionSystem
             // 积了两个月还没轮到的：不办了，下回到时候重新过秤
             if (ready.due < stale) continue;
             Person actor = EmpireWorld.Current.PersonByKey(ready.actor);
-            if (actor?.Record == null || !actor.Alive || actor.plot != null || actor.Realm?.Record == null || actor.Realm.IsGone()) continue;
+            if (actor?.Record == null || !actor.Alive || actor.Plot != null || actor.Realm?.Record == null || actor.Realm.IsGone()) continue;
             if (Steered != null && Steered(actor)) continue;
             try
             {
@@ -507,10 +482,10 @@ public static class DecisionSystem
                 bool started = def.try_to_start_advanced != null
                     ? def.try_to_start_advanced(actor, def, true)
                     : EmpireWorld.Current.Plots.newPlot(actor, def, true) != null;
-                if (started && actor.plot != null)
+                if (started && actor.Plot != null)
                 {
                     Pay(actor, def.money_cost);
-                    if (actor.plot.data != null && Cases.TryGetValue(actor.plot.data.id, out DecisionCase item))
+                    if (actor.Plot.data != null && Cases.TryGetValue(actor.Plot.data.id, out DecisionCase item))
                     {
                         item.ratio = option.ratio;
                         item.weights = option.weights;
@@ -524,7 +499,6 @@ public static class DecisionSystem
         }
         LastCouncil[actor.Realm.Key] = council;
     }
-#endif
 
     private static void NoteUnfit(Person actor, int def)
     {
@@ -561,14 +535,12 @@ public static class DecisionSystem
     private static bool CanPay(Person actor, int cost) =>
         cost <= 0 || actor.Money >= cost || Public(actor) && StateSettlementSystem.DiscretionaryFunds(actor.Realm) >= cost;
 
-#if EC_PENDING
     private static void Pay(Person actor, int cost)
     {
         if (cost <= 0) return;
-        if (actor.Money >= cost) actor.spendMoney(cost);
+        if (actor.Money >= cost) actor.SpendMoney(cost);
         else if (Public(actor)) TreasurySystem.TrySpend(actor.Realm, cost, TreasuryCategory.Administration);
     }
-#endif
 
     // 在办的决议(天平页看)
     public static IEnumerable<DecisionCase> CasesOf(Realm realm)
@@ -608,7 +580,6 @@ public static class DecisionSystem
     public static City PendingTarget { get; private set; }
 
     // 这个人此刻能议的事：门槛过了的都过秤(读数从高到低)，前 maxChecks 项(通常就是全部)在主线程验条件与用度
-#if EC_PENDING
     public static List<Advice> AdviseFor(Person actor, int maxChecks = 64)
     {
         var list = new List<Advice>();
@@ -643,16 +614,14 @@ public static class DecisionSystem
         }
         return list;
     }
-#endif
 
     // 亲自发起：到了办的时候再验一遍条件与用度，过了就立项付钱；成了返回 null，否则返回缘由的文字键
     // target：要点一座城的大政(见 RulerDecrees)点的那座城
-#if EC_PENDING
     public static string Launch(Person actor, string id, long target = -1L)
     {
         PlotKind def = Def(id);
         if (def == null || !Initiable.Contains(def) || actor?.Record == null || !actor.Alive || actor.Realm?.Record == null) return "decision_outcome_unfit";
-        if (actor.plot != null && actor.plot.isActive()) return "decision_fail_busy";
+        if (actor.Plot != null && actor.Plot.IsActive()) return "decision_fail_busy";
         bool major = RulerDecrees.IsManual(id);
         if (!def.canBeDoneByRole(actor) || def.check_is_possible != null && !def.check_is_possible(actor))
             return major ? RulerDecrees.WhyNot(id, actor) : "decision_outcome_unfit";
@@ -684,9 +653,9 @@ public static class DecisionSystem
         {
             PendingTarget = null;
         }
-        if (!started || actor.plot == null) return "decision_outcome_unfit";
+        if (!started || actor.Plot == null) return "decision_outcome_unfit";
         Pay(actor, def.money_cost);
-        if (actor.plot.data != null && Cases.TryGetValue(actor.plot.data.id, out DecisionCase item))
+        if (actor.Plot.data != null && Cases.TryGetValue(actor.Plot.data.id, out DecisionCase item))
         {
             item.personal = true;
             scale ??= AdviseFor(actor, 0);
@@ -699,10 +668,8 @@ public static class DecisionSystem
         }
         return null;
     }
-#endif
 
     // ───────── 存档 ─────────
-#if EC_PENDING
     public static List<DecisionCase> Save()
     {
         var list = new List<DecisionCase>();
@@ -711,17 +678,16 @@ public static class DecisionSystem
             Plot plot = EmpireWorld.Current?.Plots?.Get(item.plot);
             if (plot?.data != null)
             {
-                item.war = plot.target_war?.data?.id ?? -1;
+                item.war = plot.TargetWar?.Key ?? -1;
                 item.kingdom = plot.TargetRealm?.Key ?? -1;
-                item.city = plot.target_city?.data?.id ?? -1;
-                item.actor = plot.target_actor?.data?.id ?? -1;
-                item.alliance = plot.target_alliance?.data?.id ?? -1;
+                item.city = plot.TargetCity?.Key ?? -1;
+                item.actor = plot.TargetPerson?.Key ?? -1;
+                item.alliance = plot.TargetAlliance?.Record?.Key ?? -1;
             }
             list.Add(item);
         }
         return list;
     }
-#endif
 
     public static void Load(List<DecisionCase> saved)
     {
@@ -730,14 +696,13 @@ public static class DecisionSystem
     }
 
     // 旧档里还在办的模组决议(以前由原版推进，没有记录)：按牌子上的进度接过来
-#if EC_PENDING
     private static void AdoptOrphans()
     {
         foreach (Plot plot in EmpireWorld.Current.Plots)
         {
             if (plot?.data == null || !plot.IsActive() || Cases.ContainsKey(plot.data.id) || !Manages(plot.GetKind())) continue;
             Person author = plot.GetAuthor();
-            if (author == null || !author.Alive || author.plot != plot) continue;
+            if (author == null || !author.Alive || author.Plot != plot) continue;
             PlotKind def = plot.GetKind();
             double now = GameClock.Now;
             Track(new DecisionCase
@@ -748,10 +713,8 @@ public static class DecisionSystem
             });
         }
     }
-#endif
 
     // 读档后接上牌子：原版谋划还在的(游戏里随原版存档)直接接上，没了的照记下的目标重新立
-#if EC_PENDING
     private static void Restore()
     {
         int kept = 0, rebuilt = 0, gone = 0, busy = 0;
@@ -765,12 +728,12 @@ public static class DecisionSystem
                 continue;
             }
             Plot plot = EmpireWorld.Current.Plots.Get(item.plot);
-            if (plot?.data == null || !plot.IsActive() || plot.GetKind() != def || author.plot != plot)
+            if (plot?.data == null || !plot.IsActive() || plot.GetKind() != def || author.Plot != plot)
             {
-                if (author.plot != null)
+                if (author.Plot != null)
                 {
                     // 读档后、接上之前别处已重新发起同一项(如征粮的月结)：并进那一件，进度取大的
-                    if (author.plot.getAsset() == def && author.plot.data != null && Cases.TryGetValue(author.plot.data.id, out DecisionCase live))
+                    if (author.Plot.GetKind() == def && author.Plot.data != null && Cases.TryGetValue(author.Plot.data.id, out DecisionCase live))
                     {
                         live.progress = Math.Max(live.progress, Math.Min(item.progress, live.effort));
                         live.started = Math.Min(live.started, item.started);
@@ -789,11 +752,11 @@ public static class DecisionSystem
                     _restoring = false;
                 }
                 if (plot?.data == null) continue;
-                plot.target_war = item.war >= 0 ? EmpireWorld.Current.WarByKey(item.war) : null;
+                plot.TargetWar = item.war >= 0 ? EmpireWorld.Current.WarByKey(item.war) : null;
                 plot.TargetRealm = item.kingdom >= 0 ? EmpireWorld.Current.RealmByKey(item.kingdom) : null;
-                plot.target_city = item.city >= 0 ? EmpireWorld.Current.CityByKey(item.city) : null;
-                plot.target_actor = item.actor >= 0 ? EmpireWorld.Current.PersonByKey(item.actor) : null;
-                plot.target_alliance = item.alliance >= 0 ? EmpireWorld.Current.AllianceByKey(item.alliance) : null;
+                plot.TargetCity = item.city >= 0 ? EmpireWorld.Current.CityByKey(item.city) : null;
+                plot.TargetPerson = item.actor >= 0 ? EmpireWorld.Current.PersonByKey(item.actor) : null;
+                plot.TargetAlliance = item.alliance >= 0 ? EmpireWorld.Current.AllianceByKey(item.alliance) : null;
                 item.plot = plot.data.id;
                 rebuilt++;
             }
@@ -806,7 +769,6 @@ public static class DecisionSystem
         LogService.LogInfo($"[EmpireCraft][决议] 读档接上在办的决议 {kept}/{Pending.Count} 件(其中重立牌子 {rebuilt} 件；发起人不在 {gone}、另有决议在办 {busy})");
         Pending.Clear();
     }
-#endif
 
     public static string Summary() =>
         $"决议：在办 {Cases.Count}，发起 {Started}、办成 {Finished}、作罢 {Lapsed}、失主 {Dropped}" +

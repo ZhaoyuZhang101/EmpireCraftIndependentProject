@@ -32,7 +32,7 @@ namespace EmpireCraft.Core
 //     若它是本文化的主体(拥有本文化一半以上城市)，整个文化停止核研究；
 //   · 达到 1.5 倍：遭到制裁，国库每年损失一成；
 //   · 弃核之后再没有大国压着：每年 10% 的机会重启核计划。
-public static class NuclearDoctrineSystem
+public static partial class NuclearDoctrineSystem
 {
     private const string NuclearTech = "nuclear_fission";
     private const int Threshold = 3;
@@ -47,7 +47,7 @@ public static class NuclearDoctrineSystem
     private static object _scanWorld;
     private static double _lastScan = -1d;
 
-#if EC_PENDING
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
     private static MethodInfo TryStrike
     {
         get
@@ -59,7 +59,9 @@ public static class NuclearDoctrineSystem
             return _tryStrike;
         }
     }
+#endif
 
+#if EC_PENDING
     public static void TryYearlyScan()
     {
         if (EmpireWorld.Current?.LiveRealms == null || ModClass.IS_CLEAR || !Available) return;
@@ -95,21 +97,17 @@ public static class NuclearDoctrineSystem
 #endif
 
     // 装了 WarBox(有核打击可用)，或纯净地图模式(核打击自己结算)时核武器才存在
-#if EC_PENDING
     public static bool Available => TryStrike != null || PureMapMode.Enabled;
-#endif
 
     // 帝国成员按帝国核心是否有核
     private static Realm ModRealm(Realm kingdom) =>
         kingdom != null && kingdom.IsInEmpire() ? kingdom.GetEmpire()?.CoreKingdom ?? kingdom : kingdom;
 
-#if EC_PENDING
     public static bool IsNuclearPower(Realm kingdom)
     {
         Realm realm = ModRealm(kingdom);
         return Available && realm != null && !realm.GetOrCreate().nuclear_renounced && HasNukes(realm);
     }
-#endif
 
     public static bool IsRenounced(Realm kingdom) => ModRealm(kingdom)?.GetOrCreate().nuclear_renounced == true;
 
@@ -138,7 +136,6 @@ public static class NuclearDoctrineSystem
     }
 
     // pMain 对 pTarget 的核威慑好感修正(同一帝国内不算)
-#if EC_PENDING
     public static int DeterrenceOpinion(Realm main, Realm target)
     {
         if (!Available || main == null || target == null || main == target || main.IsInSameEmpire(target)) return 0;
@@ -148,13 +145,10 @@ public static class NuclearDoctrineSystem
         if (theirs) return DeterredOpinion;
         return own ? -SuperiorityOpinion : 0;
     }
-#endif
 
     // 进攻方无核而目标有核：被核威慑吓住
-#if EC_PENDING
     public static bool IsDeterred(Realm attacker, Realm target) =>
         IsNuclearPower(target) && !IsNuclearPower(attacker);
-#endif
 
     private static bool HasNukes(Realm kingdom) =>
         kingdom != null && (!TechnologySystem.GatesActive ||
@@ -164,7 +158,7 @@ public static class NuclearDoctrineSystem
     private static void Evaluate(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || !kingdom.IsCivilized() || !kingdom.HasRuler() ||
-            kingdom.Ruler.hasPlot() || !kingdom.HasEnemies() || !IsNuclearPower(kingdom) ||
+            kingdom.Ruler.HasPlot() || !kingdom.HasEnemies() || !IsNuclearPower(kingdom) ||
             AncientWarfareCompatibility.Owns(kingdom)) return;
         // 帝国成员由帝国核心决策
         if (kingdom.IsInEmpire() && !kingdom.IsEmpire()) return;
@@ -270,7 +264,6 @@ public static class NuclearDoctrineSystem
 
     private static double Power(Realm realm) => Math.Max(1d, realm.GetNationalPower());
 
-#if EC_PENDING
     private static void UpdatePressure()
     {
         List<Realm> realms = Realms();
@@ -330,7 +323,6 @@ public static class NuclearDoctrineSystem
             if (total > 0 && banned * 2 >= total) BannedCultures.Add(culture.Key);
         }
     }
-#endif
 
     #endregion
 

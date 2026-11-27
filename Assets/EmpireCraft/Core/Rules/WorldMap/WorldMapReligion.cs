@@ -42,7 +42,6 @@ public static class WorldMapReligion
     private static FileData _file;
     private static bool _loaded;
 
-#if EC_PENDING
     private static FileData Load()
     {
         if (_loaded) return _file;
@@ -58,7 +57,6 @@ public static class WorldMapReligion
         }
         return _file;
     }
-#endif
 
     // 按年取值：不晚于开局年的最后一条
     private static string AtYear(List<List<object>> entries, int year)
@@ -81,7 +79,6 @@ public static class WorldMapReligion
         return column;
     }
 
-#if EC_PENDING
     public static void Apply(int year, List<Place> places, List<(Realm kingdom, City capital, Empire empire)> realms)
     {
         FileData file = Load();
@@ -162,7 +159,6 @@ public static class WorldMapReligion
         }
         LogService.LogInfo($"[EmpireCraft][世界地图] 开局宗教：{string.Join("、", made.Values.Select(religion => religion.data.name))}");
     }
-#endif
 
     private static Religion Found(Definition definition, City holy, int year)
     {

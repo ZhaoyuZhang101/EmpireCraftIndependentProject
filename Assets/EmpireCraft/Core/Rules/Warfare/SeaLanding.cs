@@ -38,7 +38,6 @@ public static class SeaLanding
 
     // 本方(连同宗主中央)的船从本国港口出发、不经敌方制海能到的海区 → 航线经过几个海区(含首尾)。
     // 敌方制海的海区能驶入(登陆点、卸粮点)但不能穿过，与 NavySystem.LandingRoute 的规矩一致
-#if EC_PENDING
     public static Dictionary<int, int> Reachable(Realm side)
     {
         if (side?.Record == null || side.IsGone() || EmpireWorld.Current == null) return new Dictionary<int, int>();
@@ -67,7 +66,6 @@ public static class SeaLanding
         ReachCache[side.Key] = (now, hops);
         return hops;
     }
-#endif
 
     // 沿陆路由近及远的临海地块：同一片陆地，不进海面与不可通行的高山(起点本身临海也算)
     public static IEnumerable<Cell> Shores(Cell from)
@@ -92,7 +90,6 @@ public static class SeaLanding
 
     // 海滩：from 所在那片陆地上沿陆路最近、能靠岸的临海地块与航线——航线从 start(空则本方全部出海口)出发、
     // 不经敌方制海、不超过舰种航程(见 NavySystem.MaxRange)。找不到返回 (null, null)
-#if EC_PENDING
     public static (Cell shore, List<SeaRegionSystem.Region> route) Beachhead(Realm side, Cell from,
         IEnumerable<SeaRegionSystem.Region> start = null)
     {
@@ -113,11 +110,9 @@ public static class SeaLanding
         }
         return (null, null);
     }
-#endif
 
     // 诊断(见 SeaLandingDiagnostics)：from 那片陆地上为什么找不到能靠岸的海滩——没有出海口、海路不通(隔着大陆)、
     // 敌方制海截断、超出舰种航程。试的岸与 Beachhead 一样
-#if EC_PENDING
     public static string WhyNoBeachhead(Realm side, Cell from)
     {
         if (side?.Record == null || side.IsGone() || from == null) return "目标不可达";
@@ -145,6 +140,5 @@ public static class SeaLanding
         if (shortest != int.MaxValue && shortest > range) return $"超出航程(要{shortest}个海区，航程{range})";
         return cut ? "敌方制海截断航线" : "目标不可达";
     }
-#endif
 }
 }

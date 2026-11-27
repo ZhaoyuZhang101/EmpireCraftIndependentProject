@@ -62,7 +62,6 @@ public static partial class FrontSystem
     }
 
     // 每帧(CorpsSystem.Update)：在打仗时滚动重建地形层，每帧至多花这么多毫秒
-#if EC_PENDING
     public static void ParallelTick()
     {
         if (!ParallelSectors || EmpireWorld.Current?.Zones?.All == null) return;
@@ -97,7 +96,7 @@ public static partial class FrontSystem
             _nextCross8 = new byte[size];
             _layerCursor = 0;
         }
-        var watch = Stopwatch.StartNew();
+        var watch = SimWatch.StartNew();
         _cycleFrames++;
         while (_layerCursor < zones.Count)
         {
@@ -130,7 +129,6 @@ public static partial class FrontSystem
         _cross8 = _nextCross8;
         _nextFlags = _nextCross4 = _nextCross8 = null;
     }
-#endif
 
     // 第 i 位：只看地形，邻块 i 走得过来(TerrainSystem.CrossableTerrain(邻块, 本块)，同 TargetZones、LandRoute 的问法)；城心每批另取(见 _seat)，路线现查；
     // 邻块多于 8 的不会有
@@ -193,7 +191,6 @@ public static partial class FrontSystem
     private static double _kernelNow;
 
     // 分派前：kingdom 这一帧还没有现成的陆上战线段，就连同队里接下来几国一起多核算好
-#if EC_PENDING
     private static void PrefetchSectors(Realm kingdom, IEnumerable<Realm> upcoming, int maxBatch)
     {
         // 只有一个核也照快照算(比逐国问各处缓存快得多)，只是不分线程
@@ -275,7 +272,6 @@ public static partial class FrontSystem
                 ParallelSides++;
             }
     }
-#endif
 
     // 每块地眼下归谁控制(同 Controller)：没被占的城整城归城主，有占领区的城逐块问
     private static void BuildOwners()
@@ -319,7 +315,6 @@ public static partial class FrontSystem
     }
 
     // 主线程：本方的敌友、本方的城、要看的敌城(顺序同 LandSectors 的 Collect)
-#if EC_PENDING
     private static SideJob PrepareJob(Realm side, string signature)
     {
         var job = new SideJob { Side = side, Signature = signature, RealmId = ModRealm(side).Key, Way = WildernessPassage.Way(side) };
@@ -400,22 +395,18 @@ public static partial class FrontSystem
         }
         return job;
     }
-#endif
 
     // 同 Cell.isSameIsland 的比法(独立服务器上先让它把岛屿算好)
-#if EC_PENDING
     private static object IslandOf(Cell tile)
     {
         tile.IsSameIsland(tile);
-        return tile.region?.island;
+        return tile.Region?.island;
     }
-#endif
 
     #endregion
 
     #region 工作线程
 
-#if EC_PENDING
     private static void RunJob(SideJob job)
     {
         var routes = new Dictionary<Candidate, bool>();
@@ -458,7 +449,6 @@ public static partial class FrontSystem
             candidate.Targets = targets;
         }
     }
-#endif
 
     private static int OwnerOf(Cell zone) => zone.Index >= 0 && zone.Index < _owner.Length ? _owner[zone.Index] : -1;
 
@@ -495,7 +485,6 @@ public static partial class FrontSystem
     }
 
     // 同 TargetZones
-#if EC_PENDING
     private static List<Cell> Targets(SideJob job, List<Cell> zones)
     {
         var result = new List<Cell>();
@@ -517,10 +506,8 @@ public static partial class FrontSystem
         }
         return result;
     }
-#endif
 
     // 同 LandRoute：先看陆路缓存(主线程这时不写)，没有就广度搜索；算出来的记下，主线程写回
-#if EC_PENDING
     private static bool Route(SideJob job, Candidate target, Dictionary<Candidate, bool> computed)
     {
         if (computed.TryGetValue(target, out bool done)) return done;
@@ -530,7 +517,7 @@ public static partial class FrontSystem
             return false;
         }
         if (LandRoutes.TryGetValue((job.RealmId, target.CityId), out var known) && known.signature == job.RouteSignature &&
-            _kernelNow >= known.at && (int)((_kernelNow - known.at) / 5.0) < LandRouteMonths)
+            _kernelNow >= known.at && (int)((_kernelNow - known.at) / 1.0) < LandRouteMonths)
         {
             computed[target] = known.found;
             return known.found;
@@ -588,14 +575,12 @@ public static partial class FrontSystem
         job.Routes.Add((target, found));
         return found;
     }
-#endif
 
     #endregion
 
     #region 落地与核对
 
     // 照 Collect 的顺序拼成战线段；只靠水师辐射够得着的城在这里照原样补
-#if EC_PENDING
     private static List<Sector> Assemble(SideJob job)
     {
         var sectors = new List<Sector>();
@@ -614,11 +599,9 @@ public static partial class FrontSystem
         }
         return sectors;
     }
-#endif
 
     private static int _mismatchLogged;
 
-#if EC_PENDING
     private static void Verify(SideJob job, List<Sector> parallel)
     {
         List<Sector> serial = LandSectors(job.Side);
@@ -642,7 +625,6 @@ public static partial class FrontSystem
         string Describe(List<Sector> list) => string.Join("、", list.ConvertAll(sector => sector.City.Name + "×" + sector.Targets.Count));
         LogService.LogWarning($"[EmpireCraft][战线段核对] {job.Side.GetKingdomName()} 逐国算 {serial.Count} 段：{Describe(serial)}；多核算 {parallel.Count} 段：{Describe(parallel)}");
     }
-#endif
 
     #endregion
 }

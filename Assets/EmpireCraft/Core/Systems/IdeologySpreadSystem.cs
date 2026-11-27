@@ -52,7 +52,6 @@ public static class IdeologySpreadSystem
     }
 
     // 挂在城市更新上，这里自己限流成一年一次
-#if EC_PENDING
     public static void TryYearlyScan()
     {
         if (EmpireWorld.Current == null || ModClass.IS_CLEAR || ModClass.EMPIRE_MANAGER == null) return;
@@ -154,7 +153,6 @@ public static class IdeologySpreadSystem
             perIdeology[ideology] = Math.Min(cap, (perIdeology.TryGetValue(ideology, out float value) ? value : 0f) + amount);
         }
     }
-#endif
 
     // 对方从本国学得到的通达强度(不算电讯；还没算的按 1)
     private static float Reach(Realm learner, Realm source)
@@ -163,7 +161,6 @@ public static class IdeologySpreadSystem
         return strength < 0f ? 1f : strength;
     }
 
-#if EC_PENDING
     private static void ApplyExposure(string culture, PartyIdeology ideology, float gain)
     {
         // 基本理念随开放党禁而来，不单独播种。
@@ -196,6 +193,5 @@ public static class IdeologySpreadSystem
         TranslateHelper.LogEventOnly(string.Format(LM.Get("ideology_spread_log"),
             PartySystem.GetIdeologyName(ideology), culture.GetCultureTranslate()));
     }
-#endif
 }
 }

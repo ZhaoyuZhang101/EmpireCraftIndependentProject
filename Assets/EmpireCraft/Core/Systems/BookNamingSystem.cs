@@ -55,13 +55,12 @@ public static class BookNamingSystem
         }
         if (string.IsNullOrWhiteSpace(name)) return; // 这个文化没有词库：保留原版书名
         name = EnsureUnique(name, used);
-        book.setName(name);
+        book.SetName(name);
         used.Add(name);
     }
 #endif
 
     // 填模板；有占位符取不到值时返回 null(调用方换一个模板再试)
-#if EC_PENDING
     private static string Fill(string pattern, List<string> words, List<string> topics, Person author, string culture)
     {
         Empire empire = author.Realm?.GetEmpire();
@@ -102,10 +101,8 @@ public static class BookNamingSystem
         }
         return result.Contains('$') ? null : result.Trim();
     }
-#endif
 
     // 历史保存的是庙号前缀/后缀的本地化键，不能把前缀键直接当作先帝姓名。
-#if EC_PENDING
     private static string PastEmperorName(EmpireCraftHistory history)
     {
         if (history == null) return null;
@@ -117,7 +114,6 @@ public static class BookNamingSystem
             return IsChinese() ? prefix + suffix : OverallHelperFunc.JoinNameParts(prefix, suffix);
         return history.emperor;
     }
-#endif
 
     private static string LocalizedTemplePart(string value)
     {
@@ -132,7 +128,6 @@ public static class BookNamingSystem
     private static readonly Regex LegacyTemplePrefix = new(@"(?:first|normal)_miaohaoprefixes_[a-z]+",
         RegexOptions.CultureInvariant);
 
-#if EC_PENDING
     private static string RepairLegacyTitle(string title, IEnumerable<EmpireCraftHistory> history)
     {
         if (string.IsNullOrWhiteSpace(title)) return title;
@@ -149,7 +144,6 @@ public static class BookNamingSystem
             return names.Count == 1 ? names[0] : prefix;
         });
     }
-#endif
 
     // 帝国史书加载完成后修复已生成的书，保留原有题材、作者与卷号。
 #if EC_PENDING
@@ -164,7 +158,7 @@ public static class BookNamingSystem
             Realm kingdom = EmpireWorld.Current.RealmByKey(book.data.author_kingdom_id);
             string title = RepairLegacyTitle(book.Name, kingdom?.GetEmpire()?.data?.history);
             if (title == book.Name) continue;
-            book.setName(title);
+            book.SetName(title);
             repaired++;
         }
         if (repaired > 0)
@@ -188,10 +182,8 @@ public static class BookNamingSystem
         return name;
     }
 
-#if EC_PENDING
-    private static string Language() => LocalizedTextManager.instance?.language ?? "en";
+    private static string Language() => LM.Language ?? "en";
     private static bool IsChinese() => Language() is "cz" or "ch";
-#endif
 
     private static string EnsureUnique(string name, HashSet<string> used)
     {
@@ -228,7 +220,6 @@ public static class BookNamingSystem
 
     // 带 key 的词库条目：文化自己的 Culture_<文化>/<文化><name>.csv 与通用的 Books/<name>.csv 合并
     // (理念书库按 key 前缀区分理念，见 SpeechFreedomSystem)
-#if EC_PENDING
     public static List<(string key, string text)> Entries(string culture, string name)
     {
         string root = Path.Combine(GameData.Folder, "Locales", "Cultures");
@@ -238,11 +229,9 @@ public static class BookNamingSystem
         result.AddRange(ReadEntries(Path.Combine(root, "Books", name + ".csv")));
         return result;
     }
-#endif
 
     private static readonly Dictionary<string, List<(string key, string text)>> EntryCache = new(StringComparer.Ordinal);
 
-#if EC_PENDING
     private static List<(string key, string text)> ReadEntries(string path)
     {
         string language = Language();
@@ -267,7 +256,6 @@ public static class BookNamingSystem
         EntryCache[cacheKey] = entries;
         return entries;
     }
-#endif
 
     public static void MarkUsed(string name)
     {
@@ -275,7 +263,6 @@ public static class BookNamingSystem
     }
 
     // 按文化读词库：Culture_<文化>/<文化><name>.csv，没有就读 Books/<name>.csv
-#if EC_PENDING
     public static List<string> Pool(string culture, string name)
     {
         string root = Path.Combine(GameData.Folder, "Locales", "Cultures");
@@ -286,10 +273,8 @@ public static class BookNamingSystem
         }
         return Read(Path.Combine(root, "Books", name + ".csv"));
     }
-#endif
 
     // 直接读 CSV 当前语言那一列(不经过本地化表，所以文化没加载、key 撞了都不影响)
-#if EC_PENDING
     private static List<string> Read(string path)
     {
         string language = Language();
@@ -315,7 +300,6 @@ public static class BookNamingSystem
         PoolCache[cacheKey] = names;
         return names;
     }
-#endif
 
     private static List<string> SplitCsv(string line)
     {

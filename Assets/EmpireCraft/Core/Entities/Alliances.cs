@@ -20,6 +20,9 @@ namespace EmpireCraft.Core
         public HashSet<Realm> MemberSet => new HashSet<Realm>(Members);
         public bool Has(Realm realm) => realm != null && Members.Contains(realm);
         public void SetName(string name) { if (!string.IsNullOrWhiteSpace(name)) Name = name; }
+        // The troops of all its members.
+        public int CountWarriors() { long total = 0; foreach (var realm in Members) if (realm.Alive) total += realm.Warriors(); return (int)System.Math.Min(int.MaxValue, total); }
+        public static bool IsSame(Alliance a, Alliance b) => a != null && b != null && a == b;
     }
 
     // What two realms have between them beyond wars and alliances. For now: when they last made peace.

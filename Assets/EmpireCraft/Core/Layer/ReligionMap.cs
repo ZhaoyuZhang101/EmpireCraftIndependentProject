@@ -80,7 +80,7 @@ public static class ReligionMap
             min_font_size = 6,
             font_style = FontStyle.Normal,
             use_gold_gradient = true,
-            gold_top = new Color32(255, 246, 214, 255),
+            gold_top = new EcColor32(255, 246, 214, 255),
             gold_bottom = Color.Lerp(main, Color.white, 0.15f),
             bridge_internal_gaps = true,
             arc_curvature = 0.1f

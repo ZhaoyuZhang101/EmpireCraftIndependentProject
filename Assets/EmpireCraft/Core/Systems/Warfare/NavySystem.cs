@@ -25,7 +25,7 @@ namespace EmpireCraft.Core
 //   · 封锁：港口外的海区被敌方控制，港口的海上商路中断、跨海建城暂停，海外登陆部队断了补给。
 //   · 旗舰：开着「军团统领实体」时每支舰队一艘旗舰(原版运兵船，挂在母港码头)跟着兵牌走；关掉就只有兵牌。
 //   · 澳宋(见 AosongNavyRules、TransmigrantSystem.NavalState)：全军一支海军，大区、殖民地都按澳洲人的海军科技算，按阶段定额造舰。
-public static class NavySystem
+public static partial class NavySystem
 {
     private const int MaxRegionsPerMonth = 3;
     private const int ControlMonths = 3;
@@ -93,12 +93,10 @@ public static class NavySystem
     public static City Home(FleetData fleet) => EmpireWorld.Current?.CityByKey(fleet.home_city_id) is City city &&
                                                 city.Record != null && !city.IsGone() ? city : null;
 
-#if EC_PENDING
     public static Building Port(City city) => SettlementSeaSearch.Port(city);
 
     public static IEnumerable<City> Ports(Realm kingdom) =>
         (kingdom?.Cities ?? new List<City>()).Where(city => city?.Record != null && !city.IsGone() && Port(city) != null);
-#endif
 
     public static bool IsFlagship(Person actor) => actor?.Record != null && FlagshipIndex.ContainsKey(actor.Key);
 
@@ -261,16 +259,13 @@ public static class NavySystem
     }
 
     // 港口被封锁：港外任一海区在敌方手里
-#if EC_PENDING
     public static bool IsBlockaded(City city)
     {
         if (!CorpsSystem.Enabled || city?.Realm == null || Port(city) == null) return false;
         return SeaRegionSystem.RegionsAround(city).Any(region => HostileControl(city.Realm, region));
     }
-#endif
 
     // 本国(连同宗主中央)可用的出海口
-#if EC_PENDING
     public static List<SeaRegionSystem.Region> HomeWaters(Realm kingdom)
     {
         var result = new List<SeaRegionSystem.Region>();
@@ -280,11 +275,9 @@ public static class NavySystem
                 result.AddRange(SeaRegionSystem.RegionsAround(port));
         return result.Distinct().ToList();
     }
-#endif
 
     // 跨海登陆的航线：从本国港口出发、不经过敌方制海海区到目标城外的海区；没有港口或航线被截断返回 null。
     // 内陆的城(城外不靠海)改按它那片陆地上最近、能靠岸的海滩算(见 SeaLanding.Beachhead)——以前内陆的城一律求不出航线
-#if EC_PENDING
     public static List<SeaRegionSystem.Region> LandingRoute(Realm side, City target)
     {
         if (side == null || target == null) return null;
@@ -294,11 +287,9 @@ public static class NavySystem
         if (goal.Count == 0) return SeaLanding.Beachhead(side, target.SeatCell()?.Zone, start).route;
         return SeaRegionSystem.Route(start, goal, region => HostileControl(side, region));
     }
-#endif
 
     // 海外的军(与驻地不在同一块陆地上)断了海路：所在那片陆地上沿陆路找得到的岸边，外面的海区本国的船都到不了
     // (被敌方制海截断)。以前只看军脚下那座城临不临海，站进内陆城的地块就算断了补给
-#if EC_PENDING
     public static bool IsCutOff(Realm kingdom, CorpsData corps)
     {
         if (!CorpsSystem.Enabled || kingdom == null || corps == null || corps.embarked) return false;
@@ -309,10 +300,8 @@ public static class NavySystem
         Dictionary<int, int> reach = SeaLanding.Reachable(kingdom);
         return !SeaLanding.Shores(zone).Take(12).Any(shore => SeaLanding.Waters(shore).Any(region => reach.ContainsKey(region.Id)));
     }
-#endif
 
     // 不论敌方制海、只看海路通不通(护航舰队找要打通的海区用)；内陆的城按那片陆地最近的岸边
-#if EC_PENDING
     private static List<SeaRegionSystem.Region> AnyRoute(Realm side, City target)
     {
         List<SeaRegionSystem.Region> start = HomeWaters(side);
@@ -322,13 +311,11 @@ public static class NavySystem
                    new List<SeaRegionSystem.Region>();
         return start.Count == 0 || goal.Count == 0 ? null : SeaRegionSystem.Route(start, goal);
     }
-#endif
 
     #endregion
 
     #region 月度
 
-#if EC_PENDING
     public static void MonthTick(double now)
     {
         foreach (Realm kingdom in EmpireWorld.Current.LiveRealms.ToList())
@@ -359,10 +346,8 @@ public static class NavySystem
         foreach (int id in Battles.Where(pair => GameClock.MonthsSince(pair.Value.time) > 1).Select(pair => pair.Key).ToList())
             Battles.Remove(id);
     }
-#endif
 
     // 每个港口一支舰队；港口丢了，舰队改驻别的港口，没有港口就逐月损耗
-#if EC_PENDING
     private static void Organize(Realm kingdom, List<City> ports, double now)
     {
         List<FleetData> list = Of(kingdom);
@@ -428,12 +413,10 @@ public static class NavySystem
         }
         return false;
     }
-#endif
 
     // 造舰：每港定额(太平 战舰 2 + 运输 1；交战或战备 战舰 6 + 运输 4；有跨海登陆的需要时，各港合计再多造够
     // 运下本国最大一支军的运输船，按港口数分摊，每港至多再多 MaxLandingTransportsPerPort 艘)，
     // 港口每升一级定额 +50%；每港每月下水 0.5 艘(交战 1 艘)，先造缺得多的；钱从国库出，没钱就停
-#if EC_PENDING
     private static void Build(Realm kingdom, List<City> ports)
     {
         bool war = CorpsSystem.IsAtWar(kingdom);
@@ -489,7 +472,6 @@ public static class NavySystem
             if (lackWar <= 0 && lackTransport <= 0) fleet.build_progress = 0f;
         }
     }
-#endif
 
     private static SeaRegionSystem.Region HomeRegion(FleetData fleet)
     {
@@ -499,7 +481,6 @@ public static class NavySystem
             .OrderBy(region => SeaRegionSystem.Distance(region, current)).FirstOrDefault();
     }
 
-#if EC_PENDING
     private static void Assign(Realm kingdom)
     {
         List<FleetData> list = Of(kingdom);
@@ -573,7 +554,6 @@ public static class NavySystem
             fleet.target_region_id = path.Last().Id;
         }
     }
-#endif
 
     // 每月至多航行 3 个海区
     private static void Sail(Realm kingdom)
@@ -716,7 +696,6 @@ public static class NavySystem
     private const float FlagshipRetryInterval = 30f;
 
     // beats：这一趟结几拍(世界过了几秒，见 CorpsSystem.Update)；每支舰队连走几拍，清单与旗舰只过一回
-#if EC_PENDING
     public static void SecondTick(int beats = 1)
     {
         // 纯净地图模式关掉了统领实体，但船保留
@@ -729,7 +708,6 @@ public static class NavySystem
             MoveFlagship(fleet);
         }
     }
-#endif
 
     // 兵牌在海上每秒三块挪向所在海区的中心：按海上路线走，尽量沿航线(见 RoadNetwork.SeaPath)，
     // 路线按目标缓存，走偏了再重算；寻不到路线就朝中心就近挪
@@ -813,13 +791,13 @@ public static class NavySystem
         fleet.zone_id = current.Index;
     }
 
-#if EC_PENDING
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
     private static void EnsureFlagship(Realm kingdom, FleetData fleet)
     {
         if (fleet.flagship_id >= 0)
         {
-            Person existing = EmpireWorld.Current.PersonByKey(fleet.flagship_id);
-            if (existing?.Record != null && !existing.IsGone() && existing.Alive) return;
+            Person existing = EmpireWorld.Current.units.get(fleet.flagship_id);
+            if (existing?.data != null && !existing.IsGone() && existing.Alive) return;
             FlagshipIndex.Remove(fleet.flagship_id);
             fleet.flagship_id = -1L;
         }
@@ -830,7 +808,7 @@ public static class NavySystem
         City home = Home(fleet);
         Building building = home == null ? null : Port(home);
         Docks docks = building?.component_docks;
-        if (docks == null || home.Realm != kingdom) return;
+        if (docks == null || home.kingdom != kingdom) return;
         if (docks.tiles_ocean == null || docks.tiles_ocean.Count() == 0)
         {
             docks.recalculateOceanTiles();
@@ -839,15 +817,15 @@ public static class NavySystem
         // 旗舰按本国舰种：楼船 / 远洋帆舰 / 蒸汽铁甲 / 现代舰艇(见 EmpireCraftWarshipLibrary)；缺资源时退回原版运兵船
         string assetId = EmpireCraftWarshipLibrary.IdFor(Tier(kingdom));
         if (AssetManager.actor_library.get(assetId) == null)
-            assetId = building.Asset.getBoatAssetIDFromType("boat_type_transport", home);
+            assetId = building.asset.getBoatAssetIDFromType("boat_type_transport", home);
         if (string.IsNullOrEmpty(assetId)) return;
         try
         {
-            Person boat = EmpireWorld.Current.Living.createNewUnit(assetId, docks.tiles_ocean.GetRandom());
+            Person boat = EmpireWorld.Current.units.createNewUnit(assetId, docks.tiles_ocean.GetRandom());
             if (boat == null) return;
             docks.addBoatToDock(boat);
-            fleet.flagship_id = boat.Key;
-            FlagshipIndex[boat.Key] = (kingdom.Key, fleet.id);
+            fleet.flagship_id = boat.id;
+            FlagshipIndex[boat.id] = (kingdom.id, fleet.id);
         }
         catch (Exception exception)
         {
@@ -880,18 +858,18 @@ public static class NavySystem
         FrontSystem.Log(kingdom, string.Format(LM.Get("navy_log_flagship_lost"), Name(fleet)));
     }
 
-#if EC_PENDING
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
     private static void MoveFlagship(FleetData fleet)
     {
         if (fleet.flagship_id < 0) return;
-        Person boat = EmpireWorld.Current.PersonByKey(fleet.flagship_id);
+        Person boat = EmpireWorld.Current.units.get(fleet.flagship_id);
         Cell zone = CorpsSystem.ZoneById(fleet.zone_id);
-        if (boat?.Record == null || boat.IsGone() || !boat.Alive || zone?.Center == null || boat.Cell == null) return;
+        if (boat?.data == null || boat.IsGone() || !boat.Alive || zone?.centerTile == null || boat.current_tile == null) return;
         float now = Time.unscaledTime;
-        if (FlagshipMoves.TryGetValue(boat.Key, out float next) && now < next) return;
-        FlagshipMoves[boat.Key] = now + FlagshipMoveInterval;
-        if (boat.Cell.Zone == zone) return;
-        try { boat.GoTo(zone.Center, pPathOnWater: true); }
+        if (FlagshipMoves.TryGetValue(boat.id, out float next) && now < next) return;
+        FlagshipMoves[boat.id] = now + FlagshipMoveInterval;
+        if (boat.current_tile.zone == zone) return;
+        try { boat.goTo(zone.centerTile, pPathOnWater: true); }
         catch (Exception exception) { LogService.LogWarning($"[EmpireCraft][海军] 旗舰航行失败: {exception.Message}"); }
     }
 #endif

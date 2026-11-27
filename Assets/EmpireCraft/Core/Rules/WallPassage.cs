@@ -26,7 +26,7 @@ public static class WallPassage
 {
     // 0 没算过、1 不隔墙、2 隔墙无关门、3 隔墙有关门
     private const byte Unknown = 0, Open = 1, Walled = 2, Gated = 3;
-    // 地块边长(格，Land.ZoneSize)：一块地 64 格正好一个 ulong
+    // 地块边长(格，EmpireCraft.Core.Land.ZoneSize)：一块地 64 格正好一个 ulong
     private const int Side = 8;
     private const float LogSeconds = 3f;
 
@@ -77,9 +77,7 @@ public static class WallPassage
     }
 
     // 地图上有城墙(读档、改了城墙后按需重算)：没有就不必逐对查
-#if EC_PENDING
     public static bool Active => Ensure();
-#endif
 
     // 原版城墙格被改、被毁(见 TerrainResistance.InvalidateWall)：那块地原本有城墙才作废，下次查时重查
     // (新画的城墙经 MapWallSystem.Revision 整张重算)
@@ -91,12 +89,9 @@ public static class WallPassage
     }
 
     // 从 from 走进相邻的 to 被城墙挡住：隔墙，且没有对 side 开着的关门(side 为空当外人，关门不开)
-#if EC_PENDING
     public static bool Blocks(Cell from, Cell to, Realm side) => Ensure() && BlocksKnown(from, to, side);
-#endif
 
     // 同 Blocks，调用方已确认过 Active(寻路里逐邻查，省掉每次的版本比对)
-#if EC_PENDING
     public static bool BlocksKnown(Cell from, Cell to, Realm side)
     {
         byte state = State(from, to, out int slot);
@@ -104,7 +99,6 @@ public static class WallPassage
         if (state == Walled) return true;
         return !Opens(slot, side);
     }
-#endif
 
     private static bool Opens(int slot, Realm side)
     {
@@ -114,7 +108,6 @@ public static class WallPassage
         return false;
     }
 
-#if EC_PENDING
     private static byte State(Cell from, Cell to, out int slot)
     {
         slot = -1;
@@ -150,10 +143,8 @@ public static class WallPassage
         Rebuild(world);
         return _any;
     }
-#endif
 
     // 整张重算：按城墙格(图层城墙的数据、原版城墙顶层格)列出有城墙的地块，地块对等用到时再算
-#if EC_PENDING
     private static void Rebuild(EmpireWorld world)
     {
         _world = world;
@@ -180,10 +171,10 @@ public static class WallPassage
         Cell[] tiles = world.AllCells;
         foreach (int id in MapWallSystem.Walls.Keys)
             if (id >= 0 && id < tiles.Length) count += Mark(tiles[id]?.Zone);
-        foreach (TerrainKind type in AssetManager.top_tiles?.list ?? new List<TerrainKind>())
+        foreach (TerrainKind type in TerrainLayers.Top?.list ?? new List<TerrainKind>())
         {
             if (type?.Wall != true) continue;
-            foreach (Cell tile in type.getCurrentTiles()) count += Mark(tile?.Zone);
+            foreach (Cell tile in type.GetCurrentTiles()) count += Mark(tile?.Zone);
         }
         _any = count > 0;
         if (count == _walledZones) return;
@@ -194,7 +185,6 @@ public static class WallPassage
         LogService.LogInfo($"[EmpireCraft][城墙隔断] 有城墙的地块 {count} 块、关门 {WallGateSystem.GateTiles.Count} 格：" +
                            "军团寻路把城墙当障碍，只从对本方开着的关门过");
     }
-#endif
 
     private static int Mark(Cell zone)
     {
@@ -204,7 +194,6 @@ public static class WallPassage
     }
 
     // 原版城墙格改了的地块：重查有没有城墙，它与四周八块的地块对作废(斜向的 2×2 窗口也只落在这一圈里)
-#if EC_PENDING
     private static void Refresh()
     {
         ZoneGrid zones = EmpireWorld.Current.Zones;
@@ -232,10 +221,8 @@ public static class WallPassage
     }
 
     private static bool IsWall(Cell tile) => tile != null && (tile.Type?.Wall == true || MapWallSystem.Contains(tile));
-#endif
 
     // 两块相邻地块之间：窗口里先只走非城墙格，走不到再逐座关城开门试
-#if EC_PENDING
     private static byte Compute(Cell a, Cell b, int dx, int dy, out Cell[] keepers)
     {
         keepers = null;
@@ -304,7 +291,6 @@ public static class WallPassage
         keepers = Found.ToArray();
         return Gated;
     }
-#endif
 
     // 地块的 8×8 格(第 ly 行在 ulong 的第 ly×8 位起)放进窗口的行
     private static void Place(uint[] rows, ulong bits, int zx, int zy)
@@ -339,7 +325,6 @@ public static class WallPassage
         return false;
     }
 
-#if EC_PENDING
     private static Mask MaskOf(Cell zone)
     {
         if (zone == null) return Outside;
@@ -369,11 +354,9 @@ public static class WallPassage
         Masks[zone.Index] = mask;
         return mask;
     }
-#endif
 
     // 关门归哪座关城：方城(中心起 WallGateSystem.Reach 格)盖着它、同一座城的那座(同 WallGateSystem 的算法)；返回关城所在地块。
     // 城池全图筑的城门没有关城，返回城门所在的地块
-#if EC_PENDING
     private static Cell KeeperOf(Cell tile)
     {
         if (_forts == null)
@@ -395,7 +378,6 @@ public static class WallPassage
         // 城池全图筑的城墙上的城门(见 CityPlanWorks)：守门的是城门所在那块地(被敌军占着就归占领者)
         return WallGateSystem.IsCityGate(tile) ? tile.Zone : null;
     }
-#endif
 
     // 地块的主体：非城墙格里最大的一片(四方向连通)；一样大取先找到的
     private static ulong MainOf(ulong open)

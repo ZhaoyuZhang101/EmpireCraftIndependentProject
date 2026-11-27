@@ -85,7 +85,6 @@ public static class PureMapMode
 #endif
 
     // 不慢慢回收：读档后、积压时把不是名人的普通人一次并回人口(几帧清完，见 CityPopulationSystem.PurgeCommoners)
-#if EC_PENDING
     private static void Purge()
     {
         if (GameClock.Paused || Time.unscaledTime < _purgeAt) return;
@@ -97,7 +96,6 @@ public static class PureMapMode
             LogService.LogInfo($"[EmpireCraft][纯净地图] 一次并入普通人 {_purgedTotal} 人，剩实体 {EmpireWorld.Current.Living.Count}");
         _purgedTotal = 0;
     }
-#endif
 
     public static bool IsDecor(BuildingKind asset) =>
         asset != null && (DecorTypes.Contains(asset.Type ?? "") || DecorIds.Contains(asset.Id ?? ""));

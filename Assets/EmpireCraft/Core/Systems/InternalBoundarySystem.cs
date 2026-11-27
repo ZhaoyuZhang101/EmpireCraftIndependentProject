@@ -19,7 +19,6 @@ public static class InternalBoundarySystem
     private const int MovesPerYear = 2;
     private static double _lastScan = -1d;
 
-#if EC_PENDING
     public static void TryYearlyScan()
     {
         if (EmpireWorld.Current == null || ModClass.EMPIRE_MANAGER == null || ModClass.IS_CLEAR) return;
@@ -38,7 +37,6 @@ public static class InternalBoundarySystem
             }
         }
     }
-#endif
 
     // 行政区自己的法理：持有的主法理，或受托管理的法理
     private static KingdomTitle RegionTitle(Realm kingdom) =>
@@ -46,7 +44,6 @@ public static class InternalBoundarySystem
 
     private static bool Usable(KingdomTitle title) => title != null && !title.IsGone();
 
-#if EC_PENDING
     private static void FixOne(Empire empire)
     {
         if (empire?.data == null || empire.IsGone() || empire.IsArchived() ||
@@ -104,6 +101,5 @@ public static class InternalBoundarySystem
             }
         }
     }
-#endif
 }
 }

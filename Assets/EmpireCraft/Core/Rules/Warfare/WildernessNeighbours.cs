@@ -38,7 +38,6 @@ public static class WildernessNeighbours
         _builtAt = float.NegativeInfinity;
     }
 
-#if EC_PENDING
     public static IReadOnlyList<City> Of(City city)
     {
         if (city?.Record == null) return None;
@@ -95,7 +94,6 @@ public static class WildernessNeighbours
         }
         Wild.Clear();
     }
-#endif
 
     private static void Add(long id, City city)
     {

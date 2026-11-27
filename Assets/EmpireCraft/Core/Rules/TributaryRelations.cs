@@ -56,14 +56,11 @@ public static class TributaryRelations
     }
 
     // 宗主直辖之地够不够得着这一国(见类头)
-#if EC_PENDING
     public static bool InReach(Realm tributary, Empire empire) =>
         tributary?.Record != null && !tributary.IsGone() && empire != null && !empire.IsGone() && !empire.IsArchived() &&
         WarReach.TouchingFrom(Direct(empire), tributary);
-#endif
 
     // 已经在朝贡的：够不着满 DriftYears 年(见 KingdomExtension.NeedToRemoveTakenAlliance)。一年量一次
-#if EC_PENDING
     public static bool DriftedAway(Realm tributary, Empire empire)
     {
         if (tributary?.Record == null || empire == null) return false;
@@ -82,10 +79,8 @@ public static class TributaryRelations
         LogService.LogInfo($"[EmpireCraft][朝贡] {tributary.GetKingdomName()} 与{empire.GetEmpireName()}道远不通已满 {DriftYears} 年，不再朝贡");
         return true;
     }
-#endif
 
     // 王国 AI 每月一查(朝贡国自己查)
-#if EC_PENDING
     public static void Protect(Realm tributary)
     {
         Empire empire = tributary?.GetTakenAllianceEmpire();
@@ -105,7 +100,6 @@ public static class TributaryRelations
         TranslateHelper.LogEventMessage(string.Format(LM.Get("tributary_protected"), core.GetKingdomName(),
             tributary.GetKingdomName(), attacker.GetKingdomName()), core);
     }
-#endif
 
     // 纳贡之后(见 KingdomExtension.StartToTaken)：回赐、正统
     public static void AfterTribute(Realm tributary, Empire empire, int value)
@@ -150,7 +144,6 @@ public static class TributaryRelations
     }
 
     // 称臣纳贡和约：胜者所在帝国收得了朝贡就让对方称臣；返回是否成了
-#if EC_PENDING
     public static bool Submit(Realm lord, Realm subject)
     {
         // 世界法则「禁止AI朝贡」(见 DiplomacyLaws)：玩家在外交面板让其称臣不经这里
@@ -161,6 +154,5 @@ public static class TributaryRelations
         subject.JoinTakenAlliance(empire, pForce: true);
         return subject.GetTakenAllianceEmpire() == empire;
     }
-#endif
 }
 }

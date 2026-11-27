@@ -118,7 +118,6 @@ public static class SouthernGarrisonSystem
     }
 
     // 诸镇火并
-#if EC_PENDING
     private static void Feuds(Empire empire)
     {
         List<Realm> garrisons = empire.kingdoms_list.Where(IsGarrison).ToList();
@@ -152,13 +151,11 @@ public static class SouthernGarrisonSystem
                                $"{target.GetKingdomName()}(国力{target.GetNationalPower():0})，争{target.Capital.GetCityName()}");
         }
     }
-#endif
 
     // 已在和别的藩镇打
     private static bool Feuding(Realm kingdom) =>
         kingdom.GetWars().Any(war => war?.Record != null && !war.HasEnded() && IsInternalWar(war));
 
-#if EC_PENDING
     private static bool FeudTarget(Realm attacker, Realm target)
     {
         if (!Alive(target) || target == attacker || target.Capital == null || target.Capital.IsGone() ||
@@ -167,11 +164,10 @@ public static class SouthernGarrisonSystem
         if (attacker.HasAlliance() && attacker.GetAlliance() == target.GetAlliance() || RoyalMarriageSystem.Allied(attacker, target))
             return false;
         double ended = EmpireWorld.Current.Diplomacy.GetRelation(attacker, target)?.Record?.LastWarEnded ?? -1d;
-        if (ended >= 0d && GameClock.YearsSince(ended) < SimGlobals.m.minimum_years_between_wars) return false;
+        if (ended >= 0d && GameClock.YearsSince(ended) < WorldRules.m.minimum_years_between_wars) return false;
         bool hostile = (EmpireWorld.Current.Diplomacy.GetOpinion(attacker, target)?.Total ?? 0) < 0;
         return hostile || attacker.GetNationalPower() >= target.GetNationalPower() * FeudPowerRatio;
     }
-#endif
 
     // 举镇降敌
 #if EC_PENDING
@@ -208,7 +204,7 @@ public static class SouthernGarrisonSystem
         foreach (War war in garrison.GetWars().ToList())
         {
             if (war?.Record == null || war.HasEnded()) continue;
-            if (conqueror.kingdoms_list.Any(member => Alive(member) && war.isInWarWith(garrison, member))) war.Leave(garrison);
+            if (conqueror.kingdoms_list.Any(member => Alive(member) && war.IsInWarWith(garrison, member))) war.Leave(garrison);
         }
         conqueror.join(garrison, true, pForce: true);
         if (garrison.GetEmpire() != conqueror) return;

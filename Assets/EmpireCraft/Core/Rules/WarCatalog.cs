@@ -156,7 +156,6 @@ public static class WarCatalog
     #region 战争名
 
     // 按目标或类型重起战争名；别的系统起过专名的不动(force：窗口里换了目标时照样重起按目标起的名)
-#if EC_PENDING
     public static void ApplyName(War war, bool force = false)
     {
         if (war?.Record == null || war.HasEnded()) return;
@@ -169,7 +168,6 @@ public static class WarCatalog
         war.Name = name;
         data.goal_named = true;
     }
-#endif
 
     // 原版起的名、或 SetEmpireWarType 拼出来的"某某帝国扩张战争"
     private static bool DefaultName(War war, EmpireWarType type)
@@ -180,7 +178,6 @@ public static class WarCatalog
         return name.EndsWith(raw + "战争", StringComparison.Ordinal) || name.EndsWith(raw, StringComparison.Ordinal);
     }
 
-#if EC_PENDING
     private static string Compose(War war)
     {
         // 华夏诸国打穿越政权：剿髡(见 TransmigrantSystem.WarName)
@@ -203,7 +200,6 @@ public static class WarCatalog
         string name = EmpireCraftNamePlateLibrary.GetDisplayName(kingdom);
         return string.IsNullOrWhiteSpace(name) ? kingdom.GetKingdomName() : name;
     }
-#endif
 
     #endregion
 }

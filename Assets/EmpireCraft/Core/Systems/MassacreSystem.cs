@@ -30,7 +30,7 @@ public static class MassacreSystem
         Realm attackerKingdom = attacker.Realm;
         Realm targetKingdom = target.Realm;
         if (attackerKingdom == null || targetKingdom == null || attackerKingdom == targetKingdom) return false;
-        if (!attacker.isKingdomCiv() || !target.isKingdomCiv()) return false;
+        if (!attacker.IsKingdomCiv() || !target.IsKingdomCiv()) return false;
         if (!IsCivilian(attacker) && !IsCivilian(target)) return false;
         return attackerKingdom.IsEnemy(targetKingdom);
     }
@@ -46,7 +46,7 @@ public static class MassacreSystem
     {
         if (EmpireWorld.Current == null || !IsCivilian(victim) || killer == null || IsCivilian(killer)) return;
         Realm killerKingdom = killer.Realm;
-        if (killerKingdom == null || victim.Realm == null || !killer.isKingdomCiv() || !victim.isKingdomCiv() ||
+        if (killerKingdom == null || victim.Realm == null || !killer.IsKingdomCiv() || !victim.IsKingdomCiv() ||
             !killerKingdom.IsEnemy(victim.Realm)) return;
         City city = victim.City ?? victim.Cell?.City;
         if (city == null || city.IsGone()) return;

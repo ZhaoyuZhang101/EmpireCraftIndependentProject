@@ -69,7 +69,6 @@ public static class WarMuster
 
     // 朝议定下要打：军团模式下先集结，返回 true 表示受理了(当场开战或开始集结)。
     // announce：开战时走带通告的入口(startWar)，否则直接立战(newWar)，同各诉求原先的写法
-#if EC_PENDING
     public static bool Declare(Realm attacker, Realm target, EmpireWarType type, WarGoal goal = WarGoal.None,
         bool locked = false, bool announce = true)
     {
@@ -105,10 +104,8 @@ public static class WarMuster
         if (locked) war.GetOrCreate().war_goal_locked = true;
         return war;
     }
-#endif
 
     // 接壤：本国(或听调遣的成员)有朝向目标的边境。不接壤的(跨海、隔着别国)没有边境可陈兵，照旧当场开战
-#if EC_PENDING
     private static bool Borders(Realm attacker, Realm target)
     {
         try
@@ -124,10 +121,8 @@ public static class WarMuster
             return false;
         }
     }
-#endif
 
     // 随中央一起动员的成员：听调遣、不在叛乱，有城离目标近(同 WarScopeSystem 的就近范围)
-#if EC_PENDING
     private static List<Realm> Followers(Realm attacker, Realm target)
     {
         var result = new List<Realm>();
@@ -141,7 +136,6 @@ public static class WarMuster
         }
         return result;
     }
-#endif
 
     private static void RebuildFollowers()
     {
@@ -209,7 +203,6 @@ public static class WarMuster
     }
 
     // 每月(各国月结，征兵之前)
-#if EC_PENDING
     public static void MonthTick(Realm kingdom)
     {
         if (!Alive(kingdom)) return;
@@ -269,10 +262,8 @@ public static class WarMuster
         Start(kingdom, target, type, goal, data.muster_goal_locked, data.muster_announce);
         LogService.LogInfo($"[EmpireCraft][集结] {name} 向 {targetName} 开战：集结 {host:0} 对 {theirs:0}，等了 {months} 月{(ready ? "" : "(仓促)")}");
     }
-#endif
 
     // 不战而屈人之兵：大军压境，三城以内的小国称臣(附庸或朝贡)
-#if EC_PENDING
     private static bool Deterred(Realm kingdom, Realm target, float host, float theirs)
     {
         if (DiplomacyLaws.VassalBlocked || host < Mathf.Max(1f, theirs) * DeterEdge || target.IsEmpire() || target.IsInEmpire() ||
@@ -285,6 +276,5 @@ public static class WarMuster
         LogService.LogInfo($"[EmpireCraft][集结] {target.GetKingdomName()} 闻 {kingdom.GetKingdomName()} 大军压境称臣：{host:0} 对 {theirs:0}");
         return true;
     }
-#endif
 }
 }

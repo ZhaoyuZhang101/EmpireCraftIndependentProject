@@ -175,7 +175,7 @@ public static class ImperialSealSystem
 #if EC_PENDING
     private static Item Wear(Person actor, Item item, string assetId, string name)
     {
-        if (actor?.Record == null || actor.IsGone() || !actor.Alive || actor.equipment == null) return item;
+        if (actor?.Record == null || actor.IsGone() || !actor.Alive || actor.Equipment == null) return item;
         if (item == null || item.shouldbe_removed)
         {
             EquipmentAsset asset = AssetManager.items.get(assetId);
@@ -187,7 +187,7 @@ public static class ImperialSealSystem
         if (item.getActor() == actor) return item;
         item.getActor()?.equipment?.getSlot(EquipmentType.Amulet)?.takeAwayItem();
         if (item.getCity() != null) item.clearCity();
-        actor.equipment.setItem(item, actor);
+        actor.Equipment.setItem(item, actor);
         return item;
     }
 #endif

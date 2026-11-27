@@ -112,7 +112,6 @@ public static partial class HolyRomanSystem
     }
 
     // 中央无君时(KingBehCheck)：会选或维持大空位。返回 true = 已处理，不再走普通选任
-#if EC_PENDING
     public static bool TryHoldElection(Realm seat)
     {
         try
@@ -131,10 +130,8 @@ public static partial class HolyRomanSystem
             return false;
         }
     }
-#endif
 
     // 会选：选出即位返回 true；进入大空位也返回 true；装不上人(SetActor 没成)返回 false 交给普通选任
-#if EC_PENDING
     private static bool RunElection(Empire empire, HolyRomanState state, bool inInterregnum)
     {
         List<Person> electors = SeatedElectors(empire);
@@ -182,7 +179,6 @@ public static partial class HolyRomanSystem
         bool done = Install(empire, state, winner, tally.runoff ? "hre_election_outcome_runoff" : "hre_election_outcome_first", text);
         return done || inInterregnum;
     }
-#endif
 
     // 即位：照 OfficeSelector 的办法置 Electing 后 SetActor(换家族走 TryElectHouse)
     private static bool Install(Empire empire, HolyRomanState state, Person winner, string outcomeKey, string tally)
@@ -272,7 +268,6 @@ public static partial class HolyRomanSystem
 
     #region 对立国王
 
-#if EC_PENDING
     private static void ProclaimAntiKing(Empire empire, HolyRomanState state, Person emperor, Person rival, int votes,
         List<Realm> antiVoters, List<Realm> loyalVoters)
     {
@@ -308,7 +303,6 @@ public static partial class HolyRomanSystem
         LogService.LogInfo($"[EmpireCraft][神罗] {empire.GetEmpireFullName()} 双重选举：{emperor.FullName()}即位，" +
                            $"{rival.FullName()}({realm.GetKingdomName()})自立为对立国王，开{war.Name}");
     }
-#endif
 
     public static War ContestWar(Empire empire) => LiveWar(State(empire)?.anti_king_war_id ?? -1L);
 
@@ -389,6 +383,7 @@ public static partial class HolyRomanSystem
         }
         Campaign(empire, state);
     }
+#endif
 
     private static void InterregnumYearly(Empire empire, HolyRomanState state)
     {
@@ -417,7 +412,6 @@ public static partial class HolyRomanSystem
         state.vicar_id = state.vicar_realm_id = -1L;
         state.vicar_name = "";
     }
-#endif
 
     // 拉票：皇帝年迈、没有储君时，票势前两名的候选给还没倒向自己的选帝侯送钱
 #if EC_PENDING

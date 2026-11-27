@@ -62,7 +62,6 @@ public static class SubjectChain
 
     // 要立 lord 作 subject 的上家，而 lord 眼下正从属于 subject：把 lord 通到 subject 的那一层解开(翻身做主)。
     // 解完不再从属返回真；隔着帝国成员那一层的解不开，返回假(这层关系就不立了)
-#if EC_PENDING
     public static bool Overturn(Realm lord, Realm subject)
     {
         if (lord?.Record == null || subject?.Record == null || lord == subject) return false;
@@ -97,10 +96,8 @@ public static class SubjectChain
         }
         return !Under(lord, subject);
     }
-#endif
 
     // 旧档里已经互为上下家的(每年核一遍，见 ColonySystem.Tick)：国力强的翻身，弱的照旧在下；强的那层解不开就解弱的
-#if EC_PENDING
     public static void Untangle(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone()) return;
@@ -115,6 +112,5 @@ public static class SubjectChain
             return;
         }
     }
-#endif
 }
 }

@@ -177,7 +177,6 @@ public static class AdministrativeControlSystem
     // 才可能这样放出去；否则只收回直辖，矛盾照旧，过了冷却期照样再起
     private const float RootBurden = 60f, RootGrievance = 60f;
 
-#if EC_PENDING
     public static bool RootCauseResolved(Realm realm, City city)
     {
         Empire empire = ModRealm(realm)?.GetEmpire();
@@ -189,7 +188,6 @@ public static class AdministrativeControlSystem
         if (LandEconomySystem.GetLandlessRatio(city) >= LandEconomySystem.EffectiveRebellionThreshold(city)) return false;
         return !FamineUnrestSystem.InFamine(city);
     }
-#endif
 
     // 两国(连同所在帝国的中央)之间正打着统一战争
     private static bool UnificationBetween(Realm receiver, Realm loser)
@@ -262,7 +260,6 @@ public static class AdministrativeControlSystem
     // 开战定目标用：对方都城是否远在本国控制范围之外(按本国离它最近的城的路程，加从那座城沿直线过去的地形阻力估算，
     // 见 TerrainResistance.LineCost——隔着雪山、大漠的不再当平地，用户 2026-10-26；隔着本国绕不过、也没路穿过去的无人区的
     // 够不着，用户 2026-10-29，见 WildernessPassage)，或本国已过度扩张
-#if EC_PENDING
     public static bool BeyondReach(Realm attacker, City target)
     {
         Realm realm = ModRealm(attacker);
@@ -270,10 +267,8 @@ public static class AdministrativeControlSystem
         if (realm.GetOrCreate().admin_overextension > 0f) return true;
         return OutOfReach(realm, target);
     }
-#endif
 
     // 只按路程：对方的城远在本国(帝国按中央，连同成员)控制范围之外(封建附庸用，见 FeudalVassalService.TooFar)
-#if EC_PENDING
     public static bool OutOfReach(Realm kingdom, City target)
     {
         Realm realm = ModRealm(kingdom);
@@ -302,11 +297,9 @@ public static class AdministrativeControlSystem
         // 都够不着(best 还是最大值)：控制力按最低算，判在范围之外
         return Control(best, Reach(realm)) < HardLimit;
     }
-#endif
 
     // 只按都城(汗庭)算、不借成员国的都城：对方的城在都城的控制范围之外(按沿直线的地形阻力估路程，隔着绕不过去的无人区的
     // 算在外；大汗东西分立用，见 EmpirePartitionSystem.KhanateSplit)
-#if EC_PENDING
     public static bool BeyondCourt(Realm kingdom, City target)
     {
         Realm realm = ModRealm(kingdom);
@@ -316,7 +309,6 @@ public static class AdministrativeControlSystem
         if (!WildernessPassage.CivilReachable(from, goal, realm)) return true;
         return Control(TerrainResistance.LineCost(from, goal, realm) * LineDetour, Reach(realm)) < HardLimit;
     }
-#endif
 
     public static string DescribeCapacity(Realm kingdom)
     {
@@ -532,7 +524,6 @@ public static class AdministrativeControlSystem
 
     // 本国的无人区(挂在本国连同本帝国成员的法理上，见 WildernessSystem.OwnerOf；用户 2026-10-29 追加"取得这个法理的国家
     // 就把这些无人区算作本国范围")：算本国的地，一趟里每块只问一次
-#if EC_PENDING
     private static bool OwnWild(Cell zone)
     {
         int id = zone.Index;
@@ -543,17 +534,13 @@ public static class AdministrativeControlSystem
         return _ownWild[id] = WildernessSystem.IsWild(zone) && WildernessSystem.OwnerOf(zone) is Realm owner &&
                               ModRealm(owner) == _passRealm;
     }
-#endif
 
     // 本国的地：本国(连同本帝国成员)城的地块、本国的无人区
-#if EC_PENDING
     private static bool Land(Cell zone) => Member(zone) || OwnWild(zone);
-#endif
 
     private static bool Reached(Cell zone) => zone.Index >= 0 && zone.Index < _done.Length && _done[zone.Index] == _pass;
 
     // 一趟只算一国(realm)，城墙上的关门放本国与友邦过(见 TerrainResistance、WallGateSystem)
-#if EC_PENDING
     private static float Step(Cell zone, Realm realm)
     {
         int id = zone.Index;
@@ -563,11 +550,9 @@ public static class AdministrativeControlSystem
         _stepPass[id] = _pass;
         return step;
     }
-#endif
 
     // 从都城那块起，经本国(连同本帝国成员)的地、本国水师辐射内港口间的海路走得到的地块。
     // 本国的无人区算本国的地，过不过得去都算连着(只隔着它的不算飞地、成员国的治所照样连得上都城)；路程另按过得去的算
-#if EC_PENDING
     private static HashSet<int> Linked(Cell home, Dictionary<Cell, (City city, HashSet<int> basins)> ports, float radius)
     {
         var seen = new HashSet<int> { home.Index };
@@ -722,13 +707,11 @@ public static class AdministrativeControlSystem
             data.admin_control = Mathf.Min(cap, Control(far, reach));
         }
     }
-#endif
 
     #endregion
 
     #region 扩张上限
 
-#if EC_PENDING
     private static bool Overreached(Realm realm, City city, float limit)
     {
         if (!Valid(city) || city.Realm.Capital == city) return false;
@@ -740,10 +723,8 @@ public static class AdministrativeControlSystem
                // 收复的叛军之城：根源没消不放(见 RootCauseResolved)
                (!data.recaptured_from_rebels || RootCauseResolved(realm, city));
     }
-#endif
 
     // 管不到的新征服之地：由当地首领自立，按政体文化转为羁縻州、附庸诸侯或朝贡国
-#if EC_PENDING
     private static void ReleaseOverreach(Realm realm, List<City> cities)
     {
         float limit = (NomadRegime(realm) ? NomadHardLimit : HardLimit) + OverextendedHardLimit * realm.GetOrCreate().admin_overextension;
@@ -768,12 +749,10 @@ public static class AdministrativeControlSystem
             realm.GetKingdomName(), local.GetKingdomName(), cluster.Count));
         LogService.LogInfo($"[EmpireCraft][扩张上限] {realm.GetKingdomName()} 管不到 {seedName} 等 {cluster.Count} 城，转为 {form}");
     }
-#endif
 
     // 交给当地首领：cluster 的头一座城由当地首领自立为国，其余仍属原国的城并入，再按 place 安置
     // (为空时按政体文化转为分封诸侯、羁縻州、朝贡国或附庸，见 Subordinate)。水土的出路也走这里(见 ShuiTuSystem)。
     // form 是安置的形式(admin_overreach_{form}_history)；自立不成返回 null
-#if EC_PENDING
     public static Realm ReleaseToLocal(Realm realm, List<City> cluster, Func<Realm, string> place, out string form)
     {
         form = null;
@@ -808,7 +787,6 @@ public static class AdministrativeControlSystem
         form = place != null ? place(local) : Subordinate(realm, local);
         return local;
     }
-#endif
 
     private static Person LocalLeader(City city)
     {
@@ -824,7 +802,6 @@ public static class AdministrativeControlSystem
 
     // 周制天下、部落联盟或青铜时代及以前的帝国 → 分封诸侯、附从的部落(帝国成员)；施行羁縻的帝国 → 羁縻州；
     // 封建政体或不是帝国 → 附庸诸侯；其余帝国 → 朝贡国
-#if EC_PENDING
     private static string Subordinate(Realm realm, Realm local)
     {
         Empire empire = realm.IsEmpire() ? realm.GetEmpire() : null;
@@ -865,7 +842,6 @@ public static class AdministrativeControlSystem
         if (FeudalVassalService.TooFar(realm, local)) return "independent";
         return FeudalVassalService.ForceBind(realm, local) ? "vassal" : "independent";
     }
-#endif
 
     #endregion
 
@@ -882,7 +858,6 @@ public static class AdministrativeControlSystem
     }
 
     // 飞地自立：这座城连同挨着的、同属一国的飞地城(至多 ReleaseClusterMax 座)由当地首领自立为国，不再安置为附庸、朝贡
-#if EC_PENDING
     private static bool Secede(Realm realm, City seed)
     {
         Realm former = seed.Realm;
@@ -908,12 +883,10 @@ public static class AdministrativeControlSystem
         LogService.LogInfo($"[EmpireCraft][飞地自立] {realm.GetKingdomName()} 的飞地 {seedName} 等 {cluster.Count} 城自立为 {local.GetKingdomName()}");
         return true;
     }
-#endif
 
     // 飞地直接自立(用户 2026-10-27 先选"飞地归包围它的国家"，随后改定"还是改成直接独立吧")：控制力不到 DefectThreshold 的
     // 陆路飞地城，每年按控制力的缺口有概率由当地首领自立为国(连同挨着的同属一国的飞地城)，不再改投任何邻国；
     // 时代越早越常见(EraSecession，近代以后按基础机会)
-#if EC_PENDING
     private static void Defect(Realm realm, List<City> cities)
     {
         float era = Mathf.Max(1f, EraSecession(realm));
@@ -932,7 +905,6 @@ public static class AdministrativeControlSystem
             if (Secede(realm, city)) return; // 每国每年至多一处
         }
     }
-#endif
 
     #endregion
 }

@@ -11,6 +11,12 @@ namespace EmpireCraft.Core
     //   - nothing recolours subjects after their overlord: every realm keeps its own colour.
     // How a map shades a sphere of influence is for the client to decide when it draws one.
 
+    // An empire wears its core realm's colour already; there is nothing to copy over.
+    public static class EmpireColorPatch
+    {
+        public static void SyncFromCore(Empire empire) { }
+    }
+
     public static class KingdomColorService
     {
         public static bool KeepsOwnColor(Realm member) => true;

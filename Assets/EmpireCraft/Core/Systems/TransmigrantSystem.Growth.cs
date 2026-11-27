@@ -71,7 +71,6 @@ public static partial class TransmigrantSystem
     private static readonly string[] BroughtTechs =
         { "industrialization", "rifling", "explosives", "electricity", "steam_press", "steam_ironclads", NavalBases };
 
-#if EC_PENDING
     private static void Grow(Realm kingdom, TransmigrantState state, float naturalized)
     {
         Disguise(kingdom, state);
@@ -90,11 +89,9 @@ public static partial class TransmigrantSystem
             $"外贸{Mathf.RoundToInt(CommodityMarketSystem.MarketOf(kingdom)?.trade_value ?? 0f)} " +
             $"{(DisguiseLord(kingdom) is Empire lord ? "伪装为" + lord.GetEmpireFullName() + "属国" : "已公开")}");
     }
-#endif
 
     #region 流民投奔
 
-#if EC_PENDING
     private static float Refugees(Realm kingdom, TransmigrantState state)
     {
         var homes = new List<City>(kingdom.Cities);
@@ -133,10 +130,8 @@ public static partial class TransmigrantSystem
                 string.Join(LM.Get("list_separator"), sources), kingdom.GetKingdomFullName()), kingdom);
         return moved;
     }
-#endif
 
     // 饥荒 ×3、战乱 ×2、民心低于四十 ×1.5
-#if EC_PENDING
     private static float Distress(City city)
     {
         float factor = 1f;
@@ -146,7 +141,6 @@ public static partial class TransmigrantSystem
         if (CityStabilitySystem.Effective(city) < 40f) factor *= 1.5f;
         return factor;
     }
-#endif
 
     // 检疫营：投奔来的人另给住房容量(同人口笔刷)，不按住房回落
     private static void Shelter(City city, float people)
@@ -180,7 +174,6 @@ public static partial class TransmigrantSystem
 
     #region 开拓
 
-#if EC_PENDING
     private static void Settle(Realm kingdom, TransmigrantState state)
     {
         if (kingdom.GetMoney() < SettleCost || Random.value >= SettleChance) return;
@@ -194,7 +187,7 @@ public static partial class TransmigrantSystem
         Landing = true;
         try
         {
-            city = EmpireWorld.Current.Cities.buildNewCity(founder, zone);
+            city = WorldActions.BuildNewCity(founder, zone);
         }
         finally
         {
@@ -213,10 +206,8 @@ public static partial class TransmigrantSystem
         TranslateHelper.LogEventOnly(string.Format(LM.Get("transmigrant_settled_history"), kingdom.GetKingdomFullName(),
             city.GetCityName(), from.GetCityName()), kingdom);
     }
-#endif
 
     // 离本国城 SettleReach 步以内、没有城、能建城的空地，挑最近的
-#if EC_PENDING
     private static Cell FrontierZone(Realm kingdom)
     {
         var seen = new HashSet<Cell>();
@@ -231,14 +222,13 @@ public static partial class TransmigrantSystem
                 foreach (Cell neighbour in zone.NeighboursAll)
                 {
                     if (neighbour == null || !seen.Add(neighbour)) continue;
-                    if (neighbour.City == null && neighbour.GroundCount >= 32 && neighbour.canStartCityHere()) return neighbour;
+                    if (neighbour.City == null && neighbour.GroundCount >= 32 && neighbour.CanStartCityHere()) return neighbour;
                     if (neighbour.GroundCount > 0 && (neighbour.City == null || neighbour.City.Realm == kingdom)) next.Add(neighbour);
                 }
             frontier = next;
         }
         return null;
     }
-#endif
 
     #endregion
 
@@ -365,7 +355,6 @@ public static partial class TransmigrantSystem
     public static bool Mobilizes(Realm kingdom) =>
         kingdom != null && (IsTransmigrant(kingdom) || IsTransmigrant(ColonySystem.MetropoleOf(kingdom)));
 
-#if EC_PENDING
     private static void Campaign(Realm kingdom, TransmigrantState state)
     {
         double now = GameClock.Now;
@@ -388,7 +377,7 @@ public static partial class TransmigrantSystem
         }
         // 没有合适的对象就明年再看
         // 大陆攻略开始以后用兵更勤
-        state.next_campaign_at = now + (target == null || state.mainland ? 1 : CampaignYears) * 60d;
+        state.next_campaign_at = now + (target == null || state.mainland ? 1 : CampaignYears) * 12d;
         if (target == null) return;
         War war = EmpireWorld.Current.StartWar(kingdom, target, WarKinds.Normal);
         if (war == null) return;
@@ -396,7 +385,6 @@ public static partial class TransmigrantSystem
         TranslateHelper.LogEventOnly(string.Format(LM.Get("transmigrant_campaign_history"), kingdom.GetKingdomFullName(),
             target.GetKingdomFullName()), kingdom);
     }
-#endif
 
     #endregion
 
@@ -482,7 +470,6 @@ public static partial class TransmigrantSystem
 
     #region 补粮(每月，见 Tick)与工业
 
-#if EC_PENDING
     private static void Supply()
     {
         Realm kingdom = Active();
@@ -498,7 +485,7 @@ public static partial class TransmigrantSystem
                 float food;
                 try
                 {
-                    food = city.getTotalFood();
+                    food = city.GetTotalFood();
                 }
                 catch
                 {
@@ -506,10 +493,9 @@ public static partial class TransmigrantSystem
                 }
                 if (food >= households * SupplyFloor) continue;
                 int grain = Mathf.Clamp(Mathf.CeilToInt(households * SupplyGrain), 5, SupplyMax);
-                city.addResourcesToRandomStockpile("bread", grain);
+                city.AddResourcesToRandomStockpile("bread", grain);
             }
     }
-#endif
 
     // 厂区产量与工厂收益的倍数(见 CommodityMarketSystem.Book、FactorySystem.Produce)：穿越政权与它的殖民地的城
     public static float IndustryFactor(City city)
@@ -589,7 +575,6 @@ public static partial class TransmigrantSystem
     }
 
     // 挡下这次死亡：寿终、化回人口(不计死亡)不挡；其余只有 KillChance 的机会真死
-#if EC_PENDING
     public static bool Shield(Person actor, DeathCause type, bool countDeath)
     {
         if (!countDeath || type == DeathCause.Age || !IsSenator(actor)) return false;
@@ -603,10 +588,9 @@ public static partial class TransmigrantSystem
             _doomed = actor.Key;
             return false;
         }
-        actor.Record.health = actor.GetMaxHealth();
+        actor.Record.Health = actor.GetMaxHealth();
         return true;
     }
-#endif
 
     #endregion
 }

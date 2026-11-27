@@ -45,7 +45,6 @@ public static class SectUprisingSystem
 #endif
 
     // 宗教图层提示用：华夏一线、末世饥荒苛政有其一、稳定低于起事线(教门可能趁乱起事)
-#if EC_PENDING
     public static bool AtRisk(City city)
     {
         Realm kingdom = city?.Realm;
@@ -53,10 +52,8 @@ public static class SectUprisingSystem
         return InstitutionSystem.GetCultureLine(CultureService.GetRealmCulture(ModRealm(kingdom))) == "Huaxia" && Distressed(city, kingdom) &&
                CityStabilitySystem.Effective(city) < CityStabilityRules.RebellionThreshold;
     }
-#endif
 
     // 末世、饥荒、苛政有其一
-#if EC_PENDING
     private static bool Distressed(City city, Realm kingdom)
     {
         Empire empire = kingdom.GetEmpire();
@@ -65,6 +62,5 @@ public static class SectUprisingSystem
         float burden = empire != null ? HarshRuleSystem.GetBurden(empire) : HarshRuleSystem.GetBurden(kingdom);
         return burden >= HarshThreshold;
     }
-#endif
 }
 }

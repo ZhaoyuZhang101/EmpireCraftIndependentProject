@@ -421,7 +421,6 @@ public static class EmpirePartitionSystem
     // "现状是罗马没有游牧却有就很奇怪"，问答选"都改碎裂")。条件照旧(KhanSplitMinCities 城以上、KhanSplitShare 以上的城在汗庭
     // 控制范围之外、分立冷却与大分裂冷却)；汗庭管不到的兀鲁思各自为汗(同汗国崩解，见 NomadCycleSystem.Scatters)，
     // 汗庭直辖里管不到的城按连成一片交给当地首领各自立国；一次至多带走一半城(UpheavalGuard.HeroCapShare)，汗庭留着、不改名
-#if EC_PENDING
     public static bool KhanateSplit(Empire empire) => NomadCycleSystem.IsKhanate(empire) && KhanateScatter(empire);
 
     private static bool KhanateScatter(Empire empire)
@@ -515,6 +514,7 @@ public static class EmpirePartitionSystem
         return true;
     }
 
+#if EC_PENDING
     public static bool CaliphateSplit(Empire empire) => EmirateSystem.Applies(empire) && CourtSplit(empire, rival: true);
 
     private static bool CourtSplit(Empire empire, bool rival)
@@ -734,7 +734,6 @@ public static class EmpirePartitionSystem
 #endif
 
     // 兄弟之国到期(四十年)，或一方已被外姓篡夺：情谊渐疏，互争正统
-#if EC_PENDING
     private static void CheckAmity(Empire empire, Empire twin)
     {
         bool expired = empire.data.partition_time >= 0d && GameClock.YearsSince(empire.data.partition_time) >= AmityYears;
@@ -747,7 +746,6 @@ public static class EmpirePartitionSystem
         Publish(empire, twin, string.Format(LM.Get("partition_amity_end_history"), empire.GetEmpireFullName(),
             twin.GetEmpireFullName()), null);
     }
-#endif
 
     // 兄弟之国遭外敌攻打：另一朝出兵相助(WarPatch.new_war)
     public static void OnWarStarted(War war)
@@ -873,7 +871,6 @@ public static class EmpirePartitionSystem
     }
 
     // 反杀：皇帝与近臣谋诛权臣，抄没家产，亲政
-#if EC_PENDING
     private static void Counter(Empire empire, Person emperor, Person minister)
     {
         Realm core = empire.CoreKingdom;
@@ -894,7 +891,6 @@ public static class EmpirePartitionSystem
         empire.RecordHistory(directContent: text, actorId: emperor.Key);
         TranslateHelper.LogEventMessage(text, core);
     }
-#endif
 
     // 事泄被废：权臣废帝，另立宗室幼主；宗室无人可立就天下散伙(见 InterregnumSystem)
 #if EC_PENDING
@@ -920,6 +916,7 @@ public static class EmpirePartitionSystem
         empire.RecordHistory(directContent: text, actorId: puppet.Key);
         TranslateHelper.LogEventMessage(text, core);
     }
+#endif
 
     private static void AfterMinisterSplit(Empire source, Empire twin, Person strongman, Person ruler, int control)
     {
@@ -933,7 +930,6 @@ public static class EmpirePartitionSystem
         }
         ImperialLegitimacyChallengeService.DeclareDynasticRivals(twin, source, war: true);
     }
-#endif
 
     // 宗室里挑一位(权臣、强藩要立的多是年少的)，从族谱落成实体
     private static Person PickRoyal(Empire empire, Person emperor, bool preferYoung)

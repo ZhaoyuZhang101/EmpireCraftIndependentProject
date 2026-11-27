@@ -39,7 +39,6 @@ public static class DiplomacyLedger
 
     // 接壤的国家。帝国看整个帝国，别的国家看自己；城的地块相接，或只隔着走得通的无人区(同宣战的邻国，见 WarReach.WalkableWildNeighbours)。
     // 挨着别国帝国的成员，那个帝国也算接壤；帝国自己的成员不算，它们在"本帝国"筛选里
-#if EC_PENDING
     public static HashSet<Realm> NeighboursOf(Realm focus)
     {
         var near = new HashSet<Realm>();
@@ -64,7 +63,6 @@ public static class DiplomacyLedger
         }
         return near;
     }
-#endif
 
     private static void Touch(HashSet<Realm> near, Realm next, Realm focus, Empire own, bool whole)
     {
@@ -92,10 +90,8 @@ public static class DiplomacyLedger
         return root != null && CommodityMarketSystem.RootOf(b) == root;
     }
 
-#if EC_PENDING
     public static bool Allied(Realm a, Realm b) =>
-        a != null && b != null && a.HasAlliance() && b.HasAlliance() && Alliance.isSame(a.GetAlliance(), b.GetAlliance());
-#endif
+        a != null && b != null && a.HasAlliance() && b.HasAlliance() && Alliance.IsSame(a.GetAlliance(), b.GetAlliance());
 
     public static string Standing(Realm kingdom)
     {
@@ -204,8 +200,8 @@ public static class DiplomacyLedger
         else
         {
             double ended = EmpireWorld.Current.Diplomacy?.GetRelation(a, b)?.Record?.LastWarEnded ?? -1d;
-            if (ended > 0d && GameClock.YearsSince(ended) < SimGlobals.m.minimum_years_between_wars)
-                Add("diplomacy_tie_truce", Orange, ended, SimGlobals.m.minimum_years_between_wars);
+            if (ended > 0d && GameClock.YearsSince(ended) < WorldRules.m.minimum_years_between_wars)
+                Add("diplomacy_tie_truce", Orange, ended, WorldRules.m.minimum_years_between_wars);
         }
         if (Allied(a, b))
             Add("diplomacy_tie_alliance", Green, Mathf.Max((float)a.Record.timestamp_alliance, (float)b.Record.timestamp_alliance));

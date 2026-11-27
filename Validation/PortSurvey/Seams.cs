@@ -17,6 +17,7 @@ using Newtonsoft.Json.Linq;
 //
 // seams.json: { "CityPopulationSystem": ["SpawnFromGroup"], ... } - class name to member names
 // (every overload of a name); "*" switches the whole type off, for a class written anew by hand.
+// An empty list only makes the class partial, so a hand-written half can add members beside the mod's.
 // A name that is not found is an error: the mod has moved on.
 public static class Seams
 {
@@ -56,7 +57,8 @@ public static class Seams
                 }
                 if (!type.Modifiers.Any(SyntaxKind.PartialKeyword)) partial.Add(type.Keyword.GetLocation().GetLineSpan().StartLinePosition.Line * 100000 + type.Keyword.GetLocation().GetLineSpan().StartLinePosition.Character);
             }
-            if (off.Count == 0) continue;
+            // An empty list switches nothing off and only makes the class partial, for a hand-written half that adds members.
+            if (off.Count == 0 && partial.Count == 0) continue;
             // `partial` goes right before the class keyword; then the directives, from the bottom up so line numbers hold.
             foreach (int at in partial.OrderByDescending(v => v))
             {

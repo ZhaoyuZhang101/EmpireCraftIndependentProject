@@ -278,7 +278,6 @@ public static class TianxiaSystem
     }
 
     // 年度(统计天下之前)：标识不同的退出，标识相同的相邻天下并成一个
-#if EC_PENDING
     public static void AutoArrange()
     {
         if (EmpireCoreManager.EmpireCores == null || EmpireWorld.Current?.Cities == null) return;
@@ -300,10 +299,10 @@ public static class TianxiaSystem
             if (city?.Record == null || city.IsGone() || city.NeighbourCities == null) continue;
             EmpireCore a = LeadOf(city);
             if (a == null) continue;
-            object island = city.SeatCell()?.region?.island;
+            object island = city.SeatCell()?.Region?.island;
             foreach (City next in city.NeighbourCities)
             {
-                if (next?.Record == null || next.IsGone() || island == null || !ReferenceEquals(island, next.SeatCell()?.region?.island)) continue;
+                if (next?.Record == null || next.IsGone() || island == null || !ReferenceEquals(island, next.SeatCell()?.Region?.island)) continue;
                 EmpireCore b = LeadOf(next);
                 if (b == null || b == a) continue;
                 pairs.Add(a.id < b.id ? (a.id, b.id) : (b.id, a.id));
@@ -325,7 +324,6 @@ public static class TianxiaSystem
             else Join(b, a, manual: false);
         }
     }
-#endif
 
     // 列岛天下(用户 2026-10-21 选"列岛天下")：文化配置标了 archipelago 的(日本)，隔着海峡的天下、帝国法理也能相并
     // (帝国法理见 EmpireCoreManager.TryAbsorbTitle)——以前只认同一块陆地，列岛被拆成几个不足八城的小天下(偏安，没有天命)
@@ -335,7 +333,6 @@ public static class TianxiaSystem
 
     // 隔海峡相邻的两个天下：明写同一标识、至少一边是列岛文化，一边据有城的国家(帝国按全体成员)水师辐射够得着另一边的城
     // (见 StraitReach，同宣战、统一的"隔海相望")；没到有水师的时代、没有战舰就够不着，照旧不并
-#if EC_PENDING
     private static void AddStraitPairs(HashSet<(long, long)> pairs)
     {
         List<EmpireCore> leads = Leads().Where(lead => TianxiaId(lead, explicitOnly: true) != "").ToList();
@@ -349,10 +346,8 @@ public static class TianxiaSystem
             if (AcrossStrait(a, b) || AcrossStrait(b, a)) pairs.Add(key);
         }
     }
-#endif
 
     // from 天下里据有城的各国(野生国除外)，有一家的水师够得着 to 天下的某座城
-#if EC_PENDING
     private static bool AcrossStrait(EmpireCore from, EmpireCore to)
     {
         List<City> theirs = Cities(to);
@@ -363,7 +358,6 @@ public static class TianxiaSystem
             if (StraitReach.Reaches(holder, city)) return true;
         return false;
     }
-#endif
 
     #endregion
 
@@ -377,7 +371,6 @@ public static class TianxiaSystem
     }
 
     // 年度(UnificationSystem.Yearly 统计完天下以后)：各家据有的城数 → 受天命、失天命
-#if EC_PENDING
     public static void Settle(EmpireCore lead, Dictionary<Realm, int> held, int total, string name)
     {
         if (lead == null || total <= 0) return;
@@ -430,7 +423,6 @@ public static class TianxiaSystem
         }
         Claim(lead, top.Key, top.Value, total, name, now);
     }
-#endif
 
     private static void Claim(EmpireCore lead, Realm kingdom, int count, int total, string name, double now)
     {
@@ -480,7 +472,6 @@ public static class TianxiaSystem
         return result;
     }
 
-#if EC_PENDING
     private static void Tribute(EmpireCore lead, Realm holder, string name)
     {
         Empire empire = holder.GetEmpire();
@@ -512,7 +503,6 @@ public static class TianxiaSystem
             InvalidateLegitimacy(holder);
         }
     }
-#endif
 
     private static void DisperseTributaries(EmpireCore lead, Realm holder, string name, float chance)
     {

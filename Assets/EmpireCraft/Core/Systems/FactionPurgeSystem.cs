@@ -25,7 +25,6 @@ public static class FactionPurgeSystem
     private const int StalemateYears = 5;
 
     // 每年(FactionBalanceSystem.Yearly 末尾)
-#if EC_PENDING
     public static void TryRaise(Empire empire, List<FixedFaction> factions, FixedFaction top)
     {
         if (FactionBalanceSystem.Imbalance(empire) < PurgeImbalance || factions.Count < 2) return;
@@ -81,7 +80,6 @@ public static class FactionPurgeSystem
         empire.RecordHistory(directContent: text, actorId: leader.Ruler?.Key ?? -1L, kingdomId: core.Key);
         TranslateHelper.LogEventMessage(text, core);
     }
-#endif
 
     // 帝国眼下的清君侧之战(本系统发起的)
     public static War Active(Empire empire) =>
@@ -126,7 +124,6 @@ public static class FactionPurgeSystem
         CorpsSystem.Enabled ? CorpsSystem.Of(kingdom).Sum(corps => corps.strength) : kingdom.Warriors();
 
     // 战争结束(WarPatch)：结算清君侧
-#if EC_PENDING
     public static void Resolve(War war, WarOutcome winner)
     {
         if (!IsPurge(war)) return;
@@ -175,6 +172,5 @@ public static class FactionPurgeSystem
         empire.RecordHistory(directContent: text, kingdomId: core.Key);
         TranslateHelper.LogEventMessage(text, core);
     }
-#endif
 }
 }

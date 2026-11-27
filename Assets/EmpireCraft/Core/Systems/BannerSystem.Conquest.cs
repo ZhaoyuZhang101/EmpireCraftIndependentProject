@@ -46,7 +46,6 @@ public static partial class BannerSystem
 
     private static float YearsSince(double at) => at < 0d ? -1f : (float)GameClock.YearsSince(at);
 
-#if EC_PENDING
     private static void ConquestYearly(Empire empire, Realm core, KingdomExtension.KingdomExtraData extra)
     {
         if (extra.banner_entered_at < 0d)
@@ -73,7 +72,6 @@ public static partial class BannerSystem
         if (BannerRules.RelaxDue(years, extra.banner_fugitive_law, extra.banner_law_relaxed, core.HasEnemies()))
             RelaxFugitiveLaw(empire, core, extra);
     }
-#endif
 
     private static void Announce(Empire empire, Realm core, string text)
     {

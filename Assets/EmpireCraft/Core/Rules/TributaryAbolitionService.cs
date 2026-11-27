@@ -20,7 +20,6 @@ public static class TributaryAbolitionService
 
     private enum Choice { Join, Independence, Vassal }
 
-#if EC_PENDING
     public static void OnMonarchyAbolished(Empire empire)
     {
         if (empire?.CoreKingdom == null || empire.taken_Kingdoms == null || empire.taken_Kingdoms.Count == 0) return;
@@ -61,7 +60,6 @@ public static class TributaryAbolitionService
         EventRecorder.Record(empire, string.Format(LM.Get("tributary_abolished_history"), empire.GetEmpireFullName(),
             joined, vassals, independent));
     }
-#endif
 
     private static Choice Decide(Empire empire, Realm tributary)
     {

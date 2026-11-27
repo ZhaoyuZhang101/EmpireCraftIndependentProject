@@ -51,7 +51,6 @@ public static class WarObjective
 
     // 开战定下大方向(WarGoalSystem.Ensure)之后落到具体目标上。substitute：按形势改成继承、羁縻
     // (别的系统直接定的目标、窗口里轮换的目标不改，免得圣战、禁令变成继承之战，轮换卡在继承上)
-#if EC_PENDING
     internal static void Refine(War war, Realm attacker, Realm defender, float strength, bool substitute = true)
     {
         WarExtension.WarExtraData data = war.GetOrCreate();
@@ -118,11 +117,9 @@ public static class WarObjective
             if (other != null) data.goal_main_city_id = other.Key;
         }
     }
-#endif
 
     // 剧本点名的目标城(用户 2026-11-09 明清鼎革："可是这局依旧是清和明先打起来了"：开局那场仗的目标是北京，
     // 清从开局就冲北京去；照史实是关外的松锦之战，目标改成锦州)：夺城，主城池就是它，打下就算赢
-#if EC_PENDING
     internal static void Aim(War war, City city)
     {
         if (war?.Record == null || city?.Record == null || city.IsGone()) return;
@@ -135,7 +132,6 @@ public static class WarObjective
         data.goal_achieved = false;
         WarCatalog.ApplyName(war);
     }
-#endif
 
     private static List<City> Cities(WarExtension.WarExtraData data) =>
         (data.goal_city_ids ?? new List<long>()).Select(id => EmpireWorld.Current.CityByKey(id))
@@ -183,7 +179,6 @@ public static class WarObjective
     }
 
     // 割地落到具体：争法理 → 夺城 → 争夺资源 → 侵略；一座接壤城都挑不出就求赔款
-#if EC_PENDING
     private static WarGoal Conquest(War war, Realm attacker, Realm defender, WarExtension.WarExtraData data)
     {
         Realm realm = FrontSystem.ModRealm(attacker);
@@ -235,7 +230,6 @@ public static class WarObjective
         Pick(data, border, border);
         return WarGoal.侵略;
     }
-#endif
 
     // 头一座挑最大的，第二座挑挨着它的(没有就挑次大的)
     private static void Pick(WarExtension.WarExtraData data, List<City> preferred, List<City> border)
@@ -249,7 +243,6 @@ public static class WarObjective
     }
 
     // 对方挨着攻方一边的城(攻方是帝国中央、两边不同属一个帝国时，帝国成员的城也算挨着)；跨海够不着的挑离攻方都城最近的两座
-#if EC_PENDING
     private static List<City> BorderCities(War war, Realm attacker, Realm defender)
     {
         var result = new List<City>();
@@ -269,12 +262,10 @@ public static class WarObjective
         }
         if (result.Count > 0 || attacker.Capital?.Record == null) return result;
         return (defender.Cities ?? new List<City>()).Where(city => city?.Record != null && !city.IsGone())
-            .OrderBy(city => Toolbox.DistVec2Float(city.Center, attacker.Capital.Center)).Take(MaxTargets).ToList();
+            .OrderBy(city => EcVector2.Distance(city.Center, attacker.Capital.Center)).Take(MaxTargets).ToList();
     }
-#endif
 
     // 接壤城里攻方一边没有、开采得了的矿藏(挑最值钱的)；游牧缺草场时也争大片牧场
-#if EC_PENDING
     private static (City city, string resource) ResourceTarget(Realm attacker, Realm realm, List<City> border)
     {
         var ours = new HashSet<string>();
@@ -309,7 +300,6 @@ public static class WarObjective
         }
         return (best, bestId);
     }
-#endif
 
     internal static int Value(string id) => id switch
     {

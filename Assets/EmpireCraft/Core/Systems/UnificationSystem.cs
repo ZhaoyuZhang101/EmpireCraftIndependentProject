@@ -393,7 +393,6 @@ public static class UnificationSystem
 
     // 记下的雄主不在位了：统一没打完的当场中辍，统一后还在开国气象里的气象就此散了；
     // 留下"雄主之后第一次换汗必乱"(见 TakeHeroTurmoil)
-#if EC_PENDING
     private static void HeroFell(Empire empire)
     {
         EmpireData state = empire.data;
@@ -421,11 +420,9 @@ public static class UnificationSystem
         }
         LogService.LogInfo($"[EmpireCraft][天下大势] {name} 失了雄主{hero}({(data.unified_at >= 0d ? "统一后开国气象已过" : "统一未成")})，下回换汗必乱");
     }
-#endif
 
     // 统一中辍：不再算统一者；它打着的统一战争照年度清理的规矩改名(见 RetagStaleWars)，兵败如山倒作罢。
     // 只动它自己发动的仗——年度结算中途别家的对手表还没重建，不能整个世界一起改
-#if EC_PENDING
     private static void Halt(Realm unifier)
     {
         unifier.GetOrCreate().unify_since = -1d;
@@ -439,11 +436,9 @@ public static class UnificationSystem
             Retag(war);
         }
     }
-#endif
 
     // 游牧统一者没有雄主在位了就中辍，返回 true(见文件头游牧难一统)：记下的雄主不在位按 HeroFell 收场；
     // 旧档里打着统一战争却没记下雄主的，雄主在位就补记，不在就中辍
-#if EC_PENDING
     private static bool HeroLost(Realm unifier)
     {
         if (!IsNomad(unifier)) return false;
@@ -465,10 +460,8 @@ public static class UnificationSystem
         LogService.LogInfo($"[EmpireCraft][天下大势] {unifier.GetKingdomName()} 游牧无雄主在位(统一战争第{years}年)，统一中辍");
         return true;
     }
-#endif
 
     // 每月：各帝国记下的游牧雄主还在不在位，不在了按 HeroFell 收场；统一满十年雄主还在位的，开国气象到期记一行日志
-#if EC_PENDING
     private static void WatchHeroes()
     {
         if (ModClass.EMPIRE_MANAGER == null) return;
@@ -496,7 +489,6 @@ public static class UnificationSystem
             LogService.LogInfo($"[EmpireCraft][天下大势] {core.GetKingdomName()} 统一满{NomadGraceYears}年，开国气象结束(雄主{empire.data.nomad_hero_name}仍在位)");
         }
     }
-#endif
 
     // 新汗即位时问(见 NomadCycleSystem.OnKhanSucceeded)：是不是雄主之后第一次汗位更替。记下的雄主这才不在位的先按 HeroFell 收场
     // (统一中辍、气象散)；问过就清掉，之后的汗位更替照常。hero 是那位雄主的名字
@@ -510,7 +502,6 @@ public static class UnificationSystem
         return state.nomad_hero_fell_at >= 0d || state.nomad_hero_id >= 0L && !HeroReigns(core);
     }
 
-#if EC_PENDING
     public static bool TakeHeroTurmoil(Empire empire, out string hero)
     {
         hero = "";
@@ -531,7 +522,6 @@ public static class UnificationSystem
         hero = state.nomad_hero_name ?? "";
         return true;
     }
-#endif
 
     // 游牧无雄主在位、本可发动统一战争的(诊断，每家 NoHeroLogYears 年一行)
     private static void LogNoHero(Realm top, ModRealm realm, float share)
@@ -563,9 +553,7 @@ public static class UnificationSystem
         }
     }
 
-#if EC_PENDING
-    private static object IslandOf(Cell tile) => tile?.region?.island;
-#endif
+    private static object IslandOf(Cell tile) => tile?.Region?.island;
 
     // 天下(一个文化圈里连成一片的城)：各家占的城；members = 都城在这片里的各家(天下的人)
     private sealed class ModRealm
@@ -617,7 +605,6 @@ public static class UnificationSystem
     }
 
     // 一片零星城该并进哪个天下：同一文化圈的天下里，与这片接壤的城最多的；都不接壤就看同一块陆地上相近的
-#if EC_PENDING
     private static EmpireCore NeighbourLead(List<City> group, string line, Dictionary<EmpireCore, List<City>> byLead)
     {
         var score = new Dictionary<EmpireCore, int>();
@@ -638,7 +625,6 @@ public static class UnificationSystem
             }
         return score.Count == 0 ? null : score.OrderByDescending(pair => pair.Value).ThenBy(pair => pair.Key.id).First().Key;
     }
-#endif
 
     private static bool SameLine(EmpireCore lead, string line) =>
         TianxiaSystem.Members(lead).Any(core => LineOf(core.default_culture) == line);
@@ -659,7 +645,6 @@ public static class UnificationSystem
         }
     }
 
-#if EC_PENDING
     private static List<ModRealm> Survey()
     {
         var byLine = new Dictionary<string, List<City>>();
@@ -738,7 +723,6 @@ public static class UnificationSystem
         if (OrphanOf.Count > 0) LogService.LogInfo($"[EmpireCraft][天下大势] {OrphanOf.Count} 座零星城并入相邻天下");
         return realms;
     }
-#endif
 
     private static void Tally(ModRealm realm)
     {
@@ -760,7 +744,6 @@ public static class UnificationSystem
     }
 
     // 两座城连成一片：领地接壤，或同一块陆地上城心相距不远
-#if EC_PENDING
     private static bool Linked(City a, City b)
     {
         // 不跨海(用户："跨大陆跨海洋就算了")：隔海接壤的也不连
@@ -769,7 +752,6 @@ public static class UnificationSystem
         if (a.NeighbourCities != null && a.NeighbourCities.Contains(b)) return true;
         return Land.SquaredDist(ta, tb) <= LinkTiles * LinkTiles;
     }
-#endif
 
     // 这一家是这个天下的人(都城在这片里)：只有它们能做统一者、是统一的对象
     private static bool Belongs(Realm sovereign, ModRealm realm) => Alive(sovereign) && realm.members.Contains(sovereign);
@@ -784,7 +766,6 @@ public static class UnificationSystem
     private static readonly Dictionary<Realm, HashSet<Realm>> Adjacency = new();
     private static int _adjacencyFrame = -1;
 
-#if EC_PENDING
     private static bool Borders(Realm sovereign, Realm rival)
     {
         if (_adjacencyFrame != Time.frameCount)
@@ -809,7 +790,6 @@ public static class UnificationSystem
         return Adjacency.TryGetValue(sovereign, out HashSet<Realm> near) && near.Contains(rival) ||
                StraitReach.Across(sovereign, rival);
     }
-#endif
 
     private static bool Exempt(Realm sovereign) => ZhouEraSystem.SphereOf(sovereign) != null;
 
@@ -1011,7 +991,6 @@ public static class UnificationSystem
 
     // 问鼎：按占城、国力从大到小逐家核对，挑第一家够格又打得动的，一个天下一年至多一家。
     // 以前只看占城第一的一家，它在冷却里、够不上门槛，别家再合格也轮不到
-#if EC_PENDING
     private static Realm PickContender(ModRealm realm, List<Realm> contenders)
     {
         if (contenders.Count < MinContenders) return null;
@@ -1063,7 +1042,6 @@ public static class UnificationSystem
         if (share < StallUnifiedShare && !ranked.Any(other => other != candidate && Borders(candidate, other))) return ContestBlock.NoRival;
         return ContestBlock.None;
     }
-#endif
 
     // 诊断：这个天下乱世里各家卡在哪。卡点变了才记，没变的 ContestLogYears 年一行
     private static void DiagnoseContest(ModRealm realm, List<(Realm kingdom, ContestBlock block)> seen, List<Realm> ranked,
@@ -1098,7 +1076,6 @@ public static class UnificationSystem
     }
 
     // 已不在同一天下的"统一战争"(旧存档跨文化开的、天下散了的)改名：游牧政权为游牧扩张，别的为帝国扩张
-#if EC_PENDING
     private static void RetagStaleWars()
     {
         foreach (War war in EmpireWorld.Current.LiveWars.ToList())
@@ -1116,7 +1093,6 @@ public static class UnificationSystem
         bool nomad = attacker.GetRegime()?.type == EmpireCraft.Core.RegimeType.YouMu;
         war.SetEmpireWarType(nomad ? EmpireWarType.游牧扩张 : EmpireWarType.帝国扩张);
     }
-#endif
 
     // 天下里的别家(都城在这片里的独立国家、别的帝国)，按都城离统一者都城远近排
     private static List<Realm> Opponents(Realm unifier, ModRealm realm)
@@ -1131,7 +1107,6 @@ public static class UnificationSystem
     // 望风归附：只剩一两座城、正与统一者交战、兵力被碾压、主力确已被打垮的，每年有几率举国归附，统一十年后几率加倍
     // (帝国不归附，要打)。有统一倾向的统一者据有过半(大势已去)：接壤的一两城小国，正规军不到它五分之一的，
     // 不交战也照这个几率归附(用户 2026-11-08 选"大势已去的小国归附")
-#if EC_PENDING
     private static void Submissions(Realm unifier, float share)
     {
         if (!Rivals.TryGetValue(unifier.Key, out List<Realm> rivals)) return;
@@ -1155,7 +1130,6 @@ public static class UnificationSystem
             Annex(unifier, rival, null, "unify_submit_history");
         }
     }
-#endif
 
     // 收拾残局：受了这个天下天命的共主(帝国，不在统一战争里，不是周室一系)，每年 PacifyChance 的机会对天下里剩下的一家动手——
     // 接壤(法理相连且走得通，隔着走得通的无人区也算，见 Borders；或隔海相望)、都城在这片天下里、不是它的岁币之国、附庸，过得了开战闸门(停战、联姻、扶立……见 WarGate)、
@@ -1183,7 +1157,6 @@ public static class UnificationSystem
     // 共主这一年收拾残局的天下：主核心 → 年度结算清点的那一片(B 认平定之战、C 每月挑目标都看它)
     private static readonly Dictionary<long, ModRealm> Pacifying = new();
 
-#if EC_PENDING
     private static void Pacify(ModRealm realm)
     {
         if (realm.lead == null) return;
@@ -1197,7 +1170,6 @@ public static class UnificationSystem
         if (EcRandom.value >= UnificationDrive.PacifyChance(holder, PacifyChance)) return;
         PacifyOne(realm, holder, empire, monthly: false);
     }
-#endif
 
     // 收拾残局的共主所在的帝国：受着这个天下的天命、自成一家的帝国，不在统一战争里，不是周室一系、不归古战争模组管；不够格为空
     private static Empire Pacifier(ModRealm realm, Realm holder)
@@ -1223,7 +1195,6 @@ public static class UnificationSystem
 
     // 动一家(每年掷中一次；动荡期每月一次)：挑得出的离都城最近的一家，先索称臣、不从就兴师；这一家开不了仗(开战那一下
     // 被别的规矩挡回来)不挡下一家；一家也没动成记诊断
-#if EC_PENDING
     private static void PacifyOne(ModRealm realm, Realm holder, Empire empire, bool monthly)
     {
         // 手上已有两场仗(不论什么仗，统一、平定之战至多 MaxWars 场自然在内)、正在死战、打不起：这一回作罢
@@ -1273,11 +1244,9 @@ public static class UnificationSystem
         }
         DiagnosePacify(realm, holder, empire, dynasty);
     }
-#endif
 
     // 共主自己的朝贡国暂且不打的缘由(A)：称臣未满停战年限(称臣如同停战)；都城鞭长莫及(打下来仍只是迫其称臣)。
     // 不是它的朝贡国、或可以打的为空
-#if EC_PENDING
     private static string TributaryBlock(Realm holder, Realm member, Empire empire)
     {
         if (member.GetTakenAllianceEmpire() != empire) return null;
@@ -1286,11 +1255,9 @@ public static class UnificationSystem
             return $"朝贡国(称臣未满{TributaryTruceYears}年)";
         return AdministrativeControlSystem.OutOfReach(holder, member.Capital) ? "朝贡国(都城鞭长莫及，打下也只称臣)" : null;
     }
-#endif
 
     // 诊断(2026-11-07 群友"帝国不会主动出击统一天下")：共主这一回该收拾残局(每年掷中，或动荡期每月)，天下里却一家也没动成(也没在打)——各家卡在哪。
     // 自己的朝贡国不再一律算"开战闸不打"(A)，只记称臣未满三年、都城鞭长莫及的。卡点变了才记，没变的 ContestLogYears 年一行(同问鼎诊断)；只记日志
-#if EC_PENDING
     private static void DiagnosePacify(ModRealm realm, Realm holder, Empire empire, string dynasty)
     {
         var parts = new List<string>();
@@ -1318,7 +1285,6 @@ public static class UnificationSystem
         LogService.LogInfo($"[EmpireCraft][天下诊断] {realm.line} 共主 {dynasty} 收拾残局无从下手：{string.Join("；", parts)}" +
                            (rest > 0 ? $"(另 {rest} 家)" : ""));
     }
-#endif
 
     // 一家的正规军(帝国连同各成员国)：现有兵力与满编；没有军团制时按士兵与历来最多的士兵
     private static (float strength, float full) Army(Realm sovereign)
@@ -1367,7 +1333,6 @@ public static class UnificationSystem
         }
     }
 
-#if EC_PENDING
     private static void Monthly()
     {
         CarryOver();
@@ -1397,12 +1362,10 @@ public static class UnificationSystem
             if (empire != null && PacifyMonthly(holder, realm.lead)) PacifyOne(realm, holder, empire, monthly: true);
         }
     }
-#endif
 
     // 开战：手上的统一战争不到两场(有统一倾向的随占地加场，见 MaxWarsOf)、养得起兵，就挑接壤(或隔海相望)的一家开战(目标吞并)，
     // 每月至多一场；不隔着别国远征。战争名按目标起(某某灭某国之战)，"统一天下"只作标签(见 WarCatalog)。
     // 不看停战、朝贡：天下里自己的朝贡国本来就打(用户 2026-11-07 选「共主可以打朝贡国」时核对过，同共主平定)，开战即罢朝贡、不留半截
-#if EC_PENDING
     private static void Declare(Realm unifier)
     {
         if (!Rivals.TryGetValue(unifier.Key, out List<Realm> rivals) || rivals.Count == 0) return;
@@ -1424,7 +1387,6 @@ public static class UnificationSystem
             return;
         }
     }
-#endif
 
     // 举国并入统一者：结束两家的战争，对方(帝国连同各成员国)所有的城逐帧移交
     private static void Annex(Realm unifier, Realm foe, War war, string historyKey)

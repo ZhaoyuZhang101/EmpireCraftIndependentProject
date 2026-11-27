@@ -108,7 +108,6 @@ public static class ClaimRules
             : new List<string>();
 
     // 能否提出；不能时 blocker 是给玩家看的原因(已格式化)
-#if EC_PENDING
     public static bool IsAllowed(Empire empire, TemporaryFactionType type, out string blocker)
     {
         blocker = "";
@@ -171,10 +170,8 @@ public static class ClaimRules
                 string.Join(LM.Get("claim_rule_or"), wanted.Select(id => NodeName(id, culture))));
         return false;
     }
-#endif
 
     // 推动的目标制度：第一个尚未施行、且(按常规或强推)能发起改革的
-#if EC_PENDING
     public static InstitutionNodeConfig FindPushTarget(Empire empire, TemporaryFactionType type)
     {
         if (empire?.CoreKingdom == null || !Rules.TryGetValue(type.ToString(), out Rule rule) || rule.Lines == null)
@@ -196,10 +193,8 @@ public static class ClaimRules
         }
         return null;
     }
-#endif
 
     // 决议执行后：推动类决议对目标制度发起改革(push 目标在执行前取好，见 EmpireCraftPlotsAddition)
-#if EC_PENDING
     public static void AfterExecute(Empire empire, TemporaryFactionType type, InstitutionNodeConfig target,
         string factionId)
     {
@@ -209,7 +204,6 @@ public static class ClaimRules
                      InstitutionSystem.CanStartReform(empire, target, out _, true);
         InstitutionSystem.StartReform(empire, target.id, force, factionId);
     }
-#endif
 
     // 已采纳中原制度的游牧政权(元、清式)：复合帝国，统治文化属游牧线、制度文化属华夏线
     private static bool IsSinicizedNomad(Empire empire)

@@ -469,7 +469,6 @@ public abstract class TemporaryFaction
         return CanUseCrimeRestrictedTarget(actor, kingdom);
     }
 
-#if EC_PENDING
     protected bool TryEnforceCrimeForCurrentTarget()
     {
         if (!RequireCrimeTarget)
@@ -481,7 +480,6 @@ public abstract class TemporaryFaction
         if (!CanUseCrimeRestrictedTarget(actor, kingdom)) return false;
         return EmpireLawSystem.TryEnforceCrimeForClaim(actor, kingdom) != null;
     }
-#endif
 
     public string GetCurrentTargetCrimeName()
     {
@@ -545,7 +543,6 @@ public abstract class TemporaryFaction
 
   
 
-#if EC_PENDING
     protected bool CheckRebelling(Realm kingdom)
     {
         Empire empire = GetEmpire();
@@ -640,7 +637,6 @@ public abstract class TemporaryFaction
         }
         return false;
     }
-#endif
 
     protected FixedFaction GetFaction()
     {
@@ -693,11 +689,11 @@ public abstract class TemporaryFaction
             }
             if (ShowAsPlot)
             {
-                var plot = AssetManager.plots_library.get("empire_plots");
+                var plot = PlotKinds.Library.get("empire_plots");
                 var emperor = empire?.Emperor;
                 if (emperor != null)
                 {
-                    if (!emperor.plot?.isSameType(plot) ?? true)
+                    if (!emperor.Plot?.IsSameType(plot) ?? true)
                     {
                         if (plot?.try_to_start_advanced(emperor, plot, true) != true) End();
                     } 
@@ -780,7 +776,6 @@ public abstract class TemporaryFaction
         kingdoms.Add(kingdom.Key);
     }
     //更新：每年一次共计十年
-#if EC_PENDING
     private void Update()
     {
         if (!CheckContinue() || (IsLocallyPushed && !CheckLocalContinue(GetKingdom())))
@@ -835,11 +830,9 @@ public abstract class TemporaryFaction
             End();
         }
     }
-#endif
 
     // 每月进度 = 基础(审核加速) × 议程(政党、体制外的诉求) × 朝堂施行(议事会支持、掣肘)。议程判定已不能推进时 blocked。
     // factors 不为空时记下各项倍数，诉求天平页逐项列出(用户 2026-11-10 "推动诉求也要加天平页面")
-#if EC_PENDING
     public float MonthlyRate(List<CourtScaleFactor> factors, out bool blocked)
     {
         blocked = false;
@@ -861,7 +854,6 @@ public abstract class TemporaryFaction
         if (!IsLocallyPushed) progressRate *= CourtSystem.ProgressMultiplier(GetEmpire(), this, factors);
         return progressRate;
     }
-#endif
 
     public bool CheckTarget()
     {
@@ -876,14 +868,12 @@ public abstract class TemporaryFaction
         };
         return exists && HasRequiredCrimeForCurrentTarget();
     }
-#if EC_PENDING
     public void CheckNeedToUpdate()
     {
         if (GameClock.MonthsSince(timestamp) < 1) return;
         Update();
         timestamp = GameClock.Now;
     }
-#endif
     /// <summary>
     /// 触发条件成功后的执行动作
     /// </summary>
@@ -894,7 +884,6 @@ public abstract class TemporaryFaction
     /// </summary>
     /// <param name="actor">发起主体</param>
     /// <returns></returns>
-#if EC_PENDING
     public virtual bool CheckLocalCondition(Realm actor)
     {
         return CheckLocalContinue(actor) && CheckCondition();
@@ -913,7 +902,6 @@ public abstract class TemporaryFaction
         if (actorFaction != GetFaction()) return false;
         return true;
     }
-#endif
 
     public virtual void LocalEnd(Realm actor)
     {

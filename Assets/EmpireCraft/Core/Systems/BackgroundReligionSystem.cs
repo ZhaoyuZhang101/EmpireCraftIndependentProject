@@ -75,7 +75,6 @@ public static class BackgroundReligionSystem
 
     #region 年度结算
 
-#if EC_PENDING
     public static void YearlyPass()
     {
         if (!Active || EmpireWorld.Current?.Cities == null || ModClass.IS_CLEAR) return;
@@ -142,7 +141,6 @@ public static class BackgroundReligionSystem
         ReligionDiagnostics.Add(ReligionDiagnostics.Converted, converted);
         LogDiagnostics(cities, people, adopted, converted, crossed);
     }
-#endif
 
     // 跨天下改信、改宗的几率倍数：跨了天下 ×0.5，本天下已有本土大教再 ×0.5
     public static float ForeignChance(Religion religion, string citySphere)
@@ -153,7 +151,6 @@ public static class BackgroundReligionSystem
 
     // 传教够得着的邻城：原版邻城；通达层算好后改为城际图上直接相连的城(陆路、海路，见类头)，这座城不在图上时
     // 照旧原版邻城加只隔无人区的邻城
-#if EC_PENDING
     internal static IEnumerable<City> Contacts(City city)
     {
         List<ConnectivityLink> links = ConnectivitySystem.Links(city, ConnectivityMode.Ideas, inbound: true);
@@ -170,7 +167,6 @@ public static class BackgroundReligionSystem
         foreach (City other in WildernessNeighbours.Of(city))
             if (other != null && (city.NeighbourCities == null || !city.NeighbourCities.Contains(other))) yield return other;
     }
-#endif
 
     // 从 from 城传到 to 城的通达(0~1，按传教一方的本事、消息口径)：强度到"紧密"(0.6)以上不打折；
     // 跨天下的民族宗教走不远(衰减长度 ×0.6，即强度 ^(1/0.6))；通达层没算好时为 1(照旧)
@@ -215,7 +211,6 @@ public static class BackgroundReligionSystem
     }
 
     // 势能：国教按本城人口算，邻城按各自人口打折，圣地加成；都乘宗教的传教力(见 ReligionFaith)，跨了天下再打折(ReligionSphere.CrossFactor)
-#if EC_PENDING
     private static Dictionary<Religion, float> Pressure(City city, Dictionary<City, Religion> faith, Dictionary<City, float> people,
         string sphere)
     {
@@ -259,7 +254,6 @@ public static class BackgroundReligionSystem
                 if (rival != current) pressure[rival] *= ReligionTenets.Pull(current, rival);
         return pressure;
     }
-#endif
 
     // 各教的圣地所在与辐射半径(格)，年度结算开头清空
     private static readonly Dictionary<Religion, (Cell at, float radius)> Ranges = new();

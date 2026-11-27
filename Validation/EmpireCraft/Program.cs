@@ -22,9 +22,19 @@ public static class Program
                 int width=args.Length>1?int.Parse(args[1]):1024,years=args.Length>2?int.Parse(args[2]):200;
                 Smoke(width,years,args.Length>3?args[3]:null);
             }
+            else if(args.Length>1&&args[0]=="--group")
+                typeof(RulesChecks).GetMethod(args[1])!.Invoke(null,null);   // one group of RulesChecks by name, e.g. --group Running
+            else if(args.Length>1&&args[0]=="--groups")
+                foreach(var name in args[1].Split(','))typeof(RulesChecks).GetMethod(name)!.Invoke(null,null);   // several groups in order, e.g. --groups Empires,CultureMap
+            else if(args.Length>0&&args[0]=="--arise")
+                RulesChecks.EmpiresArise(args.Length>1?int.Parse(args[1]):512,args.Length>2?int.Parse(args[2]):80);
             else if(args.Length>0&&args[0]=="--fingerprint")
+            {
+                // "bare": the skeleton alone, without the ported systems (they share the treasury on the ledger it fingerprints)
+                if(args.Length>3&&args[3]=="bare")PortedSystems.Enabled=false;
                 Fingerprint(args.Length>1?int.Parse(args[1]):256,args.Length>2?int.Parse(args[2]):75);
-            else{Operations();Skeleton();RulesChecks.Rules();RulesChecks.MoreRules();RulesChecks.Generated();RulesChecks.Wars();RulesChecks.People();RulesChecks.Grid();RulesChecks.Beliefs();RulesChecks.HostSwitches();RulesChecks.FirstEntry();RulesChecks.NewsChecks();RulesChecks.MakingPeople();RulesChecks.Alliances();RulesChecks.Running();RulesChecks.Empires();RulesChecks.CultureMap();RulesChecks.Scheduling();RulesChecks.Data();RulesChecks.Accounts();RulesChecks.Runner();}
+            }
+            else{Operations();Skeleton();RulesChecks.Rules();RulesChecks.MoreRules();RulesChecks.Generated();RulesChecks.Wars();RulesChecks.People();RulesChecks.Grid();RulesChecks.Beliefs();RulesChecks.HostSwitches();RulesChecks.FirstEntry();RulesChecks.NewsChecks();RulesChecks.MakingPeople();RulesChecks.Alliances();RulesChecks.Running();RulesChecks.Empires();RulesChecks.CultureMap();RulesChecks.EmpiresArise();RulesChecks.Scheduling();RulesChecks.Data();RulesChecks.Accounts();RulesChecks.Runner();}
             return 0;
         }
         catch(Exception e){Console.Error.WriteLine(e);return 1;}

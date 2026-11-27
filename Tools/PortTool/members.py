@@ -30,7 +30,10 @@ import closure
 import port_tool as tool
 
 # Whole folders of the mod's own logic, and single files of it that live among patches or compat code.
-DIRS = closure.DEFAULT_DIRS + ["Scripts/GameClassExtensions", "Scripts/AI", "Scripts/Compatibility/NuclearDoctrineSystem.cs"]
+DIRS = closure.DEFAULT_DIRS + ["Scripts/GameClassExtensions", "Scripts/AI", "Scripts/Compatibility/NuclearDoctrineSystem.cs",
+        "Scripts/GamePatches/EmpirePeacePatch.cs",
+        "Scripts/GamePatches/CityPatch.cs",
+        "Scripts/GamePatches/CityExpansionPatch.cs"]
 
 
 def generated_header(text, path):

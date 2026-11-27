@@ -179,8 +179,8 @@ public static class EnclaveFill
         layer.fill = fill;
         foreach (Cell zone in changed)
         {
-            zone.resetRenderHelpers();
-            foreach (Cell next in zone.Neighbours ?? Array.Empty<Cell>()) next?.resetRenderHelpers();
+            zone.ResetRenderHelpers();
+            foreach (Cell next in zone.Neighbours ?? Array.Empty<Cell>()) next?.ResetRenderHelpers();
             if (!fill.ContainsKey(zone)) EmpireWorld.Current.Zones.drawZoneClear(zone);
         }
     }

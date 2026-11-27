@@ -44,6 +44,9 @@ namespace EmpireCraft.Core
         public string Name { get { return data == null ? null : data.name; } set { if (data != null) data.name = value; } }
         public virtual void LoadData(TData record) { data = record; }
         public bool IsAlive() => Alive;
+        public void SetName(string name) { Name = name; }
+        // Kept on record even with nobody in it: nothing here is struck off for being empty.
+        public void PreserveAlive() { }
         public virtual void ClearListUnits() { }
         public virtual void GenerateNewMetaObject() { }
         // The colours of this object, for those that have any (an empire, a title).

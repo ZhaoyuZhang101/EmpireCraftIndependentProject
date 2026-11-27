@@ -30,7 +30,6 @@ public static class OccupationReadIndex
     public static long Hits { get; private set; }
     private static bool _active;
 
-#if EC_PENDING
     public static void Invalidate(City city, Cell zone = null)
     {
         if (city == null) return;
@@ -39,28 +38,25 @@ public static class OccupationReadIndex
         city.GetOrCreate().occupation_revision++;
         Revision++;
     }
-#endif
 
     // 占领变了，地块下一轮重画：原版只在归属、边框变化时重画，纯净地图的占领斜纹、平滑国界按占领方上的色不会跟着变
     // (被占、收复、战后清掉占领后一直留着旧样子)。知道是哪块就重画那块(平滑时包含周围八块)；不知道就重画全城——但只在这座城确实
     // 有占领时(各处"清空占领"是在改动前调这里的)：太平城市的 AI 会定时清空(本来就空的)占领，以前每次都整城重画，
     // 几十座城一起把每帧的上色预算吃光，切图层后整图迟迟画不完
-#if EC_PENDING
     private static void Repaint(City city, Cell zone)
     {
         if (!PureMapMode.Enabled && !SmoothBorders.Enabled) return;
         if (zone != null)
         {
             if (SmoothBorders.Enabled) SmoothBorders.Repaint(zone);
-            else zone.resetRenderHelpers();
+            else zone.ResetRenderHelpers();
             return;
         }
         if (city.Zones == null || city.GetOrCreate().OccupiedStatus?.Any(pair => pair.Value?.Count > 0) != true) return;
         foreach (Cell each in city.Zones)
             if (SmoothBorders.Enabled) SmoothBorders.Repaint(each);
-            else each?.resetRenderHelpers();
+            else each?.ResetRenderHelpers();
     }
-#endif
 
     public static void Reset()
     {

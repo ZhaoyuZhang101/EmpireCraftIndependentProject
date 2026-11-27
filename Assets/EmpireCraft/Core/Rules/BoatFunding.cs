@@ -32,8 +32,8 @@ public static class BoatFunding
         // 仓里够(含原版"城市资源无限"调试项)：照原版
         if (cost == null || city.hasEnoughResourcesFor(cost)) return 0;
         bool treasury = TreasurySystem.Enabled(city);
-        return Plan(cost, city.getResourcesAmount("wood"), city.getResourcesAmount("stone"),
-            city.getResourcesAmount("common_metals"), city.getResourcesAmount("gold"), treasury,
+        return Plan(cost, city.GetResourcesAmount("wood"), city.GetResourcesAmount("stone"),
+            city.GetResourcesAmount("common_metals"), city.GetResourcesAmount("gold"), treasury,
             treasury ? PopulationEconomySystem.UnitValue(city, "gold") : 0f,
             treasury ? TreasurySystem.DiscretionaryFunds(city) : 0);
     }
@@ -49,11 +49,11 @@ public static class BoatFunding
             city.spendResourcesForBuildingAsset(cost);
             return;
         }
-        city.takeResource("wood", cost.wood);
-        city.takeResource("stone", cost.stone);
-        city.takeResource("common_metals", cost.common_metals);
-        int gold = Math.Min(cost.gold, Math.Max(0, city.getResourcesAmount("gold")));
-        if (gold > 0) city.takeResource("gold", gold);
+        city.TakeResource("wood", cost.wood);
+        city.TakeResource("stone", cost.stone);
+        city.TakeResource("common_metals", cost.common_metals);
+        int gold = Math.Min(cost.gold, Math.Max(0, city.GetResourcesAmount("gold")));
+        if (gold > 0) city.TakeResource("gold", gold);
         city.SubMoney(money, TreasuryCategory.Construction);
     }
 #endif

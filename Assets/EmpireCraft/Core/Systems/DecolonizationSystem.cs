@@ -34,7 +34,6 @@ public static class DecolonizationSystem
         .Where(kingdom => kingdom?.Record != null && !kingdom.IsGone() && ColonySystem.IsColony(kingdom)).ToList();
 
     // 每年(WorldOrderSystem.Scan)
-#if EC_PENDING
     internal static void Yearly(List<Empire> states, List<Empire> greats, double now)
     {
         List<Realm> colonies = Colonies();
@@ -75,6 +74,5 @@ public static class DecolonizationSystem
                 metropole.GetKingdomFullName()), friendly: metropole);
         }
     }
-#endif
 }
 }

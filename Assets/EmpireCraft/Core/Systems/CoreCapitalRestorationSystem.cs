@@ -15,7 +15,6 @@ public static class CoreCapitalRestorationSystem
 {
     private static double _lastScan = -1d;
 
-#if EC_PENDING
     public static void TryMonthlyScan()
     {
         if (EmpireWorld.Current == null || ModClass.EMPIRE_MANAGER == null || ModClass.IS_CLEAR) return;
@@ -34,7 +33,6 @@ public static class CoreCapitalRestorationSystem
             }
         }
     }
-#endif
 
     // 还于旧都后的首都锚定：帝国核心王国坐镇记录的旧都时，封号同步与迁都决议不再把首都
     // 迁回主封号首府——否则它们和本系统每月互相迁都，世界日志反复刷"还于旧都"
@@ -52,7 +50,6 @@ public static class CoreCapitalRestorationSystem
     //   古代：王畿(核心主封号)切到新都所在法理，旧王畿在随后的重组里按法理划出去成为正常行政区("换直隶省")；
     //   现代：不动主封号，重组时直辖市只留首都一城(见 AdministrationReorganizationSystem 的现代分支)。
     //   两种政体都排一次自动行政区重组；正统不足或战时由 Empire.update 的 Resume 在条件恢复后继续。
-#if EC_PENDING
     internal static void AlignAdministration(Empire empire, Realm core, City capital)
     {
         bool modern = core.GetRegime()?.type == RegimeType.Modern;
@@ -100,6 +97,5 @@ public static class CoreCapitalRestorationSystem
         EventRecorder.Record(empire, string.Format(LM.Get("empire_return_capital_history"),
             empire.GetEmpireFullName(), capital.GetCityName()), empire.Emperor);
     }
-#endif
 }
 }

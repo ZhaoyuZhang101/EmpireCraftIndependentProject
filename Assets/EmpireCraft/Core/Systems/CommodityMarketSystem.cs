@@ -466,7 +466,6 @@ public static class CommodityMarketSystem
     // 本城开得了的矿藏里有本市场缺的(新村镇优先做矿村，见 LivelihoodSystem.Classify)
     private const float MineShortage = 0.3f;
 
-#if EC_PENDING
     public static bool WantsMine(City city)
     {
         if (!_ready || city?.Realm == null) return false;
@@ -474,11 +473,10 @@ public static class CommodityMarketSystem
         foreach ((string id, int tier, _, float chance) in MineralResourceSystem.Minerals)
         {
             if (tier > level || !(GoodOfResource(id) is string good) || Shortage(city.Realm, good) < MineShortage) continue;
-            if (AssetManager.resources.get(id) != null && MineralResourceSystem.HasDeposit(city, id, chance)) return true;
+            if (ResourceKinds.Table.get(id) != null && MineralResourceSystem.HasDeposit(city, id, chance)) return true;
         }
         return false;
     }
-#endif
 
     // 厂区一年产值按产品的市价指数折算(几样产品按产量加权)
     public static float FactoryPriceIndex(City city, string unitType)
@@ -613,7 +611,6 @@ public static class CommodityMarketSystem
 
     // 当场把全图结算一轮(剧本开局各城房子盖好、兵编好之后调，见 WorldMapScenario)：
     // 平时按帧分批记账、一年一结；剧本开局要市场图层、外交界面的市场页一进世界就有数
-#if EC_PENDING
     public static void SettleNow()
     {
         if (EmpireWorld.Current?.Cities == null) return;
@@ -766,7 +763,6 @@ public static class CommodityMarketSystem
                 if (Goods.ContainsKey(good)) Add(book.made, good, amount);
         return book;
     }
-#endif
 
     // 手艺跟价：货贵了多做，货贱了少做(上一年价格指数开方，0.75~1.5 倍)，这样常年缺货的物资手工也能慢慢补上一些
     private static float CraftResponse(Realm kingdom, string good) => Mathf.Clamp(Mathf.Sqrt(PriceIndex(kingdom, good)), 0.75f, 1.5f);
@@ -775,7 +771,6 @@ public static class CommodityMarketSystem
     private static bool Basic(CommodityConfig good) => good.tier == "basic" && good.resources.Count > 0;
 
     // 账本(产出、消耗或缺口)按这样物资的资源折算(各种粮食都算粮)
-#if EC_PENDING
     private static float FromLedger(Dictionary<string, float> ledger, CommodityConfig good)
     {
         if (ledger == null || good.resources.Count == 0) return 0f;
@@ -787,7 +782,6 @@ public static class CommodityMarketSystem
         }
         return total;
     }
-#endif
 
     private static void Add(Dictionary<string, float> map, string key, float amount)
     {
@@ -797,15 +791,13 @@ public static class CommodityMarketSystem
 
     private static readonly Dictionary<string, bool> FoodIds = new();
 
-#if EC_PENDING
     private static bool IsFood(string resource)
     {
         if (FoodIds.TryGetValue(resource, out bool food)) return food;
-        food = AssetManager.resources.get(resource)?.type == ResType.Food;
+        food = ResourceKinds.Table.get(resource)?.type == ResType.Food;
         FoodIds[resource] = food;
         return food;
     }
-#endif
 
     // 城辖区的群系直方图(每格看底下的地，路、田、城墙不算)，一年算一次
     private static readonly Dictionary<long, (int year, Dictionary<string, int> map)> BiomeCache = new();
@@ -842,7 +834,6 @@ public static class CommodityMarketSystem
         if (WarnedSteps.Add(step)) LogService.LogWarning($"[EmpireCraft][市场] {step}出错(本局只记一次): {exception}");
     }
 
-#if EC_PENDING
     private static void Settle()
     {
         Markets.Clear();
@@ -925,7 +916,6 @@ public static class CommodityMarketSystem
             Warn("结算日志", exception);
         }
     }
-#endif
 
     // 打仗时军需加倍的倍数。军械的账(用户 2026-11-23 "查军械常年缺")：每兵每年 0.02 份，几乎全靠手工(每千人
     // craft_per_thousand 份，跟价 0.75~1.5 倍)，工坊出的那点不足一成。存档里各国兵占人口平均 7.4%，以前每千人 0.85、
@@ -934,7 +924,6 @@ public static class CommodityMarketSystem
     private const float WarArmsFactor = 1.5f;
 
     // 一国记进它所在的市场：产量、需求、军需
-#if EC_PENDING
     private static void Enter(Realm kingdom)
     {
         Realm root = RootOf(kingdom) ?? kingdom;
@@ -983,7 +972,6 @@ public static class CommodityMarketSystem
             Add(market.demandArmy, good.id, soldiers * good.per_soldier);
         }
     }
-#endif
 
     // ───────── 海上破交(用户 2026-11-02 "先做第一批"，借鉴钢铁雄心的袭击运输船队) ─────────
     // 敌方水师封住港口、控制海区：宗主与殖民地之间走不通，殖民地的货运不回来；只靠海路相连的市场之间，
@@ -992,7 +980,6 @@ public static class CommodityMarketSystem
 
     private static bool AtWar(Realm kingdom) => kingdom?.Record != null && kingdom.HasEnemies();
 
-#if EC_PENDING
     private static bool LaneCut(Realm colony)
     {
         Realm metropole = ColonySystem.MetropoleOf(colony);
@@ -1006,10 +993,8 @@ public static class CommodityMarketSystem
         if (waters.Count == 0 || SeaRegionSystem.Route(home, waters) == null) return false;
         return SeaRegionSystem.Route(home, waters, region => NavySystem.IsHostile(metropole, region)) == null;
     }
-#endif
 
     // 两个港口之间的航线通不通(见 Trade)
-#if EC_PENDING
     private static bool SeaLaneOpen(City from, City to)
     {
         if (NavySystem.IsBlockaded(from) || NavySystem.IsBlockaded(to)) return false;
@@ -1018,10 +1003,8 @@ public static class CommodityMarketSystem
         if (start.Count == 0 || goal.Count == 0) return true;
         return SeaRegionSystem.Route(start, goal, region => NavySystem.IsHostile(from.Realm, region) || NavySystem.IsHostile(to.Realm, region)) != null;
     }
-#endif
 
     // 这个市场的港口有几成没被封锁；没在打仗的不算
-#if EC_PENDING
     private static float PortsOpen(Market market)
     {
         if (!CorpsSystem.Enabled || !market.members.Any(AtWar)) return 1f;
@@ -1034,7 +1017,6 @@ public static class CommodityMarketSystem
             }
         return total == 0 ? 1f : 1f - blocked / (float)total;
     }
-#endif
 
     // 供需定的价格：缺货涨、过剩跌，封顶四倍、保底四分之一；这个市场没人要的物资没有行情，按底价
     private static float Quote(float basePrice, float demand, float available) =>
@@ -1198,7 +1180,6 @@ public static class CommodityMarketSystem
     private const float SpendShare = 0.5f;
     private static readonly Dictionary<Market, Dictionary<City, float>> ExportIncome = new();
 
-#if EC_PENDING
     private static void Hand(List<(City city, CityPopulationData data, float weight)> takers, float total, long cash)
     {
         if (cash <= 0L || total <= 0f || takers.Count == 0) return;
@@ -1273,10 +1254,8 @@ public static class CommodityMarketSystem
             FiscalDiagnostics.Count("民间花销现钱", (int)Math.Min(int.MaxValue, spent));
         }
     }
-#endif
 
     // 进口货款里付现钱的部分：在各城的家底估值已经照旧扣过整笔货款之后(见 PayImports)，付了现钱的把那一份估值还回去
-#if EC_PENDING
     private static void ImportCash(Dictionary<Market, (float paid, float duty)> bills,
         Dictionary<Market, List<(City city, Realm kingdom, CityPopulationData data, float weight)>> payers, HashSet<Market> privateTrade)
     {
@@ -1599,7 +1578,6 @@ public static class CommodityMarketSystem
         // 进口货款里百姓手头有现钱的部分真付现钱(见上)
         ImportCash(bills, payers, privateTrade);
     }
-#endif
 
     // 转口贸易：丝绸、瓷器、茶这类又轻又贵的奢侈品，经中间市场一站站转卖(丝路上的粟特、波斯商人，海路上的商站)。
     // 以前市场只跟直接相连的买卖，买进的货不再卖出，丝绸瓷器出了东方一站就停，奥斯曼、波兰、罗马常年缺一百。

@@ -51,7 +51,6 @@ public static class LawEvents
 
     private static bool Living(Person actor) => actor?.Record != null && !actor.IsGone() && actor.Alive;
 
-#if EC_PENDING
     private static bool Prosecute(Person actor, LawType law, Realm court, string reasonKey)
     {
         if (!Living(actor) || court?.Record == null || court.IsGone()) return false;
@@ -68,7 +67,6 @@ public static class LawEvents
             return false;
         }
     }
-#endif
 
     // 暗中犯罪：君主不记(律法给君主记罪只加暴虐，这里都是臣下的事)
     private static bool Record(Person actor, LawType law)
@@ -163,7 +161,6 @@ public static class LawEvents
     }
 
     // 战争结束(WarPatch.end_war，各项结局结算之后)：叛乱兵败、不奉诏平定后论处首领
-#if EC_PENDING
     public static void OnWarEnded(War war, WarOutcome winner)
     {
         if (war?.Record == null || EmpireWorld.Current?.Living == null || !EmpireLawSystem.Enabled) return;
@@ -188,7 +185,6 @@ public static class LawEvents
             LogService.LogWarning($"[律法][实事] 战后论处叛乱首领失败({war.Name}): {exception.Message}");
         }
     }
-#endif
 
     // 守方胜；或者议和、作罢时叛军已经灭亡(没有城了)
     private static bool RebelsLost(War war, WarOutcome winner)
@@ -208,7 +204,6 @@ public static class LawEvents
     }
 
     // 不奉诏：朝廷(攻方)获胜、改立了新君，被废的抗命嗣君以谋反论处
-#if EC_PENDING
     private static void Defiance(War war, WarExtension.WarExtraData data, WarOutcome winner)
     {
         if (winner != WarOutcome.Attackers || data.investiture_heir_id < 0) return;
@@ -216,16 +211,13 @@ public static class LawEvents
         Realm core = war.GetMainAttacker();
         if (Captive(heir, core)) Prosecute(heir, LawType.谋反, core, "law_reason_defiance_crushed");
     }
-#endif
 
     // 宫门之变、诸王争位兵败(PrinceStruggleSystem)：以篡位论处；之后照旧伏诛(已被律法处死的不再杀)
-#if EC_PENDING
     public static void FailedUsurper(Person prince, Realm core, string reasonKey)
     {
         if (!EmpireLawSystem.Enabled) return;
         Prosecute(prince, LawType.篡位, core, reasonKey);
     }
-#endif
 
     #endregion
 
@@ -251,7 +243,6 @@ public static class LawEvents
         !(kingdom.HasHeir() && kingdom.GetHeir() == general) && !CorpsSystem.Insurgent(kingdom) && MilitaryCaseDue(kingdom);
 
     // 战场结算(BattleDrama.Settle)：大败又溃散，统领没阵亡、没被俘、没有突围之功
-#if EC_PENDING
     public static void Routed(Realm kingdom, Person general, CorpsData corps, bool attacking)
     {
         if (EcRandom.value >= RoutChance || !EmpireLawSystem.Enabled || !Accountable(kingdom, general, corps)) return;
@@ -260,23 +251,19 @@ public static class LawEvents
         string reason = lost ? "law_reason_army_lost" : attacking ? "law_reason_rash_defeat" : "law_reason_army_routed";
         if (Prosecute(general, law, kingdom, reason)) MarkMilitaryCase(kingdom);
     }
-#endif
 
     // 城破(BattleDrama.CityFell)：守城统领没殉国、没被俘，趁乱出走
-#if EC_PENDING
     public static void CityFled(Realm kingdom, Person general, CorpsData corps)
     {
         if (EcRandom.value >= CityFledChance || !EmpireLawSystem.Enabled || !Accountable(kingdom, general, corps)) return;
         if (Prosecute(general, LawType.临阵脱逃, kingdom, "law_reason_city_abandoned")) MarkMilitaryCase(kingdom);
     }
-#endif
 
     #endregion
 
     #region 纵兵烧杀
 
     // 城破时纵兵烧杀(ScorchedEarthSystem.OnCityCaptured)：攻城的统领担这一笔
-#if EC_PENDING
     public static void Sacked(City city, Realm victim, Realm conqueror)
     {
         if (city?.Record == null || victim?.Record == null || conqueror?.Record == null || !EmpireLawSystem.Enabled) return;
@@ -301,7 +288,6 @@ public static class LawEvents
             LogService.LogWarning($"[律法][实事] 烧杀论处失败({city.Name}): {exception.Message}");
         }
     }
-#endif
 
     // 攻下这座城的统领：本国打这座城的各军里兵力最多、有统领实体的那支
     private static Person SackCommander(City city, Realm conqueror)
@@ -351,7 +337,6 @@ public static class LawEvents
     #region 迫害异教
 
     // 迫害(ReligiousPersecution.Persecute)：没有改宗的各城，城主仍奉被禁之教的，以宣扬异端论处
-#if EC_PENDING
     public static void HereticLeaders(Realm realm, Religion faith, IEnumerable<City> cities)
     {
         if (realm?.Record == null || faith == null || cities == null || !EmpireLawSystem.Enabled) return;
@@ -365,7 +350,6 @@ public static class LawEvents
             if (Prosecute(leader, LawType.宣扬异端, realm, "law_reason_persecution")) charged++;
         }
     }
-#endif
 
     #endregion
 

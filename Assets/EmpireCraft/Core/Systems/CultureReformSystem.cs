@@ -72,18 +72,15 @@ public static class CultureReformSystem
         }
     }
 
-#if EC_PENDING
     public static bool Enact(Person king)
     {
         Realm kingdom = king?.Realm;
         if (kingdom?.Ruler != king || !FindCandidate(kingdom, out string target, out string previous)) return false;
         return Apply(kingdom, king, target, previous, false);
     }
-#endif
 
     // 神力易俗(见 GodPowers/CityCulturePower)：本国最后一座城改了文化，国家连同政体、制度当即改从新俗——不看条件，
     // 法理文化锁定、固定法理文化也照改
-#if EC_PENDING
     public static bool Force(Realm kingdom, string target)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || !CultureService.IsValidCulture(target)) return false;
@@ -158,7 +155,6 @@ public static class CultureReformSystem
         LogService.LogInfo($"[EmpireCraft][易俗改制] {kingdom.GetKingdomName()} {previous} -> {target}，政体 {before} -> {kingdom.GetRegime()?.type}，王族改姓 {royalSurname ?? "(不改)"}");
         return true;
     }
-#endif
 
     // 一键易俗(见 RealmCultureSystem)：君主一家与在任官员，不论原来是什么文化，一律改从 target——
     // 宗族本非同一文化圈的整支改姓(同 Apply)；返回王族的新姓(没改姓为空)。scope：这次易俗的各国(举朝为整个帝国)，空则只本国

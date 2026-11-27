@@ -117,10 +117,8 @@ public static class FarmlandSystem
         !PureMapMode.Enabled && city?.Record != null && zone != null && zone.City == city && Zones(city).Contains(zone.Index);
 
     // 原版 CityBehCheckFarms 使用本城的 type_windmill，距离平方不超过 81。
-#if EC_PENDING
     public static bool IsWithinWindmillRange(City city, Cell tile) =>
-        InRange(city, tile, city?.getBuildingOfType("type_windmill")?.current_tile);
-#endif
+        InRange(city, tile, city?.GetBuildingOfType("type_windmill")?.Cell);
 
     private static bool InRange(City city, Cell tile, Cell windmill)
     {
@@ -135,7 +133,7 @@ public static class FarmlandSystem
     public static bool HasFarmArea(City city, Cell zone)
     {
         if (zone?.Tiles == null || zone.City != city) return false;
-        Cell windmill = city?.getBuildingOfType("type_windmill")?.current_tile;
+        Cell windmill = city?.GetBuildingOfType("type_windmill")?.Cell;
         foreach (Cell tile in zone.Tiles)
             if (InRange(city, tile, windmill) && tile.Type != null &&
                 (tile.Type.FarmField || CanPlanField(tile))) return true;
@@ -220,7 +218,7 @@ public static class FarmlandSystem
     {
         List<int> ids = Zones(city);
         if (city.Zones == null || ids.Count == 0) return;
-        Cell windmill = city.getBuildingOfType("type_windmill")?.current_tile;
+        Cell windmill = city.GetBuildingOfType("type_windmill")?.Cell;
         int remaining = MaxRetiredFieldsPerSettle;
         var owned = new HashSet<int>();
         foreach (Cell zone in city.Zones)
@@ -395,7 +393,6 @@ public static class FarmlandSystem
     // 黄土高原上的可耕格收成打八折、草原高原五折(用户 2026-11-10，见 PlateauTerrain)：按可耕格里两种高原的比例折
     private const float LoessYield = 0.8f, SteppeYield = 0.5f;
 
-#if EC_PENDING
     private static float ArableFactor(City city)
     {
         if (city?.Zones == null) return 1f;
@@ -427,7 +424,6 @@ public static class FarmlandSystem
         float loss = (1f - LoessYield) * loess + (1f - SteppeYield) * steppe;
         return factor * (1f - Mathf.Clamp01(loss / arable));
     }
-#endif
 
     // 旧存档里划的农耕区(AI 缺粮时划的、原来规划笔刷刷的)一并退掉(纯净地图的田是农村的田)
 #if EC_PENDING
@@ -506,7 +502,7 @@ public static class FarmlandSystem
     {
         if (zone?.Tiles == null || zone.City != city || !CanFarmZone(city, zone) ||
             ScorchedEarthSystem.IsOccupiedZone(city, zone)) return 0;
-        Cell windmill = city?.getBuildingOfType("type_windmill")?.current_tile;
+        Cell windmill = city?.GetBuildingOfType("type_windmill")?.Cell;
         int count = 0;
         foreach (Cell tile in zone.Tiles)
         {
@@ -525,7 +521,7 @@ public static class FarmlandSystem
     {
         if (PureMapMode.Enabled) return;
         int count = 0;
-        Cell windmill = city.getBuildingOfType("type_windmill")?.current_tile;
+        Cell windmill = city.GetBuildingOfType("type_windmill")?.Cell;
         foreach (Cell tile in city.calculated_place_for_farms)
         {
             if (count >= MaxFieldsPerSettle) break;
@@ -587,7 +583,7 @@ public static class FarmlandSystem
 #if EC_PENDING
     private static IEnumerable<Cell> FarmTiles(City city)
     {
-        Cell windmill = city.getBuildingOfType("type_windmill")?.current_tile;
+        Cell windmill = city.GetBuildingOfType("type_windmill")?.Cell;
         if (!PureMapMode.Enabled)
             foreach (Cell tile in city.calculated_farm_fields)
                 if (InRange(city, tile, windmill) && CanFarmZone(city, tile.Zone) && tile.Type?.FarmField == true) yield return tile;
@@ -616,7 +612,7 @@ public static class FarmlandSystem
         Cell best = null;
         int bestScore = MinFarmableTilesInZone - 1;
         Cell center = city.SeatCell();
-        Cell windmill = city.getBuildingOfType("type_windmill")?.current_tile;
+        Cell windmill = city.GetBuildingOfType("type_windmill")?.Cell;
         if (windmill == null && !PureMapMode.Enabled) return;
         foreach (Cell zone in city.Zones)
         {

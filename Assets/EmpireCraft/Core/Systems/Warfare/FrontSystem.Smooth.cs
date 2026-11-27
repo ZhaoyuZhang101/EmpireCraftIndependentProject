@@ -17,7 +17,7 @@ namespace EmpireCraft.Core
 //   (不画占领斜纹，国界跟着推进线走，见 SmoothBorders)。隔城墙攻坚的那块地推得慢(见 FrontSystem.Wall，收复不算)。
 public static partial class FrontSystem
 {
-    private const float SmoothZonesPerMonth = 2f, SecondsPerMonth = 5f;
+    private const float SmoothZonesPerMonth = 2f, SecondsPerMonth = 1f; // world time counts months here
     private const int PaintSteps = 24;
 
     public static bool SmoothActive => SmoothBorders.Enabled && CorpsSystem.Enabled;
@@ -70,7 +70,6 @@ public static partial class FrontSystem
     }
 
     // 本月这一边在 city 占优。lead 是兵力最多的一家，present 是这一边在场的各军
-#if EC_PENDING
     private static void SmoothWon(City city, Realm lead, List<(Realm kingdom, CorpsData corps)> present, bool defended,
         bool retake, bool free = false)
     {
@@ -79,7 +78,6 @@ public static partial class FrontSystem
             defended, retake, free);
         NoteCamp(city, present);
     }
-#endif
 
     // 接着推的是谁：推进线现任这个月还在场、还挨着这块地就还是它——同阵营几家轮流领头时不换色、不换占领者，
     // 不相干的第三方领头也碰不到它的进度。现任的敌人领头、现任不在场时才轮到本月领头的一家
@@ -137,7 +135,6 @@ public static partial class FrontSystem
     }
 
     // 城里已有推进线时的交接；返回 true 表示办完了，false 表示旧线已撤、由调用方另起一条
-#if EC_PENDING
     private static bool SettleExisting(Push push, City city, Realm side, List<CorpsData> spearheads, bool defended,
         bool retake, bool free)
     {
@@ -184,10 +181,8 @@ public static partial class FrontSystem
         SetCorps(push, spearheads);
         push.Wall = push.Retake ? 1f : WallPaceOf(side, zone, spearheads);
     }
-#endif
 
     // 换推进方：进度、目标、方向几何不动；上色与最后的占领都改记新的一家
-#if EC_PENDING
     private static void HandOver(Push push, Realm side)
     {
         NotePushHandOver(push, side);
@@ -196,7 +191,6 @@ public static partial class FrontSystem
         push.Painted = -1;
         Repaint(push.Zone);
     }
-#endif
 
     // 现任的军团还在这条战线上(还没到、在路上也算)
     private static bool StillEngaged(Push push, Cell zone) =>
@@ -204,7 +198,6 @@ public static partial class FrontSystem
                                    (corps.sector_city_id == push.City || CorpsSystem.ZoneDistance(CorpsSystem.Zone(corps), zone) <= 1f));
 
     // 现任停战、亡国了，上一仗同在场的友军还在打这块地：进度交给它接着推，不回退
-#if EC_PENDING
     private static bool TryInherit(Push push, out City city, out Realm side, out Cell zone)
     {
         city = EmpireWorld.Current.CityByKey(push.City);
@@ -227,10 +220,8 @@ public static partial class FrontSystem
         }
         return false;
     }
-#endif
 
     // side 本月在 city 占优：继续(或开始)推进；城里已有的推进线看它算什么(见 ClaimOf)
-#if EC_PENDING
     private static void SmoothAdvance(City city, Realm side, List<CorpsData> spearheads, bool defended,
         bool retake, bool free = false)
     {
@@ -249,7 +240,6 @@ public static partial class FrontSystem
         Pushes[city.Key] = push;
         PushByZone[zone.Index] = push;
     }
-#endif
 
     // 本月相持：停住
     private static void SmoothHold(City city)
@@ -270,7 +260,6 @@ public static partial class FrontSystem
             .Where(corps => corps != null).ToList();
 
     // 推进的目标：紧挨着进攻军团、敌方控制的地块(挑法同 Advance，能下手的地块见 AttackZones)；守军还在时不拿城中最后一块、城池放到最后，溃散后先取城池
-#if EC_PENDING
     private static Cell AdvanceTarget(City city, Realm side, List<CorpsData> spearheads, bool defended)
     {
         List<Cell> targets = AttackZones(side, city, spearheads).Where(candidate => Beside(spearheads, candidate)).ToList();
@@ -286,7 +275,6 @@ public static partial class FrontSystem
             .ThenByDescending(candidate => (candidate.Neighbours ?? Array.Empty<Cell>())
                 .Count(neighbour => Friendly(side, Controller(neighbour)))).First();
     }
-#endif
 
     // 收复的目标：本城被敌军占去、与己方相连、紧挨着己方军团的地块；没有攻方来争时，攻方军团看守着的地不收(见 Guarded)
     private static Cell RetakeTarget(City city, Realm side, List<CorpsData> troops, bool free = false) =>
@@ -297,7 +285,6 @@ public static partial class FrontSystem
                                                 .Any(neighbour => Friendly(side, Controller(neighbour))));
 
     // 推进方向：从相邻的己方地块指向这块地；记下各格在这个方向上的投影范围(画进度用)
-#if EC_PENDING
     private static void Aim(Push push, Cell zone, Realm side)
     {
         Vector2 center = ZoneCenter(zone);
@@ -322,16 +309,14 @@ public static partial class FrontSystem
         }
         if (push.Max - push.Min < 0.01f) push.Max = push.Min + 1f;
     }
-#endif
 
     private static Vector2 ZoneCenter(Cell zone) =>
-        new((zone.X + 0.5f) * Land.ZoneSize, (zone.Y + 0.5f) * Land.ZoneSize);
+        new((zone.X + 0.5f) * EmpireCraft.Core.Land.ZoneSize, (zone.Y + 0.5f) * EmpireCraft.Core.Land.ZoneSize);
 
     #endregion
 
     #region 每帧推进(CorpsSystem.Update)
 
-#if EC_PENDING
     public static void SmoothTick()
     {
         PushDiagnosticsTick();
@@ -358,7 +343,6 @@ public static partial class FrontSystem
             }
         }
     }
-#endif
 
     private static bool ResolvePush(Push push, out City city, out Realm side, out Cell zone)
     {
@@ -369,7 +353,6 @@ public static partial class FrontSystem
                zone?.City == city && Valid(push, city, side, zone);
     }
 
-#if EC_PENDING
     private static void Step(Push push, float months)
     {
         // 停住的战线也要检查：停战、灭国、城市易主后不能一直保留半块旧占领色；没有经过游戏时间时同样清理。
@@ -390,7 +373,6 @@ public static partial class FrontSystem
         if (push.Progress >= 1f && push.Direction > 0) Complete(push, city, side, zone);
         else Paint(push, zone);
     }
-#endif
 
     // 收复是替城主收：城换了主、side 不再站在城主这边就不算；进攻要 side 与城主、与这块地眼下的控制方都在交战
     private static bool Valid(Push push, City city, Realm side, Cell zone) => push.Retake
@@ -398,7 +380,6 @@ public static partial class FrontSystem
         : Hostile(side, city.Realm) && Hostile(side, Controller(zone));
 
     // 推满一块：真正易手(同 Advance / Retake)，离它最近的军团进驻，接着推身边的下一块
-#if EC_PENDING
     private static void Complete(Push push, City city, Realm side, Cell zone)
     {
         Realm owner = city.Realm;
@@ -480,12 +461,9 @@ public static partial class FrontSystem
         push.Painted = step;
         SmoothBorders.Repaint(zone);
     }
-#endif
 
     // 推进结束/取消后四周也变了；不能只画本块，否则邻块仍留着推进时的边框。
-#if EC_PENDING
     private static void Repaint(int zoneId) => SmoothBorders.Repaint(EmpireWorld.Current?.Zones?.ById(zoneId));
-#endif
 
     #endregion
 
@@ -510,7 +488,6 @@ public static partial class FrontSystem
     }
 
     // 地格 (x, y) 已被推进方吃下(从推进方一侧按进度算，边缘带一点起伏)
-#if EC_PENDING
     public static bool SmoothCovers(Cell zone, int x, int y)
     {
         if (zone == null || !PushByZone.TryGetValue(zone.Index, out Push push)) return false;
@@ -518,7 +495,6 @@ public static partial class FrontSystem
         float fraction = (s - push.Min) / (push.Max - push.Min);
         return fraction + 0.12f * (SmoothBorders.FrontNoise(x, y) - 0.5f) <= push.Progress;
     }
-#endif
 
     #endregion
 }

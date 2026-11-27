@@ -42,7 +42,6 @@ public partial class KingdomTitle : RecordObject<KingdomTitleData>
         if (this.data.timestamp_been_controlled <= 0) return 0;
         return GameClock.YearsSince(this.data.timestamp_been_controlled);
     }
-#if EC_PENDING
     public void newKingdomTitle(City city)
     {
         if (city == null || city.IsGone() || city.Realm == null || city.Realm.IsGone()) return;
@@ -66,14 +65,13 @@ public partial class KingdomTitle : RecordObject<KingdomTitleData>
         // 城里没有古国名、借了所属国的名字：那国是道、省这类行政区，或本来就叫城名的，这个法理名就是地名
         this.data.place_name = string.IsNullOrEmpty(kingdomName) && RealmNamingSystem.IsPlaceName(this.data.name);
         this.addCity(city);
-        data.original_actor_asset = king?.Asset?.Id ?? city.Realm.Record.original_actor_asset;
+        data.original_actor_asset = king?.Asset?.Id ?? city.Realm.Record.SpeciesId;
         CultureService.InitializeTitleCulture(this);
         recalculate();
         GenerateColor();
         LogService.LogInfo("创建头衔成功");
-        preserveAlive();
+        PreserveAlive();
     }
-#endif
 
     public bool HasOwner()
     {
@@ -296,7 +294,7 @@ public partial class KingdomTitle : RecordObject<KingdomTitleData>
         for (int j = 0; j < zones.Count; j++)
         {
             Cell tileZone3 = zones[j];
-            float num4 = Toolbox.SquaredDist((float)tileZone3.Center.X, (float)tileZone3.Center.Y, this.title_center.x, this.title_center.y);
+            float num4 = EcMath.SquaredDist((float)tileZone3.Center.X, (float)tileZone3.Center.Y, this.title_center.x, this.title_center.y);
             if (num4 < num3)
             {
                 tileZone = tileZone3;
@@ -309,13 +307,14 @@ public partial class KingdomTitle : RecordObject<KingdomTitleData>
         this._units_dirty = false;
         return this.last_center;
     }
+#endif
 
     public bool isBeenControlled()
     {
         Realm kingdom = null;
         foreach (City c in city_list)
         {
-            if (c.Alive&&!c.isNeutral())
+            if (c.Alive&&!c.IsNeutral())
             {
                 if (kingdom == null)
                 {
@@ -341,7 +340,6 @@ public partial class KingdomTitle : RecordObject<KingdomTitleData>
         }
         return true;
     }
-#endif
 
     public override void Save()
     {

@@ -844,7 +844,6 @@ public static partial class InstitutionSystem
 
     #region 改革流程
 
-#if EC_PENDING
     public static bool CanStartReform(Empire empire, InstitutionNodeConfig node, out string reason,
         bool force = false, InstitutionPoliticalBalance balance = null) =>
         CanStartReform(InstitutionRealm.Of(empire), node, out reason, force, balance);
@@ -1009,11 +1008,9 @@ public static partial class InstitutionSystem
         EmpireCraft.Core.TranslateHelper.LogEventMessage(content, realm.Core);
         return true;
     }
-#endif
 
     // shares：已算好的本政权阶层构成(王国年度扫描里一并算过，免得再扫一遍人口)；
     // years：这次结算抵几年(帝国按年更新为 1；王国分帧扫描，一轮可能不止一年，按实际年数补，见 UpdateKingdom)
-#if EC_PENDING
     private static void AdvanceReform(InstitutionRealm realm, Dictionary<SocialClass, float> shares = null,
         float years = 1f)
     {
@@ -1090,7 +1087,6 @@ public static partial class InstitutionSystem
         if (reform.progress >= 100f && elapsedYears >= minimumYears)
             CompleteReform(realm, node);
     }
-#endif
 
     public static InstitutionReformEnvironment GetReformEnvironment(Empire empire,
         InstitutionNodeConfig node = null) =>
@@ -1696,7 +1692,6 @@ public static partial class InstitutionSystem
                cities.Average(IdeologyPopulationSystem.CityProsperity) >= PartyBanSystem.ModernizationProsperityFloor;
     }
 
-#if EC_PENDING
     private static void TryStartAiReform(InstitutionRealm realm, Dictionary<SocialClass, float> shares = null)
     {
         if (!InstitutionDefinitionRegistry.Global.ai_enabled) return;
@@ -1784,7 +1779,6 @@ public static partial class InstitutionSystem
             .OrderByDescending(entry => entry.score).First().node;
         if (StartReform(realm, selected.id)) NoteAiStart(primaryCulture);
     }
-#endif
 
     #endregion
 
@@ -2467,7 +2461,6 @@ public static partial class InstitutionSystem
         }
     }
 
-#if EC_PENDING
     private static bool TryEscalateResistance(Empire empire, InstitutionNodeConfig node)
     {
         FixedFaction opposition = (empire.CoreKingdom?.GetRegime()?.GetPlayerFactions() ??
@@ -2529,7 +2522,6 @@ public static partial class InstitutionSystem
         EmpireCraft.Core.TranslateHelper.LogEventMessage(content, empire.CoreKingdom);
         return true;
     }
-#endif
 
     public static void ResolveReformRebellion(War war, WarOutcome winner)
     {
@@ -3170,7 +3162,6 @@ public static partial class InstitutionSystem
     #region UI 取数
 
     // 本文化所在线的全部节点 + 每个节点当前的状态，全人口只扫一遍。
-#if EC_PENDING
     public static IReadOnlyList<InstitutionNodeView> BuildLineView(Empire empire) =>
         empire?.data == null ? new List<InstitutionNodeView>() : BuildLineView(InstitutionRealm.Of(empire));
 
@@ -3224,7 +3215,6 @@ public static partial class InstitutionSystem
         }
         return result;
     }
-#endif
 
     // 外来的可吸收 / 正在接触的节点（挂在树的旁边显示）
     public static IReadOnlyList<InstitutionNodeView> BuildForeignView(Empire empire) =>

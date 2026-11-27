@@ -76,16 +76,16 @@ public static class WorldMapImporter
             int width = texture.width, height = texture.height;
             int shrink = Mathf.Max(1, Mathf.CeilToInt(Mathf.Max(width, height) / (float)MaxSide));
             int cols = Mathf.Max(64, width / shrink), rows = Mathf.Max(64, height / shrink);
-            Color32[] pixels = texture.GetPixels32();
+            EcColor32[] pixels = texture.GetPixels32();
             var grid = new byte[cols * rows];
             bool byHeight = era.map.mode == "height";
-            List<(Color32 color, byte code)> palette = byHeight ? null : Palette();
+            List<(EcColor32 color, byte code)> palette = byHeight ? null : Palette();
             float sea = Mathf.Clamp(era.map.sea, 0.02f, 0.98f);
             for (int y = 0; y < rows; y++)
             for (int x = 0; x < cols; x++)
             {
                 int sx = Mathf.Min(width - 1, x * shrink), sy = Mathf.Min(height - 1, y * shrink);
-                Color32 color = pixels[sy * width + sx];
+                EcColor32 color = pixels[sy * width + sx];
                 grid[y * cols + x] = byHeight ? FromHeight(color, sea) : Nearest(palette, color);
             }
             _cache = new Loaded { grid = grid, cols = cols, rows = rows, frame = FrameOf(cols, rows), key = key };
@@ -127,20 +127,19 @@ public static class WorldMapImporter
         return new WorldMapFrame { id = "imported", west = 0f, east = cols * Step, top = rows * Step, sizes = sizes };
     }
 
-#if EC_PENDING
-    private static List<(Color32 color, byte code)> Palette()
+    private static List<(EcColor32 color, byte code)> Palette()
     {
-        var list = new List<(Color32, byte)>();
+        var list = new List<(EcColor32, byte)>();
         string[] types = EarthTerrain.Types;
         for (int i = 0; i < types.Length && i < 256; i++) list.Add((EarthTerrain.PreviewColorOf(types[i]), (byte)i));
         return list;
     }
 
-    private static byte Nearest(List<(Color32 color, byte code)> palette, Color32 color)
+    private static byte Nearest(List<(EcColor32 color, byte code)> palette, EcColor32 color)
     {
         int best = int.MaxValue;
         byte found = 0;
-        foreach ((Color32 entry, byte code) in palette)
+        foreach ((EcColor32 entry, byte code) in palette)
         {
             int dr = entry.r - color.r, dg = entry.g - color.g, db = entry.b - color.b;
             int distance = dr * dr + dg * dg + db * db;
@@ -150,11 +149,9 @@ public static class WorldMapImporter
         }
         return found;
     }
-#endif
 
     // 灰度：海平面以下按深浅分深海、近海、浅滩；以上按高低分沙滩、平原、高原、丘陵、山地、雪丘、雪山
-#if EC_PENDING
-    private static byte FromHeight(Color32 color, float sea)
+    private static byte FromHeight(EcColor32 color, float sea)
     {
         float value = (color.r * 0.299f + color.g * 0.587f + color.b * 0.114f) / 255f;
         string type;
@@ -171,10 +168,8 @@ public static class WorldMapImporter
         }
         return (byte)Math.Max(0, EarthTerrain.CodeOf(type));
     }
-#endif
 
     // 颜色对照表(写进剧本文件夹)：每种地形一行，名与 RGB
-#if EC_PENDING
     public static void WriteLegend(string folder)
     {
         try
@@ -184,7 +179,7 @@ public static class WorldMapImporter
             text.AppendLine(LM.Get("scenario_import_legend_head"));
             foreach (string type in EarthTerrain.Types)
             {
-                Color32 color = EarthTerrain.PreviewColorOf(type);
+                EcColor32 color = EarthTerrain.PreviewColorOf(type);
                 text.AppendLine($"{color.r},{color.g},{color.b}\t{type}");
             }
             File.WriteAllText(Path.Combine(folder, LegendFile), text.ToString());
@@ -194,6 +189,5 @@ public static class WorldMapImporter
             LogService.LogWarning($"[EmpireCraft][导入地图] 写对照表失败: {exception.Message}");
         }
     }
-#endif
 }
 }

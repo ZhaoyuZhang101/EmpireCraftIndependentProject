@@ -31,7 +31,6 @@ public static class BattleDrama
     }
 
     // 每月一处战场结算后：输的一方(attackersLost)各军统领的下场
-#if EC_PENDING
     public static void AfterBattle(City city, List<(Realm kingdom, CorpsData corps)> attackers,
         List<(Realm kingdom, CorpsData corps)> holders, float ratio)
     {
@@ -70,10 +69,8 @@ public static class BattleDrama
             else if (beaten && routed) LawEvents.Routed(kingdom, general, corps, attacking);
         }
     }
-#endif
 
     // 阵亡：为胜方统领所斩
-#if EC_PENDING
     private static void Slain(City city, Realm kingdom, Person general, Person victor)
     {
         string place = city.GetCityName(), name = general.FullName();
@@ -86,10 +83,8 @@ public static class BattleDrama
             victor != null ? victor.FullName() : LM.Get("battle_enemy")));
         BiographySystem.Kill(general, cause, victor);
     }
-#endif
 
     // 被俘：归降、赎回、不屈而死
-#if EC_PENDING
     private static void Captured(City city, Realm kingdom, Person general, Realm captor, Person victor)
     {
         string place = city.GetCityName(), name = general.FullName();
@@ -128,10 +123,8 @@ public static class BattleDrama
         BiographySystem.Kill(general, string.Format(LM.Get("death_cause_captive"), place, captor.GetKingdomName()),
             captor.Ruler, executed: true);
     }
-#endif
 
     // 被围投降(见 EncirclementSystem)：统领按被俘处理
-#if EC_PENDING
     public static void Surrendered(City city, Realm kingdom, CorpsData corps, Realm captor, List<(Realm kingdom, CorpsData corps)> besiegers)
     {
         if (city?.Record == null || captor?.Record == null || !CorpsSystem.GeneralUnits) return;
@@ -148,10 +141,8 @@ public static class BattleDrama
             LogService.LogWarning($"[EmpireCraft][战场] {city.Name} 结算投降统领失败: {exception.Message}");
         }
     }
-#endif
 
     // 城破：守城统领殉国、被俘或出走
-#if EC_PENDING
     public static void CityFell(City city, Realm attacker, Realm owner)
     {
         if (city?.Record == null || owner == null || !CorpsSystem.GeneralUnits) return;
@@ -186,7 +177,6 @@ public static class BattleDrama
             LogService.LogWarning($"[EmpireCraft][战场] {city.Name} 城破结算统领失败: {exception.Message}");
         }
     }
-#endif
 
     private static void Announce(Realm kingdom, Person general, string text, bool history)
     {

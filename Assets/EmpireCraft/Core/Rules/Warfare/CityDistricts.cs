@@ -21,7 +21,6 @@ public static class CityDistricts
 
     public static void Reset() => Cache.Clear();
 
-#if EC_PENDING
     private static int Stamp(City city)
     {
         unchecked
@@ -74,7 +73,6 @@ public static class CityDistricts
         Cache[city.Key] = (stamp, keys);
         return keys;
     }
-#endif
 
     private static float Distance(Cell a, Cell b) => (a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y);
 
@@ -83,7 +81,6 @@ public static class CityDistricts
         keys != null && keys.TryGetValue(zone.Index, out int key) ? key : int.MinValue + zone.Index;
 
     // 这块地所在的那一片(本城的地块)
-#if EC_PENDING
     public static List<Cell> ZonesOf(City city, Cell zone)
     {
         Dictionary<int, int> keys = Keys(city);
@@ -99,10 +96,8 @@ public static class CityDistricts
         Dictionary<int, int> keys = Keys(city);
         return keys != null && keys.Count > 0 && KeyOf(city, a, keys) == KeyOf(city, b, keys);
     }
-#endif
 
     // 还有几片里有 open 的地块(守方"城中最后一片"不丢用)
-#if EC_PENDING
     public static int Count(City city, Func<Cell, bool> open)
     {
         Dictionary<int, int> keys = Keys(city);
@@ -111,16 +106,13 @@ public static class CityDistricts
             if (zone != null && open(zone)) seen.Add(KeyOf(city, zone, keys));
         return seen.Count;
     }
-#endif
 
     // 这个村镇那一片的地块(划归别的城用，见 SettlementAssignPower)
-#if EC_PENDING
     public static List<Cell> ZonesOfSettlement(City city, RuralSettlement settlement)
     {
         Dictionary<int, int> keys = Keys(city);
         if (keys == null || settlement == null) return new List<Cell>();
         return city.Zones.Where(zone => zone != null && keys.TryGetValue(zone.Index, out int key) && key == settlement.id).ToList();
     }
-#endif
 }
 }

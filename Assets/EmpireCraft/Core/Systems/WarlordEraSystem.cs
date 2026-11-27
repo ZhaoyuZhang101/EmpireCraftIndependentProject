@@ -430,9 +430,9 @@ public static partial class WarlordEraSystem
         // 同一帧只处理一次切片(本方法每帧会被多个帝国的更新调用)
         if (!force && Time.frameCount == _sliceFrame) return;
         _sliceFrame = Time.frameCount;
-        using var timing = new PerfTimer("军阀时期年度扫描");
+        using var timing = FrameProfiler.Measure("军阀时期年度扫描");
         using var frameWork = EmpireCraft.Core.SimulationFrameBudget.Measure();
-        var watch = global::System.Diagnostics.Stopwatch.StartNew();
+        var watch = SimWatch.StartNew();
         while (PendingCores.Count > 0 && (force || watch.Elapsed.TotalMilliseconds < SliceBudgetMs &&
                EmpireCraft.Core.SimulationFrameBudget.HasTime))
         {
@@ -673,7 +673,6 @@ public static partial class WarlordEraSystem
 
     // 统一(控制七成)之后，核心里剩下的地方武装照样会易帜归附(同理念吸引、异理念吸引、大势所趋)。
     // 以前统一一完成就不再管，剩下的军阀永远割据。与中央交战的不收，大势所趋也不收正在造反的(叛乱照旧打出结果)
-#if EC_PENDING
     private static void AbsorbLeftovers(EmpireCore core, Empire government)
     {
         if (government == null || government.IsGone() || government.IsArchived()) return;
@@ -684,7 +683,6 @@ public static partial class WarlordEraSystem
         AttractOtherIdeologies(core, held, government);
         Bandwagon(core, held, total, government, leftoversOnly: true);
     }
-#endif
 
     // 地方武装之间的混战(双方都不是中央)打满 FeudYears 年还分不出胜负就各自罢兵——统一靠中央，不靠无休止的内耗。
     // 核心里还没有中央政府时不强令罢兵：这时只能靠地方武装互相兼并聚起来，四年一停战谁也吞不下谁
@@ -764,14 +762,12 @@ public static partial class WarlordEraSystem
         return members;
     }
 
-#if EC_PENDING
     private static Empire EnsureUnifierGovernment(Realm winner)
     {
         Empire government = Government(winner);
         if (government != null) return government;
         return ModernStateFormationSystem.TryClaimSeatTitle(winner) ? ModernStateFormationSystem.FormGovernment(winner) : null;
     }
-#endif
 
     // 修复短期错误版本留下的存档：现代临时政府曾同时被写入父核心关系和伪核心标记。
     // 真正的僭越者会带有正统对手记录，绝不能在这里被洗成普通临时政府。
@@ -787,7 +783,6 @@ public static partial class WarlordEraSystem
         core.false_core_against_empire_id = -1L;
     }
 
-#if EC_PENDING
     private static void CompleteUnification(EmpireCore core, Dictionary<Realm, int> held, Realm winner,
         Empire government, double now, bool strongUnification)
     {
@@ -835,13 +830,11 @@ public static partial class WarlordEraSystem
         ReleaseProvisionalCores(core);
         ResetEra(core);
     }
-#endif
 
     // keepBloc：撤销政府是这一家退回地方武装，不是把它拆散——以前 dissolveEmpire 让各省州各自独立，
     // 一个政府散成一地没有法理的"某某自治军"，再也聚不起来。其余省州改作原中央王国的附庸，仍是同一股势力
     // (控制权照旧算在它名下，它日后建政或归附时一并带上，见 ModernStateFormationSystem.TryMergeIntoOverlordGovernment)。
     // 联合另立政府失败时成员本是各自独立的军阀，散回原样(keepBloc = false)
-#if EC_PENDING
     private static void DissolveContestingGovernment(Empire government, EmpireCore contestedCore, bool keepBloc = true)
     {
         if (government == null || government.IsArchived()) return;
@@ -861,7 +854,6 @@ public static partial class WarlordEraSystem
             if (!member.IsGone() && !member.IsInEmpire() && FeudalVassalService.GetOverlord(member) == null)
                 FeudalVassalService.ForceBind(head, member);
     }
-#endif
 
     private static void ReleaseProvisionalCores(EmpireCore parent)
     {
@@ -875,7 +867,6 @@ public static partial class WarlordEraSystem
 
     // 军阀不是正常国家，只有各理念的代表政府(中央与其他理念的政府)和革命建立的政府才享有正常国家地位。
     // 已组建政府却只落得军阀身份的(同一理念里较弱的第二个政府、被超过的前中央)撤销政府，退回理念对应的地方武装。
-#if EC_PENDING
     private static void DemoteWarlordGovernments(EmpireCore core, Dictionary<Realm, int> held,
         bool strongUnification)
     {
@@ -894,11 +885,9 @@ public static partial class WarlordEraSystem
                 TianxiaSystem.Name(core), holder.GetKingdomFullName()));
         }
     }
-#endif
 
     // 各理念的代表政府对同一理念、尚未组建政府的地方武装有吸引力：
     // 每年按代表政府的相对实力有一定概率易帜归附，成为它的附庸(附庸的城市计入代表政府，推动统一)
-#if EC_PENDING
     private static void AttractSameIdeology(EmpireCore core, Dictionary<Realm, int> held, Empire central)
     {
         Realm centralKingdom = central.CoreKingdom;
@@ -917,12 +906,10 @@ public static partial class WarlordEraSystem
                 holder.GetKingdomFullName(), PartySystem.GetIdeologyName(ideology), central.GetBaseEmpireFullName()));
         }
     }
-#endif
 
     // 理念不同的地方武装也可能易帜归附中央，只是慢得多(同理念的三分之一)：以前只吸引同理念的，
     // 本理念没有政府的地方武装除非被打下来，永远割据。与中央理念截然对立的(光谱距离 ≥ 90)不归附，
     // 它们只会联合另立政府(TryFormCoalition)
-#if EC_PENDING
     private static void AttractOtherIdeologies(EmpireCore core, Dictionary<Realm, int> held, Empire central)
     {
         Realm centralKingdom = central?.CoreKingdom;
@@ -947,10 +934,8 @@ public static partial class WarlordEraSystem
                 name, central.GetBaseEmpireFullName()));
         }
     }
-#endif
 
     // 已有两个中央政府时维持对峙，直到一方被逐出天下；否则已组建政府的政权里实力最强的是中央
-#if EC_PENDING
     private static Empire ResolveCentral(EmpireCore core, Dictionary<Realm, int> held, out Empire rival)
     {
         rival = null;
@@ -995,7 +980,6 @@ public static partial class WarlordEraSystem
         core.rival_alliance_id = -1L;
         return strongest;
     }
-#endif
 
     private static bool Holds(Dictionary<Realm, int> held, Empire empire) =>
         empire?.CoreKingdom != null && held.ContainsKey(empire.CoreKingdom);
@@ -1003,7 +987,6 @@ public static partial class WarlordEraSystem
     // 与中央理念截然不同的势力另立中央，组建政府(临时政府)并向中央开战：
     //   · 联合：两家以上异见军阀结盟，合计控制中央 60% 以上的核心城市(北洋时期的国民革命政府)；
     //   · 独立：一家异见势力自身就有中央一半以上的核心城市，不必结盟(国共内战中的共产党政权)。
-#if EC_PENDING
     private static Empire TryFormCoalition(EmpireCore core, Dictionary<Realm, int> held, Empire central)
     {
         Realm centralKingdom = central.CoreKingdom;
@@ -1083,7 +1066,6 @@ public static partial class WarlordEraSystem
                 HolderName(leaderKingdom), ideology, central.GetBaseEmpireFullName()));
         return leader;
     }
-#endif
 
     private static bool HasGovernmentTitle(Realm kingdom)
     {

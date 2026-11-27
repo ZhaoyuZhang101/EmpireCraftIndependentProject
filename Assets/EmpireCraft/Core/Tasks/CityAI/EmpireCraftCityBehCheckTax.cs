@@ -13,7 +13,7 @@ public class EmpireCraftCityBehCheckTax : GameAICityBase
     public override BehResult Execute(City pCity)
     {
         if (!pCity.IsNeedToSubmitTax()) return BehResult.Continue;
-        if (pCity.getLoyalty() <= 0)
+        if (pCity.GetLoyalty() <= 0)
         {
             if (TreasurySystem.Enabled(pCity))
             {
@@ -51,7 +51,7 @@ public class EmpireCraftCityBehCheckTax : GameAICityBase
         }
         pCity.SubMoney(collected);
         pKingdom.AddMoney(collected - corruptedMoney);
-        pCity.addResourcesToRandomStockpile("gold", gold);
+        pCity.AddResourcesToRandomStockpile("gold", gold);
         pCity.RecordTaxTime();
         return BehResult.Continue;
     }

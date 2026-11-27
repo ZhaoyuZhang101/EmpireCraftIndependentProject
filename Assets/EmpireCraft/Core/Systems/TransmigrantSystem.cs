@@ -190,13 +190,13 @@ public static partial class TransmigrantSystem
         try
         {
             kingdom = EmpireWorld.Current.LiveRealms.makeNewCivKingdom(founder);
-            city = EmpireWorld.Current.Cities.buildNewCity(founder, zone);
+            city = WorldActions.BuildNewCity(founder, zone);
             founder.JoinCity(city);
             // 新建的城不自动当都城：组建政府(称帝)时要读都城，没有就报"读取帝国首都失败"
             if (kingdom.Capital == null) kingdom.SetCapital(city);
             founder.createDefaultCultureAndLanguageAndClan(city.Name);
             kingdom.setUnitMetas(founder);
-            city.setUnitMetas(founder);
+            city.SetUnitMetas(founder);
         }
         finally
         {
@@ -209,7 +209,7 @@ public static partial class TransmigrantSystem
         var state = new TransmigrantState
         {
             landed_at = now, landed_year = year, base_city_id = city.Key, lingao_name = lingao, lingao_native = native,
-            next_publish_at = now + PublishYears * 60d
+            next_publish_at = now + PublishYears * 12d
         };
         kingdom.GetOrCreate().transmigrant = state;
 
@@ -247,7 +247,6 @@ public static partial class TransmigrantSystem
 #endif
 
     // 从点选处向外找最近的空海岸(地块够大、没有城、可以建城)；找不到就从别人城里切一块不是城中心的岸边地块
-#if EC_PENDING
     private static Cell FindLandingZone(Cell start, out City carveFrom)
     {
         carveFrom = null;
@@ -262,7 +261,7 @@ public static partial class TransmigrantSystem
             Cell zone = queue.Dequeue();
             if (Coastal(zone))
             {
-                if (zone.City == null && zone.canStartCityHere()) return zone;
+                if (zone.City == null && zone.CanStartCityHere()) return zone;
                 if (fallback == null && zone.City != null && !zone.City.IsGone() && zone.City.Zones.Count > 4 &&
                     zone.City.SeatCell()?.Zone != zone && zone.GroundCount >= 48)
                 {
@@ -276,7 +275,6 @@ public static partial class TransmigrantSystem
         carveFrom = fallbackCity;
         return fallback;
     }
-#endif
 
     private static bool Coastal(Cell zone) =>
         zone != null && zone.GroundCount >= 32 && SeaLanding.Waters(zone).Any();
@@ -344,7 +342,7 @@ public static partial class TransmigrantSystem
     {
         try
         {
-            BuildingKind dock = city.getActorAsset()?.getBuildingDockAsset();
+            BuildingKind dock = city.GetActorAsset()?.getBuildingDockAsset();
             Cell dockTile = dock == null ? null : ai.behaviours.CityBehBuild.getDockTile(city);
             if (dockTile != null) EmpireWorld.Current.buildings.addBuilding(dock, dockTile);
             CityConstructionSystem.Flourish(city);
@@ -758,6 +756,7 @@ public static partial class TransmigrantSystem
             }
         }
     }
+#endif
 
     private static void Yearly(Realm kingdom, TransmigrantState state, int year)
     {
@@ -785,7 +784,7 @@ public static partial class TransmigrantSystem
         }
         if (inherited > 0) LogService.LogInfo($"[EmpireCraft][穿越] {kingdom.GetKingdomFullName()} 今年 {inherited} 位元老故去，席位由子女继承");
 
-        if (GameClock.Now - state.chairman_elected_at >= ChairmanTermYears * 60d)
+        if (GameClock.Now - state.chairman_elected_at >= ChairmanTermYears * 12d)
             InstallRuler(kingdom, Elect(kingdom, state, termEnd: true));
         FormGovernment(kingdom);
         StoryEvents(kingdom, state, year);
@@ -799,7 +798,6 @@ public static partial class TransmigrantSystem
                 Mathf.RoundToInt(naturalized)), kingdom);
         Grow(kingdom, state, naturalized);
     }
-#endif
 
     // 照小说的大事，条件一达成就当场施行那项制度(连同没施行的前置)，不再一项项熬年限
     // (用户 10-29 "很多是有条件的，条件达成就可以立刻改""参考小说剧情")：
@@ -1081,7 +1079,7 @@ public static partial class TransmigrantSystem
     {
         double now = GameClock.Now;
         if (!InstitutionSystem.IsEnacted(Culture, "aosong_publishing") || now < state.next_publish_at) return;
-        state.next_publish_at = now + PublishYears * 60d;
+        state.next_publish_at = now + PublishYears * 12d;
         int ceiling = TechnologySystem.GetEraTier(Culture) - 2;
         List<TechNodeConfig> books = TechnologySystem.Techs
             .Where(tech => tech.tier <= ceiling && SafeBranches.Contains(tech.branch) && TechnologySystem.HasTech(Culture, tech.id) &&

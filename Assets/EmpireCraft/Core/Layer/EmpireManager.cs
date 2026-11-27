@@ -81,7 +81,7 @@ public partial class EmpireManager : RecordStore<Empire, EmpireData>
             _lastLivenessCheck = now;
             BeginLivenessPass(now);
         }
-        var budget = global::System.Diagnostics.Stopwatch.StartNew();
+        var budget = SimWatch.StartNew();
         do
         {
             if (_livenessQueue.Count == 0) break;
@@ -582,7 +582,7 @@ public partial class EmpireManager : RecordStore<Empire, EmpireData>
                 {
                     continue;
                 }
-                for (int j = 0; j < city.PopulationCount(); j++)
+                for (int j = 0; j < city.People.Count; j++)
                 {
                     Person actor = city.People[j];
                     if (IsValidFallbackKingCandidate(actor))
@@ -595,7 +595,7 @@ public partial class EmpireManager : RecordStore<Empire, EmpireData>
 
         if (kingdom?.People != null)
         {
-            for (int i = 0; i < kingdom.PopulationCount(); i++)
+            for (int i = 0; i < kingdom.People.Count; i++)
             {
                 Person actor = kingdom.People[i];
                 if (IsValidFallbackKingCandidate(actor))

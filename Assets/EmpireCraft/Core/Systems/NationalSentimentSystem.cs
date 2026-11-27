@@ -251,7 +251,6 @@ public static class NationalSentimentSystem
         ModClass.EMPIRE_MANAGER.Where(empire => empire?.CoreKingdom != null && !empire.IsGone() && !empire.IsArchived() &&
                                                 FrontCore(empire) == core).ToList();
 
-#if EC_PENDING
     private static void UpdateUnitedFronts(double now)
     {
         foreach (EmpireCore core in EmpireCoreManager.EmpireCores.Values.ToList())
@@ -299,7 +298,6 @@ public static class NationalSentimentSystem
                 string.Join("、", governments.Select(government => government.GetEmpireFullName())), enemy));
         }
     }
-#endif
 
     // 与核心文化不同的外族交战(对方不在本核心的政府里)
     private static bool IsForeignWar(War war, HashSet<Realm> camp, string coreCulture) =>

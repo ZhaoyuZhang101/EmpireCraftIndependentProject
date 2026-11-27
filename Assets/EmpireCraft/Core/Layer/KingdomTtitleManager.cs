@@ -50,7 +50,6 @@ public class KingdomTitleManager : RecordStore<KingdomTitle, KingdomTitleData>
     {
     }
     // 国君空缺(老君死了新君未立)也能建：以前要求有国王，手动建法理赶上空位期就点了没反应(用户 2026-10-22 转群友"有时候无法建立法理")
-#if EC_PENDING
     public KingdomTitle newKingdomTitle(City pCity)
     {
         if (pCity == null || pCity.IsGone() || pCity.Realm == null || pCity.Realm.IsGone() ||
@@ -63,7 +62,6 @@ public class KingdomTitleManager : RecordStore<KingdomTitle, KingdomTitleData>
 
         return title;
     }
-#endif
 
     public bool checkTitleExist(long t) 
     {
@@ -109,7 +107,6 @@ public class KingdomTitleManager : RecordStore<KingdomTitle, KingdomTitleData>
             pTitle.addCity(pCity);
         }
     }
-#if EC_PENDING
     public bool forceTitle(City pCity1, City pCity2)
     {
         if (EmpireCraft.Core.AncientWarfareCompatibility.OwnsObject(pCity1) ||
@@ -136,6 +133,7 @@ public class KingdomTitleManager : RecordStore<KingdomTitle, KingdomTitleData>
     }
 
 
+#if EC_PENDING
     public override void Update(float pElapsed)
     {
         base.Update(pElapsed);

@@ -406,7 +406,6 @@ public static class RoadBuildingSystem
     // 当场修通、不要钱，之后照常养护。每段按两头国家科技能修的最高一级(不超过城市风格上限)，地形太险修不通的往上提到
     // 修得通的那一级，还修不通的段不走；已修到这一级的路走起来便宜(尽量沿旧路)，比要修的等级高的不降。
     // 返回这一串共几段(连不上为 -1)；built 是新修或加修的段数
-#if EC_PENDING
     public static int ConnectByPower(City from, City to, out int built)
     {
         built = 0;
@@ -474,7 +473,6 @@ public static class RoadBuildingSystem
         RoadPaintSystem.RequestRedraw();
         return segments;
     }
-#endif
 
     // 神力修这段路的等级：两头国家科技能修的最高一级，修不通往上提，到城市风格上限还修不通为 0
     private static int PowerGrade((long, long) key, RoadNetwork.RoadPlan plan)

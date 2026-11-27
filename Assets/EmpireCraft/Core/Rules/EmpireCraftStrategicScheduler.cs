@@ -154,7 +154,7 @@ public static class EmpireCraftStrategicScheduler
             : Math.Min(1, empireCount);
         maximumKingdoms = Math.Max(maximumKingdoms, minimumKingdoms);
         maximumEmpires = Math.Max(maximumEmpires, minimumEmpires);
-        long started = Stopwatch.GetTimestamp();
+        long started = SimWatch.GetTimestamp();
 
         // Titles are internally sliced. Calling once per render frame avoids a full
         // title scan on every physics tick.
@@ -302,7 +302,6 @@ public static class EmpireCraftStrategicScheduler
     }
 
     // 轮转到下一国(重要的国家另在前面过，这里跳过)
-#if EC_PENDING
     private static bool ProcessNextKingdom(float realtime, IList<Realm> kingdoms)
     {
         if (kingdoms == null || kingdoms.Count == 0) return false;
@@ -316,10 +315,8 @@ public static class EmpireCraftStrategicScheduler
         ProcessKingdom(realtime, kingdom, false);
         return true;
     }
-#endif
 
     // major：重要的国家(见 RealmPriority)，月度各步预算用完也至少推进一步
-#if EC_PENDING
     private static void ProcessKingdom(float realtime, Realm kingdom, bool major)
     {
         if (kingdom == null || kingdom.IsGone() || AncientWarfareCompatibility.Owns(kingdom)) return;
@@ -417,7 +414,6 @@ public static class EmpireCraftStrategicScheduler
             }
         }
     }
-#endif
 
     private const double EmpireBudgetShare = 0.35d;
     private const double MinimumEmpireBudgetMilliseconds = 0.25d;
@@ -465,7 +461,7 @@ public static class EmpireCraftStrategicScheduler
 
     private static double ElapsedMilliseconds(long started)
     {
-        return (Stopwatch.GetTimestamp() - started) * 1000d / Stopwatch.Frequency;
+        return (SimWatch.GetTimestamp() - started) * 1000d / SimWatch.Frequency;
     }
 }
 }

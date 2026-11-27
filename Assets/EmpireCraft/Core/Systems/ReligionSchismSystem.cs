@@ -49,7 +49,7 @@ public static class ReligionSchismSystem
     private const float SchismChance = 0.01f, SchismEstrangedChance = 0.01f, SchismMaxChance = 0.04f;
     private const float FollowChance = 0.6f, FollowKinBonus = 0.2f, FollowLoyalPenalty = 0.3f;
     private const int PeaceYears = 50;
-    private const double SecondsPerYear = 60d;
+    private const double SecondsPerYear = 12d; // world time counts months here
     private const float ShiaChance = 0.5f;
     // 有本土大教时复归的比例(2026-11-06 由六成提到八成：另立的国教会仍是教会类型、传教力 1.0，在本天下反压本土宗教)
     private const float NativeTurnChance = 0.02f, NativeRevertShare = 0.8f;
@@ -147,7 +147,6 @@ public static class ReligionSchismSystem
 
     #region 东西教会大分裂
 
-#if EC_PENDING
     private static void TryGreatSchism(Religion religion)
     {
         var data = religion.GetOrCreate();
@@ -183,7 +182,6 @@ public static class ReligionSchismSystem
             if (EasternSplit(empire, religion, holy, reference)) return;
         }
     }
-#endif
 
     // 候选：奉本教的同天下帝国(罗马一线或文化属本教天下，不论政体——拜占庭是元首制)，够大，不握也不护教廷，本朝皇帝没受教宗加冕
     private static bool EasternCandidate(Empire empire, Religion religion, Realm papacy, Realm patron)

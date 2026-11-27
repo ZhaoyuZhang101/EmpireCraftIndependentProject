@@ -607,7 +607,6 @@ public static partial class TechnologySystem
         return state.progress.TryGetValue(techId, out float value) ? value : 0f;
     }
 
-#if EC_PENDING
     private static void AdoptRealms(string culture, List<City> cities)
     {
         var realms = new Dictionary<RealmTechState, List<City>>();
@@ -625,8 +624,8 @@ public static partial class TechnologySystem
             int libraries = 0, universities = 0;
             foreach (City city in realm.Value)
             {
-                libraries += city.countBuildingsType("type_library");
-                universities += city.countBuildingsType("type_university");
+                libraries += city.CountBuildingsType("type_library");
+                universities += city.CountBuildingsType("type_university");
             }
             float speed = Mathf.Clamp(0.6f + 0.15f * libraries + 0.3f * universities + 0.02f * realm.Value.Count, 0.5f, 3f);
             foreach (string techId in known)
@@ -639,7 +638,6 @@ public static partial class TechnologySystem
             }
         }
     }
-#endif
 
     public static string GetCultureOf(Realm kingdom) =>
         kingdom == null || kingdom.IsGone() || !kingdom.IsCivilized() ? "" : CultureService.GetRealmCulture(kingdom);
@@ -1105,12 +1103,11 @@ public static partial class TechnologySystem
     }
 
     // 材料的发现条件，窗口里显示用
-#if EC_PENDING
     public static string DescribeMaterialCondition(TechMaterialConfig material)
     {
         string resources = string.Join(LM.Get("tech_or"), material.resources.Select(r =>
         {
-            ResourceAsset asset = AssetManager.resources.get(r.id);
+            ResourceKind asset = ResourceKinds.Table.get(r.id);
             string name = asset != null ? asset.getTranslatedName() : r.id;
             return $"{name}×{r.amount}";
         }));
@@ -1119,7 +1116,6 @@ public static partial class TechnologySystem
             ? string.Format(LM.Get("tech_material_condition"), resources)
             : string.Format(LM.Get("tech_material_condition_tech"), resources, techs);
     }
-#endif
 
     // 从当前资产库读取，不缓存未找到的资源，以兼容其他模组较晚注册内容。
 #if EC_PENDING
@@ -1341,7 +1337,6 @@ public static partial class TechnologySystem
     #region 年度结算
 
     // 挂在城市更新上，自己限流成一年一次
-#if EC_PENDING
     public static void TryYearlyScan()
     {
         if (EmpireWorld.Current == null || ModClass.IS_CLEAR) return;
@@ -1362,7 +1357,6 @@ public static partial class TechnologySystem
             LogService.LogError($"[EmpireCraft] 科技年度结算失败: {exception}");
         }
     }
-#endif
 
     // 称帝要先推行本文明的称帝制度(见 EmpireFormationService.HasImperialRule)，可前代有过帝国的文化不必从头再推一遍
     // (用户 2026-10-27 截图楚国占了大半个华夏却不称帝)：本文化有过帝国(现存的、亡了留下记录的)、制度前置都齐的，承袭前代，直接施行
@@ -1389,7 +1383,6 @@ public static partial class TechnologySystem
         }
     }
 
-#if EC_PENDING
     private static void YearlyUpdate(bool addResearch)
     {
         EnsureLoaded();
@@ -1472,7 +1465,6 @@ public static partial class TechnologySystem
             }
         }
     }
-#endif
 
     // 文化之间的接触：城市接壤、正在交战、同属一个帝国(含朝贡国)。技术只沿着接触扩散。
     // 通达层算好后(用户 2026-11-06 选"标准"，见 ConnectivitySystem)不再只分有无，按强度给权重——
@@ -1660,7 +1652,6 @@ public static partial class TechnologySystem
 
     #region 加速事件
 
-#if EC_PENDING
     public static bool IsBoostMet(string culture, TechNodeConfig tech, TechBoostConfig boost, List<City> cities)
     {
         cities ??= CitiesOf(culture);
@@ -1669,9 +1660,9 @@ public static partial class TechnologySystem
         {
             case "building_type":
                 // 纯净地图：矿场、伐木场、牧场、屠宰场按村镇折算(见 LivelihoodSystem.BuildingEquivalent)
-                return cities.Sum(city => city.countBuildingsType(boost.value) + LivelihoodSystem.BuildingEquivalent(city, boost.value)) >= amount;
+                return cities.Sum(city => city.CountBuildingsType(boost.value) + LivelihoodSystem.BuildingEquivalent(city, boost.value)) >= amount;
             case "resource":
-                return cities.Any(city => city.getResourcesAmount(boost.value) >= amount);
+                return cities.Any(city => city.GetResourcesAmount(boost.value) >= amount);
             case "population":
                 return cities.Sum(CityPopulationSystem.Households) >= amount;
             case "cities":
@@ -1697,7 +1688,7 @@ public static partial class TechnologySystem
         string value = boost.type switch
         {
             "building_type" => DescribeBuildingType(boost.value),
-            "resource" => AssetManager.resources.get(boost.value)?.getTranslatedName() ?? boost.value,
+            "resource" => ResourceKinds.Table.get(boost.value)?.getTranslatedName() ?? boost.value,
             "material" => GetMaterialName(boost.value),
             "tech" => GetTechName(boost.value),
             "institution_feature" => DescribeFeature(new TechInstitutionLink { feature = boost.value, min_value = boost.amount }),
@@ -1705,7 +1696,6 @@ public static partial class TechnologySystem
         };
         return string.Format(LM.Get($"tech_boost_{boost.type}"), value, boost.amount);
     }
-#endif
 
     private static string DescribeBuildingType(string type)
     {
@@ -1718,7 +1708,6 @@ public static partial class TechnologySystem
         EmpireWorld.Current?.Cities?.Where(city => city != null && !city.IsGone() && GetCultureOf(city) == culture)
             .ToList() ?? new List<City>();
 
-#if EC_PENDING
     private static void CheckBoosts(string culture, List<City> cities)
     {
         CultureTechState state = GetState(culture);
@@ -1732,7 +1721,6 @@ public static partial class TechnologySystem
             state.tech_progress[tech.id] = Math.Min(cost, GetProgress(culture, tech.id) + cost * fraction);
         }
     }
-#endif
 
     #endregion
 
@@ -1785,7 +1773,6 @@ public static partial class TechnologySystem
         foreach (string tech in needed) ForceResearch(culture, tech);
     }
 
-#if EC_PENDING
     private static void DiscoverMaterials(string culture, List<City> cities)
     {
         CultureTechState state = GetState(culture);
@@ -1794,7 +1781,7 @@ public static partial class TechnologySystem
             if (state.discovered_materials.Contains(material.id)) continue;
             if (!material.requires_techs.All(id => HasTech(culture, id))) continue;
             bool found = material.resources.Count == 0 || material.resources.Any(requirement =>
-                cities.Any(city => city.getResourcesAmount(requirement.id) >= requirement.amount));
+                cities.Any(city => (city.GetResourcesAmount(requirement.id) >= requirement.amount || CityAnswers.LandYields(city, requirement.id))));
             // 本地没有这种资源(没有金矿、煤矿……)：有往来的文化已经掌握，就能经贸易得到，不让整条科技链永远卡死
             if (!found && Contacts.TryGetValue(culture, out HashSet<string> contacts))
                 found = contacts.Any(other => _states.TryGetValue(other, out CultureTechState known) &&
@@ -1804,10 +1791,8 @@ public static partial class TechnologySystem
             state.timestamps[$"mat:{material.id}"] = GameClock.Now;
         }
     }
-#endif
 
     // 把 points 投进研究，返回没花掉的(没有可研究的技术时留在储备里)
-#if EC_PENDING
     private static float AddResearch(string culture, float points, List<City> cities)
     {
         // 并行的每一项都拿到本轮全额(用户 2026-10-30："并行研究不是让你把科技点分摊，而是每条线都享有一样的"；
@@ -1826,7 +1811,6 @@ public static partial class TechnologySystem
         GetResearchTargets(culture);
         return points;
     }
-#endif
 
     #region 可重复研究
 
@@ -1917,7 +1901,6 @@ public static partial class TechnologySystem
     }
 
     // 各来源的科技点(未乘学术加成)。人口和城市只给很少的底数，主要靠著书、读书、战争实践和学府
-#if EC_PENDING
     private static Dictionary<string, float> CollectIncome(string culture, List<City> cities)
     {
         TechResearchConfig research = Config.research;
@@ -1926,21 +1909,21 @@ public static partial class TechnologySystem
         {
             float cityBasis = research.base_per_city + CityPopulationSystem.Households(city) * research.per_population;
             // 文化城池自带藏书阁和庙宇(合并民居后原版的图书馆、神庙都建不起来了)，每级按一座图书馆加一座神庙算
-            int cityLevels = city.Buildings.Where(b => b?.Asset != null && b.Asset.Id.StartsWith("city_", StringComparison.Ordinal))
+            int cityLevels = CityAnswers.CityLevel(city) + city.Buildings.Where(b => b?.Asset != null && b.Asset.Id.StartsWith("city_", StringComparison.Ordinal))
                 .Sum(b => b.Asset.UpgradeLevel);
             // 庙宇科研按本城之教的教义(僧团寺院 +50%，见 ReligionTenets.TempleResearchFactor，用户 2026-11-06)
             float perTemple = research.per_temple * ReligionTenets.TempleResearchFactor(city.HasReligion() ? city.Religion : null);
-            float citySchools = city.countBuildingsType("type_library") * research.per_library +
+            float citySchools = city.CountBuildingsType("type_library") * research.per_library +
                                 cityLevels * (research.per_library + perTemple) +
-                                city.countBuildingsType("type_temple") * perTemple +
-                                city.countBuildingsType("type_university") * research.per_university +
+                                city.CountBuildingsType("type_temple") * perTemple +
+                                city.CountBuildingsType("type_university") * research.per_university +
                                 city.Buildings.Count(b => b != null && IsFactory(b.Asset)) * research.per_factory;
             if (city.Realm != null && city.Realm.HasEnemies())
             {
                 // 兵荒马乱读书少，但打仗本身逼出新技术
                 cityBasis *= 1f - research.war_penalty;
                 citySchools *= 1f - research.war_penalty;
-                war += city.PopulationCount()(actor => actor != null && actor.Alive && actor.isWarrior()) *
+                war += city.Warriors() *
                        research.per_warrior_at_war;
             }
             basis += cityBasis;
@@ -1962,7 +1945,6 @@ public static partial class TechnologySystem
             ["war"] = war
         };
     }
-#endif
 
     // 书籍补丁调用(见 TechnologyPatch)：当年累计，年度结算时折成科技点
     private static readonly Dictionary<string, float> BooksWritten = new(StringComparer.Ordinal);
@@ -2038,7 +2020,6 @@ public static partial class TechnologySystem
     }
 
     // 把储备投进研究：只投国库买得起的部分；techId 为空时按 AI/玩家目标自动挑
-#if EC_PENDING
     private static float SpendBank(string culture, List<City> cities, string techId)
     {
         CultureTechState state = GetState(culture);
@@ -2057,12 +2038,10 @@ public static partial class TechnologySystem
         PayFor(cities, used, automatic);
         return used;
     }
-#endif
 
     #endregion
 
     // 玩家手动把储备投进某项技术(前置要满足，国库要付得起)
-#if EC_PENDING
     public static bool Invest(string culture, string techId)
     {
         techId = TechnologyStateRules.Canonical(techId);
@@ -2072,7 +2051,6 @@ public static partial class TechnologySystem
         if (state.research_bank <= 0f) return false;
         return SpendBank(culture, CitiesOf(culture), techId) > 0f;
     }
-#endif
 
     public static void SetAutoResearch(string culture, bool value)
     {
@@ -2124,7 +2102,6 @@ public static partial class TechnologySystem
 
     // 让士兵用城市的材料重新打造装备(走原版打造流程，自然会挑本文化能造的最好的一件)；
     // 国库给每人补贴一点钱，没花完的退回国库
-#if EC_PENDING
     public static int Modernize(string culture, List<City> cities, int perCity)
     {
         int upgraded = 0;
@@ -2138,7 +2115,7 @@ public static partial class TechnologySystem
             foreach (Person actor in city.People.ToList())
             {
                 if (done >= perCity) break;
-                if (actor == null || !actor.Alive || !actor.IsWarrior() || actor.equipment == null ||
+                if (actor == null || !actor.Alive || !actor.IsWarrior() || actor.Equipment == null ||
                     actor.IsWarMachine()) continue;
                 int grant = Math.Max(0, Math.Min(subsidy, TreasurySystem.Enabled(kingdom)
                     ? StateSettlementSystem.DiscretionaryFunds(kingdom) : kingdom.GetMoney()));
@@ -2170,7 +2147,7 @@ public static partial class TechnologySystem
                             int refund = ActorMoneyTransfers.Received(own, beforeRefund, credited);
                             if (refund > 0)
                             {
-                                try { actor.spendMoney(refund); }
+                                try { actor.SpendMoney(refund); }
                                 finally
                                 {
                                     // 原版扣款后的显示效果可能抛异常，以实际扣回的钱退款。
@@ -2194,7 +2171,6 @@ public static partial class TechnologySystem
 
     public static int ModernizeNow(string culture) =>
         CultureService.IsValidCulture(culture) ? Modernize(culture, CitiesOf(culture), 20) : 0;
-#endif
 
     #endregion
 
@@ -2203,7 +2179,6 @@ public static partial class TechnologySystem
         Researched(culture).Select(id => TryGetTech(id, out TechNodeConfig tech) ? tech.research_slots : 0)
             .DefaultIfEmpty(1).Max());
 
-#if EC_PENDING
     public static List<TechNodeConfig> GetResearchTargets(string culture)
     {
         CultureTechState state = GetState(culture);
@@ -2226,7 +2201,7 @@ public static partial class TechnologySystem
         List<TechNodeConfig> open = Config.techs.Where(tech => !HasTech(culture, tech.id) && ArePrerequisitesMet(culture, tech)).ToList();
         // 没有港口的文化不研究海军科技(别的都研究完了才轮到)
         if (open.Any(tech => tech.branch == NavalBranch) && open.Any(tech => tech.branch != NavalBranch) &&
-            !CitiesOf(culture).Any(city => city.countBuildingsType("type_docks") > 0))
+            !CitiesOf(culture).Any(city => city.CountBuildingsType("type_docks") > 0))
             open = open.Where(tech => tech.branch != NavalBranch).ToList();
         foreach (TechNodeConfig tech in open
                      .OrderBy(tech => GetCost(culture, tech) / (tech.research_bonus > 0f || tech.research_slots > slots ? 1.3f : 1f))
@@ -2235,7 +2210,6 @@ public static partial class TechnologySystem
         TechnologyStateRules.SyncLegacy(state);
         return selected;
     }
-#endif
 
     // 通往某项技术的下一步(本项前置已齐就是本项)；科技革新拨款推这一步(见 TechDriveSystem)
     public static TechNodeConfig NextStepToward(string culture, string techId) =>
@@ -2270,7 +2244,6 @@ public static partial class TechnologySystem
 
     #region 玩家操作
 
-#if EC_PENDING
     public static void SetPlayerTarget(string culture, string techId)
     {
         if (!CultureService.IsValidCulture(culture)) return;
@@ -2288,7 +2261,6 @@ public static partial class TechnologySystem
         }
         GetResearchTargets(culture);
     }
-#endif
 
     // 上帝模式：直接完成(连同缺的前置技术和材料)
     public static void ForceResearch(string culture, string techId)
@@ -2325,17 +2297,14 @@ public static partial class TechnologySystem
 
     // 上帝模式：回退一项已研究的技术，连同所有以它为前置(直接或间接)的已研究技术。
     // 已投入的研究点保留，重新研究时不必从头再来。返回回退的技术数
-#if EC_PENDING
     public static int ForceRevoke(string culture, string techId)
     {
         techId = TechnologyStateRules.Canonical(techId);
         if (!CultureService.IsValidCulture(culture) || !HasTech(culture, techId ?? "")) return 0;
         return RevokeWithDependents(culture, new[] { techId });
     }
-#endif
 
     // 上帝模式：遗忘一种已发现的材料，连同需要它的已研究技术及其后续技术
-#if EC_PENDING
     public static int ForceForget(string culture, string materialId)
     {
         if (!CultureService.IsValidCulture(culture) || !_materials.ContainsKey(materialId ?? "")) return 0;
@@ -2371,7 +2340,6 @@ public static partial class TechnologySystem
         GetResearchTargets(culture);
         return revoked.Count;
     }
-#endif
 
     // 重置本文化的科技：退回原始时代，同科技回退神力(见 TechRollbackSystem.ToPrimitive；缺科技的制度撤下、超出科技的建筑降级、
     // 读档不按建筑与制度补回)。用户 2026-11-07 "重置科技按钮也改成同一套"——以前是把科技存档整个删掉，下一年开局补齐又全补回来

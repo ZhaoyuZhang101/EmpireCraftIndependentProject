@@ -9,7 +9,6 @@ public class EmpireCraftCityBehCheckLaw : GameAICityBase
 {
     public override Type OriginalBeh => GetType();
 
-#if EC_PENDING
     public override BehResult Execute(City pCity)
     {
         if (pCity == null || pCity.IsGone() || !pCity.HasRealm())
@@ -26,6 +25,5 @@ public class EmpireCraftCityBehCheckLaw : GameAICityBase
         EmpireLawSystem.CheckAutomaticLawTriggersForCity(pCity);
         return BehResult.Continue;
     }
-#endif
 }
 }

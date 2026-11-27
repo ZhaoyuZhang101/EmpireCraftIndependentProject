@@ -408,7 +408,6 @@ public static partial class PapacySystem
     #region 宗教战争
 
     // 没有议会的帝国：皇帝仍奉旧教，改奉新教的成员国起兵脱离(有议会的走诸侯同盟，见 HolyRomanSystem.Leagues)
-#if EC_PENDING
     private static void ReformRevolts(Religion old)
     {
         // 不许自立(见 SecessionGate)：先开战后离开，要在开战前问
@@ -441,7 +440,6 @@ public static partial class PapacySystem
             ReligionChronicle.Record(rebel.Religion, old, ReligionChronicle.KindHolyWar, text);
         }
     }
-#endif
 
     #endregion
 }

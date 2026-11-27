@@ -67,18 +67,14 @@ public static class PrinceStruggleSystem
 
     // 成年皇子连族谱里的虚拟族人一起数(纯净地图下多不在地图上；以前只数地图上的，"两位以上成年皇子"几乎永远不成立，
     // 废太子、宫门之变从不发生)
-#if EC_PENDING
     private static List<PersonalClanIdentity> PrincePeople(Empire empire, Person emperor) =>
         KinRoster.Children(emperor).Where(person => KinRoster.Counts(person,
             son => son.sex == Sex.Male && son.age >= KinRoster.AdultAge && KinRoster.KingdomOf(son)?.GetEmpire() == empire,
             son => IsPrince(son, empire))).ToList();
-#endif
 
     // 用到皇子时才落成
-#if EC_PENDING
     private static List<Person> Princes(Empire empire, Person emperor) =>
         KinRoster.Realize(PrincePeople(empire, emperor), son => IsPrince(son, empire));
-#endif
 
     private static float Mood(Person emperor) => RulerQualitySystem.Of(emperor) switch
     {
@@ -137,7 +133,6 @@ public static class PrinceStruggleSystem
 #endif
 
     // 宫门之变：皇子本部对京城禁军
-#if EC_PENDING
     private static void GateCoup(Empire empire, Realm core, Person emperor, Person heir, Person rival)
     {
         float rebels = PrinceForce(rival) * AmbushFactor, guards = GuardForce(core);
@@ -165,7 +160,6 @@ public static class PrinceStruggleSystem
             if (state != null) state.stability = Mathf.Max(0f, state.stability - 4f);
         }
     }
-#endif
 
     // 皇子的本部：统兵的按所统军团，没统兵的按实力折算亲兵
     private static float PrinceForce(Person prince)

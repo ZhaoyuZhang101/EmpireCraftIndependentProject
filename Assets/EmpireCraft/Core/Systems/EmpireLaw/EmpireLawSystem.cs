@@ -1,7 +1,6 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/EmpireLaw/EmpireLawSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
-using Color = EmpireCraft.Core.EcColor;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -144,9 +143,7 @@ public class LawEnforcementContext
     public PersonalClanIdentity Identity { get; set; }
     public string ActorName { get; set; }
     public string ActorLogName { get; set; }
-#if EC_PENDING
-    public UnityEngine.Color? ActorColorText { get; set; }
-#endif
+    public EcColor? ActorColorText { get; set; }
     // 上公屏(官员、君主、有爵位封号的人；当场拿获的要人)
     public bool Broadcast { get; set; }
     // 当场拿获、罪证确凿(Prosecute)
@@ -329,7 +326,6 @@ public static partial class EmpireLawSystem
         return record.kingdom_id == kingdom.Key;
     }
 
-#if EC_PENDING
     public static LawEnforcementContext TryEnforceLaw(this Person actor, LawType type, Realm kingdom)
     {
         return TryEnforceLaw(actor, type, kingdom, null, null);
@@ -340,11 +336,9 @@ public static partial class EmpireLawSystem
     {
         return TryEnforceLaw(actor, type, kingdom, extraPunishment, null);
     }
-#endif
 
     // 能按这条律法论处时给出案情，不施刑(揭发罪行的计谋自己定罪还是开释，见 EmpireCraftPlotsAddition)。
     // 立案时记下犯人的名号、身份与上不上公屏(施刑后罢了官、伏了诛也照原样记)
-#if EC_PENDING
     public static LawEnforcementContext PrepareEnforcement(Person actor, LawType type, Realm kingdom, string crimeDate = null)
     {
         if (!Enabled) return null;
@@ -394,12 +388,10 @@ public static partial class EmpireLawSystem
                             (kingdom.IsInEmpire() || kingdom.CountCities() >= SmallRealmCities);
         return context;
     }
-#endif
 
     // 当场拿获、罪证确凿：不掷发现骰，直接按律论处(走完整的量刑：时代与政体、宽严、八议减等、赎刑)，记卷宗与日志。
     // reasonKey 为可选的本地化键，写进卷宗备注和日志(如 "law_reason_failed_rebellion")；accuser 可空。
     // 律法关闭、本政体无此律、无管辖权、本人已死等返回 null。同一罪名尚未发觉的旧案一并了结
-#if EC_PENDING
     public static LawEnforcementContext Prosecute(Person actor, LawType type, Realm kingdom, string reasonKey = null, Person accuser = null)
     {
         LawEnforcementContext context = PrepareEnforcement(actor, type, kingdom);
@@ -413,7 +405,6 @@ public static partial class EmpireLawSystem
         ResolvePendingRecords(context.Identity, type, context.Realm);
         return Execute(context, null);
     }
-#endif
 
     // 致死的刑罚放最后(人死了后面的刑罚施不上)；有夷三族就不另施死刑(夷三族连本人一起)
     private static List<PunishmentLevel> OrderedPunishments(List<PunishmentLevel> punishments)
@@ -427,7 +418,6 @@ public static partial class EmpireLawSystem
     }
 
     // 发觉旧案(年审、朝堂诉求)也走完整的量刑；loot 是那桩案子累计的赃额
-#if EC_PENDING
     public static LawEnforcementContext TryEnforceLaw(Person actor, LawType type, Realm kingdom,
         Action<LawEnforcementContext> extraPunishment, string crimeDate, int loot = 0)
     {
@@ -436,11 +426,9 @@ public static partial class EmpireLawSystem
         context.Loot = Math.Max(0, loot);
         return Execute(context, extraPunishment);
     }
-#endif
 
     // 定罪量刑、施刑、记卷宗与前科、写日志。顺序：量刑(时代政体 → 宽严 → 八议 → 赎刑) → 收赎金 → 记生平 →
     // 施刑(致死的放最后) → 附加处分 → 追赃整吏治 → 处决的后果 → 卷宗 → 日志
-#if EC_PENDING
     private static LawEnforcementContext Execute(LawEnforcementContext context, Action<LawEnforcementContext> extraPunishment)
     {
         Person actor = context.Person;
@@ -555,7 +543,6 @@ public static partial class EmpireLawSystem
 
         return false;
     }
-#endif
 
     // 每国每年由国家 AI 调一次(EmpireCraftKingdomBehCheckEmpireLaw)：先办狱政(刑满释放、宽仁之国恩赦)，再查拥兵自重
     public static void CheckMercenaryOvermightyLaw(Realm kingdom)
@@ -590,7 +577,6 @@ public static partial class EmpireLawSystem
         leader.RecordCrime(lawType);
     }
 
-#if EC_PENDING
     private static bool TryTriggerOfficialLaws(Person actor, Realm kingdom)
     {
         if (actor == null || kingdom == null) return false;
@@ -610,7 +596,6 @@ public static partial class EmpireLawSystem
 
         return TryAutoCrime(actor, LawType.谎报军功, 0.02f + GetMilitaryCrimeModifier(actor), null);
     }
-#endif
 
     private static bool TryTriggerGeneralLaws(Person actor, Realm kingdom)
     {
@@ -784,7 +769,6 @@ public static partial class EmpireLawSystem
         return GetLawName((LawType)record.law_type);
     }
 
-#if EC_PENDING
     public static LawEnforcementContext TryEnforceCrimeForClaim(Person actor, Realm kingdom)
     {
         if (actor == null || actor.IsGone() || kingdom == null)
@@ -858,7 +842,6 @@ public static partial class EmpireLawSystem
         CleanupCrimeRecords(identity);
         return false;
     }
-#endif
 
     private static bool ShouldAutoCheckCrimeActor(Person actor)
     {
@@ -920,7 +903,6 @@ public static partial class EmpireLawSystem
         return true;
     }
 
-#if EC_PENDING
     private static void ApplyRecordedOptionalPunishments(LawEnforcementContext context)
     {
         if (context == null) return;
@@ -955,7 +937,6 @@ public static partial class EmpireLawSystem
             TryApplyOptionalPunishment(context, PunishmentLevel.剥夺爵位);
         }
     }
-#endif
 
     private static void ConsumeMercenaryOvermightyInfluence(LawEnforcementContext context)
     {
@@ -1066,7 +1047,6 @@ public static partial class EmpireLawSystem
         return false;
     }
 
-#if EC_PENDING
     public static bool ApplyPunishment(LawEnforcementContext context, PunishmentLevel punishment)
     {
         if (context == null || !CanEnforceLawInEmpireScope(context.Person, context.Realm)) return false;
@@ -1099,7 +1079,6 @@ public static partial class EmpireLawSystem
                 return false;
         }
     }
-#endif
 
     // 罚金按家资(2026-11 起，以前一律 50)：家资的两成，宽严增减，至少 FineFloor(家资不够就罚光)
     public const int FineFloor = 30;
@@ -1124,7 +1103,6 @@ public static partial class EmpireLawSystem
         return Math.Min(amount, money);
     }
 
-#if EC_PENDING
     private static bool ApplyCaning(Person actor, int remainingHealth)
     {
         if (actor == null || actor.IsGone()) return false;
@@ -1132,10 +1110,9 @@ public static partial class EmpireLawSystem
         {
             remainingHealth = 0;
         }
-        actor.setHealth(remainingHealth);
+        actor.SetHealth(remainingHealth);
         return true;
     }
-#endif
 
     // 下狱：去官(不禁子孙出仕)，按刑期收押(见 Imprison)：在押期间不得出任官职，刑满或大赦释放。
     // 以前挂 death_mark、加死亡率，死亡率没有地方读，等于只挂个标记
@@ -1256,7 +1233,6 @@ public static partial class EmpireLawSystem
     // 死刑只杀本人；夷三族连子女、配偶一起(以前死刑也连坐子女和配偶，和夷三族一样)。
     // 以前只挂 death_mark、加死亡率，死亡率没有地方读；现在登记死因后当场处死(写进生平，见 BiographySystem.Kill)。
     // 监斩的是本朝君主(帝国之内是天子)；没杀成(穿越者的护体之类)不算施刑
-#if EC_PENDING
     private static bool ApplyDeathPenalty(LawEnforcementContext context, bool kin)
     {
         Person actor = context?.Person;
@@ -1292,6 +1268,5 @@ public static partial class EmpireLawSystem
         if (killed > 0) OnExecutions(context, killed, kin);
         return died;
     }
-#endif
 }
 }

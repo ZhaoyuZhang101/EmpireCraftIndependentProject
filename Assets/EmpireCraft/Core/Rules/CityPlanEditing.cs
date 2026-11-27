@@ -24,9 +24,7 @@ public static class CityPlanEditing
     // 预览：本城领地外压暗多少；领地边界虚线的颜色、不透明度、一段多长(像素)
     private const float OutsideDim = 0.86f, BorderAlpha = 0.85f;
     private const int DashLength = 3;
-#if EC_PENDING
-    private static readonly Color32 BorderRed = new(222, 58, 46, 255), NeutralTint = new(160, 160, 160, 255);
-#endif
+    private static readonly EcColor32 BorderRed = new(222, 58, 46, 255), NeutralTint = new(160, 160, 160, 255);
 
     // 每次改动加一
     public static int Revision { get; private set; }
@@ -644,7 +642,7 @@ public static class CityPlanEditing
         PreviewCropped = false;
         PreviewNote = null;
         if (!Editable(city, out _)) return null;
-        int size = Land.ZoneSize;
+        int size = EmpireCraft.Core.Land.ZoneSize;
         int minX = int.MaxValue, minY = int.MaxValue, maxX = int.MinValue, maxY = int.MinValue;
         foreach (Cell zone in city.Zones)
         {
@@ -681,7 +679,7 @@ public static class CityPlanEditing
         maxY = Mathf.Min(EmpireWorld.Current.Height - 1, maxY);
         if (maxX < minX || maxY < minY) return null;
         int w = maxX - minX + 1, h = maxY - minY + 1, pw = w * scale, ph = h * scale;
-        var pixels = new Color32[pw * ph];
+        var pixels = new EcColor32[pw * ph];
         var own = new bool[w * h];
         // ① 地形打底；顺带记下本城陆地的平均地形色
         long sumR = 0, sumG = 0, sumB = 0, land = 0;
@@ -689,7 +687,7 @@ public static class CityPlanEditing
         for (int tx = 0; tx < w; tx++)
         {
             Cell tile = EmpireWorld.Current.CellAt(minX + tx, minY + ty);
-            Color32 color = PureMapPatch.TerrainColor(tile);
+            EcColor32 color = PureMapPatch.TerrainColor(tile);
             bool mine = tile?.Zone != null && tile.Zone.City == city;
             own[ty * w + tx] = mine;
             if (mine && tile.Type != null && !tile.Type.Liquid)
@@ -705,7 +703,7 @@ public static class CityPlanEditing
                 for (int sx = 0; sx < scale; sx++) pixels[row + sx] = color;
             }
         }
-        Color32 tint = land > 0 ? new Color32((byte)(sumR / land), (byte)(sumG / land), (byte)(sumB / land), 255) : NeutralTint;
+        EcColor32 tint = land > 0 ? new EcColor32((byte)(sumR / land), (byte)(sumG / land), (byte)(sumB / land), 255) : NeutralTint;
         // ② 精细图按不透明度盖上去(精细图自己的范围按地图上的算法，只放宽截取的上限，与地图上近看的一样)
         PureMapPatch.DetailImage image = PureMapPatch.BuildDetail(city, tint, MaxPreviewTiles);
         if (image?.Pixels != null)
@@ -720,7 +718,7 @@ public static class CityPlanEditing
                 {
                     int px = ox + ix;
                     if (px < 0 || px >= pw) continue;
-                    Color32 over = image.Pixels[iy * iw + ix];
+                    EcColor32 over = image.Pixels[iy * iw + ix];
                     if (over.a == 0) continue;
                     int i = py * pw + px;
                     if (over.a == 255)
@@ -728,9 +726,9 @@ public static class CityPlanEditing
                         pixels[i] = over;
                         continue;
                     }
-                    Color32 under = pixels[i];
+                    EcColor32 under = pixels[i];
                     float t = over.a / 255f;
-                    pixels[i] = new Color32((byte)(under.r + (over.r - under.r) * t), (byte)(under.g + (over.g - under.g) * t),
+                    pixels[i] = new EcColor32((byte)(under.r + (over.r - under.r) * t), (byte)(under.g + (over.g - under.g) * t),
                         (byte)(under.b + (over.b - under.b) * t), 255);
                 }
             }
@@ -768,8 +766,8 @@ public static class CityPlanEditing
                 int row = (ty * scale + sy) * pw + tx * scale;
                 for (int sx = 0; sx < scale; sx++)
                 {
-                    Color32 c = pixels[row + sx];
-                    pixels[row + sx] = new Color32((byte)(c.r * OutsideDim), (byte)(c.g * OutsideDim), (byte)(c.b * OutsideDim), 255);
+                    EcColor32 c = pixels[row + sx];
+                    pixels[row + sx] = new EcColor32((byte)(c.r * OutsideDim), (byte)(c.g * OutsideDim), (byte)(c.b * OutsideDim), 255);
                 }
             }
         }
@@ -790,17 +788,15 @@ public static class CityPlanEditing
 #endif
 
     // 虚线的一点：沿边每 DashLength 像素画一段、空一段
-#if EC_PENDING
-    private static void Dash(Color32[] pixels, int pw, int px, int py, int along)
+    private static void Dash(EcColor32[] pixels, int pw, int px, int py, int along)
     {
         if (along / DashLength % 2 != 0) return;
         int i = py * pw + px;
         if (i < 0 || i >= pixels.Length) return;
-        Color32 under = pixels[i];
-        pixels[i] = new Color32((byte)(under.r + (BorderRed.r - under.r) * BorderAlpha), (byte)(under.g + (BorderRed.g - under.g) * BorderAlpha),
+        EcColor32 under = pixels[i];
+        pixels[i] = new EcColor32((byte)(under.r + (BorderRed.r - under.r) * BorderAlpha), (byte)(under.g + (BorderRed.g - under.g) * BorderAlpha),
             (byte)(under.b + (BorderRed.b - under.b) * BorderAlpha), 255);
     }
-#endif
 
     #endregion
 }

@@ -65,7 +65,6 @@ public static class CityDissolution
 #endif
 
     // 弃城(每月，见 CityPopulationSystem 的迁徙一步)：返回 true 表示本月已经在逃散
-#if EC_PENDING
     public static bool TryAbandon(City city)
     {
         if (!CityPopulationSystem.AbstractPopulationEnabled || city?.Record == null || city.IsGone() ||
@@ -90,7 +89,6 @@ public static class CityDissolution
                                                     !CityTerritoryProtection.Dissolving.Contains(other.Key))
             .OrderBy(other => Vector2.SqrMagnitude(other.Center - center)).FirstOrDefault();
     }
-#endif
 
     private static void MoveUnits(City city, City destination)
     {

@@ -60,7 +60,6 @@ public static class GoodsLedger
 
     // 有小人的世界每年一次(商品市场记各城的账之前，见 CommodityMarketSystem.Tick)：按矿场开采这一年的战略矿产，再翻账页。
     // 借用人口经济的结算时间(这种世界里人口经济不结算，切回无小人时接着算)
-#if EC_PENDING
     public static void UnitsYear(City city)
     {
         if (CityPopulationSystem.AbstractPopulationEnabled || city?.Record == null || EmpireWorld.Current == null) return;
@@ -79,7 +78,6 @@ public static class GoodsLedger
         }
         Roll(data);
     }
-#endif
     public static void Used(City city, string resource, float amount) => Add(city, resource, amount, 1);
     public static void Short(City city, string resource, float amount) => Add(city, resource, amount, 2);
 
@@ -156,13 +154,10 @@ public static class GoodsLedger
         return (made, used, shortage);
     }
 
-#if EC_PENDING
     public static string KeyOf(string resource) =>
         resource == FoodKey || PopulationEconomySystem.IsFood(resource) ? FoodKey : resource;
-#endif
 
     // 一片领土(一国、一个帝国)的物资产需：粮食一行在前，其余按产耗多少排序
-#if EC_PENDING
     public static GoodsSummary Summarize(IEnumerable<City> cities)
     {
         var summary = new GoodsSummary();
@@ -202,14 +197,13 @@ public static class GoodsLedger
         {
             if (row.key == FoodKey) continue;
             foreach (City city in cities ?? Enumerable.Empty<City>())
-                if (city?.Record != null && !city.IsGone()) row.stock += Math.Max(0, city.getResourcesAmount(row.key));
+                if (city?.Record != null && !city.IsGone()) row.stock += Math.Max(0, city.GetResourcesAmount(row.key));
         }
         summary.food = rows[FoodKey];
         summary.others = rows.Values.Where(row => row.key != FoodKey && row.made + row.used + row.shortage + row.stock + row.reserve > 0f)
             .OrderByDescending(row => row.made + row.used + row.shortage).ThenByDescending(row => row.stock).ToList();
         return summary;
     }
-#endif
 
     private static string GoodKey(MarketSystem.Good good) => good switch
     {

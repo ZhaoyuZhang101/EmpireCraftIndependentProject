@@ -50,7 +50,6 @@ public static class FeudalConquestService
     private const int CentralizedAnnexMaxCities = 5;
 
     // 由 CityPatch.FinishedCapture 调用。返回 true 表示已按征服规则处理，城市不再易主。
-#if EC_PENDING
     public static bool TryResolveCapitalConquest(City city, Realm captor, Realm conquered)
     {
         if (city == null || captor == null || conquered == null || conquered.IsGone()) return false;
@@ -124,7 +123,7 @@ public static class FeudalConquestService
         {
             bool opposing = (war.Attackers.Contains(captor) && war.Defenders.Contains(conquered)) ||
                             (war.Defenders.Contains(captor) && war.Attackers.Contains(conquered));
-            if (opposing && war.Alive && !war.HasEnded()) war.lostWar(conquered);
+            if (opposing && war.Alive && !war.HasEnded()) war.Lost(conquered);
         }
 
         // 西方封建征服先建立直属臣属，不把保留原王室的国家当作共主同盟。
@@ -169,7 +168,6 @@ public static class FeudalConquestService
         if (rebel && !princeInstalled) InstallLocalNoble(empire, conquered);
         return true;
     }
-#endif
 
     // 每月改封一国(见 Empire.ProcessTerritorialAcquisitionEnfeoff)；战时先挑不在前线的，都在前线就等下个月
     public static void ProcessPeaceEnfeoff(Empire empire)

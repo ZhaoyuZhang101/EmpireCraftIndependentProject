@@ -364,13 +364,11 @@ public static class NaturalizationSystem
     }
 
     // 缺粮数是按月平滑的，饿过一次要很多年才衰减到 0：闹没闹饥荒看人口系统的判定，不看它是不是 0
-#if EC_PENDING
     private static bool Hungry(City city)
     {
         CityPopulationData data = Data(city);
         return data != null && CityPopulationSystem.GetGrowthFactors(city, data).Famine;
     }
-#endif
 
     // 按比例把 from 状态的人挪到 to 状态
     private static void Advance(IEnumerable<City> cities, NaturalizationState from, NaturalizationState to, float share)
@@ -399,7 +397,6 @@ public static class NaturalizationSystem
     }
 
     // 一年：倒着走(先结业再收人)，同一个人一年只走一步。返回今年结业的人数
-#if EC_PENDING
     public static float Yearly(Realm kingdom, TransmigrantState state)
     {
         if (kingdom?.Record == null || state == null) return 0f;
@@ -503,7 +500,6 @@ public static class NaturalizationSystem
         LogYear(cities, report, spent);
         return graduates;
     }
-#endif
 
     // 每年一行，查节奏和卡点(只记录)
     private static void LogYear(List<City> cities, NaturalizationReport report, int spent)

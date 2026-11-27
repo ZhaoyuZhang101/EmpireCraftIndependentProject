@@ -122,7 +122,7 @@ public class EmpireCraftActorCheckWarrior : GameAIActorBase
 
         if (pActor.IsRuler())
         {
-            pActor.stopBeingWarrior();
+            pActor.StopBeingWarrior();
         }
 
         if (EmpireCraftWorldLawLibrary
@@ -468,7 +468,7 @@ public class EmpireCraftActorCheckWarrior : GameAIActorBase
                 continue;
             }
 
-            if (actor.hasStatus("pregnant"))
+            if (actor.HasStatus("pregnant"))
                 continue;
 
             if (!actor.IsFemale())
@@ -801,9 +801,9 @@ public class EmpireCraftActorCheckWarrior : GameAIActorBase
         if (actor.hasReachedOffspringLimit())
             return;
 
-        if (actor.hasStatus("pregnant") ||
-            actor.hasStatus("afterglow") ||
-            lover.hasStatus("afterglow"))
+        if (actor.HasStatus("pregnant") ||
+            actor.HasStatus("afterglow") ||
+            lover.HasStatus("afterglow"))
         {
             return;
         }
@@ -895,7 +895,7 @@ public class EmpireCraftActorCheckWarrior : GameAIActorBase
                     !actor.IsCityLeader())
                 {
                     actor.ClearFrontLineMoveTarget();
-                    actor.stopBeingWarrior();
+                    actor.StopBeingWarrior();
 
                     // 只在复员瞬间 reset 一次，
                     // 让其重新进入普通市民工作/社交/生育 AI。

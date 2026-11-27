@@ -21,7 +21,7 @@ public sealed class TreasuryMonth
 
 public static class TreasurySystem
 {
-    private const double MonthLength = 5d;
+    private const double MonthLength = GameClock.MonthLength;
 
     // 近 12 个月逐月流水，从 11 个月前排到本月；没有记账的月份为空
     public static List<TreasuryMonth> MonthlyFlows(Realm kingdom)
@@ -208,6 +208,9 @@ public static class TreasurySystem
             // 无主的第二直隶(没有储君，见 MultiCapitalSystem.Zhili)：赋税全归中央
             if (MultiCapitalSystem.IsVacantZhili(local)) centralPercent = 75;
         }
+        // 近代国家的地方实力派自养军队，只缴两成(见 ModernAutonomySystem)
+        if (ModernAutonomySystem.IsStrongman(local))
+            centralPercent = Math.Min(centralPercent, ModernAutonomySystem.StrongmanCentralPercent);
         // 分裂进程里割据的成员(见 SchismSystem，用户 2026-10-21 选"先割据后独立")：不向中央缴税，各政体一样
         if (SchismSystem.IsBreakaway(local)) centralPercent = 0;
         return (25, 75 - centralPercent, centralPercent);
@@ -243,10 +246,8 @@ public static class TreasurySystem
         var shares = TaxShares(kingdom);
         return string.Format(LM.Get("fiscal_tax_shares_format"), shares.city, shares.local, shares.central);
     }
-#if EC_PENDING
-    public static string TaxSharingText(City city) => city.getLoyalty() <= 0 && !CityStabilitySystem.ControlsTax(city)
+    public static string TaxSharingText(City city) => city.GetLoyalty() <= 0 && !CityStabilitySystem.ControlsTax(city)
         ? LM.Get("fiscal_tax_withheld") : TaxSharingText(city.Realm);
-#endif
 
     // 原法律系统对国王每次记罪都会增加暴虐值。即时缴税不能把一次年度贪污变成数千次治理惩罚。
     // stolen：这回贪墨的数目，记进未发的贪污案的赃额(量刑天平的赃额砝码，见 SentencingScale)；新立案仍一年至多一次
@@ -275,7 +276,6 @@ public static class TreasurySystem
     }
 
     // 两种人口模式共用实际税款分成；年度 AI 不再抽取历史余额。
-#if EC_PENDING
     public static void CollectResidentTax(City city, int amount, TreasuryCategory category = TreasuryCategory.ResidentTax)
     {
         if (amount <= 0 || city?.Record == null || city.IsGone()) return;
@@ -326,7 +326,7 @@ public static class TreasurySystem
             if (taxed) TaxErosionSystem.RecordStolen(realm, stolen);
         }
         // 保留原城市征税 AI 的政治拒缴规则；恢复忠诚后只分配新税款，不追抽留存余额。
-        if (city.getLoyalty() <= 0 && !CityStabilitySystem.ControlsTax(city)) return;
+        if (city.GetLoyalty() <= 0 && !CityStabilitySystem.ControlsTax(city)) return;
         var share = TreasuryRules.SplitTax(amount - stolen, cityPercent, centralPercent,
             ref data.tax_city_carry, ref data.tax_central_carry);
         int localShare = share.local, centralShare = share.central;
@@ -348,7 +348,6 @@ public static class TreasurySystem
         if (localShare > 0) CreditTaxShare(local, localShare, category);
         if (centralShare > 0) CreditTaxShare(central, centralShare, category);
     }
-#endif
 
     private static double Rate(double rate) => double.IsNaN(rate) || double.IsInfinity(rate) ? 0d : Math.Max(0d, Math.Min(1d, rate));
 

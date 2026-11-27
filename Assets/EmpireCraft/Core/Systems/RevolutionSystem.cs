@@ -412,7 +412,6 @@ public static class RevolutionSystem
     private static War RevolutionWar(Empire empire) => empire?.CoreKingdom?.GetWars()
         ?.FirstOrDefault(war => war != null && !war.HasEnded() && RepublicSystem.IsRevolutionWar(war));
 
-#if EC_PENDING
     private static void BeginUprising(Empire empire, ConstitutionalEconomyState state)
     {
         state.revolution_stage = Uprising;
@@ -424,10 +423,8 @@ public static class RevolutionSystem
             rebel.Capital?.GetCityName() ?? rebel.GetKingdomName(), empire.GetEmpireFullName()));
         Intervene(empire, state, war);
     }
-#endif
 
     // 革命战争进行中的每一年：列强站队；久攻不下就议和
-#if EC_PENDING
     private static void WarYear(Empire empire, ConstitutionalEconomyState state)
     {
         War war = RevolutionWar(empire);
@@ -450,11 +447,9 @@ public static class RevolutionSystem
         // 僵局：结果在停战结算里定(见 OnPeace)
         EmpireWorld.Current.EndWar(war, WarOutcome.Peace);
     }
-#endif
 
     // 外国干涉：与革命党理念相近的现代国家声援，君主国(君主国的革命)或与旧政府理念相近的(共和国的革命)出兵助剿。
     // 只找够得着的(接壤，或宣战可达)、眼下没在打仗的、有点分量的国家；每年每边至多一家，总共至多 MaxInterventions 家
-#if EC_PENDING
     private static void Intervene(Empire empire, ConstitutionalEconomyState state, War war)
     {
         if (state.revolution_interventions >= MaxInterventions || war == null || war.HasEnded()) return;
@@ -505,7 +500,6 @@ public static class RevolutionSystem
             }
         }
     }
-#endif
 
     // 停战(僵局、强制停战)：君主肯让步的立宪收场、革命军归建；不肯的各据一方，起事的那一块自立为革命政权
     public static void OnPeace(Empire empire, War war, FixedFaction party, PartyIdeology ideology, bool splitRealm)
@@ -572,7 +566,6 @@ public static class RevolutionSystem
 
     public static bool InTalks(Empire empire) => State(empire)?.abdication_talks_since >= 0d;
 
-#if EC_PENDING
     private static void ResolveTalks(Empire empire, ConstitutionalEconomyState state, double now)
     {
         if (now >= state.abdication_talks_since && GameClock.YearsSince(state.abdication_talks_since) < TalksYears) return;
@@ -604,7 +597,6 @@ public static class RevolutionSystem
         EventRecorder.Record(empire, string.Format(LM.Get("republic_abdication_refused_history"), monarch, party.Name),
             empire.Emperor);
     }
-#endif
 
     #endregion
 

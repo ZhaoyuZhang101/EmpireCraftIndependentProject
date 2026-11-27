@@ -72,7 +72,6 @@ public static partial class CompositeEmpireService
     #region 旧部起兵
 
     // 融合完成：以旧统治族群文化为主的成员各有一半机会据地起兵(至多两国)
-#if EC_PENDING
     private static void OldGuardRevolt(Empire empire, string oldRuling, string adopted)
     {
         if (!IsNomadicCulture(oldRuling) || empire.CoreKingdom == null) return;
@@ -95,7 +94,6 @@ public static partial class CompositeEmpireService
             risen++;
         }
     }
-#endif
 
     #endregion
 

@@ -137,7 +137,7 @@ public static class CityRelocationSystem
     {
         try
         {
-            Building old = city.getBuildingOfType("type_bonfire", pCountOnlyFinished: false);
+            Building old = city.GetBuildingOfType("type_bonfire", pCountOnlyFinished: false);
             if (old?.Asset == null || old.IsOnRemove() || old.Cell?.Zone == target.Zone) return;
             BuildingKind asset = old.Asset;
             Cell spot = null;

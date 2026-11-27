@@ -118,7 +118,6 @@ public static class TerrainSystem
     private const int BigWater = 160;
     private static readonly Dictionary<int, bool> RiverZones = new();
 
-#if EC_PENDING
     public static bool RiverZone(Cell zone)
     {
         if (zone?.Tiles == null) return false;
@@ -132,14 +131,13 @@ public static class TerrainSystem
             total++;
             if ((Marks(type) & MarkWater) == 0) continue;
             water++;
-            if (!big && (tile.region?.island?.getTileCount() ?? 0) >= BigWater) big = true;
+            if (!big && (tile.Region?.island?.getTileCount() ?? 0) >= BigWater) big = true;
         }
         bool result = !big && total > 0 && water >= total * RiverShare;
         if (RiverZones.Count > 100_000) RiverZones.Clear();
         RiverZones[zone.Index] = result;
         return result;
     }
-#endif
 
     // 山地区块：原版山地、山巅格占两成以上(同 WorldMapZones.Classify 的 mountainous)。城市扩张进这种地块要更严(见 CityExpansionPatch.Bordering)
     private const float MountainShare = 0.2f;
@@ -214,7 +212,7 @@ public static class TerrainSystem
             bool Via(Cell side) => side != null && !Impassable(side) && Crossable(a, side, seatOpen) && Crossable(side, b, seatOpen);
             open = Via(zones.Get(a.X + dx, a.Y)) || Via(zones.Get(a.X, a.Y + dy));
         }
-        else open = OpenPairs(a, dx, dy) >= MinPass;
+        else open = OpenPairs(a, dx, dy) >= Math.Min(MinPass, EmpireCraft.Core.Land.ZoneSize);
         if (Edges.Count > EdgeCap()) { EdgeFlushes++; Edges.Clear(); }
         Edges[key] = open;
         return open;
@@ -223,7 +221,7 @@ public static class TerrainSystem
     // a 朝 (dx, dy) 那一边的交界上，两边都不是阻挡格的格子对数
     private static int OpenPairs(Cell a, int dx, int dy)
     {
-        int size = Land.ZoneSize, ox = a.X * size, oy = a.Y * size, count = 0;
+        int size = EmpireCraft.Core.Land.ZoneSize, ox = a.X * size, oy = a.Y * size, count = 0;
         for (int i = 0; i < size; i++)
         {
             int x = dx > 0 ? ox + size - 1 : dx < 0 ? ox : ox + i;
@@ -235,7 +233,6 @@ public static class TerrainSystem
 
     // 军牌在两块地之间按格走一步的代价(见 CorpsSystem.MarchLine；只管画在哪，行军快慢照旧按地块算)：
     // 修通的路最省(桥也是路，过得了河)；平地 1；林地、丛林 1.4；丘陵、沼泽 2；山地、山巅、水面、岩浆走不了，返回负数
-#if EC_PENDING
     internal static float StepCost(Cell tile)
     {
         TerrainKind type = tile?.Type;
@@ -250,7 +247,6 @@ public static class TerrainSystem
         if ((marks & (MarkJungle | MarkWoods)) != 0) return 1.4f;
         return 1f;
     }
-#endif
 
     // 一格挡不挡路：原版的阻挡格(山地、山巅)，看地面层与顶层(同 ClassifyTiles)
     private static bool Blocks(Cell tile)
@@ -565,7 +561,7 @@ public static class TerrainSystem
         side = LowlandSide;
         float livableSum = 0f;
         // 地块里哪些格走得了(不是山地、山巅)，看山以外的地连不连得过去(见 Crossable)
-        int size = Land.ZoneSize, ox = zone.X * size, oy = zone.Y * size;
+        int size = EmpireCraft.Core.Land.ZoneSize, ox = zone.X * size, oy = zone.Y * size;
         var open = new bool[size * size];
         void Open(Cell at, bool walkable)
         {

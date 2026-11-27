@@ -70,7 +70,6 @@ public static class EncirclementSystem
         corps.embarked || corps.militia || corps.strength < 1f || CorpsArmSystem.Flies(corps) || CorpsSystem.Insurgent(kingdom);
 
     // 每月后勤结算里(算完补给、发粮之前)：会把投降的军从 list 里拿掉
-#if EC_PENDING
     public static void Monthly(Realm kingdom, List<CorpsData> list)
     {
         bool war = CorpsSystem.IsAtWar(kingdom);
@@ -99,7 +98,6 @@ public static class EncirclementSystem
             TrySurrender(kingdom, corps, zone);
         }
     }
-#endif
 
     // 海外的军海路还通：滩头被围也有粮，不算(见 LogisticsSystem.SupplyLine)
     private static bool SeaBorne(CorpsData corps, Cell zone)
@@ -183,7 +181,6 @@ public static class EncirclementSystem
         return null;
     }
 
-#if EC_PENDING
     private static void TrySurrender(Realm kingdom, CorpsData corps, Cell zone)
     {
         if (corps.pocket_months < SurrenderFrom) return;
@@ -229,7 +226,6 @@ public static class EncirclementSystem
         if (men >= NoticeMen) TranslateHelper.LogEventMessage(text, kingdom);
         else TranslateHelper.LogEventOnly(text, kingdom);
     }
-#endif
 
     // ───────── 战线分派 ─────────
     // 被围的军就地打仗(FrontSystem.AssignMonth 分派完之后)：敌城里就打这座城，自家的城就守

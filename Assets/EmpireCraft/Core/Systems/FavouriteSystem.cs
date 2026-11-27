@@ -25,7 +25,6 @@ public static class FavouriteSystem
         return actor?.Record != null && !actor.IsGone() && actor.Alive ? actor : null;
     }
 
-#if EC_PENDING
     public static void Yearly(Empire empire)
     {
         Person emperor = empire?.Emperor;
@@ -52,7 +51,6 @@ public static class FavouriteSystem
             LogService.LogWarning($"[EmpireCraft][宠臣] {empire.GetEmpireName()} 结算失败: {exception.Message}");
         }
     }
-#endif
 
     private static void TryPick(Empire empire, Person emperor, Realm core)
     {
@@ -94,7 +92,6 @@ public static class FavouriteSystem
     }
 
     // 新君即位：半数诛杀先帝宠臣，否则罢黜
-#if EC_PENDING
     private static void Fall(Empire empire, Person favourite, Person emperor)
     {
         empire.data.favourite_id = -1L;
@@ -109,10 +106,8 @@ public static class FavouriteSystem
         EventRecorder.Record(empire, string.Format(LM.Get("favourite_dismissed_history"), emperor.FullName(), name), emperor);
         BiographySystem.Note(favourite, string.Format(LM.Get("bio_favourite_dismissed"), emperor.FullName()), emperor);
     }
-#endif
 
     // 清君侧得手(见 FactionPurgeSystem)：宠臣一并被诛
-#if EC_PENDING
     public static void OnPurge(Empire empire, Person avenger)
     {
         Person favourite = Of(empire);
@@ -121,6 +116,5 @@ public static class FavouriteSystem
         EventRecorder.Record(empire, string.Format(LM.Get("favourite_purged_history"), favourite.FullName()), favourite);
         BiographySystem.Kill(favourite, LM.Get("death_cause_favourite_purged"), avenger, executed: true);
     }
-#endif
 }
 }

@@ -9,7 +9,7 @@ namespace EmpireCraft.Core
 
 // Read the current laws at death checks: toggling never changes native stats or
 // leaves an age-related death mark/risk behind after the law is disabled.
-public static class RealisticAgeSystem
+public static partial class RealisticAgeSystem
 {
     public static bool Enabled => WorldLaws.RealisticAge?.IsEnabled() == true;
     public static bool OldAgeEnabled => WorldLaws.OldAge?.IsEnabled() == true;
@@ -387,7 +387,6 @@ public static class RealisticAgeSystem
     }
 
     // 真实年龄开着时按科技时代的天年(与实体同一个散列，见 Seed)，不看原版老死法则；关着时照原版
-#if EC_PENDING
     public static bool IsVirtualAgeDeathDue(PersonalClanIdentity person)
     {
         if (person.virtual_immortal) return false;
@@ -398,14 +397,13 @@ public static class RealisticAgeSystem
         if (!(person.virtual_native_lifespan > 0f)) person.virtual_native_lifespan = SpeciesLifespan(person.species);
         return NativeDeathChance(person.age, person.virtual_native_lifespan ?? 0f) > EcRandom.value;
     }
-#endif
 
     private const float FallbackLifespan = 100f;
     private static readonly Dictionary<string, float> LifespanBySpecies = new();
     private static object _lifespanWorld;
 
     // 物种的天年：先看一个在世的同物种单位(含亚种基因、特质)，没有就看物种基因里的寿命，再没有按一百年
-#if EC_PENDING
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
     public static float SpeciesLifespan(string species)
     {
         if (!ReferenceEquals(_lifespanWorld, EmpireWorld.Current))
@@ -418,10 +416,10 @@ public static class RealisticAgeSystem
         float lifespan = 0f;
         try
         {
-            foreach (Person actor in EmpireWorld.Current?.Living ?? Enumerable.Empty<Person>())
+            foreach (Person actor in EmpireWorld.Current?.units ?? Enumerable.Empty<Person>())
             {
-                if (actor?.Record == null || actor.Asset?.Id != key || !actor.Alive) continue;
-                lifespan = actor.Stats?["lifespan"] ?? 0f;
+                if (actor?.data == null || actor.asset?.id != key || !actor.Alive) continue;
+                lifespan = actor.stats?["lifespan"] ?? 0f;
                 if (lifespan > 0f) break;
             }
         }

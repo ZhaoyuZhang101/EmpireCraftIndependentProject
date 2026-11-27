@@ -26,17 +26,16 @@ public static class MemberWarAid
     }
 
     // 王国 AI 每月一查：长官没在办别的决议时，本国挨打就向中央求援，邻近成员挨打就议驰援
-#if EC_PENDING
     public static void TryRaise(Realm member)
     {
         Person king = member?.Ruler;
-        if (king == null || king.IsGone() || !king.Alive || king.plot?.isActive() == true ||
+        if (king == null || king.IsGone() || !king.Alive || king.Plot?.IsActive() == true ||
             EmpireWorld.Current?.Plots == null || Context(member) == null) return;
         string id = FindRequestWar(member) != null ? RequestPlot :
             FindNeighbourWar(member, out _, out _) ? NeighbourPlot :
             FindCenterWar(member) != null ? CenterPlot : null;
         if (id == null) return;
-        PlotKind asset = AssetManager.plots_library.get(id);
+        PlotKind asset = PlotKinds.Library.get(id);
         asset?.try_to_start_advanced?.Invoke(king, asset, false);
     }
 
@@ -59,10 +58,8 @@ public static class MemberWarAid
         }
         return false;
     }
-#endif
 
     // 求援：成员是守方，对方没有本帝国的人(叛乱的除外)，中央没下场、也没就这场仗与对方议和过
-#if EC_PENDING
     public static bool RequestValid(Realm member, War war)
     {
         Empire empire = Context(member);
@@ -72,10 +69,8 @@ public static class MemberWarAid
         if (core.GetWars().Any(other => other.GetEmpireWarType() == EmpireWarType.藩王索取皇位)) return false;
         return EmpirePeacePatch.Obeys(empire, member) || core.IsOpinionGood(member);
     }
-#endif
 
     // 驰援：本成员没在打仗，与挨打的同帝国成员接壤；世袭诸侯、藩镇要对它有好感
-#if EC_PENDING
     public static bool NeighbourValid(Realm member, War war, Realm ally)
     {
         Empire empire = Context(member);
@@ -89,11 +84,11 @@ public static class MemberWarAid
     public static bool StartRequest(Person actor, PlotKind asset, bool forced)
     {
         Realm member = actor?.Realm;
-        if (member?.Ruler != actor || actor.plot?.isActive() == true) return false;
+        if (member?.Ruler != actor || actor.Plot?.IsActive() == true) return false;
         War war = FindRequestWar(member);
         if (war == null) return false;
         Plot plot = EmpireWorld.Current.Plots.newPlot(actor, asset, forced);
-        plot.target_war = war;
+        plot.TargetWar = war;
         plot.TargetRealm = war.GetMainAttacker();
         return true;
     }
@@ -101,60 +96,54 @@ public static class MemberWarAid
     public static bool StartNeighbour(Person actor, PlotKind asset, bool forced)
     {
         Realm member = actor?.Realm;
-        if (member?.Ruler != actor || actor.plot?.isActive() == true) return false;
+        if (member?.Ruler != actor || actor.Plot?.IsActive() == true) return false;
         if (!FindNeighbourWar(member, out War war, out Realm ally)) return false;
         Plot plot = EmpireWorld.Current.Plots.newPlot(actor, asset, forced);
-        plot.target_war = war;
+        plot.TargetWar = war;
         plot.TargetRealm = ally;
         return true;
     }
 
     public static bool RequestContinues(Person actor) =>
-        actor?.Realm?.Ruler == actor && RequestValid(actor.Realm, actor.plot?.target_war);
+        actor?.Realm?.Ruler == actor && RequestValid(actor.Realm, actor.Plot?.TargetWar);
 
     public static bool NeighbourContinues(Person actor) =>
-        actor?.Realm?.Ruler == actor && NeighbourValid(actor.Realm, actor.plot?.target_war, actor.plot?.target_kingdom);
-#endif
+        actor?.Realm?.Ruler == actor && NeighbourValid(actor.Realm, actor.Plot?.TargetWar, actor.Plot?.TargetRealm);
 
     // 求援决议通过：中央加入守方，并为这场仗出征(京师禁军与扩大范围的兵开往成员那里，见 WarScopeSystem)
-#if EC_PENDING
     public static bool AnswerRequest(Person actor)
     {
         if (!RequestContinues(actor)) return false;
         Realm member = actor.Realm;
         Empire empire = member.GetEmpire();
-        if (!Join(actor.plot.target_war, empire.CoreKingdom)) return false;
-        WarScopeSystem.Dispatch(empire.CoreKingdom, actor.plot.target_war);
+        if (!Join(actor.Plot.TargetWar, empire.CoreKingdom)) return false;
+        WarScopeSystem.Dispatch(empire.CoreKingdom, actor.Plot.TargetWar);
         empire.data.timestamp_invite_war_cool_down = GameClock.Now;
         TranslateHelper.LogEmpireJoinWar(empire, member);
         empire.RecordHistory(directContent: string.Format(LM.Get("empire_join_member_war_history"),
             empire.GetEmpireFullName(), member.GetKingdomName()), kingdomId: member.Key);
         // 封建制帝国：护佑诸侯，战后按胜负涨帝国权威(见 HolyRomanSystem.Authority)
-        HolyRomanSystem.NoteProtection(empire, actor.plot.target_war, member);
+        HolyRomanSystem.NoteProtection(empire, actor.Plot.TargetWar, member);
         return true;
     }
-#endif
 
     // 驰援决议通过：本成员加入邻近成员的守方
-#if EC_PENDING
     public static bool AidNeighbour(Person actor)
     {
         if (!NeighbourContinues(actor)) return false;
         Realm member = actor.Realm;
-        Realm ally = actor.plot.target_kingdom;
-        if (!Join(actor.plot.target_war, member)) return false;
-        WarScopeSystem.Dispatch(member, actor.plot.target_war);
+        Realm ally = actor.Plot.TargetRealm;
+        if (!Join(actor.Plot.TargetWar, member)) return false;
+        WarScopeSystem.Dispatch(member, actor.Plot.TargetWar);
         string text = string.Format(LM.Get("member_aid_neighbour_history"), member.GetKingdomName(), ally.GetKingdomName());
         TranslateHelper.LogEventMessage(text, member);
         member.GetEmpire().RecordHistory(directContent: text, kingdomId: member.Key);
         return true;
     }
-#endif
 
     // 发兵勤王：中央自己的仗吃紧(就近动员升到一级以上，见 WarScopeSystem)，本成员还没为这场仗出征。
     // 已随中央参战的(听命于中央的)出征即可；没参战的(世袭诸侯、藩镇)一并加入中央一方，要对中央有好感。
     // 中央与本帝国(没在叛乱的)成员之间的仗不算。needy = false 时不看中央是否吃紧(谋划已开始、强制发起)
-#if EC_PENDING
     public static War FindCenterWar(Realm member, bool needy = true) =>
         Context(member) is Empire empire
             ? empire.CoreKingdom.GetWars().FirstOrDefault(war => CenterValid(member, war, needy))
@@ -184,26 +173,24 @@ public static class MemberWarAid
     public static bool StartCenter(Person actor, PlotKind asset, bool forced)
     {
         Realm member = actor?.Realm;
-        if (member?.Ruler != actor || actor.plot?.isActive() == true) return false;
+        if (member?.Ruler != actor || actor.Plot?.IsActive() == true) return false;
         War war = FindCenterWar(member, needy: !forced);
         if (war == null) return false;
         Plot plot = EmpireWorld.Current.Plots.newPlot(actor, asset, forced);
-        plot.target_war = war;
+        plot.TargetWar = war;
         plot.TargetRealm = member.GetEmpire().CoreKingdom;
         return true;
     }
 
     public static bool CenterContinues(Person actor) =>
-        actor?.Realm?.Ruler == actor && CenterValid(actor.Realm, actor.plot?.target_war, needy: false);
-#endif
+        actor?.Realm?.Ruler == actor && CenterValid(actor.Realm, actor.Plot?.TargetWar, needy: false);
 
     // 勤王决议通过：没参战的加入中央一方，为这场仗出征
-#if EC_PENDING
     public static bool AidCenter(Person actor)
     {
         if (!CenterContinues(actor)) return false;
         Realm member = actor.Realm;
-        War war = actor.plot.target_war;
+        War war = actor.Plot.TargetWar;
         Realm core = member.GetEmpire().CoreKingdom;
         if (!war.HasRealm(member))
         {
@@ -217,7 +204,6 @@ public static class MemberWarAid
         member.GetEmpire().RecordHistory(directContent: text, kingdomId: member.Key);
         return true;
     }
-#endif
 
     // 能发起这几项决议的成员：帝国的非核心成员、没在叛乱；战国周室已不管诸侯的仗；
     // 分裂进程里割据的成员不奉诏，也不向中央求援、不驰援、不勤王(见 SchismSystem，用户 2026-10-21 选"先割据后独立")

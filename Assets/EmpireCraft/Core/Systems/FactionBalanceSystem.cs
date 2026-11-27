@@ -71,7 +71,6 @@ public static class FactionBalanceSystem
     #region 每年
 
     // 每年(ConstitutionalEconomySystem 年度结算，在朝政积弊之前)
-#if EC_PENDING
     public static void Yearly(Empire empire)
     {
         try
@@ -96,7 +95,6 @@ public static class FactionBalanceSystem
             LogService.LogWarning($"[EmpireCraft][派系平衡] 年度结算失败: {exception.Message}");
         }
     }
-#endif
 
     private static void Advance(Empire empire, FixedFaction top)
     {

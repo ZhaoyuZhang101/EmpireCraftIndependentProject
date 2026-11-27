@@ -71,7 +71,6 @@ public static class FeudalVassalService
         return kingdom;
     }
 
-#if EC_PENDING
     public static bool CanBind(Realm lord, Realm subject)
     {
         if (!CanHoldVassals(lord) || subject == null || subject.IsGone() || lord == subject ||
@@ -90,7 +89,6 @@ public static class FeudalVassalService
         if (MembershipCooldown.BlocksVassal(subject, lord, log: false)) return false;
         return UsesFeudalVassals(lord) && !TooFar(lord, subject);
     }
-#endif
 
     // 封建附庸鞭长莫及(用户 2026-10-27 截图乌拉尔斯克汗国挂着都城在斯德哥尔摩的神圣罗马帝国的附庸："在封建体制下，
     // 离罗马中央很远的附庸应当不成立")：附庸的都城远在宗主(帝国按中央，连同成员)控制范围之外——封臣要亲身效忠、随征、
@@ -101,21 +99,18 @@ public static class FeudalVassalService
     // (宗主本国连同所在帝国的成员、同一宗主名下别的附庸；它自己的陪臣不算)，就算路程不远也不成立。跨海的(都城与宗主一系
     // 之首不在同一片陆地)只看路程
 
-#if EC_PENDING
     public static bool TooFar(Realm lord, Realm subject) =>
         UsesFeudalVassals(lord) && subject?.Capital != null &&
         (Detached(lord, subject) || AdministrativeControlSystem.OutOfReach(lord, subject.Capital));
-#endif
 
     // 陆上不挨着宗主一系(见 TooFar)
-#if EC_PENDING
     public static bool Detached(Realm lord, Realm subject)
     {
         if (lord?.Record == null || subject?.Cities == null || subject.Cities.Count == 0) return false;
         Realm top = EmpireCoreControl.Sovereign(lord) ?? lord;
         if (subject.Capital?.SeatCell() is Cell at && top.Capital?.SeatCell() is Cell seat && !at.IsSameIsland(seat)) return false;
         foreach (City city in subject.Cities)
-            foreach (Cell zone in city?.border_zones ?? new HashSet<Cell>())
+            foreach (Cell zone in city?.BorderZones ?? new HashSet<Cell>())
                 foreach (Cell next in zone?.Neighbours ?? Array.Empty<Cell>())
                 {
                     Realm other = next?.City?.Realm;
@@ -124,7 +119,6 @@ public static class FeudalVassalService
                 }
         return true;
     }
-#endif
 
     // 行西方式附庸的：封建化了的文化，或废了君主制的(朝贡体系随之废除，改用附庸国)
     public static bool UsesFeudalVassals(Realm lord)
@@ -136,16 +130,13 @@ public static class FeudalVassalService
         return InstitutionSystem.IsEnacted(culture, "western_feudalization");
     }
 
-#if EC_PENDING
     public static bool Bind(Realm lord, Realm subject)
     {
         if (!CanBind(lord, subject) || !subject.HasRuler()) return false;
         return BindCore(lord, subject);
     }
-#endif
 
     // 强制附庸(上帝工具)：无视外交条件、制度与国力门槛，只保留最基本的安全检查
-#if EC_PENDING
     public static bool ForceBind(Realm lord, Realm subject)
     {
         if (lord?.Record == null || subject?.Record == null || lord.IsGone() || subject.IsGone() || lord == subject ||
@@ -176,7 +167,7 @@ public static class FeudalVassalService
         if (formerEmpire != null && formerEmpire.CoreKingdom != subject) formerEmpire.leave(subject);
         if (subject.HasTakenAlliance()) subject.RemoveTakenAlliance();
         var data = subject.GetOrCreate();
-        data.feudal_independent_color_id = subject.Record.color_id;
+        data.feudal_independent_color_id = subject.Record.ColorId;
         data.feudal_overlord_kingdom_id = lord.Key;
         data.feudal_vassal_level = 1;
         data.feudal_vassal_progress = 0;
@@ -206,7 +197,7 @@ public static class FeudalVassalService
         data.feudal_annex_failed_at = -1d;
         VassalColorService.Clear(subject);
         // 旧版把附庸整个染成宗主色的，独立时要换一个颜色；新版附庸本来就是自己的底色，原样保留
-        bool legacyRecolored = formerOverlord != null && subject.Record.color_id == formerOverlord.Record.color_id;
+        bool legacyRecolored = formerOverlord != null && subject.Record.ColorId == formerOverlord.Record.ColorId;
         if (restoreOriginalColor || legacyRecolored)
             KingdomColorService.Restore(subject, restoreOriginalColor ? independentColorId : -1, formerColor,
                 useOriginalColor: restoreOriginalColor);
@@ -247,7 +238,6 @@ public static class FeudalVassalService
         if (subject.GetOrCreate().feudal_vassal_level >= 3 && subject.HasAlliance())
             subject.GetAlliance().Leave(subject);
     }
-#endif
 
     private static void SyncColors(Realm lord)
     {
@@ -271,7 +261,6 @@ public static class FeudalVassalService
     public static Realm FindAnnexTarget(Realm lord) => GetDirectVassals(lord)
         .FirstOrDefault(subject => CanAnnex(lord, subject));
 
-#if EC_PENDING
     public static Realm FindPeacefulSubmissionTarget(Realm lord)
     {
         if (lord == null || EmpireWorld.Current?.LiveRealms == null) return null;
@@ -291,7 +280,6 @@ public static class FeudalVassalService
         }
         return best;
     }
-#endif
 
     public static bool CanJoinAlliance(Realm subject, Alliance alliance)
     {
@@ -312,7 +300,6 @@ public static class FeudalVassalService
                 GameClock.YearsSince(data.feudal_last_control_timestamp) >= 1);
     }
 
-#if EC_PENDING
     public static bool IncreaseControl(Realm lord, Realm subject)
     {
         if (!CanIncreaseControl(lord, subject)) return false;
@@ -332,7 +319,6 @@ public static class FeudalVassalService
         }
         return true;
     }
-#endif
 
     // 吞并附庸：控制度练满(三级满进度)照旧可以；此外附庸满六年后——
     //   · 宗主(连同治下各国)实力达到附庸两倍以上；
@@ -382,7 +368,6 @@ public static class FeudalVassalService
         return Mathf.Clamp(chance, 0.2f, 0.9f);
     }
 
-#if EC_PENDING
     public static bool Annex(Realm lord, Realm subject)
     {
         if (!CanAnnex(lord, subject)) return false;
@@ -414,10 +399,8 @@ public static class FeudalVassalService
             TranslateHelper.LogEventMessage(string.Format(LM.Get("feudal_annex_union_history"), lord.GetKingdomName(), subjectName), lord);
         return united;
     }
-#endif
 
     // 共主兼领(未集权的封建宗主)：宗主君主兼任附庸之君，入盟或并入宗主的帝国
-#if EC_PENDING
     private static bool UniteUnderLord(Realm lord, Realm subject)
     {
         PersonalUnionService.CrownInUnion(subject, lord.Ruler);
@@ -428,10 +411,8 @@ public static class FeudalVassalService
         else PersonalUnionService.JoinAlliance(lord, subject);
         return true;
     }
-#endif
 
     // 真正并入：附庸手下的小附庸改向宗主效忠，法理交给宗主君主，城市并入宗主
-#if EC_PENDING
     private static void Absorb(Realm lord, Realm subject)
     {
         foreach (Realm vassal in GetDirectVassals(subject).ToList())
@@ -472,10 +453,8 @@ public static class FeudalVassalService
             if (lord.IsTitleWithinRealm(title)) lord.RegisterRealmTitle(title);
         }
     }
-#endif
 
     // 旧的吞并实现(兼容)：共和、现代宗主直接并入
-#if EC_PENDING
     private static bool AnnexLegacy(Realm lord, Realm subject)
     {
         if (IsPostMonarchy(lord))
@@ -499,7 +478,6 @@ public static class FeudalVassalService
         else PersonalUnionService.JoinAlliance(lord, subject);
         return true;
     }
-#endif
 
     private static void CollectPower(Realm kingdom, HashSet<long> visited, Realm excluded)
     {
@@ -591,12 +569,11 @@ public static class FeudalVassalService
     {
         if (subject?.Record == null) return 0L;
         int households = CityPopulationSystem.AbstractPopulationEnabled
-            ? CityPopulationSystem.Households(subject) : subject.PopulationCount();
+            ? CityPopulationSystem.Households(subject) : subject.People.Count;
         int level = Math.Min(3, Math.Max(1, subject.GetOrCreate().feudal_vassal_level));
         return households / (level == 1 ? 6 : level == 2 ? 4 : 2);
     }
 
-#if EC_PENDING
     public static void TryYearlyTribute()
     {
         if (EmpireWorld.Current?.LiveRealms == null || ModClass.IS_CLEAR) return;
@@ -620,10 +597,8 @@ public static class FeudalVassalService
         }
         ReleaseDistantVassals();
     }
-#endif
 
     // 鞭长莫及的封建附庸每年结算时当场脱离(见 TooFar)；神力强制附庸的保护期内不走
-#if EC_PENDING
     private static void ReleaseDistantVassals()
     {
         foreach (Realm subject in EmpireWorld.Current.LiveRealms.ToList())
@@ -642,7 +617,6 @@ public static class FeudalVassalService
                                                      $"{(detached ? "与" + lord.GetKingdomName() + " 一系不接壤" : "远在 " + lord.GetKingdomName() + " 控制范围之外")}，脱离附庸");
         }
     }
-#endif
 
     // 军阀时期易帜归附(WarlordEraSystem)：记下时间，此后若干年内不得闹独立
     public static void MarkDefected(Realm subject)
@@ -670,7 +644,6 @@ public static class FeudalVassalService
                GetWarPower(subject, false) > GetWarPower(lord, false, subject);
     }
 
-#if EC_PENDING
     public static bool StartIndependenceWar(Realm subject)
     {
         if (!CanSeekIndependence(subject)) return false;
@@ -739,6 +712,5 @@ public static class FeudalVassalService
             }
         }
     }
-#endif
 }
 }

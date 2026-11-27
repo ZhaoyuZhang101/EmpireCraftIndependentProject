@@ -53,6 +53,7 @@ public static class CultureModernizationSystem
         WarlordEraSystem.UpdateWorld(force: true);
         return total;
     }
+#endif
 
     public static CultureModernizationResult Modernize(string culture)
     {
@@ -123,7 +124,6 @@ public static class CultureModernizationSystem
 
         return new CultureModernizationResult(realms.Count, states.Count, citizens, parties);
     }
-#endif
 
     // 文化自然进入现代政治后，旧王国不能永远停在封建政体。每年承接一次：
     // 有法理的独立国、附庸及次级附庸均可按首领理念组建政府；不能组建政府者
@@ -169,7 +169,6 @@ public static class CultureModernizationSystem
     }
 
     // 按制度文化找本文化的国家：旧制犹存的算在旧制所属的文化里(见 LegacyInstitutionSystem)
-#if EC_PENDING
     private static bool TransitionIndependentRealms(string culture)
     {
         List<Realm> candidates = EmpireWorld.Current.LiveRealms
@@ -194,7 +193,6 @@ public static class CultureModernizationSystem
         }
         return changed;
     }
-#endif
 
     private static void ReplaceConservativeGovernment(Empire empire)
     {
@@ -214,11 +212,10 @@ public static class CultureModernizationSystem
                              StringComparison.Ordinal))
         .ToList();
 
-#if EC_PENDING
     private static int MoveConservativesIntoModernPolitics(string culture)
     {
         int changed = 0;
-        foreach (Person actor in EmpireWorld.Current.Living.getSimpleList().ToList())
+        foreach (Person actor in EmpireWorld.Current.Living.ToList())
         {
             if (actor == null || actor.IsGone() || !actor.Alive || actor.City == null ||
                 actor.IsWarMachine() ||
@@ -236,6 +233,5 @@ public static class CultureModernizationSystem
         }
         return changed;
     }
-#endif
 }
 }

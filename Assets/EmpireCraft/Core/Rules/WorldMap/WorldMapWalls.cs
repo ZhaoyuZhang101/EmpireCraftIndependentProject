@@ -156,7 +156,6 @@ internal static class WorldMapWalls
         private readonly float _margin;
         private readonly List<(Vector2 seat, float u, float v)> _cities = new();
 
-#if EC_PENDING
         public Corridor(Vector2Int a, Vector2Int b, List<Vector2> seats)
         {
             _origin = a;
@@ -185,7 +184,6 @@ internal static class WorldMapWalls
             }
             return true;
         }
-#endif
     }
 
     // 加密成 Step 格一个点，各点按沿线的平滑起伏往两侧偏(两头、关隘附近收成零；偏过去落水、越过城的减半再试，不行就不偏)
@@ -311,11 +309,10 @@ internal static class WorldMapWalls
         return tiles != null && id >= 0 && id < tiles.Length ? tiles[id] : null;
     }
 
-#if EC_PENDING
     private static TerrainKind WallType()
     {
         TerrainKind fallback = null;
-        foreach (TerrainKind type in AssetManager.top_tiles?.list ?? new List<TerrainKind>())
+        foreach (TerrainKind type in TerrainLayers.Top?.list ?? new List<TerrainKind>())
         {
             if (type?.Wall != true) continue;
             if (type.Id == "wall_order") return type;
@@ -323,7 +320,6 @@ internal static class WorldMapWalls
         }
         return fallback;
     }
-#endif
 
     private static bool Inside(Vector2Int point) =>
         point.x >= 2 && point.y >= 2 && point.x < EmpireWorld.Current.Width - 2 && point.y < EmpireWorld.Current.Height - 2;

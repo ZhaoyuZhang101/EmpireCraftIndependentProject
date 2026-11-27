@@ -22,7 +22,7 @@ internal static class WorldMapHistory
         public List<(Person actor, WorldMapPerson person)> kin = new();
     }
 
-    private const double SecondsPerYear = 60d;
+    private const double SecondsPerYear = 12d; // world time counts months here
 
     // 族谱编号 → 这位君主在史书里的记录编号(族谱里的已故族人记这个编号，宗族窗口就显示庙号谥号，见 SpecificClanWindow.Post)
     private static readonly Dictionary<string, long> _recordIds = new();
@@ -65,7 +65,7 @@ internal static class WorldMapHistory
                     realm.kingdom.Record.past_rulers.InsertRange(0, prior.Skip(Math.Max(0, prior.Count - 29)).Select(reign => new LeaderEntry
                     {
                         id = -1L,
-                        color_id = realm.kingdom.Record.color_id,
+                        color_id = realm.kingdom.Record.ColorId,
                         name = WorldMapData.PickParts(reign.n),
                         timestamp_ago = (reign.a - era.year) * SecondsPerYear,
                         timestamp_end = (reign.b - era.year) * SecondsPerYear

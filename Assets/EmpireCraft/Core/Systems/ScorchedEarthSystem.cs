@@ -165,18 +165,18 @@ public static class ScorchedEarthSystem
             }
         }
     }
+#endif
 
     public static void Plunder(City city, float rate)
     {
-        if (rate <= 0f || AssetManager.resources?.list == null) return;
-        foreach (ResourceAsset asset in AssetManager.resources.list)
+        if (rate <= 0f || ResourceKinds.Table?.list == null) return;
+        foreach (ResourceKind asset in ResourceKinds.Table.list)
         {
             if (asset == null || asset.type != ResType.Food) continue;
-            int have = city.getResourcesAmount(asset.id);
+            int have = city.GetResourcesAmount(asset.id);
             int take = Mathf.FloorToInt(have * rate);
-            if (take > 0) city.takeResource(asset.id, take);
+            if (take > 0) city.TakeResource(asset.id, take);
         }
     }
-#endif
 }
 }

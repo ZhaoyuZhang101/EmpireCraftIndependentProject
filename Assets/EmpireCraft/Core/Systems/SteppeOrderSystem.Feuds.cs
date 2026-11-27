@@ -57,7 +57,6 @@ public static partial class SteppeOrderSystem
         !kingdom.HasEnemies() && !kingdom.IsFactionRebelling() && !kingdom.IsLocalRebelling();
 
     // 两家能不能争草场(不看机会)：同为一方之主而不在同一帝国(过开战闸门)，或同一汗国的两个兀鲁思(只看停战年限)
-#if EC_PENDING
     private static bool FeudPair(Realm attacker, Realm defender)
     {
         if (attacker == defender || !FeudCapable(attacker) || !FeudCapable(defender)) return false;
@@ -65,10 +64,9 @@ public static partial class SteppeOrderSystem
             return !attacker.IsInSameEmpire(defender) && WarGate.CanDeclare(attacker, defender);
         if (!IsUlus(attacker) || !IsUlus(defender) || attacker.GetEmpire() != defender.GetEmpire()) return false;
         double lastWarEnded = EmpireWorld.Current.Diplomacy?.GetRelation(attacker, defender)?.Record?.LastWarEnded ?? -1d;
-        return (lastWarEnded < 0d || GameClock.YearsSince(lastWarEnded) >= SimGlobals.m.minimum_years_between_wars) &&
+        return (lastWarEnded < 0d || GameClock.YearsSince(lastWarEnded) >= WorldRules.m.minimum_years_between_wars) &&
                attacker.Ruler != defender.Ruler && !RoyalMarriageSystem.Allied(attacker, defender);
     }
-#endif
 
     private static bool FeudCooling(Realm a, Realm b)
     {
@@ -83,7 +81,6 @@ public static partial class SteppeOrderSystem
             .OrderBy(city => city.Zones?.Count ?? 0).ThenBy(city => city.Key).Take(FeudMaxCities).ToList();
 
     // 每年(NomadRaidSystem 算完草原压力后调用)
-#if EC_PENDING
     private static void FeudsYearly(List<Realm> nomads)
     {
         int started = 0;
@@ -106,7 +103,6 @@ public static partial class SteppeOrderSystem
             }
         }
     }
-#endif
 
     private static List<Realm> Neighbours(Realm kingdom)
     {
@@ -118,7 +114,6 @@ public static partial class SteppeOrderSystem
     }
 
     // 劫掠被打退后反目的部与盟主打一场(见 NomadRaidSystem.Hero)：不掷机会、不看强弱与冷却
-#if EC_PENDING
     public static bool Rift(Realm attacker, Realm defender) =>
         FeudPair(attacker, defender) && DeclareFeud(attacker, defender, "nomad_raid_rift_war_history");
 
@@ -154,7 +149,6 @@ public static partial class SteppeOrderSystem
                            $"(压力{NomadRaidSystem.State(defender).herd:0}，国力{defender.GetNationalPower():0})的{names}");
         return true;
     }
-#endif
 
     private static List<War> FeudWars() =>
         EmpireWorld.Current.LiveWars.Where(war => war?.Record != null && war.Alive && !war.HasEnded() &&

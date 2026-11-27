@@ -74,7 +74,7 @@ public static class RebellionSnowballSystem
         foreach (City city in frontier)
         {
             if (defected.Count >= budget) break;
-            float loyaltyFactor = 1f + Mathf.Max(0f, 50f - city.getLoyalty()) / 50f;
+            float loyaltyFactor = 1f + Mathf.Max(0f, 50f - city.GetLoyalty()) / 50f;
             if (EcRandom.value >= DefectChance * intensity * loyaltyFactor) continue;
             string name = city.GetCityName();
             city.JoinRealm(rebel, pCaptured: true, rebellion: true);
@@ -99,7 +99,6 @@ public static class RebellionSnowballSystem
     private const float ArmyDefectMomentum = 0.25f;
     private const float ArmyDefectMax = 0.2f;
 
-#if EC_PENDING
     private static void DefectSoldiers(Empire empire, Realm rebel, float intensity, HashSet<City> frontier)
     {
         if (rebel.Capital == null || rebel.Capital.IsGone()) return;
@@ -108,7 +107,7 @@ public static class RebellionSnowballSystem
             .Where(actor => actor != null && !actor.IsGone() && actor.Alive && actor.IsWarrior() && !actor.IsRuler())
             .ToList();
         if (loyal.Count == 0) return;
-        int rebelSoldiers = rebel.PopulationCount()(actor => actor != null && actor.Alive && actor.isWarrior()) ?? 0;
+        int rebelSoldiers = rebel.People?.Count(actor => actor != null && actor.Alive && actor.IsWarrior()) ?? 0;
         float balance = rebelSoldiers / (float)(rebelSoldiers + loyal.Count);
         float fraction = Mathf.Min(ArmyDefectMax, intensity * (ArmyDefectBase + ArmyDefectMomentum * balance));
         int count = Mathf.RoundToInt(loyal.Count * fraction);
@@ -126,7 +125,6 @@ public static class RebellionSnowballSystem
         EventRecorder.Record(empire, actor: rebel.Ruler, logKingdom: rebel, text: string.Format(LM.Get("rebellion_army_defection_history"), moved,
             empire.GetEmpireFullName(), rebel.GetKingdomFullName()));
     }
-#endif
 
 }
 }

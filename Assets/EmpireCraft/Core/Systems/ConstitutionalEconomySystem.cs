@@ -102,10 +102,11 @@ public static class ConstitutionalEconomySystem
             city = home,
             destination_city_id = data.pending_trade_destination_city_id,
             foreign_kingdom = data.pending_trade_foreign_kingdom,
-            gold_before = home.getResourcesAmount("gold"),
+            gold_before = home.GetResourcesAmount("gold"),
             trade_timestamp = data.pending_trade_timestamp
         };
     }
+#endif
 
     public static void AfterUnload(Person boat, TradeDeliverySnapshot delivery)
     {
@@ -117,7 +118,7 @@ public static class ConstitutionalEconomySystem
         ClearPendingTrade(data);
         if (boat.Realm != delivery.city.Realm) return;
         int gold = Math.Min(Config.max_gold_per_voyage,
-            Math.Max(0, delivery.city.getResourcesAmount("gold") - delivery.gold_before));
+            Math.Max(0, delivery.city.GetResourcesAmount("gold") - delivery.gold_before));
         if (gold <= 0) return;
         Empire empire = delivery.city.Realm?.GetEmpire();
         ConstitutionalEconomyState state = Ensure(empire);
@@ -132,7 +133,6 @@ public static class ConstitutionalEconomySystem
         });
         PruneTrade(state);
     }
-#endif
 
     // 市场交换(无小人模式，见 MarketSystem)：记作一次商队往来，城市就业的"近期航运"、资本主义萌芽都会计入
     public static void RecordTrade(City origin, City destination, bool foreign, int gold)
@@ -180,7 +180,7 @@ public static class ConstitutionalEconomySystem
     #endregion
 
     // 一年约 60 秒世界时间(见 GoodsLedger.YearSeconds)
-    private const double FirstYearSpreadSeconds = 60d;
+    private const double FirstYearSpreadSeconds = 12d; // world time counts months here
 
     #region 年度更新（唯一会改动状态的入口）
 
@@ -282,6 +282,8 @@ public static class ConstitutionalEconomySystem
         CityStateService.RepairEstateAutonomy(empire);
         EmpireBankruptcySystem.Update(empire, state);
         ModernTitleCentralization.Update(empire);
+        // 近代国家成员的自主度：直辖、地方实力派、割据，离开(见 ModernAutonomySystem)
+        ModernAutonomySystem.Yearly(empire);
         UpdateBudding(empire, state);
         UpdateWelfare(empire, state);
         ClaimPolicySystem.UpdateYear(empire, state);
@@ -630,7 +632,6 @@ public static class ConstitutionalEconomySystem
         }));
     }
 
-#if EC_PENDING
     public static ConstitutionalEconomyView GetView(Empire empire)
     {
         var view = new ConstitutionalEconomyView();
@@ -660,11 +661,10 @@ public static class ConstitutionalEconomySystem
         if (view.blocker == "constitution_requires_institutions")
             view.missing_institutions = DescribeMissingFeatures(empire, GetMissingFeatures(empire));
         if (view.blocker == "constitution_requires_tech")
-            view.missing_techs = string.Join(LocalizedTextManager.instance?.language is "cz" or "ch" ? "、" : ", ",
+            view.missing_techs = string.Join(LM.Language is "cz" or "ch" ? "、" : ", ",
                 GetMissingTechs(empire).Select(TechnologySystem.GetTechName));
         return view;
     }
-#endif
 
     public static bool CanStartReform(Empire empire, out string reason)
     {

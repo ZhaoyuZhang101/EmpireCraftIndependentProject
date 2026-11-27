@@ -56,7 +56,6 @@ public static class ScenarioModernPolitics
     }
 
     // 称帝(组建政府)之后：共和国定建国理念、开局即已制宪；立宪国立宪；国号锁定
-#if EC_PENDING
     public static void AfterEmpire(Realm kingdom, Empire empire, WorldMapPolity data, string name)
     {
         WorldMapModern modern = data?.modern;
@@ -85,7 +84,7 @@ public static class ScenarioModernPolitics
                 {
                     state.republic_transition_stage = 0;
                     state.republic_first_election_pending = false;
-                    state.republic_since = GameClock.Now - 10 * 60d;
+                    state.republic_since = GameClock.Now - 10 * 12d;
                 }
                 // 组建政府时已记了一笔"某某皇帝在位"，紧接着才改共和：这一任改记成共和国元首的任期(世系里以前写"陕甘宁边区皇帝")
                 if (empire.data.currentHistory is { } term)
@@ -103,7 +102,6 @@ public static class ScenarioModernPolitics
             LogService.LogWarning($"[EmpireCraft][世界地图] {name} 定政体失败: {exception.Message}");
         }
     }
-#endif
 
     // 进世界后(名将名臣已就位)：立执政党与别的政党、定中央占比、一党专政、首相
     public static void Settle(Realm kingdom, Empire empire, WorldMapPolity data, Person primeMinister, Func<string, Person> person)

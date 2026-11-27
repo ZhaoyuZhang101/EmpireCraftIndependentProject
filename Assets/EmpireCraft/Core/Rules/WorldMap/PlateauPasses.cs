@@ -30,7 +30,6 @@ public static class PlateauPasses
 
     private static List<Pass> _passes;
 
-#if EC_PENDING
     private static List<Pass> Load()
     {
         if (_passes != null) return _passes;
@@ -61,6 +60,7 @@ public static class PlateauPasses
         return _passes;
     }
 
+#if EC_PENDING
     public static void Shape(WorldMapFrame frame, Vector2Int size)
     {
         var routes = new List<PlateauShaper.Route>();

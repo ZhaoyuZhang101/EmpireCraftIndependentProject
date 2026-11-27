@@ -34,7 +34,6 @@ public static class CityPlacementSystem
     // 没选过时，点无主之地照旧归挨着的国家里都城最近的
     private static long _chosen = -1L;
 
-#if EC_PENDING
     public static string PlaceCity(Cell tile)
     {
         Cell zone = tile?.Zone;
@@ -68,11 +67,9 @@ public static class CityPlacementSystem
         TranslateHelper.LogEventOnly(content, owner);
         return content;
     }
-#endif
 
     // 在一块地上给一国建城：建城人从 source 落成(城名、主流文化照国家文化)，迁一成人口过去；host 是这块地原来所属的城(划给新城)。
     // 神力建城、无人区开发满了另立新城(见 WildernessDevelopmentSystem.Hand)共用。建不成返回 null，error 写原因
-#if EC_PENDING
     public static City Found(Cell zone, Realm owner, City source, City host, out string error)
     {
         error = null;
@@ -108,7 +105,7 @@ public static class CityPlacementSystem
         Placing = true;
         try
         {
-            city = EmpireWorld.Current.Cities.buildNewCity(founder, zone);
+            city = WorldActions.BuildNewCity(founder, zone);
         }
         finally
         {
@@ -126,7 +123,6 @@ public static class CityPlacementSystem
         WildernessPlotSystem.OnFounded(city);
         return city;
     }
-#endif
 
     // 无主之地归哪国：这些国家里都城离 tile 最近的(没有都城的按它的头一座城)
     private static Realm NearestKingdom(global::System.Collections.Generic.IEnumerable<Realm> kingdoms, Cell tile)

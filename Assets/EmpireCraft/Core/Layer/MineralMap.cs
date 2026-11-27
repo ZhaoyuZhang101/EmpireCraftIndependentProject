@@ -49,7 +49,6 @@ public static class MineralMap
     private static readonly Dictionary<City, (float at, List<(string id, bool minable, float remaining, int cooldown)> list)>
         Cache = new();
 
-#if EC_PENDING
     public static List<(string id, bool minable, float remaining, int cooldown)> Visible(City city, int mode)
     {
         if (!Cache.TryGetValue(city, out var cached) || Time.unscaledTime - cached.at > 1f)
@@ -65,6 +64,7 @@ public static class MineralMap
         return list;
     }
 
+#if EC_PENDING
     public static void Configure(MetaTypeAsset asset)
     {
         asset.draw_zones = (MetaZoneDrawAction)(meta =>
@@ -223,7 +223,7 @@ public static class MineralIconRenderer
                 screen.y - (anyCooldown ? iconPixels * 0.25f : 0f), 0f);
             foreach ((string id, bool minable, float _, int cooldown) in deposits)
             {
-                ResourceAsset resource = AssetManager.resources.get(id);
+                ResourceKind resource = ResourceKinds.Table.get(id);
                 Sprite sprite = resource?.getSpriteIcon();
                 if (sprite == null) continue;
                 Image icon = NextIcon();

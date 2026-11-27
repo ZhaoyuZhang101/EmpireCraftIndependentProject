@@ -265,7 +265,6 @@ public static class WarScopeSystem
         kingdom.GetWars().Any(war => Alive(war) != null && (war.MainAttacker == kingdom || war.MainDefender == kingdom));
 
     // 每月(征兵前)：吃紧升级、缓和降级；中央吃紧时诏令成员出征
-#if EC_PENDING
     public static void MonthTick(Realm kingdom)
     {
         var data = kingdom.GetOrCreate();
@@ -318,7 +317,6 @@ public static class WarScopeSystem
         }
         if (data.war_mobilization_level >= Wider) OrderMembers(kingdom);
     }
-#endif
 
     // 攻不动(用户 2026-11-16 "大量的士兵都没有进攻欲望"：以前只有本国吃紧才扩大动员，打顺风仗、僵持着的时候后方的军永远不上来)：
     // 有军在进攻，战果(本国城数 ×1000 + 本国或宗主名下占着的敌方地块数)却连着 StallMonths 个月没再创新高
@@ -363,7 +361,6 @@ public static class WarScopeSystem
     private const int StallMonths = 6;
 
     // 中央吃紧：诏令听命于中央、随中央参战的成员出征(战国时天子已号令不动诸侯)
-#if EC_PENDING
     private static void OrderMembers(Realm core)
     {
         Empire empire = core.GetEmpire();
@@ -385,6 +382,5 @@ public static class WarScopeSystem
             }
         }
     }
-#endif
 }
 }

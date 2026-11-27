@@ -20,21 +20,19 @@ public static partial class SmoothBorders
     private static int _chunkMapW, _chunkMapH, _chunkCols;
 #if EC_PENDING
     private static Texture2D[] _staging = new Texture2D[0];
-    private static readonly Color32[] StagingPixels = new Color32[UploadChunk * UploadChunk];
 #endif
+    private static readonly EcColor32[] StagingPixels = new EcColor32[UploadChunk * UploadChunk];
     private static float _fullUploadAt;
     private static bool _partialSinceFull;
     // 显卡支不支持块拷贝：-1 还没看，0 不支持(或拷出过错，本局都整张传)，1 支持
     private static int _copySupport = -1;
 
     // 画布写这一格时包在要写的颜色外面：记下所在的块，颜色原样返回(写法不变：pixels[id] = Marked(id, 颜色))
-#if EC_PENDING
-    private static Color32 Marked(int id, Color32 color)
+    private static EcColor32 Marked(int id, EcColor32 color)
     {
         MarkPixel(id);
         return color;
     }
-#endif
 
     // 这一格所在的块记脏(地块图层的像素按格编号：x + y × 地图宽)
     internal static void MarkPixel(int id)
@@ -111,7 +109,7 @@ public static partial class SmoothBorders
         try
         {
             EnsureStaging(DirtyChunks.Count);
-            Color32[] pixels = calc.pixels;
+            EcColor32[] pixels = calc.pixels;
             Texture2D target = calc.texture;
             for (int i = 0; i < DirtyChunks.Count; i++)
             {

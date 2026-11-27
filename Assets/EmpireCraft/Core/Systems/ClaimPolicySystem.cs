@@ -49,7 +49,6 @@ public static class ClaimPolicySystem
         return level > 0 ? 1.15f : level < 0 ? 0.9f : 1f;
     }
 
-#if EC_PENDING
     public static void UpdateYear(Empire empire, ConstitutionalEconomyState state)
     {
         if (empire == null || state == null) return;
@@ -67,7 +66,6 @@ public static class ClaimPolicySystem
             AddGrievance(empire, SocialClass.Labour, -1f);
         }
     }
-#endif
 
     public static IEnumerable<City> Cities(Empire empire) =>
         empire?.kingdoms_list == null ? Enumerable.Empty<City>()
@@ -91,7 +89,6 @@ public static class ClaimPolicySystem
 
     public static bool HasForeignBorder(Empire empire) => ForeignBorders(empire).Any();
 
-#if EC_PENDING
     private static void OpenBorders(Empire empire)
     {
         if (!CityPopulationSystem.AbstractPopulationEnabled) return;
@@ -119,7 +116,6 @@ public static class ClaimPolicySystem
             AddGrievance(empire, SocialClass.Merchant, -1f);
         }
     }
-#endif
 
     private static void ExpelForeigners(Empire empire)
     {

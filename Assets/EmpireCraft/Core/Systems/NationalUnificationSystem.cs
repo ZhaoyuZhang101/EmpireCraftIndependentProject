@@ -68,7 +68,6 @@ public static class NationalUnificationSystem
         if (EcRandom.value < chance) Pending.Add((small.Key, large.Key));
     }
 
-#if EC_PENDING
     public static void Tick()
     {
         if (Pending.Count == 0 || ModClass.EMPIRE_MANAGER == null) return;
@@ -111,7 +110,6 @@ public static class NationalUnificationSystem
         EventRecorder.Record(large, text);
         LogService.LogInfo($"[EmpireCraft][民族统一] {text}");
     }
-#endif
 
     // 法理上属于哪个帝国核心(军阀时期另立的临时子核心按上级核心算)
     private static EmpireCore Lawful(Empire empire)

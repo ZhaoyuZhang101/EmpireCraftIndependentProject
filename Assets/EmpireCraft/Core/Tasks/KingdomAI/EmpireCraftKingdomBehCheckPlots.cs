@@ -51,7 +51,7 @@ public class EmpireCraftKingdomBehCheckPlots : GameAIKingdomBase
         Empire empire = kingdom?.GetEmpire();
         if (empire?.CoreKingdom != kingdom) return;
         Person minister = empire.GetPowerfulMinister();
-        if (minister == null || minister.IsGone() || minister.plot?.isActive() == true) return;
+        if (minister == null || minister.IsGone() || minister.Plot?.IsActive() == true) return;
 
         string plotId = empire.CanEmpressDowagerInstallSon(minister)
             ? "empress_dowager_install_son"
@@ -64,7 +64,7 @@ public class EmpireCraftKingdomBehCheckPlots : GameAIKingdomBase
                         : null;
         if (plotId == null) return;
 
-        PlotKind plot = AssetManager.plots_library?.get(plotId);
+        PlotKind plot = PlotKinds.Library?.get(plotId);
         if (plot?.try_to_start_advanced == null) return;
         if (plot.try_to_start_advanced(minister, plot, true))
         {
@@ -111,10 +111,10 @@ public class EmpireCraftKingdomBehCheckPlots : GameAIKingdomBase
             if (k == pKingdom) continue;
             if (!k.Ruler.HasFaction()) continue;
             if (k.GetHighestFactionRatio()!=faction) continue;
-            if (k.getRenown()>pKingdom.getRenown()) continue;
+            if (k.GetRenown()>pKingdom.GetRenown()) continue;
             int joiningCityCount = k.Cities?.Count ?? 0;
             if (joiningCityCount <= 0 || rebelData.rebellion_auto_expand_remaining < joiningCityCount) continue;
-            pKingdom.addRenown(-k.getRenown());
+            pKingdom.addRenown(-k.GetRenown());
             TranslateHelper.LogJoinRebellionWar(k, pKingdom, empire);
             foreach (var c in k.Cities.ToList())
             {
@@ -174,7 +174,6 @@ public class EmpireCraftKingdomBehCheckPlots : GameAIKingdomBase
         }
     }
     
-#if EC_PENDING
     public void CheckJoinWar(Realm pKingdom)
     {
         Empire empire = pKingdom.GetEmpire();
@@ -221,7 +220,6 @@ public class EmpireCraftKingdomBehCheckPlots : GameAIKingdomBase
             TranslateHelper.LogJoinEmpireWar(pKingdom, empire);
         }
     }
-#endif
 
     // 成员随中央参战的冷却：西欧封建帝国每个成员各自三个月(用户 2026-10-21 选"称帝后动员不变差")。以前记在帝国上
     // (timestamp_invite_war_cool_down)，一家成员随征后全帝国三个月内别家都不随征——称帝前附庸网是一齐参战的，

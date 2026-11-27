@@ -324,7 +324,7 @@ public static class CityLedger
     {
         if (!Uses(city)) return CityBehBuild.buildTick(city);
         if (Pending(city) != null || RealConstruction(city)) return false;
-        if (AssetManager.city_build_orders.get(city.getActorAsset()?.build_order_template_id ?? "") == null) return false;
+        if (AssetManager.city_build_orders.get(city.GetActorAsset()?.build_order_template_id ?? "") == null) return false;
         CityBehBuild._possible_buildings.Clear();
         CityBehBuild._possible_buildings_no_resources.Clear();
         CityBehBuild.calcPossibleBuildings(city);
@@ -392,7 +392,7 @@ public static class CityLedger
 #if EC_PENDING
     public static int StockCap(City city, string resource)
     {
-        ResourceAsset asset = AssetManager.resources.dict.TryGetValue(resource ?? "", out ResourceAsset found) ? found : null;
+        ResourceKind asset = ResourceKinds.Table.dict.TryGetValue(resource ?? "", out ResourceKind found) ? found : null;
         int single = asset == null || asset.maximum <= 0 ? 999 : asset.maximum;
         long cap = (long)single * Mathf.Max(1, CountType(city, StockpileType));
         return (int)Math.Min(int.MaxValue, cap);
@@ -461,7 +461,7 @@ public static class CityLedger
             if (stock == null) return;
             stock[slot.id] = (int)Math.Min(int.MaxValue, (long)(stock.TryGetValue(slot.id, out int have) ? have : 0) + slot.amount);
         }
-        if (stock != null) city._storage_version++;
+        if (stock != null) city.StorageVersion++;
     }
 #endif
 

@@ -49,7 +49,6 @@ public static class EnterpriseSystem
 
     // ---- 1. 财政支出回流 ----
     // 工钱是收入：按居民税率交工资所得税(独立税基，不是产值，不与生产税重复)，税后进本城民间资产
-#if EC_PENDING
     public static void ReturnToLocal(City city, int amount)
     {
         if (!Active || amount <= 0 || city?.Record == null || city.IsGone()) return;
@@ -66,7 +65,6 @@ public static class EnterpriseSystem
         CashIn(data, amount - tax);
         data.wage_inflow_acc += amount;
     }
-#endif
 
     // ---- 民间现金 ----
     // 真钱单独记在城市的普通人口现金账户(civilian_wallet_reserve.cash，与并入人物时保管的钱包同一账户)：
@@ -96,14 +94,12 @@ public static class EnterpriseSystem
     }
 
     // 公家向百姓买料：国库付的钱进民间现金，货物离开仓库，估值同额减少(家底不变)
-#if EC_PENDING
     public static void PublicPurchase(City city, CityPopulationData data, int paid)
     {
         if (!Active || data == null || paid <= 0) return;
         CashIn(data, paid);
         PopulationEconomySystem.AddSavings(city, data, -paid);
     }
-#endif
 
     // ---- 卖货收现金(用户 2026-11-25 "这个也可以加"；城际买卖见 MarketSystem.Settle) ----
     // 以前百姓卖粮卖货的收入只记家底估值，真钱只在国库发工钱的城里落下来，产地手里没有现钱。现在货款是真钱、跟着货走：
@@ -112,7 +108,6 @@ public static class EnterpriseSystem
     //   · 百姓自己买的粮(fromPeople 为真)：买方城百姓手里的现钱(每户底线以上的部分)先付，不够的照旧按家底估值换。
     // 不铸新钱：现钱只是从买方挪到卖方。收了现钱的一方，家底估值同额转出(货变成了钱，家底不变)；付了现钱的买方，
     // 估值里就不用再出这一份。返回付了多少现钱
-#if EC_PENDING
     public static long SaleCash(City buyer, CityPopulationData buyerData, City seller, long amount, bool fromPeople)
     {
         if (!Active || amount <= 0L || seller?.Record == null || seller.IsGone()) return 0L;
@@ -132,7 +127,6 @@ public static class EnterpriseSystem
         FiscalDiagnostics.Count("卖货现金", (int)Math.Min(int.MaxValue, paid));
         return paid;
     }
-#endif
 
     // 商品市场的货款(见 CommodityMarketSystem.DomesticPayments / ImportCash)：买方城百姓拿闲着的现钱(每户底线以上的 share 那一份)付，
     // 返回付了多少；卖方城收下，家底估值同额转出(出产时已经按估值记过收入，货卖成了钱，家底不变)
@@ -143,14 +137,12 @@ public static class EnterpriseSystem
         return idle <= 0L ? 0L : TakeCash(data, Math.Min(amount, (long)Math.Floor(idle * (double)Mathf.Clamp01(share))));
     }
 
-#if EC_PENDING
     public static void ReceiveSaleCash(City city, CityPopulationData data, long amount)
     {
         if (!Active || amount <= 0L || city?.Record == null || data == null) return;
         CashIn(data, amount);
         PopulationEconomySystem.AddSavings(city, data, -amount);
     }
-#endif
 
     // ---- 2. 民间投资 ----
     // 只投真钱：民间现金超过每户底线的部分，每年按 InvestSharePerYear 转入投资池
@@ -204,7 +196,6 @@ public static class EnterpriseSystem
     }
 
     // 付民营的建设款：本城投资池 → 本城闲钱 → 本国别的城的闲钱(多的先出)；全额付得起才付
-#if EC_PENDING
     public static bool SpendPrivate(City city, int cost)
     {
         if (cost <= 0) return true;
@@ -233,10 +224,8 @@ public static class EnterpriseSystem
         if (paid > 0L) ReturnToLocal(city, (int)Math.Min(int.MaxValue, paid));
         return left <= 0L;
     }
-#endif
 
     // 从投资池付建设款，付给本城工匠(回到民间资产)；返回付出的整数金额
-#if EC_PENDING
     public static int SpendPool(City city, int amount)
     {
         if (!Active || amount <= 0 || city?.Record == null) return 0;
@@ -249,7 +238,6 @@ public static class EnterpriseSystem
         ReturnToLocal(city, paid);
         return paid;
     }
-#endif
 
     // 付得起吗(privateFirst：连民间投资池一起算)
     public static bool CanPay(City city, int cost, bool privateFirst)
@@ -262,7 +250,6 @@ public static class EnterpriseSystem
     }
 
     // 民间投资池 → 城市国库 → 国家可用资金，依次付款；全额付得起才付。返回是否付清
-#if EC_PENDING
     public static bool PayPrivateFirst(City city, int cost)
     {
         if (cost <= 0) return true;
@@ -277,10 +264,8 @@ public static class EnterpriseSystem
         PayPublic(city, fromCity, fromState);
         return true;
     }
-#endif
 
     // 城市国库 → 国家可用资金(工钱回本城)
-#if EC_PENDING
     public static bool PayPublicFirst(City city, int cost)
     {
         if (cost <= 0) return true;
@@ -299,7 +284,6 @@ public static class EnterpriseSystem
         if (fromState > 0) city.Realm.SubMoney(fromState, TreasuryCategory.Construction);
         ReturnToLocal(city, fromCity + fromState);
     }
-#endif
 
     // ---- 3. 产业出资与所有权 ----
     public static bool StatePreferred(Realm kingdom)
@@ -331,7 +315,6 @@ public static class EnterpriseSystem
     public static int EnterpriseCost(BuildingKind asset) => BaseEnterpriseCost + Math.Max(0, asset.ConstructionProgressNeeded) / 2;
 
     // 新开工的建筑：产业建筑按出资方登记所有权
-#if EC_PENDING
     public static void OnConstructionStarted(City city, Building building)
     {
         if (!Active || city?.Record == null || building?.Asset == null || !IsEnterprise(building.Asset)) return;
@@ -346,20 +329,18 @@ public static class EnterpriseSystem
     public static bool IsPublic(City city, Building building)
     {
         List<long> ids = city?.Record == null ? null : city.GetOrCreate().public_enterprise_ids;
-        return ids != null && building != null && ids.Contains(building.Record.id);
+        return ids != null && building != null && ids.Contains(building.Record.Key);
     }
 
     private static void RegisterPublic(City city, Building building)
     {
         var ids = city.GetOrCreate().public_enterprise_ids ??= new List<long>();
-        if (!ids.Contains(building.Record.id)) { ids.Add(building.Record.id); FiscalDiagnostics.Count("官营开办"); }
+        if (!ids.Contains(building.Record.Key)) { ids.Add(building.Record.Key); FiscalDiagnostics.Count("官营开办"); }
     }
-#endif
 
     // ---- 村镇、厂区的营建(纯净地图，用户 2026-10-17 选"花钱，分官营民营")：AI 新建、扩建要花钱 ----
     // 新建：照国策国库先出或民间投资池先出(见 StatePreferred)，国库出钱的归官营、投资池出钱的归民营；
     // selfBuild：没人出得起时百姓自建(村)，归民营；否则出不起就不建
-#if EC_PENDING
     public static bool Fund(City city, int cost, bool selfBuild, out bool state)
     {
         state = false;
@@ -378,22 +359,18 @@ public static class EnterpriseSystem
         }
         return selfBuild;
     }
-#endif
 
     public static bool CanFund(City city, int cost) => !Active || city?.Record == null ||
                                                      PrivateCapital(city) >= cost || !PrivateOnly(city.Realm) && CanPay(city, cost, false);
 
     // 已有的扩建、添厂、升级：官营的国库出钱，民营的民间资本出钱(本城投资池，不够再动本国各城的闲钱，见 SpendPrivate)
-#if EC_PENDING
     public static bool FundOwned(City city, int cost, bool state)
     {
         if (!Active || city?.Record == null || cost <= 0) return true;
         return state ? PayPublicFirst(city, cost) : SpendPrivate(city, cost);
     }
-#endif
 
     // 建成的产业建筑中官营的占比(顺带清掉已经不存在的登记)；纯净地图按林场、矿、牧的镇村与厂区里的厂算(见 LivelihoodSystem)
-#if EC_PENDING
     public static void CountEnterprises(City city, out int total, out int publicCount)
     {
         total = publicCount = 0;
@@ -408,18 +385,16 @@ public static class EnterpriseSystem
         foreach (Building building in city.Buildings)
         {
             if (building?.Asset == null || building.Record == null || !IsEnterprise(building.Asset)) continue;
-            bool registered = ids != null && ids.Contains(building.Record.id);
-            if (registered) alive.Add(building.Record.id);
+            bool registered = ids != null && ids.Contains(building.Record.Key);
+            if (registered) alive.Add(building.Record.Key);
             if (building.IsUnderConstruction()) continue;
             total++;
             if (registered) publicCount++;
         }
         if (alive != null && alive.Count != ids.Count) ids.RemoveAll(id => !alive.Contains(id));
     }
-#endif
 
     // PayTaxes 计税前调用：官营利润从工业产值里拿出，上缴国库；返回从总收入中扣掉的价值
-#if EC_PENDING
     public static float TakePublicProfit(City city, CityPopulationData data)
     {
         if (!Active || data?.produced_sector_values == null || city.Realm == null || city.Realm.IsWild) return 0f;
@@ -441,7 +416,6 @@ public static class EnterpriseSystem
         }
         return profit;
     }
-#endif
 
     // 每次月结把累计流量折成年化数值给界面看
     public static void RollPeriod(CityPopulationData data, float years)

@@ -17,7 +17,7 @@ namespace EmpireCraft.Core
 //   · 军镇(中央/军区/军府，见 CityPopulationSystem 军制)按兵额折合：每 LegionsPerCorps 个旧制军团编一支军；
 //   · 城市治安的守兵(CityStabilitySystem 出钱养的兵额)照旧是实体，留在城里不出征；
 //   · 原版计兵数(City.countWarriors)把军团折算进去，战争 AI、投降、叛乱判定照常可用。
-public static class CorpsSystem
+public static partial class CorpsSystem
 {
     public const int LegionsPerCorps = 8;
     // 每月补员上限(满编的比例)、和平时每月退伍上限
@@ -118,7 +118,6 @@ public static class CorpsSystem
         }
     }
 
-#if EC_PENDING
     public static void ResetWorldState()
     {
         CorpsMapRenderer.ClearLocate();
@@ -148,7 +147,6 @@ public static class CorpsSystem
         WarReadinessSystem.ResetWorldState();
         NavySystem.ResetWorldState();
     }
-#endif
 
     #endregion
 
@@ -158,7 +156,6 @@ public static class CorpsSystem
     private static object _world;
     private static readonly Dictionary<long, float> GeneralMoves = new();
 
-#if EC_PENDING
     public static void Update()
     {
         if (EmpireWorld.Current == null) return;
@@ -196,7 +193,7 @@ public static class CorpsSystem
         using (FrameProfiler.Measure("路网")) RoadNetwork.Tick();
         // 节拍按整秒往前推，不按本帧时刻重置：以前每拍都拖长一帧的时间(开快速时一拍拖到 1.2 秒)，
         // 兵牌按一拍一秒插值，到位后干等，走起来一顿一顿。一步跨了几个世界秒就补几拍，落后太多(暂停、卡顿)才重新对齐(见 SecondBeats)
-        int beats = SecondBeats.Due(ref _lastSecond, now);
+        int beats = SecondBeats.Due(ref _lastSecond, now * 5d);
         // 欠的几拍在一趟里结(见 SecondTick)：以前一拍一趟，补几拍就把全部军团连同寻路过几遍，
         // 游戏开快速时帧越慢、一帧要补的拍越多，越补越慢(群友 2026-11-17 "beta9 更新到 beta10 帧率瞬间跌了 20")
         if (beats > 0)
@@ -207,7 +204,6 @@ public static class CorpsSystem
             catch (Exception exception) { LogService.LogWarning($"[EmpireCraft][海军] 航行失败: {exception.Message}"); }
         }
     }
-#endif
 
     // 关闭占领模式：各军就地退伍(兵员还回人口)，统领并回人口
     private static void DisbandAllOnDisable()
@@ -281,7 +277,6 @@ public static class CorpsSystem
         MonthQueue.Clear();
     }
 
-#if EC_PENDING
     private static void BeginMonthCycle(double now, bool first)
     {
         _monthAt = now;
@@ -296,7 +291,7 @@ public static class CorpsSystem
 
     private static void AdvanceMonth()
     {
-        var watch = global::System.Diagnostics.Stopwatch.StartNew();
+        var watch = SimWatch.StartNew();
         int done = 0;
         double slice = MonthSlice();
         while (_monthPhase != MonthPhase.Idle)
@@ -353,7 +348,6 @@ public static class CorpsSystem
             }
         }
     }
-#endif
 
     // 海军、战线的整段：出错与以前一样跳过这个月余下的结算
     private static bool MonthStep(string label, Action step)
@@ -416,7 +410,6 @@ public static class CorpsSystem
     // 补员、裁撤这一回放几个月的量(见 DueMonths)
     private static int _span = 1;
 
-#if EC_PENDING
     private static void MonthTick(Realm kingdom, double now, int span = 1)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || kingdom.IsNeutral() ||
@@ -456,7 +449,6 @@ public static class CorpsSystem
         // 禁军空饷、忠诚、不奉诏
         for (int month = 0; month < span; month++) PalaceArmySystem.Monthly(kingdom);
     }
-#endif
 
     // 野战军饷：按人头每月发(见 CityStabilityRules.CorpsAnnual)，按兵种加权(装备越先进越贵，见 CorpsArmSystem)，本国先付，听命于中央的成员付不起由中央补；
     // 听命于中央的成员，核心国库超出储备的余钱先替它发(中央养兵，见 TreasuryHoardSystem)；
@@ -538,7 +530,6 @@ public static class CorpsSystem
         return (long)Math.Ceiling(CityStabilityRules.CorpsAnnual(soldiers, IsAtWar(kingdom)) / 12d + engaged * BattleCostPerSoldier);
     }
 
-#if EC_PENDING
     private static void PayUpkeep(Realm kingdom)
     {
         // 骑士团的军由骑士团自己付饷(见 PapacySystem.Orders)
@@ -629,7 +620,6 @@ public static class CorpsSystem
         Defect(kingdom, list, grievance);
         if (data.corps_unpaid_months >= SuePeaceMonths) SueForPeace(kingdom);
     }
-#endif
 
     // 欠饷投敌(用户 2026-11-09 "历史上很多明朝军人直接就投降清朝了""因为他们发的起军饷""而明军没军饷")：
     // 欠饷或被克扣到 DefectGrievance 以上的军，在前线打不过、对面又发得起饷(国库有钱、不欠饷、不克扣，自备鞍马的外藩不算)，
@@ -739,7 +729,6 @@ public static class CorpsSystem
     // 以前养不起时各军府缩成 5/5、8/22 这种空架子，军团页几百行
     private const float MinCorpsMen = 1000f;
 
-#if EC_PENDING
     private static Realm ObeyedCore(Realm kingdom)
     {
         Empire empire = kingdom.GetEmpire();
@@ -747,10 +736,8 @@ public static class CorpsSystem
         return core != null && core != kingdom && !core.IsGone() && TreasurySystem.Enabled(core) &&
                EmpirePeacePatch.Obeys(empire, kingdom) ? core : null;
     }
-#endif
 
     // report：把缺口报给中央、中央结算一次余额(每国每月只报一次，试算时不报)
-#if EC_PENDING
     private static float BudgetFactor(Realm kingdom, bool war, float wanted, bool report = true)
     {
         if (wanted < 1f) return 1f;
@@ -784,7 +771,6 @@ public static class CorpsSystem
         }
         return Mathf.Clamp01((float)(budget / need));
     }
-#endif
 
     // 养不起兵时留着不裁的军镇(见 GarrisonCutRules)：京畿(本势力的都城、陪都)、边境(邻城里有本势力以外的国，
     // 蛮荒不算)、驰援(战时本城或邻城正在交战)
@@ -820,7 +806,6 @@ public static class CorpsSystem
     }
 
     // 各军镇应有几支军、每支多少人；缺的当场征召，多的和平时退伍
-#if EC_PENDING
     private static void Mobilize(Realm kingdom, double now)
     {
         List<CorpsData> list = Of(kingdom);
@@ -1034,7 +1019,6 @@ public static class CorpsSystem
         if (!war)
             foreach (CorpsData corps in list.Where(corps => corps.militia).ToList()) Disband(kingdom, corps);
     }
-#endif
 
     #region 手动组建(军事页"组建新军"，玩家反馈"在这两个界面里，弄一个添加……"，选"手动组建军团")
 
@@ -1242,7 +1226,6 @@ public static class CorpsSystem
 
     // 开局即有兵(世界地图剧本，见 WorldMapScenario)：照常按军制定各军镇的兵额、编军，编好的当场补满。返回全国兵力
     // reset：剧本开局先散掉进世界时月结已经编的军(那时还没划省，京师一国按全国编了军)，再照划好的行政区编
-#if EC_PENDING
     public static float Prefill(Realm kingdom, bool reset = false)
     {
         if (!Enabled || kingdom?.Record == null || kingdom.IsGone() || kingdom.IsNeutral() ||
@@ -1255,7 +1238,6 @@ public static class CorpsSystem
         RebuildIndex();
         return Of(kingdom).Sum(corps => corps.strength);
     }
-#endif
 
     private static int NextSerial(Realm kingdom)
     {
@@ -1685,7 +1667,7 @@ public static class CorpsSystem
 #if EC_PENDING
     public static void DisbandCityArmy(City city)
     {
-        Army army = city?.army;
+        Army army = city?.Army;
         if (army == null) return;
         foreach (var office in OfficeManager.Offices.Values.Where(office => office?.meta_object == army).ToList())
             office.RemoveActor();
@@ -1694,7 +1676,7 @@ public static class CorpsSystem
         {
             if (soldier?.Record == null || soldier.IsGone()) continue;
             soldier.RemoveFromArmy();
-            if (soldier == captain || CityPopulationSystem.IsNotable(soldier)) soldier.stopBeingWarrior();
+            if (soldier == captain || CityPopulationSystem.IsNotable(soldier)) soldier.StopBeingWarrior();
         }
         city.disbandArmy();
     }
@@ -1739,7 +1721,6 @@ public static class CorpsSystem
     // 统帅补位与挪动、全部军团的清单每趟只做一回。
     // 寻路额度：游戏里一趟一份(同 Beta9 一帧至多一拍时一样多)，没轮上的军团照旧攒着进度、下一趟寻到路一并补走，路程不丢；
     // 独立核心照拍数放大(它要流速调快时军队跟得上，见 SecondBeats)
-#if EC_PENDING
     private static void SecondTick(int beats)
     {
         beats = Math.Max(1, beats);
@@ -1766,13 +1747,11 @@ public static class CorpsSystem
             MoveGeneral(corps);
         }
     }
-#endif
 
     // 一个军团走 beats 拍(一拍一个世界秒)。几拍的路程并成一次算(2026-11-24 群友"11/5 那版更流畅，之后越来越卡")：
     // 以前欠几拍就把下面这一套(地形道路判速度、找目标地块、记插值)原样做几遍，快进时一帧八遍、几百支军就是几千遍；
     // 现在速度与目标一帧判一次，进度一次加足 beats 拍，该迈几块照样迈几块(迈进新地块后兵牌按新地块的速度插值，
     // 这一趟里剩下的路程仍按出发那块的速度算，差的那一点下一趟就按新地块算了)。船上的照旧一拍一步
-#if EC_PENDING
     private static void MarchBeat(CorpsData corps, int beats = 1)
     {
         if (corps.embarked)
@@ -1830,7 +1809,6 @@ public static class CorpsSystem
             }
         }
     }
-#endif
 
     private static void EnsureGeneral(Realm kingdom, CorpsData corps)
     {
@@ -1951,7 +1929,6 @@ public static class CorpsSystem
     }
 
     // 军团在地块上一格一格挪向目标(跨海登陆要有航线与运力，见 FrontSystem / NavySystem)
-#if EC_PENDING
     private static void StepTowardTarget(CorpsData corps)
     {
         if (corps.embarked)
@@ -2017,7 +1994,6 @@ public static class CorpsSystem
         Cell next = NextStep(corps, current, target);
         if (next != null) corps.zone_id = next.Index;
     }
-#endif
 
     // 两块地是否在同一片陆地上(有城的取城心，野地取地块中心)；拿不准时当作同一片
     public static bool SameLand(Cell a, Cell b)
@@ -2034,7 +2010,6 @@ public static class CorpsSystem
     }
 
     // 上船的港口：本国(连同宗主中央)在这片陆地上、离得最近的港口城
-#if EC_PENDING
     private static City PortFor(Realm kingdom, Cell at)
     {
         if (kingdom == null) return null;
@@ -2054,11 +2029,9 @@ public static class CorpsSystem
         }
         return best;
     }
-#endif
 
     // 这支军渡海从哪里上船(与 StepTowardTarget 一致)：这片陆地上本国(连同宗主中央)最近的港口；已在海外、这片陆地上没有
     // 本国港口的，就近的岸边；本土没有港口(出不了海)返回空。已在船上、在海面的就是所在地块(FrontSystem 挑渡海的军用)
-#if EC_PENDING
     public static Cell EmbarkZone(Realm kingdom, CorpsData corps)
     {
         Cell at = Zone(corps);
@@ -2069,7 +2042,6 @@ public static class CorpsSystem
         if (SameLand(at, Home(corps)?.SeatCell()?.Zone)) return null;
         return SeaLanding.Shores(at).FirstOrDefault();
     }
-#endif
 
     // 上船失败(没有能靠岸的海滩、航线被截断)后隔几秒(真实时间)再试
     private const float EmbarkRetrySeconds = 5f;
@@ -2078,7 +2050,6 @@ public static class CorpsSystem
     // 在港口(或岸边)上船：船开往目标所在那片陆地上沿陆路离目标最近、能靠岸的海滩(见 SeaLanding.Beachhead)，
     // 上岸后走陆路开往目标；航线不经敌方制海、在舰种航程内。从这里出海走不了就按本国别的出海口算，再不行就原地等。
     // 以前船只开到目标城外的海区，内陆的城求不出航线，军在港口等一辈子(玩家反馈殖民地"要等陆地连上了才打得动")
-#if EC_PENDING
     private static void Embark(Realm kingdom, CorpsData corps, Cell target, List<SeaRegionSystem.Region> start)
     {
         if (kingdom == null || target == null) return;
@@ -2104,7 +2075,6 @@ public static class CorpsSystem
         if (corps.sea_path.Count == 0 && route[0].Center != null) corps.zone_id = route[0].Center.Index;
         Paths.Remove(corps.id);
     }
-#endif
 
     // 船走的路线：只走登陆航线上的海区(不进敌方制海的海区)，海面上尽量沿航线(见 RoadNetwork.SeaPath)；寻不到返回空表
     private static List<int> Voyage(CorpsData corps, Cell from, Cell landing)
@@ -2241,9 +2211,8 @@ public static class CorpsSystem
 
     private static bool PathBudget() =>
         _pathsThisTick < PathsPerTick * _pathScale ||
-        _pathTicksThisTick * 1000d / global::System.Diagnostics.Stopwatch.Frequency < PathTickMilliseconds * _pathScale;
+        _pathTicksThisTick * 1000d / SimWatch.Frequency < PathTickMilliseconds * _pathScale;
 
-#if EC_PENDING
     private static Cell NextStep(CorpsData corps, Cell current, Cell target)
     {
         Realm side = EmpireWorld.Current.RealmByKey(corps.kingdom_id);
@@ -2272,10 +2241,10 @@ public static class CorpsSystem
             _pathDeferred = true;
             return null;
         }
-        long started = global::System.Diagnostics.Stopwatch.GetTimestamp();
+        long started = SimWatch.GetTimestamp();
         List<int> path = FindPath(current, target, CorpsArmSystem.Of(corps), side);
         _pathsThisTick++;
-        _pathTicksThisTick += global::System.Diagnostics.Stopwatch.GetTimestamp() - started;
+        _pathTicksThisTick += SimWatch.GetTimestamp() - started;
         if (_wallBlocked > 0) LogWallPath(corps, side, path, _wallBlocked);
         if (path == null || path.Count < 2)
         {
@@ -2291,7 +2260,6 @@ public static class CorpsSystem
         Paths[corps.id] = (target.Index, path);
         return ZoneById(path[0]);
     }
-#endif
 
     // 飞行：八方向里离目标最近的一块，不管地形与海面
     private static Cell FlyStep(Cell current, Cell target)
@@ -2329,7 +2297,6 @@ public static class CorpsSystem
     private static readonly Queue<Cell> EnclosureQueue = new();
 
     // way：side 的无人区走法(见 WildernessPassage.Way)，0 不看无人区(困在无人区里的军，好往外走)
-#if EC_PENDING
     private static bool Enclosed(Cell from, Cell to, Realm side, int way)
     {
         EnclosureSeen.Clear();
@@ -2377,7 +2344,6 @@ public static class CorpsSystem
             path = SearchPath(from, to, arm, side, 1f, 1f, 1f / Mathf.Max(0.1f, CorpsArmSystem.OffRoad(arm)));
         return path;
     }
-#endif
 
     // 还要走多远的估价：一块至少 1，斜走 1.41(以前只算直走，斜着的路估低了，要多搜很多块)。
     // 略放大一点，一样远的路先走离目标近的，不把一大片等价的路线都搜一遍
@@ -2387,7 +2353,6 @@ public static class CorpsSystem
         return (Mathf.Max(dx, dy) + 0.41f * Mathf.Min(dx, dy)) * 1.001f;
     }
 
-#if EC_PENDING
     private static List<int> SearchPath(Cell from, Cell to, CorpsArmSystem.Arm arm, Realm side, float foreignStep, float enemyStep, float estimate)
     {
         _pathExhausted = false;
@@ -2473,7 +2438,6 @@ public static class CorpsSystem
         path.Reverse();
         return path;
     }
-#endif
 
     // 寻路的工作数组(按地块编号，记趟次不清空)与堆：以前每次寻路新建三个字典、集合和一个列表
     private static int _pathPass, _pathClosedCount;
@@ -2663,6 +2627,7 @@ public static class CorpsSystem
         }
         return b;
     }
+#endif
 
     private static Vector2[] MarchLine(Cell from, Cell to)
     {
@@ -2677,15 +2642,13 @@ public static class CorpsSystem
         MarchLines[key] = line;
         return line;
     }
-#endif
 
     // 两块地中心之间按格找最省的路(八方向，斜走 ×1.41，两边都挡着的斜角不钻)。范围是两块地的外框，至多 16×16 格
-#if EC_PENDING
     private static Vector2[] TraceMarchLine(Cell from, Cell to)
     {
         Cell start = from.Center, goal = to.Center;
         if (start == null || goal == null || EmpireWorld.Current == null) return NoLine;
-        int size = Land.ZoneSize;
+        int size = EmpireCraft.Core.Land.ZoneSize;
         int x0 = Math.Min(from.X, to.X) * size, y0 = Math.Min(from.Y, to.Y) * size;
         int w = (Math.Abs(from.X - to.X) + 1) * size, h = (Math.Abs(from.Y - to.Y) + 1) * size;
         if (w > size * 2 || h > size * 2) return NoLine;
@@ -2754,7 +2717,6 @@ public static class CorpsSystem
         if (points.Count > 1) line.Add(points[points.Count - 1]);
         return line.ToArray();
     }
-#endif
 
     // 这一拍(见 Update 里的行军节拍，舰队航行同拍)过了几成
     public static float TickFraction()
@@ -2764,13 +2726,10 @@ public static class CorpsSystem
     }
 
     // 别的系统借用军团的寻路(按兵种代价，优先走路，见 FindPath)，如皇帝出行(EmperorTourSystem)
-#if EC_PENDING
     public static List<int> PathFor(Cell from, Cell to, CorpsArmSystem.Arm arm = CorpsArmSystem.Arm.Cavalry) =>
         from == null || to == null ? null : FindPath(from, to, arm);
-#endif
 
     // 朝目标就近挪一块(不进高山、海面；给了 side 时不穿城墙、不进过不去的无人区，见 WallPassage、WildBlocks)
-#if EC_PENDING
     private static Cell Nearer(Cell current, Cell target, Realm side = null)
     {
         Cell best = null;
@@ -2792,7 +2751,6 @@ public static class CorpsSystem
         }
         return best;
     }
-#endif
 
     // 从 from 走进相邻的 to 被无人区挡住：to 是 side 过不去的无人区，from 不是(困在无人区里的可以接着在里面走，好走出去)；
     // 不给 side 的不看(同城墙)

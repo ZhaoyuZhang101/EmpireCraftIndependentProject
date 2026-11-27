@@ -71,12 +71,11 @@ public static class WarReadinessSystem
     }
 
     // 进度已满、大军还没陈兵边境：暂缓宣战
-#if EC_PENDING
     public static bool Hold(Plot plot)
     {
         if (!CorpsSystem.Enabled || plot?.data == null || plot.GetKind() == null ||
             global::System.Array.IndexOf(CityPopulationSystem.WarPlots, plot.GetKind().Id) < 0 ||
-            plot.data.progress_current < plot.getProgressMax()) return false;
+            plot.data.progress_current < plot.ProgressNeeded()) return false;
         Realm kingdom = plot.GetAuthor()?.Realm, target = plot.TargetRealm;
         if (kingdom?.Record == null || target?.Record == null || kingdom.IsGone() || target.IsGone()) return false;
         if (CityPopulationSystem.FrontZones(kingdom).Count == 0) return false;
@@ -99,7 +98,6 @@ public static class WarReadinessSystem
         FrontSystem.Log(kingdom, string.Format(LM.Get("war_ready_rushed"), kingdom.GetKingdomName(), target.GetKingdomName()));
         return false;
     }
-#endif
 
     // 本国动员的军已有开到边境的(对方看得见，见 CityPopulationSystem.Alert)
     public static bool Massing(Realm kingdom)

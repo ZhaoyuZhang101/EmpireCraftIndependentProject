@@ -26,7 +26,6 @@ public static partial class FrontSystem
     private static float _wallLoggedAt = -100f;
 
     // 攻方 side 推进 target 要隔城墙攻坚吗(spearheads：攻方挨着它的军团，从它们所在的地块过去也算)
-#if EC_PENDING
     public static bool WallBetween(Realm side, Cell target, IEnumerable<CorpsData> spearheads = null)
     {
         if (side?.Record == null || target == null || !WallPassage.Active) return false;
@@ -51,7 +50,6 @@ public static partial class FrontSystem
             }
         return approached;
     }
-#endif
 
     // 隔城墙时攻方战力、推进速度的倍数(红夷大炮破城减半)
     public static float WallAttackFactor(bool breach) => breach ? 1f - (1f - WallAttack) * 0.5f : WallAttack;
@@ -62,10 +60,8 @@ public static partial class FrontSystem
     private static int WallMaxAdvance(int max, bool breach) => breach ? max : Mathf.Max(1, max - WallAdvanceCut);
 
     // 平滑国界逐格推进 zone 的速度倍数
-#if EC_PENDING
     private static float WallPaceOf(Realm side, Cell zone, List<CorpsData> spearheads) =>
         WallBetween(side, zone, spearheads) ? WallPaceFactor(spearheads != null && spearheads.Any(CorpsArmSystem.Breaches)) : 1f;
-#endif
 
     // 诊断：隔城墙攻坚的交战(每 2 秒最多一行)
     private static void LogWall(City city, Realm attacker, Realm owner, bool breach, float fort, float ratio)

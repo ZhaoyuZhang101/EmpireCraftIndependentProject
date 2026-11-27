@@ -15,6 +15,8 @@ namespace EmpireCraft.Core
         public int Id;
         public string Name;
         public uint Color;              // 0xRRGGBB
+        // The colour as a number, as the ported code keeps it to put back later.
+        public int ColorId{get{return (int)Color;}set{if(value>=0)Color=(uint)value;}}
         public City Capital;
         public Person Ruler;
         public Clan RulingClan;         // the reigning house
@@ -67,7 +69,23 @@ namespace EmpireCraft.Core
         public void SetCulture(Culture culture){Culture=culture;}
         // The population is counted, not tracked: headcount and troops are numbers summed over the cities.
         public int PopulationCount(){double total=0;foreach(var city in Cities)if(city.Alive)total+=city.Population;return (int)System.Math.Min(int.MaxValue,total);}
+        public int CountUnits()=>People.Count;
         public int Warriors(){long total=0;foreach(var city in Cities)total+=city.Warriors();return (int)System.Math.Min(int.MaxValue,total);}
+        // Years since the realm was founded.
+        public int GetAge()=>World==null?0:System.Math.Max(0,(World.Month-FoundedMonth)/12);
+        // When it last went to war (a world month), -1 for never. Kept by WorldOps, rebuilt from the wars on load.
+        public double LastWarAt=-1d;
+        // When it last took a city from an enemy (a world month), -1 for never. Not saved.
+        public double NewConquestAt=-1d;
+        // Attacking in some running war.
+        public bool IsAttacker(){foreach(var war in Wars)if(war.IsAttacker(this))return true;return false;}
+        // A realm's mood over a city won or lost: moods are not kept here.
+        public void IncreaseHappinessFromNewCityCapture(){}
+        public void DecreaseHappinessFromLostCityCapture(City city){}
+        // How far apart two realms lie: from capital to capital, in cells.
+        public static float DistanceBetween(Realm a,Realm b)=>a?.Capital==null||b?.Capital==null||a.World==null?float.MaxValue:a.World.Distance(a.Capital.Tile,b.Capital.Tile);
+        // The realm's renown: its ruler's, and a tenth of each city leader's.
+        public int GetRenown(){long total=Ruler!=null&&Ruler.Alive?Ruler.Renown:0;foreach(var city in Cities){var leader=city.Leader;if(leader!=null&&leader!=Ruler&&leader.Alive)total+=leader.Renown/10;}return (int)System.Math.Min(int.MaxValue,total);}
         // The persons on record who belong here (rulers, their houses, office holders). Not the population.
         public List<Person> People{get{var found=new List<Person>();if(World!=null)foreach(var person in World.Living)if(person.Realm==this)found.Add(person);return found;}}
     }
@@ -104,10 +122,70 @@ namespace EmpireCraft.Core
         public List<Building> Buildings=>NoBuildings;
         public bool HasBuildingType(string type)=>false;
         public Building GetBuildingWithBookSlot()=>null;
+        // Boats and the people on them: none, nobody is on a map here.
+        public List<Person> Boats=>new List<Person>();
+        // A city is never left without a holder here.
+        public bool IsNeutral()=>false;
+        // Neighbours are worked out afresh whenever the map's territory changes.
+        public void RecalculateNeighbourCities(){}
+        // A living city of a realm may grow.
+        public bool CanGrowZones()=>Alive&&Realm!=null&&Realm.Alive;
+        // The cell is still worth taking: free land, settleable, next to this city's land.
+        public bool IsZoneToClaimStillGood(Person claimer,Cell zone,Cell origin)
+        {
+            if(zone==null||World==null||!zone.CanBeClaimedByCity(this)||!World.Settleable(zone.Index))return false;
+            foreach(var next in zone.Neighbours)if(next.City==this)return true;
+            return false;
+        }
+        public void SetName(string name){if(!string.IsNullOrWhiteSpace(name))Name=name;}
+        // A city keeps no army object (troops are numbers; corps belong to the realm) and no books.
+        public Army Army=>null;
+        public int CountBooks()=>0;
+        public Book GetRandomBook()=>null;
+        // Neighbouring cities of the same realm.
+        public HashSet<City> NeighbourCitiesOfRealm{get{var found=new HashSet<City>();foreach(var other in NeighbourCities)if(other.Realm==Realm)found.Add(other);return found;}}
+        // The garrison of a city that falls is gone.
+        public void RemoveSoldiers(){if(World!=null&&Id<World.Ledger.Cities.Count)World.Ledger.Cities[Id].Garrison=0;}
+        // Goods are not kept in store here: nothing to take out or put in.
+        public int StorageVersion;
+        public void TakeResource(string resource,int amount){}
+        public void AddResourcesToRandomStockpile(string resource,int amount){}
+        // Whether its taking is part of a rising: the taker and the city's realm fight a war of rebellion.
+        public bool CheckRebelWar(Realm taker,IEnumerable<War> wars){if(taker==null||wars==null)return false;foreach(var war in wars)if(war!=null&&war.Alive&&war.Kind==WarKinds.Rebellion&&war.IsInWarWith(taker,Realm))return true;return false;}
+        // Who receives a city taken in war: the taker itself (the ported capture rules then hand it on where they must).
+        public Realm FindKingdomToJoinAfterCapture(Realm taker,IEnumerable<War> wars)=>taker;
+        // Reachable by land from the other city (the same landmass).
+        public bool ReachableFrom(City other){var a=SeatCell();var b=other?.SeatCell();return a!=null&&b!=null&&a.IsSameIsland(b);}
+        // The city's status (counts, flags) is worked out when asked; nothing is cached to refresh.
+        public void UpdateCityStatus(){}
+        // The founding of a city as a scene, and the founder's people stamped on its records: the client's matter.
+        public void NewCityEvent(Person founder){}
+        public void SetUnitMetas(Person founder){}
+        // Which kind of people the city is built for: people.
+        public PersonKind GetActorAsset()=>PersonKind.Human;
+        // Buildings of a type, goods in store: none here (no building objects; goods are not kept yet).
+        public int CountBuildingsType(string type,bool pOnlyFinished=true)=>0;
+        public int GetResourcesAmount(string resource)=>0;
+        public Building GetBuildingOfType(string type,bool pCountOnlyFinished=false,bool pRandom=false)=>null;
+        // The cells of its territory that touch land of another city, or no city.
+        HashSet<Cell> _border;int _borderAt=-1;
+        public HashSet<Cell> BorderZones
+        {
+            get
+            {
+                if(World==null)return new HashSet<Cell>();
+                if(_border!=null&&_borderAt==World.TerritoryRevision)return _border;
+                var found=new HashSet<Cell>();
+                foreach(var cell in Zones)foreach(var next in cell.Neighbours)if(next.City!=this){found.Add(cell);break;}
+                _border=found;_borderAt=World.TerritoryRevision;return found;
+            }
+        }
         public bool HasBookSlots()=>false;
         public bool HasRealm()=>Realm!=null&&Realm.Alive;
         public string GetSpecies()=>Realm==null?PersonKind.HumanId:Realm.SpeciesId;
         public int PopulationCount()=>(int)System.Math.Min(int.MaxValue,Population);
+        // The base game's units here are the persons on record (the population is the number above).
+        public int CountUnits()=>People.Count;
         public int GetPopulationMaximum()=>World==null?0:(int)System.Math.Min(int.MaxValue,SkeletonRules.Capacity(World,this));
         // The faith and the culture held, if any; set by whichever system converts or assimilates.
         public Religion Religion;public Culture Culture;
@@ -124,11 +202,11 @@ namespace EmpireCraft.Core
         public EmpireWorld World;
         List<Cell> _zones;HashSet<City> _nearCities;HashSet<Realm> _nearRealms;int _zonesAt=-1,_nearAt=-1;
         // The cells of its territory, the seat first.
-        public IReadOnlyList<Cell> Zones
+        public List<Cell> Zones
         {
             get
             {
-                if(World==null)return System.Array.Empty<Cell>();
+                if(World==null)return new List<Cell>();
                 if(_zones!=null&&_zonesAt==World.TerritoryRevision&&_zones.Count==Tiles.Count)return _zones;
                 var cells=new List<Cell>(Tiles.Count);foreach(int tile in Tiles)cells.Add(World.CellAt(tile));
                 _zones=cells;_zonesAt=World.TerritoryRevision;return cells;
@@ -190,6 +268,13 @@ namespace EmpireCraft.Core
         public string FullName()=>(Clan!=null?Clan.Surname:"")+Given;
         public bool IsRuler()=>Throne!=null;
         public bool IsCityLeader()=>City!=null&&City.Leader==this;
+        // The plot this person is working on (one at a time; see PlotStore.newPlot). Not saved: the decision system raises it again.
+        public Plot Plot;
+        // Belongs to a living realm of settled people (every person here is of the one civilised people).
+        public bool IsKingdomCiv()=>Alive&&Realm!=null&&Realm.Alive;
+        public bool HasPlot()=>Plot!=null&&Plot.IsActive();
+        // Put somewhere on the map: a person lives in the city that holds the cell.
+        public void SetCurrentTilePosition(Cell cell){var city=cell?.City;if(city!=null&&city.Alive&&Alive)City=city;}
         public bool HasClan()=>Clan!=null;
         public int Age()=>(int)(((Alive?GameClock.Now:DeathMonth)-BirthMonth)/12);
         public bool IsAdult()=>Age()>=AdultAge;
@@ -213,9 +298,22 @@ namespace EmpireCraft.Core
         // Persons on record are not fought over on a map: they are hale, carry no spoils, and nobody follows them with a camera.
         public int GetHealth()=>100;
         public int GetMaxHealth()=>100;
+        // Health as the ported code reads and writes it: persons on record are always hale (see GetHealth).
+        public int Health{get{return 100;}set{}}
+        public void SetHealth(int health){}
+        // Persons on record do no work on a map, carry no soldier's duty as units, are never hungry and have no passing statuses.
+        public void EndJob(){}
+        public void StopBeingWarrior(){}
+        public bool HasStatus(string status)=>false;
+        public void FinishStatusEffect(string status){}
+        public int Nutrition{get{return 100;}set{}}
+        public int GetMaxNutrition()=>100;
         public int Loot;
         public bool IsFavorite()=>false;
         public bool IsActor()=>true;
+        public bool IsCameraFollowingUnit()=>false;
+        // What a person carries into battle: nothing, persons on record do not fight as units.
+        public Equipment Equipment=>null;
         public EcVector2 Position{get{var cell=Cell;return cell==null?default(EcVector2):cell.PosV;}}
         public void RemoveFromArmy(){Army=null;}
         public Subspecies Subspecies=>null;
@@ -253,12 +351,13 @@ namespace EmpireCraft.Core
         public bool HasArmy()=>Army!=null&&Army.Alive;
         public bool IsArmyCaptain=>HasArmy()&&Army.Captain==this;
 
-        // Standing, purse and the four talents. They start at zero; the ported systems that
-        // hand them out (birth, office, deeds) set them once they run.
+        // Standing, purse and the four talents. Standing and purse start at zero and are earned; talents are drawn at
+        // birth (WorldOps.Birth) and the ported systems may change them.
         public int Renown,Money;
         public int Stewardship,Warfare,Intelligence,Diplomacy;
         public void AddRenown(int amount){Renown=System.Math.Max(0,Renown+amount);}
         public void AddMoney(int amount){Money+=amount;}
+        public void SpendMoney(int amount){Money=System.Math.Max(0,Money-System.Math.Max(0,amount));}
         // Talents by the name the ported systems ask for; anything else reads as zero.
         public sealed class Talents
         {
@@ -301,6 +400,7 @@ namespace EmpireCraft.Core
         public bool HasSpouse()=>Spouse!=null;
         public bool HasDied()=>!Alive;
         public IEnumerable<Person> GetChildren()=>Children;
+        public IEnumerable<Person> GetChildren(bool livingOnly){foreach(var child in Children)if(!livingOnly||child.Alive)yield return child;}
         public Tint GetColor(){var realm=Realm;return realm==null?null:realm.GetColor();}
         // The faith and the culture held, if any; set by whichever system converts or assimilates.
         public Religion Religion;public Culture Culture;
@@ -330,6 +430,19 @@ namespace EmpireCraft.Core
         public Tint GetColor()=>_tint??(_tint=Palette.Titles.ColorFor(Id+100000));
         // The living persons of this house.
         public List<Person> People{get{var found=new List<Person>();var world=EmpireWorld.Current;if(world!=null)foreach(var person in world.Living)if(person.Clan==this)found.Add(person);return found;}}
+        // The head of the house: a member who reigns, else one who leads a city, else the eldest adult.
+        public Person GetChief()
+        {
+            Person chief=null;int rank=-1;
+            var world=EmpireWorld.Current;if(world==null)return null;
+            foreach(var person in world.Living)
+            {
+                if(person.Clan!=this||!person.IsAdult())continue;
+                int mine=person.IsRuler()?2:person.IsCityLeader()?1:0;
+                if(mine>rank||mine==rank&&person.BirthMonth<chief.BirthMonth){chief=person;rank=mine;}
+            }
+            return chief;
+        }
     }
 
     public static class EntityIds

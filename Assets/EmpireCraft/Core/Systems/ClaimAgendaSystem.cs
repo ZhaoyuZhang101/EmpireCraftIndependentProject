@@ -52,7 +52,6 @@ public static class ClaimAgendaSystem
         };
     }
 
-#if EC_PENDING
     public static ClaimAgendaView Evaluate(ClaimAgendaContext context, FixedFaction faction,
         TemporaryFaction claim)
     {
@@ -169,7 +168,6 @@ public static class ClaimAgendaSystem
             (view.IdeologyStage >= 2 ? 0.1f : 0f), 0.35f, 1.65f);
         return view;
     }
-#endif
 
     private static float GetUrgency(ClaimAgendaContext context, TemporaryFactionType type)
     {

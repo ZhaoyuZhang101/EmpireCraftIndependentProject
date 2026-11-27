@@ -507,7 +507,7 @@ public static partial class CourtSystem
                     }
                     else
                     {
-                        FactionState(empire, proposer).cooldowns[memorial.claim] = now + 12 * 5d;
+                        FactionState(empire, proposer).cooldowns[memorial.claim] = now + 12d;
                         Close(empire, state, "court_log_no_funds_dropped", IssueName(claim.type, empire));
                     }
                     return;
@@ -745,7 +745,7 @@ public static partial class CourtSystem
     {
         if (claim.IsStarted()) return;
         CourtFactionState data = FactionState(empire, proposer);
-        data.cooldowns[memorial.claim] = now + 2 * 12 * 5d;
+        data.cooldowns[memorial.claim] = now + 2 * 12d;
         if (claim.LastRunCompleted)
         {
             data.favor = Mathf.Min(100f, data.favor + 3f);
@@ -771,7 +771,7 @@ public static partial class CourtSystem
     {
         CourtFactionState data = FactionState(empire, proposer);
         data.grievance = Mathf.Min(100f, data.grievance + grievance);
-        data.cooldowns[memorial.claim] = GameClock.Now + cooldownYears * 12 * 5d;
+        data.cooldowns[memorial.claim] = GameClock.Now + cooldownYears * 12d;
         var args = new List<object> { proposer.Name, IssueName(memorial.claim, empire) };
         args.AddRange(extra);
         Close(empire, state, logKey, args.ToArray());

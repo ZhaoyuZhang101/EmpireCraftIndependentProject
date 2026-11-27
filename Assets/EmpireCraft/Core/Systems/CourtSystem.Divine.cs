@@ -50,7 +50,7 @@ public static partial class CourtSystem
             // 下个月就票拟
             state.memorial = new CourtMemorial
             {
-                claim = claim.type.ToString(), proposer = faction.GetID(), stage = 0, stage_time = now - StageMonths * 5d, proposed = now
+                claim = claim.type.ToString(), proposer = faction.GetID(), stage = 0, stage_time = now - StageMonths * 1d, proposed = now
             };
             // 神力指定了目标的写明(见下面带目标的 GodPropose)
             string target = claim.HasDesignated ? claim.TargetLabel() : null;

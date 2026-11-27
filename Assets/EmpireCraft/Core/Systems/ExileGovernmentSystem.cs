@@ -113,7 +113,6 @@ public static class ExileGovernmentSystem
 
 
     // CityPatch.joinAnotherKingdom 的前置里、城真正易手之前调：这座城一走，本国就一座城都没有了
-#if EC_PENDING
     public static void BeforeCityLeaves(City city, Realm loser, Realm taker, bool captured)
     {
         if (_restoring || city?.Record == null || loser?.Record == null || taker?.Record == null || loser == taker) return;
@@ -151,10 +150,8 @@ public static class ExileGovernmentSystem
             LogService.LogWarning($"[EmpireCraft][流亡政府] {loser?.Name} 流亡失败: {exception.Message}");
         }
     }
-#endif
 
     // 开始流亡：记下东道国、占领者、待收复的旧城，随员出城去东道国都城。leaving 是正在丢的城(剧本开局流亡的为空，quiet 不记史书)
-#if EC_PENDING
     public static void Begin(Realm exile, Realm host, Realm enemy, IEnumerable<long> claims, City leaving, bool quiet = false)
     {
         KingdomExtension.KingdomExtraData data = exile.GetOrCreate();
@@ -171,10 +168,8 @@ public static class ExileGovernmentSystem
         TranslateHelper.LogEventMessage(text, host);
         LogService.LogInfo($"[EmpireCraft][流亡政府] {exile.GetKingdomName()} 流亡 {host.GetKingdomName()}，待收复 {data.exile_city_ids.Count} 城");
     }
-#endif
 
     // 随员：元首、储君、元首的家人，再按声望取本国的要人(官员、名将名臣……)，至多 MaxEntourage 人
-#if EC_PENDING
     private static List<Person> Entourage(Realm exile)
     {
         Person king = exile.Ruler, heir = exile.GetHeir();
@@ -199,7 +194,7 @@ public static class ExileGovernmentSystem
             {
                 // 离城不离国：无城之人仍算本国的人(原版 joinCity(null) 不改国家)
                 if (actor.City != null) actor.JoinCity(null);
-                if (at != null) actor.setCurrentTilePosition(at);
+                if (at != null) actor.SetCurrentTilePosition(at);
             }
             catch (Exception exception)
             {
@@ -207,13 +202,11 @@ public static class ExileGovernmentSystem
             }
         }
     }
-#endif
 
     // 元首的子女、兄弟随行：纯净地图下多是虚拟族人，以前留在沦陷的城里(族谱记着那座城)，元首死了由外人接任。
     // 落在本国或刚丢的那座城的成年近亲落成，编进流亡政府，至多 RoyalKinFollow 人
     private const int RoyalKinFollow = 4;
 
-#if EC_PENDING
     private static void BringRoyalKin(Realm exile, City leaving)
     {
         PersonalClanIdentity ruler = exile?.Ruler?.GetPersonalIdentity();
@@ -234,7 +227,6 @@ public static class ExileGovernmentSystem
             }
         }
     }
-#endif
 
     #endregion
 
@@ -249,7 +241,6 @@ public static class ExileGovernmentSystem
         _lastMonth = -1d;
     }
 
-#if EC_PENDING
     public static void Tick()
     {
         EmpireWorld world = EmpireWorld.Current;
@@ -323,7 +314,6 @@ public static class ExileGovernmentSystem
         }
         Liberate(exile, data);
     }
-#endif
 
     // 元首死了：随员里的储君、年长的要人接任
     private static bool Succeed(Realm exile)

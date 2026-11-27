@@ -70,15 +70,15 @@ public static class FamineUnrestSystem
             LogService.LogWarning($"[EmpireCraft][饥荒] 结算失败: {exception.Message}");
         }
     }
+#endif
 
     public static bool InFamine(City city)
     {
         if (city?.Record == null || city.IsGone()) return false;
         if (CityPopulationSystem.AbstractPopulationEnabled) return CityPopulationSystem.GetGrowthFactors(city).Famine;
         int households = CityPopulationSystem.FiscalHouseholds(city);
-        return households > 0 && city.getTotalFood() < households * 0.5f;
+        return households > 0 && city.GetTotalFood() < households * 0.5f;
     }
-#endif
 
     // 王朝积弊：帝国里连荒的城越多加得越多(每年)
     public static float StrainDelta(Empire empire)

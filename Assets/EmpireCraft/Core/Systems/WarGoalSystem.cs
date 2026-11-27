@@ -91,7 +91,6 @@ public static class WarGoalSystem
     }
 
     // 别的系统开战时直接定了目标(天下统一、雄主统一、圣战、帝国禁令)：照样落到具体目标上、起名、记宣战
-#if EC_PENDING
     public static void Preset(War war, WarGoal goal)
     {
         if (war?.Record == null) return;
@@ -104,10 +103,8 @@ public static class WarGoalSystem
         WarCatalog.ApplyName(war);
         WarChronicle.Declared(war);
     }
-#endif
 
     // 判定战争目标(从 Ensure 抽出来，Review 每年重算时复用同一套算式)
-#if EC_PENDING
     private static WarGoal Decide(War war, Realm attacker, Realm defender, float strength)
     {
         WarGoal goal;
@@ -168,7 +165,6 @@ public static class WarGoalSystem
             goal = WarGoal.扶立;
         return goal;
     }
-#endif
 
     // 概况页的门槛格：为什么是这个目标、还差什么才能升到割地或吞并(用户 2026-11-09"外交需要透明，玩家需要清晰的外交过程以及合理性"；
     // 玩家 11-08"现在帝盒的战争系统对玩家而言已经完全变成混沌系统了""我这边显示战争胜利""但没有吞并敌国")。
@@ -195,7 +191,6 @@ public static class WarGoalSystem
         public bool SmallEnough => theirs <= AnnexSmallCities || theirs * 2 <= ours;
     }
 
-#if EC_PENDING
     public static GoalFacts? Facts(War war)
     {
         if (war?.Record == null) return null;
@@ -207,7 +202,6 @@ public static class WarGoalSystem
             attacker.IsNeighbourWith(defender) || WarReach.AcrossWild(attacker, defender),
             WarSituation.SideCities(attacker), WarSituation.SideCities(defender), rule);
     }
-#endif
 
     // 这些目标不随战况改：劫掠(抢够就退)、收复(有法理宣称)、改宗(圣战)、扶立(选定了人)
     private static bool Reviewable(WarGoal goal) =>
@@ -230,7 +224,6 @@ public static class WarGoalSystem
     // "我这边显示战争胜利""但没有吞并敌国""割地都没有""就是赔款"，统一战争更是一开打就收岁币白和。
     // 现在按当前兵力比、占领、接壤重算，**只升不降**(打弱了不会反过来降级，省得越打越亏)。
     // 玩家在外交面板点名的目标(war_goal_locked)与剧本设定的仗不动。
-#if EC_PENDING
     public static void Review(War war)
     {
         if (war?.Record == null || war.HasEnded() || EmpireWorld.Current == null) return;
@@ -253,10 +246,8 @@ public static class WarGoalSystem
         LogService.LogInfo($"[EmpireCraft][战争目标] {attacker.GetKingdomName()} 伐 {defender.GetKingdomName()}：" +
                            $"战况有变，目标由 {before} 改为 {now_goal}(兵力比 {strength:F2})");
     }
-#endif
 
     // 开打时定目标(WarPatch.update 每场仗第一次结算时调用)；读档后已定的不变
-#if EC_PENDING
     public static void Ensure(War war)
     {
         if (war?.Record == null || war.HasEnded()) return;
@@ -282,10 +273,8 @@ public static class WarGoalSystem
         WarCommandSystem.MonthTick(FrontSystem.ModRealm(attacker));
         WarCommandSystem.MonthTick(FrontSystem.ModRealm(defender));
     }
-#endif
 
     // 跨海：兵力两倍以上、战舰是对方一倍半以上、对方都城在舰种航程内，才谋割地(小国则吞并)，否则只求赔款
-#if EC_PENDING
     private static WarGoal OverseasGoal(Realm attacker, Realm defender, float strength, bool small)
     {
         if (strength < AnnexStrength || defender.Capital?.Record == null) return OverseasFallback(attacker, defender, strength);
@@ -295,11 +284,9 @@ public static class WarGoalSystem
         if (route == null || route.Count > NavySystem.MaxRange(attacker)) return OverseasFallback(attacker, defender, strength);
         return small ? WarGoal.吞并 : WarGoal.割地;
     }
-#endif
 
     // 跨海打不下城：兵力够、两边都有港口，对方锁国或攻方兵力两倍以上的，逼对方开港通商；否则赔款
     // 近代殖民列强隔海打大国：吞不下、割不动，兵力两倍以上的租借一座港口城(见 ColonySystem.LeaseTarget)
-#if EC_PENDING
     private static WarGoal OverseasFallback(Realm attacker, Realm defender, float strength) =>
         strength >= AnnexStrength && ColonySystem.ColonialPower(attacker) && ColonySystem.LeaseTarget(defender) != null
             ? WarGoal.租借
@@ -307,7 +294,6 @@ public static class WarGoalSystem
         (TradeRouteSystem.Closed(defender) || strength >= AnnexStrength)
             ? WarGoal.通商
             : WarGoal.赔款;
-#endif
 
     internal static bool Convertible(Realm attacker, Realm defender) =>
         attacker?.Religion != null && defender?.Record != null && !defender.IsGone() && defender.Religion != attacker.Religion &&
@@ -419,7 +405,6 @@ public static class WarGoalSystem
         : goal is WarGoal.羁縻 or WarGoal.继承 ? WarGoal.迫使附庸 : goal;
 
     // 主攻主守换了一家(远战换成够得着的一家，见 WarReach)：目标按原来的大方向落到新的主攻主守之间，名字按目标起的跟着改
-#if EC_PENDING
     public static void Refocus(War war)
     {
         Realm attacker = war?.MainAttacker, defender = war?.MainDefender;
@@ -429,13 +414,11 @@ public static class WarGoalSystem
         WarObjective.Refine(war, attacker, defender, WarSituation.StrengthRatio(defender, attacker), substitute: false);
         if (data.goal_named) WarCatalog.ApplyName(war, force: true);
     }
-#endif
 
     // 玩家在战争窗口点名战争目标(用户 2026-11-09"我希望现在这个界面玩家也能够修改战争目标议和条件之类的")。
     // 与 Next 同一套落地方式，只是目标由玩家指定，并打上 war_goal_locked——此后每年的重算(见 Review)不再改它。
     // 不要任何代价(用户 11-09 选"完全免费，只记一条史册")，也不受兵力、城数门槛限制：上帝视角有充分的裁定权，
     // 门槛只用来说明"AI 原本会怎么判"(见 Facts 与战争窗口概况页的门槛格)。
-#if EC_PENDING
     public static bool SetByPlayer(War war, WarGoal goal)
     {
         if (!Switchable(war) || goal == WarGoal.None) return false;
@@ -471,7 +454,6 @@ public static class WarGoalSystem
         // 名字是按目标起的才跟着改(圣战、禁令、革命这类专名不动)
         if (data.goal_named) WarCatalog.ApplyName(war, force: true);
     }
-#endif
 
     // cities 里攻方一方(帝国按整个帝国算)有宣称的、不在攻方一方手里的城；挑宣战目标也按它先收法理(见 DeJureAgenda)
     internal static List<City> Claimed(Realm claimant, IEnumerable<City> cities)
@@ -594,7 +576,6 @@ public static class WarGoalSystem
     }
 
     // 战争收尾时(WarPatch.end_war，清掉占领之前)：判胜负、按目标结算
-#if EC_PENDING
     public static void Settle(War war, WarOutcome winner)
     {
         // 部落之间破城求和已经了结(见 TribalWarSystem)
@@ -693,7 +674,6 @@ public static class WarGoalSystem
             LogService.LogWarning($"[EmpireCraft][开战目标] 议和结算失败: {exception.Message}");
         }
     }
-#endif
 
     // 剧本点名的仗这么多年内不因欠饷收场：后面的事件还等着这场仗(清明之战开局半年就"各守旧土"，松锦之战就没了)，欠饷只逃散减员
     private const float ScriptedWarYears = 10f;
@@ -768,7 +748,6 @@ public static class WarGoalSystem
     }
 
     // 割让攻方占了一半以上的城；吞并且对方丢了一半城或都城时，主守方余下的城一并归主攻方(帝国核心不整体吞并，只割城)
-#if EC_PENDING
     private static void Cede(War war, Realm attacker, Realm defender, bool annex)
     {
         int pending = PendingCessions.Count;
@@ -818,7 +797,6 @@ public static class WarGoalSystem
             TranslateHelper.LogEventMessage(string.Format(LM.Get("war_peace_ceded"), attacker.GetKingdomName(),
                 defender.GetKingdomName(), ceded), attacker);
     }
-#endif
 
     // 割地只要连片的城(用户 2026-10-27 嫌版图太碎、问答选"割地只要连片的城")：占了的城挨着受让一方(按宗主、帝国中央算)
     // 本来的城、或挨着已经割过去的城，才割；不在受让一方都城那片陆地上的(跨海征服，够不够得着归水师辐射管)照割。
@@ -894,7 +872,6 @@ public static class WarGoalSystem
     }
 
     // 收复：我方法理的城里占了一半以上的归还占领者；占了法理城的一半以上时全部归还主攻方。对方手里没有我方法理的城时按割地
-#if EC_PENDING
     private static void Reclaim(War war, Realm attacker, Realm defender)
     {
         List<City> claimed = Claimed(attacker, war.Defenders.Where(kingdom => kingdom?.Cities != null)
@@ -917,7 +894,6 @@ public static class WarGoalSystem
             TranslateHelper.LogEventMessage(string.Format(LM.Get("war_peace_reclaimed"), attacker.GetKingdomName(),
                 defender.GetKingdomName(), queued.Count), attacker);
     }
-#endif
 
     // 一座城排进移交队列(诸侯私战收场割城、退城，见 HolyRomanSystem.Feuds)，逐帧易主
     // unification：统一战争里割得的城，记作统一所得(同 Cede)
@@ -943,7 +919,6 @@ public static class WarGoalSystem
     }
 
     // 战争结束后几帧内逐城易主、立附庸(不在原版结束战争的同一帧里改归属)
-#if EC_PENDING
     public static void Tick()
     {
         if (EmpireWorld.Current == null) return;
@@ -1014,6 +989,5 @@ public static class WarGoalSystem
             }
         }
     }
-#endif
 }
 }

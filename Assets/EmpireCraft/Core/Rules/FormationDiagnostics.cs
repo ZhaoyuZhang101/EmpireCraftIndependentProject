@@ -56,33 +56,31 @@ public static class FormationDiagnostics
         string.Equals(CultureService.GetRealmCulture(empire.CoreKingdom), culture, StringComparison.Ordinal));
 
     // 上次打仗至今几年；从没打过的按建国至今算
-#if EC_PENDING
     private static float YearsSinceWar(Realm kingdom)
     {
-        double last = kingdom.Record.timestamp_last_war;
-        return last >= 0d ? GameClock.YearsSince(last) : kingdom.getAge();
+        double last = kingdom.Record.LastWarAt;
+        return last >= 0d ? GameClock.YearsSince(last) : kingdom.GetAge();
     }
-#endif
 
     // 原版"开战"剧情(独立王国走原版)：剧情门槛、要不要打(isWarNeeded)、找不找得到对象
 #if EC_PENDING
     private static string WarGate(Realm kingdom)
     {
         Person king = kingdom.Ruler;
-        PlotKind war = PlotsLibrary.new_war ?? AssetManager.plots_library.get("new_war");
+        PlotKind war = PlotsLibrary.new_war ?? PlotKinds.Library.get("new_war");
         if (king == null) return "没有君主";
         if (war == null) return "原版开战剧情不存在";
         if (kingdom.GetRegime()?.IsAllowDiplomacy() == false) return "政体不许自主外交";
-        if (king.hasPlot()) return $"君主正忙别的剧情({king.plot?.getAsset()?.id})";
+        if (king.HasPlot()) return $"君主正忙别的剧情({king.Plot?.GetKind()?.Id})";
         // 无小人模式下独立王国不看君主本人的钱、等级、武略与国家声望(见 PlotAssetPatch.checkIsPossible)
         if (!EmpireCraft.Core.EmpireCraftPlotsAddition.SkipsWarPlotRulerGate(king))
         {
             if (!king.hasEnoughMoney(war.money_cost)) return $"君主的钱不够({king.Money}/{war.money_cost})";
             if (king.level < war.min_level) return $"君主等级 {king.level} < {war.min_level}";
-            if (kingdom.getRenown() < war.min_renown_kingdom) return $"国家声望 {kingdom.getRenown()} < {war.min_renown_kingdom}";
+            if (kingdom.GetRenown() < war.min_renown_kingdom) return $"国家声望 {kingdom.GetRenown()} < {war.min_renown_kingdom}";
             if (king.Warfare < war.min_warfare) return $"君主武略 {king.Warfare} < {war.min_warfare}";
         }
-        if (!war.isAllowedByWorldLaws()) return "世界法则关了外交";
+        if (!war.IsAllowedByWorldLaws()) return "世界法则关了外交";
         if (king.HasTrait("pacifist") || king.HasCulture() && king.Culture.HasTrait("serenity_now")) return "君主或文化好和平";
         CityPopulationSystem.EnterVanillaScale();
         try

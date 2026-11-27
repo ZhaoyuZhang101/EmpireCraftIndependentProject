@@ -46,7 +46,6 @@ public static class ScenarioEditing
     #region 打开、新建、保存
 
     // 从剧本文件夹重读一份来编(没保存的改动不影响列表里的那份)
-#if EC_PENDING
     public static bool Open(WorldMapEra custom)
     {
         if (custom == null || !custom.Custom || !WorldMapData.EnsureLoaded()) return false;
@@ -75,7 +74,6 @@ public static class ScenarioEditing
             return false;
         }
     }
-#endif
 
     private static void Normalize(WorldMapEra era)
     {
@@ -121,7 +119,7 @@ public static class ScenarioEditing
         }
     }
 
-    public static bool Save(Color32[] thumbnail = null, int thumbWidth = 0, int thumbHeight = 0)
+    public static bool Save(EcColor32[] thumbnail = null, int thumbWidth = 0, int thumbHeight = 0)
     {
         if (Era == null || string.IsNullOrEmpty(Folder)) return false;
         try
@@ -1633,7 +1631,6 @@ public static class ScenarioEditing
 
     // 换成导入地图：城、地区、帝国法理、天下、国家、关系、长城关隘、事件都清掉(地球上的城与经纬度用不上)，留一个空地区；
     // 换回地球：城表回到内置的，国家等同样清掉。都能撤销
-#if EC_PENDING
     public static void SetImport(bool on)
     {
         if (Era == null || on == UsesImport) return;
@@ -1676,7 +1673,6 @@ public static class ScenarioEditing
         _ownersRevision = -1;
         Changed();
     }
-#endif
 
     // 本剧本开无人区(见 WorldMapEra.own_wilderness)
     public static void ToggleOwnWilderness()
@@ -2256,9 +2252,9 @@ public static class ScenarioEditing
     // 按名字定的颜色(国家、法理、天下，同一剧本里稳定)；行政区("d:国家:下标")取那国的颜色转色相，同一国的各省分得开，
     // 京畿("j:国家")同国家的颜色
 #if EC_PENDING
-    public static Color32 ColorOfKey(string key)
+    public static EcColor32 ColorOfKey(string key)
     {
-        if (string.IsNullOrEmpty(key)) return new Color32(150, 150, 150, 255);
+        if (string.IsNullOrEmpty(key)) return new EcColor32(150, 150, 150, 255);
         if (key.StartsWith("j:", StringComparison.Ordinal)) return ColorOfKey("p:" + key.Substring(2));
         // 独立的城("i:城编号")：开局自成一国，统一用灰的，不和有名有姓的国家抢眼
         if (key.StartsWith("i:", StringComparison.Ordinal))
@@ -2266,23 +2262,23 @@ public static class ScenarioEditing
             int grey = 17;
             foreach (char c in key) grey = grey * 31 + c;
             byte tone = (byte)(135 + (grey & 0xFFFF) % 45);
-            return new Color32(tone, tone, tone, 255);
+            return new EcColor32(tone, tone, tone, 255);
         }
         int cut = key.LastIndexOf(':');
         if (key.StartsWith("d:", StringComparison.Ordinal) && cut > 2 && int.TryParse(key.Substring(cut + 1), out int index))
         {
             Color.RGBToHSV(ColorOfKey("p:" + key.Substring(2, cut - 2)), out float h, out float sat, out float v);
             Color shifted = Color.HSVToRGB((h + 0.13f + index * 0.17f) % 1f, Mathf.Clamp01(sat * 0.9f + 0.1f), Mathf.Clamp(v, 0.6f, 0.95f));
-            return new Color32((byte)(shifted.r * 255), (byte)(shifted.g * 255), (byte)(shifted.b * 255), 255);
+            return new EcColor32((byte)(shifted.r * 255), (byte)(shifted.g * 255), (byte)(shifted.b * 255), 255);
         }
         int hash = 17;
         foreach (char c in key) hash = hash * 31 + c;
         float hue = (hash & 0xFFFF) / 65535f;
         Color color = Color.HSVToRGB(hue, 0.55f + ((hash >> 16) & 3) * 0.1f, 0.8f + ((hash >> 18) & 1) * 0.1f);
-        return new Color32((byte)(color.r * 255), (byte)(color.g * 255), (byte)(color.b * 255), 255);
+        return new EcColor32((byte)(color.r * 255), (byte)(color.g * 255), (byte)(color.b * 255), 255);
     }
 
-    public static Color32 ColorOf(WorldMapPolity polity) => polity == null ? new Color32(150, 150, 150, 255) : ColorOfKey("p:" + polity.id);
+    public static EcColor32 ColorOf(WorldMapPolity polity) => polity == null ? new EcColor32(150, 150, 150, 255) : ColorOfKey("p:" + polity.id);
 #endif
 
     #endregion

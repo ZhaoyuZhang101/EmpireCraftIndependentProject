@@ -197,7 +197,6 @@ public static class RoyalHouseSystem
     }
 
     // 后宫添丁：每位妃嫔(活着、女子、16~45 岁、能生育)按自己的一年半一胎、每年 HaremBirthChance；正妻另算(见上)
-#if EC_PENDING
     private static void TendHarem(Person royal, int age, Person wife)
     {
         if (age > RoyalFatherAgeMax || Infertile(royal)) return;
@@ -224,14 +223,12 @@ public static class RoyalHouseSystem
             if (VirtualGenealogySystem.AddRoyalChild(royal, consort)) living++;
         }
     }
-#endif
 
     // 约一成二的人不育(按人定，不会每年重掷)
     private static bool Infertile(Person actor) =>
         ((ulong)actor.Key * 0xD6E8FEB86659FD93UL >> 40) % 100UL < InfertilePercent;
 
     // 在世子女(实体与虚拟子嗣取多的那个)
-#if EC_PENDING
     private static int LivingChildren(Person parent)
     {
         int living = parent.GetChildren(false)?.Count(child => child?.Record != null && !child.IsGone() && child.Alive) ?? 0;
@@ -240,7 +237,6 @@ public static class RoyalHouseSystem
             living = Math.Max(living, person.children.Count(id => SpecificClanManager.getPerson(id)?.is_alive == true));
         return living;
     }
-#endif
 
     // 本国在世的人物里挑配偶：异性、同种族、成年未婚、非近亲，名望高的优先
     private static Person FindConsort(Realm kingdom, Person royal)
@@ -279,7 +275,6 @@ public static class RoyalHouseSystem
     #endregion
 
     // 君主、储君还能不能添孩子：不育的不能，一年半内添过的不能，在世子女满了不能
-#if EC_PENDING
     public static bool CanBirth(Person parent)
     {
         if (!IsRoyal(parent)) return true;
@@ -290,7 +285,6 @@ public static class RoyalHouseSystem
         bool harem = parent.GetPersonalIdentity()?.concubines?.Count > 0;
         return LivingChildren(parent) < (harem ? HaremMaxChildren : MaxChildren);
     }
-#endif
 
     // 添了孩子(BabyHelperPatch.MakeBaby)：记下君主、储君添孩子的时间
     public static void NoteBirth(Person parent1, Person parent2)
@@ -402,7 +396,6 @@ public static class RoyalHouseSystem
 
     #region 意外与动荡
 
-#if EC_PENDING
     private static void Mishap(Empire empire)
     {
         Person emperor = empire.Emperor;
@@ -434,10 +427,8 @@ public static class RoyalHouseSystem
         BiographySystem.Kill(emperor, LM.Get("death_cause_mishap_" + key));
         Turmoil(empire, heir, designated);
     }
-#endif
 
     // 骤然驾崩后的动荡：新君年幼、没有册立储君、无人可继时更重
-#if EC_PENDING
     public static void Turmoil(Empire empire, Person heir, bool designated)
     {
         if (empire?.data == null) return;
@@ -470,13 +461,11 @@ public static class RoyalHouseSystem
         empire.RecordHistory(directContent: text);
         if (!designated) PrinceStruggleSystem.QueueContest(empire, severity);
     }
-#endif
 
     #endregion
 
     #region 诸王就藩
 
-#if EC_PENDING
     private static void Enfeoff(Realm kingdom)
     {
         Person king = kingdom?.Ruler;
@@ -484,17 +473,17 @@ public static class RoyalHouseSystem
         if (king?.Record == null || capital?.Record == null || kingdom.Cities == null || kingdom.Cities.Count < 2) return;
         Person heir = kingdom.HasHeir() ? kingdom.GetHeir() : null;
         var princes = (king.GetChildren(false) ?? Enumerable.Empty<Person>())
-            .Where(son => son?.data != null && !son.IsGone() && son.Alive && son.isAdult() && son != heir &&
-                          !son.isKing() && !son.IsOnOffice() && son.kingdom == kingdom && son.city == capital).ToList();
+            .Where(son => son?.Record != null && !son.IsGone() && son.Alive && son.IsAdult() && son != heir &&
+                          !son.IsRuler() && !son.IsOnOffice() && son.Realm == kingdom && son.City == capital).ToList();
         foreach (Person prince in princes)
         {
             City fief = Fief(prince, kingdom) ?? kingdom.Cities
                 .Where(city => city?.Record != null && !city.IsGone() && city != capital && city.SeatCell() != null)
-                .OrderBy(city => city.PopulationCount()(unit => unit != null && unit.Alive && unit.getParents().Contains(king)) ?? 0)
+                .OrderBy(city => city.People?.Count(unit => unit != null && unit.Alive && unit.GetParents().Contains(king)) ?? 0)
                 .ThenByDescending(CityPopulationSystem.GetBackgroundTotal).FirstOrDefault();
             if (fief == null) continue;
             prince.JoinCity(fief);
-            if (PureMapMode.Enabled) prince.setCurrentTilePosition(fief.SeatCell());
+            if (PureMapMode.Enabled) prince.SetCurrentTilePosition(fief.SeatCell());
             else prince.GoTo(fief.SeatCell());
         }
         // 虚拟族人里的成年皇子(纯净地图下多是这样，以前一直记在京城)：族谱上改记到封地，不落成。
@@ -520,7 +509,6 @@ public static class RoyalHouseSystem
             placed[fief.Key] = placed.TryGetValue(fief.Key, out int count) ? count + 1 : 1;
         }
     }
-#endif
 
     // 封地：有实封或虚封的爵位，取那块封地的治所(还在本国的)
     private static City Fief(Person prince, Realm kingdom)

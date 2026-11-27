@@ -79,14 +79,12 @@ public static class EconomicCircleSystem
     }
 
     // 每月：卫星城的一部分人口迁往同一国家的主城(见 CityPopulationSystem.Migrate)
-#if EC_PENDING
     public static void Siphon(City city, float corePull)
     {
         City core = CoreOf(city);
         if (core == null || core == city || core.Realm != city.Realm || corePull <= 0f) return;
         CityPopulationSystem.TransferBackground(city, core, SiphonPerMonth);
     }
-#endif
 
     private static bool SameRealm(City a, City b)
     {

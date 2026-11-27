@@ -290,7 +290,6 @@ public static class CityExtension
     // 地块占领模式(所有时期)：被占的地块守方迟迟不夺回，占领区每年向四周扩散一层——
     // 每个仍在交战的占领者，其每块占领地向相邻的本城地块各扩一块(规则同正统扩张：须连着己方前线、不抢友军)。
     // 城里出现占领区时开始计时，满一年结算一次；全城被占即按正常流程完成占领。
-#if EC_PENDING
     public static void TryYearlyOccupationSpread(this City city)
     {
         if (!EmpireCraft.Core.WorldLaws.SwitchOccupyMode.IsEnabled())
@@ -332,7 +331,6 @@ public static class CityExtension
             if (city.IsGone() || city.Realm != owner) return;
         }
     }
-#endif
 
     private static Cell GetZoneById(int zoneId)
     {
@@ -377,7 +375,6 @@ public static class CityExtension
 
         return data.OccupiedZoneOwners;
     }
-#if EC_PENDING
     public static void TrySpreadOccupiedZonesByMandate(this City city, Realm occupier, Cell startZone)
     {
         if (city == null || occupier == null || startZone == null)
@@ -450,12 +447,10 @@ public static class CityExtension
 
         city.SpreadOccupation(occupier, startZone, spreadDepth, spreadLimit);
     }
-#endif
 
     private const int FoundingSpreadLimit = 2;
 
     // 从 startZone 向外按层扩张占领，最多 spreadDepth 层、spreadLimit 块
-#if EC_PENDING
     private static void SpreadOccupation(this City city, Realm occupier, Cell startZone, int spreadDepth,
         int spreadLimit)
     {
@@ -518,7 +513,6 @@ public static class CityExtension
             }
         }
     }
-#endif
     // 占领扩散用的天命：帝国用帝国天命；阶层起义的叛军以所代表阶层的怨气(民心)作为天命，
     // 其余不属于帝国的国家为 0。
     private static int GetOccupationSpreadMandate(Realm kingdom, Empire empire)
@@ -720,7 +714,6 @@ public static class CityExtension
 
         return false;
     }
-#if EC_PENDING
     private static bool AddOccupiedTileZoneByMandateSpread(this City city, Realm occupier, Cell tileZone)
     {
         if (city == null || occupier == null || tileZone == null)
@@ -791,9 +784,7 @@ public static class CityExtension
 
         return true;
     }
-#endif
     // landing：登陆(与敌国不接壤时的第一块滩头，见 FrontSystem)，不要求与己方控制区相连
-#if EC_PENDING
     public static bool AddOccupiedTileZone(this City city, Realm occupier, Cell tileZone, Person capturer = null,
         bool landing = false)
     {
@@ -964,7 +955,6 @@ public static class CityExtension
 
         return transferred;
     }
-#endif
     public static Dictionary<Realm, List<Cell>> GetOccupiedStatus(this City city)
     {
         if (city == null)
@@ -1003,7 +993,6 @@ public static class CityExtension
 
         return result;
     }
-#if EC_PENDING
     public static bool RemoveOccupiedTileZoneFromAll(this City city, Cell tileZone)
     {
         if (city == null || tileZone == null)
@@ -1067,7 +1056,6 @@ public static class CityExtension
 
         return removedAny;
     }
-#endif
     public static Realm GetTileZoneOccupier(this City city, Cell tileZone)
     {
         if (city == null || tileZone == null)
@@ -1126,12 +1114,10 @@ public static class CityExtension
 
         return zones.Count;
     }
-#if EC_PENDING
     public static bool CheckFinishedCapture(this City city, Realm occupier)
     {
         return city.CheckFinishedCapture();
     }
-#endif
     public static float GetOccupiedTileZoneRate(this City city, Realm occupier)
     {
         if (city == null || occupier == null)
@@ -1398,7 +1384,6 @@ public static class CityExtension
         return requiredRate;
     }
     
-#if EC_PENDING
     public static bool CheckFinishedCapture(this City city)
     {
         if (city == null)
@@ -1418,12 +1403,11 @@ public static class CityExtension
             return false;
         }
 
-        city.finishCapture(winner);
+        city.FinishCapture(winner);
         city.ClearOccupiedStatus();
 
         return true;
     }
-#endif
     private static float GetOccupationCaptureChance(this Person victim)
     {
         if (victim == null) return 0f;
@@ -1494,7 +1478,6 @@ public static class CityExtension
         }
     }
 
-#if EC_PENDING
     private static void ForceOccupyAllRemainingZones(this City city, Realm occupier)
     {
         if (city == null || occupier == null || city.Zones == null)
@@ -1549,7 +1532,7 @@ public static class CityExtension
         List<City> citySnapshot = new List<City>(defeated.Cities);
         if (capturedCity != null && capturedCity.Realm == defeated)
         {
-            capturedCity.finishCapture(occupier);
+            capturedCity.FinishCapture(occupier);
         }
 
         for (int i = 0; i < citySnapshot.Count; i++)
@@ -1607,7 +1590,7 @@ public static class CityExtension
             }
             else
             {
-                city.finishCapture(occupier);
+                city.FinishCapture(occupier);
             }
 
             TranslateHelper.LogOccupationCaptureEvent(captureActor, victim, "occupation_capture_result_emperor", occupier.GetEmpire());
@@ -1644,7 +1627,7 @@ public static class CityExtension
 
             if (typedWar != null)
             {
-                typedWar.lostWar(victimKingdom);
+                typedWar.Lost(victimKingdom);
                 if (occupier.GetEmpire()?.CoreKingdom?.GetRegime()?.enable_auto_honorary_peerages == true)
                 {
                     captureActor.GrantHonoraryPeerage(occupier.GetEmpire(), "tang_honorary_zhongyi_hou");
@@ -1655,7 +1638,7 @@ public static class CityExtension
 
             if (activeWar != null)
             {
-                activeWar.lostWar(victimKingdom);
+                activeWar.Lost(victimKingdom);
                 if (occupier.GetEmpire()?.CoreKingdom?.GetRegime()?.enable_auto_honorary_peerages == true)
                 {
                     captureActor.GrantHonoraryPeerage(occupier.GetEmpire(), "tang_honorary_zhongyi_hou");
@@ -1675,7 +1658,7 @@ public static class CityExtension
             }
             else
             {
-                city.finishCapture(occupier);
+                city.FinishCapture(occupier);
             }
 
             TranslateHelper.LogOccupationCaptureEvent(captureActor, victim, "occupation_capture_result_king_city", occupier.GetEmpire());
@@ -1691,7 +1674,7 @@ public static class CityExtension
             }
             else
             {
-                city.finishCapture(occupier);
+                city.FinishCapture(occupier);
             }
 
             TranslateHelper.LogOccupationCaptureEvent(captureActor, victim, "occupation_capture_result_lord", occupier.GetEmpire());
@@ -1700,7 +1683,6 @@ public static class CityExtension
 
         return false;
     }
-#endif
 
     // 与 GetFinishedCaptureWinner 内部选取逻辑保持一致（同一敌对阵营不算敌对占领、
     // 按单一占领方实际占据的合法 zone 数量决出赢家、并列时按正统值优先），唯一区别是
@@ -1841,7 +1823,6 @@ public static class CityExtension
     // 走这条分支而不是下面的国王分支）的城主真正阵亡时，如果城市已经被单一敌对
     // 政权合计占领到 70% 以上，直接判定整城归于占领地块最多的一方，不再等占领率追上动态门槛或等下一次
     // 随机的"占领捕获事件"来结算。
-#if EC_PENDING
     public static void TryResolveCityLeaderDeathAnnexation(this Person deceased)
     {
         if (!EnableRulerDeathAnnexation)
@@ -1889,11 +1870,10 @@ public static class CityExtension
 
         Person announcer = occupier.Ruler ?? occupier.GetEmpire()?.Emperor;
         city.ForceOccupyAllRemainingZones(occupier);
-        city.finishCapture(occupier);
+        city.FinishCapture(occupier);
         city.ClearOccupiedStatus();
         TranslateHelper.LogOccupationCaptureEvent(announcer, deceased, "occupation_capture_result_lord_death_annexation", occupier.GetEmpire());
     }
-#endif
 
     // Phase 17："首都的话就判断国王死亡,国王死亡就王国或者分裂(概率)全境占领"——
     // 首都已经被敌对政权合计占领到 70% 以上时，国王真正阵亡就直接结算：按概率
@@ -2067,7 +2047,7 @@ public static class CityExtension
         // transfers have finished; WarPatch clears occupation data on war end.
         if (activeWar != null && activeWar.Alive)
         {
-            activeWar.lostWar(kingdom);
+            activeWar.Lost(kingdom);
         }
     }
 #endif
@@ -2096,13 +2076,14 @@ public static class CityExtension
         {
             foreach (Realm kingdom in city._capturing_units.Keys.ToList())
                 if (kingdom != null && occupier(kingdom)) city._capturing_units.Remove(kingdom);
-            if (city.being_captured_by != null && occupier(city.being_captured_by)) city.clearCapture();
+            if (city.being_captured_by != null && occupier(city.being_captured_by)) city.ClearCapture();
         }
         catch
         {
             // Ignore vanilla capture cleanup failures here.
         }
     }
+#endif
 
     public static void ClearOccupiedStatus(this City city)
     {
@@ -2114,7 +2095,7 @@ public static class CityExtension
 
         try
         {
-            city.clearCapture();
+            city.ClearCapture();
         }
         catch
         {
@@ -2130,7 +2111,6 @@ public static class CityExtension
         data.OccupiedStatus = new Dictionary<long, List<int>>();
         data.OccupiedZoneOwners?.Clear();
     }
-#endif
     public static EmpireCore GetEmpireCore(this City c)
     {
         EmpireCoreManager.EmpireCores.TryGetValue(c.GetEmpireCoreID(), out EmpireCore core);
@@ -2266,7 +2246,7 @@ public static class CityExtension
         Vector2 capitalPosition = GetCityValuePosition(kingdom.Capital);
         float distanceToCore = Mathf.Min(Vector2.Distance(cityPosition, capitalPosition),
             Vector2.Distance(cityPosition, qualityCenter));
-        CityValueSnapshot value = CityValueRules.Evaluate(city.PopulationCount(), city.GetMoney(), distanceToCore,
+        CityValueSnapshot value = CityValueRules.Evaluate(city.CountUnits(), city.GetMoney(), distanceToCore,
             coreRadius, !city.IsConnectedToKingdomCapital());
         data.city_value = value.Total;
         data.city_value_distance_to_core = value.DistanceToCore;
@@ -2329,7 +2309,7 @@ public static class CityExtension
         foreach (City candidate in kingdom.Cities)
         {
             if (candidate == null || candidate.IsGone()) continue;
-            float weight = 1f + Mathf.Sqrt(Mathf.Max(0, candidate.PopulationCount())) +
+            float weight = 1f + Mathf.Sqrt(Mathf.Max(0, candidate.CountUnits())) +
                            Mathf.Sqrt(Mathf.Max(0, candidate.GetMoney())) * 0.25f;
             total += GetCityValuePosition(candidate) * weight;
             totalWeight += weight;
@@ -2340,7 +2320,7 @@ public static class CityExtension
         foreach (City candidate in kingdom.Cities)
         {
             if (candidate == null || candidate.IsGone()) continue;
-            float weight = 1f + Mathf.Sqrt(Mathf.Max(0, candidate.PopulationCount())) +
+            float weight = 1f + Mathf.Sqrt(Mathf.Max(0, candidate.CountUnits())) +
                            Mathf.Sqrt(Mathf.Max(0, candidate.GetMoney())) * 0.25f;
             weightedDistance += Vector2.Distance(GetCityValuePosition(candidate), qualityCenter) * weight;
         }
@@ -2405,7 +2385,7 @@ public static class CityExtension
         }
 
         int count = 0;
-        for (int i = 0; i < city.PopulationCount(); i++)
+        for (int i = 0; i < city.People.Count; i++)
         {
             Person actor = city.People[i];
             if (actor == null || actor.IsGone()) continue;
@@ -2427,7 +2407,7 @@ public static class CityExtension
         }
 
         int count = 0;
-        for (int i = 0; i < city.PopulationCount(); i++)
+        for (int i = 0; i < city.People.Count; i++)
         {
             Person actor = city.People[i];
             if (actor == null || actor.IsGone()) continue;

@@ -327,7 +327,6 @@ public static partial class BannerSystem
     #region 满城、圈地、逃人法
 
     // 建满城(自动挑或事件点名)：已经有的不重建
-#if EC_PENDING
     public static bool BuildGarrison(Realm realm, City city)
     {
         Empire empire = realm?.GetEmpire();
@@ -342,10 +341,8 @@ public static partial class BannerSystem
         EventRecorder.Record(empire, string.Format(LM.Get("banner_city_history"), empire.GetEmpireFullName(), city.GetCityName()));
         return true;
     }
-#endif
 
     // 跑马圈地：事件点名，或入关后自动圈(见 BannerSystem.Conquest)；永停圈地以后不再圈。返回圈了几座城
-#if EC_PENDING
     public static int Enclose(Realm realm, IEnumerable<City> cities)
     {
         Empire empire = realm?.GetEmpire();
@@ -372,7 +369,6 @@ public static partial class BannerSystem
         empire.data.maladies["annexation"] = Mathf.Clamp(annexation + EncloseAnnexation, 0f, 100f);
         return done;
     }
-#endif
 
     // 逃人法：记在核心上，每年补给新添的成员(换政体重载会丢)
     public static void EnactFugitiveLaw(Realm realm)

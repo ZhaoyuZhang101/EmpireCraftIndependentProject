@@ -83,6 +83,9 @@ namespace EmpireCraft.Core
             ModClass.FEUDAL_EMPIRE_LINEAGE = new Dictionary<string, List<long>>();
             ModClass.MOD_ALLIANCE_IDS = new HashSet<long>();
             SpecificClanManager._specificClans = new List<SpecificClan>();
+            // The lookups of persons by key go with it: keys start again from 0 in each world, so a lookup left over
+            // would pair a person of this world with someone of another (and give him that one's birthday and age).
+            SpecificClanManager.RebuildCache();
         }
     }
 }
