@@ -245,7 +245,7 @@ public static class CityZoningSystem
         }
         if (AssetCache.TryGetValue((city, type), out BuildingKind cached)) return cached;
         BuildingKind best = null;
-        CityBuildOrderAsset orders = AssetManager.city_build_orders.get(city.getActorAsset()?.build_order_template_id ?? "");
+        CityBuildOrderAsset orders = AssetManager.city_build_orders.get(city.GetActorAsset()?.build_order_template_id ?? "");
         if (orders?.list != null)
             foreach (BuildOrder order in orders.list)
             {
@@ -522,7 +522,7 @@ public static class CityZoningSystem
         {
             city.setStatusDirty();
             CityPopulationSystem.InvalidateHouseholdCaches();
-            city.updateCityStatus();
+            city.UpdateCityStatus();
             city.recalculateMaxHouses();
         }
         catch (Exception exception)

@@ -37,7 +37,7 @@ public partial class CityExpansionPatch : GamePatch
         // 无人区：地块归了城就退出无人区；新城(移民、殖民、穿越者降临、原版建城)不选在无人区里
         harmony.Patch(AccessTools.Method(typeof(City), nameof(City.AddZone)),
             postfix: new HarmonyMethod(typeof(CityExpansionPatch), nameof(AfterAddZone)));
-        harmony.Patch(AccessTools.Method(typeof(Cell), nameof(Cell.canStartCityHere)),
+        harmony.Patch(AccessTools.Method(typeof(Cell), nameof(Cell.CanStartCityHere)),
             postfix: new HarmonyMethod(typeof(CityExpansionPatch), nameof(AfterCanStartCityHere)));
         // 原版边界画笔(神力 border_brush)：画的这一下算神力手动划地，不受每城地块上限(见 CanAddZone)
         global::System.Reflection.MethodInfo brush = AccessTools.Method(typeof(PowerLibrary), "drawBorderBrush");
@@ -393,7 +393,7 @@ public partial class CityExpansionPatch : GamePatch
                 !considered.Add(candidate) ||
                 !CanClaimZone(pCity, candidate) || !candidate.CanBeClaimedByCity(pCity) || !Settled(pCity, candidate) ||
                 !Bordering(pCity, candidate) || !Reachable(candidate, pCity) ||
-                (pActor?.Subspecies != null && !candidate.checkCanSettleInThisBiomes(pActor.Subspecies))) return;
+                (pActor?.Subspecies != null && !candidate.CheckCanSettleInThisBiomes(pActor.Subspecies))) return;
             float score = ExpansionScore(pCity, candidate);
             if (score >= bestScore) return;
             best = candidate;

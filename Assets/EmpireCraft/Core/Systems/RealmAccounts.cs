@@ -185,6 +185,7 @@ namespace EmpireCraft.Core
             EcRandom.Seed(w.Seed, w.Month + 1);
             SkeletonRules.PopulationElsewhere = PortedSystems.Enabled && CityPopulationSystem.AbstractPopulationEnabled;
             SkeletonRules.TerritoryElsewhere = SkeletonRules.PopulationElsewhere;
+            SkeletonRules.SettlementElsewhere = SkeletonRules.PopulationElsewhere;
             using (FrameProfiler.Measure("empire.skeleton")) SkeletonRules.Month(w);
             using (FrameProfiler.Measure("empire.accounts.month")) RealmAccounts.Month(w);
             if (w.Month % 12 == 0)

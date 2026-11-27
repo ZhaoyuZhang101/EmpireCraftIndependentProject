@@ -156,6 +156,13 @@ namespace EmpireCraft.Core
         public Realm FindKingdomToJoinAfterCapture(Realm taker,IEnumerable<War> wars)=>taker;
         // Reachable by land from the other city (the same landmass).
         public bool ReachableFrom(City other){var a=SeatCell();var b=other?.SeatCell();return a!=null&&b!=null&&a.IsSameIsland(b);}
+        // The city's status (counts, flags) is worked out when asked; nothing is cached to refresh.
+        public void UpdateCityStatus(){}
+        // The founding of a city as a scene, and the founder's people stamped on its records: the client's matter.
+        public void NewCityEvent(Person founder){}
+        public void SetUnitMetas(Person founder){}
+        // Which kind of people the city is built for: people.
+        public PersonKind GetActorAsset()=>PersonKind.Human;
         // Buildings of a type, goods in store: none here (no building objects; goods are not kept yet).
         public int CountBuildingsType(string type,bool pOnlyFinished=true)=>0;
         public int GetResourcesAmount(string resource)=>0;

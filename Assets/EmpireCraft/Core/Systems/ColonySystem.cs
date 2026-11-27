@@ -162,7 +162,6 @@ public static class ColonySystem
     private static readonly Queue<Realm> Pending = new();
     private const int PerFrame = 6;
 
-#if EC_PENDING
     public static void Tick()
     {
         if (EmpireWorld.Current == null) return;
@@ -210,7 +209,6 @@ public static class ColonySystem
             }
         }
     }
-#endif
 
     // 能当宗主国：独立国或帝国核心、不是别人的殖民地、本国采纳了远洋航海
     private static bool CanColonize(Realm kingdom) =>
@@ -790,7 +788,6 @@ public static class ColonySystem
 
     #region 主动殖民
 
-#if EC_PENDING
     private static void Voyage(Realm realm)
     {
         if (!CanColonize(realm)) return;
@@ -813,10 +810,8 @@ public static class ColonySystem
         TranslateHelper.LogEventOnly(string.Format(LM.Get("colony_voyage_departed"), realm.GetKingdomFullName(),
             realm.Capital.GetCityName()), realm);
     }
-#endif
 
     // 海路够得着(本国港口出发、不穿敌方制海、在航程以内)的别的岛上的无主海岸，按地力挑
-#if EC_PENDING
     private static Cell FindSite(Realm realm, out int distance)
     {
         distance = 0;
@@ -828,7 +823,7 @@ public static class ColonySystem
         var options = new List<(Cell zone, float score, int distance)>();
         foreach (Cell zone in EmpireWorld.Current.Zones.All)
         {
-            if (zone == null || zone.City != null || zone.GroundCount < 48 || !zone.canStartCityHere()) continue;
+            if (zone == null || zone.City != null || zone.GroundCount < 48 || !zone.CanStartCityHere()) continue;
             if (zone.Center?.Region?.island == home) continue;
             int far = capital == null ? 0 : Mathf.Abs(zone.X - capital.X) + Mathf.Abs(zone.Y - capital.Y);
             if (far < ColonyDistance / 2) continue;
@@ -848,17 +843,15 @@ public static class ColonySystem
         distance = best.distance;
         return best.zone;
     }
-#endif
 
     // 本国市场缺、这块地出的物资(0~1，见 CommodityMarketSystem.ColonyDemand)：殖民就有了去处
     private static float MarketDemand(Realm realm, Cell zone) => CommodityMarketSystem.ColonyDemand(realm, zone);
 
-#if EC_PENDING
     private static void Arrive(Realm realm, KingdomExtension.KingdomExtraData data)
     {
         Cell zone = EmpireWorld.Current.Zones.ById(data.colonial_voyage_zone);
         data.colonial_voyage_zone = -1;
-        if (zone == null || zone.City != null || !zone.canStartCityHere() || realm.Capital == null) return;
+        if (zone == null || zone.City != null || !zone.CanStartCityHere() || realm.Capital == null) return;
         Person founder = realm.Capital.Leader ?? realm.Ruler;
         if (founder == null) return;
         City city;
@@ -891,7 +884,6 @@ public static class ColonySystem
             ? ColonyState.Company : ColonyState.Governorate;
         Found(realm, new List<City> { city }, kind);
     }
-#endif
 
     #endregion
 }

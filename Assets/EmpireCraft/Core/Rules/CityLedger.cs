@@ -324,7 +324,7 @@ public static class CityLedger
     {
         if (!Uses(city)) return CityBehBuild.buildTick(city);
         if (Pending(city) != null || RealConstruction(city)) return false;
-        if (AssetManager.city_build_orders.get(city.getActorAsset()?.build_order_template_id ?? "") == null) return false;
+        if (AssetManager.city_build_orders.get(city.GetActorAsset()?.build_order_template_id ?? "") == null) return false;
         CityBehBuild._possible_buildings.Clear();
         CityBehBuild._possible_buildings_no_resources.Clear();
         CityBehBuild.calcPossibleBuildings(city);

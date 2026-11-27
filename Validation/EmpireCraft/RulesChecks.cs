@@ -680,7 +680,7 @@ public static class RulesChecks
         var again = Start(map);
         Check(again.LiveRealms.Select(r => CultureService.GetRealmCulture(r)).SequenceEqual(families), "the same world gives the same peoples");
         // Twenty years on: nothing fails, and realms that came about since have a people too.
-        Run(again, 20, world => { var bad = EmpireInvariants.Check(world, 1); Check(bad.Count == 0, "the world stays consistent" + (bad.Count > 0 ? ": " + bad[0] : "")); });
+        Run(again, 20, world => { var bad = EmpireInvariants.Check(world, 1); Check(bad.Count == 0, "the world stays consistent" + (bad.Count > 0 ? ": " + bad[0] + " " + ForeignFaith(world) : "")); });
         string faults = string.Join("; ", PortedSystems.Slots.Where(s => s.Faults > 0).Select(s => s.Name + " x" + s.Faults + " " + s.LastFault));
         Check(PortedSystems.TotalFaults == 0, "no ported system fails with peoples and regimes in the world: " + faults);
         Check(again.LiveRealms.All(r => r.HasCulture()), "realms that came about since have a people");
@@ -738,6 +738,23 @@ public static class RulesChecks
 
     // Empires the world founds by itself: a realm's empire check starts the plot that prepares a proclamation,
     // the decision system carries it through, and the ported founding code makes the empire.
+    // Who holds a faith or culture another world keeps, and where it came from (for the consistency message).
+    static string ForeignFaith(EmpireWorld w)
+    {
+        bool Foreign(Religion x) => x != null && x.Alive && w.Religions.Get(x.Key) != x;
+        bool Alien(Culture x) => x != null && x.Alive && w.Cultures.Get(x.Key) != x;
+        foreach (var p in w.People)
+        {
+            if (!Foreign(p.Religion) && !Alien(p.Culture)) continue;
+            return "[person " + p.Id + " " + p.Name + " born month " + p.BirthMonth + " alive " + p.Alive + ", city " + p.City?.Name + ", clan " + p.Clan?.Name +
+                ", culture " + p.Culture?.Key + " " + p.Culture?.Name + (Alien(p.Culture) ? " (foreign; here: " + w.Cultures.Get(p.Culture.Key)?.Name + ")" : "") +
+                ", religion " + p.Religion?.Key + " " + p.Religion?.Name + (Foreign(p.Religion) ? " (foreign; here: " + w.Religions.Get(p.Religion.Key)?.Name + ")" : "") +
+                ", world month " + w.Month + "]";
+        }
+        return "";
+    }
+
+    static string lastNullAt;
     public static void EmpiresArise(int width = 256, int years = 150)
     {
         checks = 0;
@@ -749,17 +766,24 @@ public static class RulesChecks
         var logged = new Dictionary<string, int>();
         // The institution system's yearly line per people (where its reforms stand and what holds them up): the last one kept.
         var progress = new Dictionary<string, string>();
+        // Tribal wars ended by the loser conceding (tribute, and with a tribal union the loser joins the winner's confederation).
+        int conceded = 0;
         LogService.Sink = (level, message) =>
         {
             if (level == LogLevel.Info)
             {
+                if (message.Contains("[部落之战]") && !message.Contains("失败")) conceded++;
                 int at = message.IndexOf("[制度进度]", StringComparison.Ordinal);
                 if (at >= 0) { string rest = message.Substring(at + 6).Trim(); int cut = rest.IndexOfAny(new[] { ' ', '：', ':' }); progress[cut > 0 ? rest.Substring(0, cut) : rest] = rest; }
                 return;
             }
             string key = level + ": " + (message.Length > 300 ? message.Substring(0, 300) : message).Replace('\n', ' ');
+            if (!logged.ContainsKey(key) && message.Contains("Object reference not set") && lastNullAt != null)
+                Console.WriteLine("   thrown at (first time): " + key + "\n" + lastNullAt);
             logged[key] = logged.TryGetValue(key, out int n) ? n + 1 : 1;
         };
+        // Systems that catch their own errors log only the message: keep where the last null reference was thrown.
+        AppDomain.CurrentDomain.FirstChanceException += (_, e) => { if (e.Exception is NullReferenceException) lastNullAt = Environment.StackTrace; };
         var w = Start(map);
         int startedBefore = DecisionSystem.Started, finishedBefore = DecisionSystem.Finished;
         var founded = new List<string>();
@@ -773,7 +797,7 @@ public static class RulesChecks
             if (world.Year % 20 == 0)
                 Console.WriteLine("   year " + world.Year + ": wilderness " + WildernessSystem.Regions.Count + " regions, " + WildernessSystem.Regions.Sum(r => r.Zones.Count) + " cells (" +
                     string.Join("/", WildernessSystem.Regions.GroupBy(r => r.Kind).Select(g => g.Key + " " + g.Count())) + "), city land " + world.Cities.Where(c => c.Alive).Sum(c => c.Tiles.Count) + " cells; realms " + world.LiveRealms.Count + ", wars " + world.Wars.Count + " (" + world.LiveWars.Count + " running), cities changed hands " +
-                    world.Annals.Entries.Count(e => e.Kind == AnnalKind.CityTransferred) + "; cities by people " + string.Join("/", new[] { 0, 25, 50, 75, 100 }.Select(q => { var pops = world.Cities.Where(c => c.Alive).Select(c => c.Population).OrderBy(x => x).ToList(); return pops.Count == 0 ? 0 : (long)pops[Math.Min(pops.Count - 1, q * pops.Count / 100)]; })) + "; " + string.Join("; ", world.LiveRealms.GroupBy(r => EmpireFormationService.Diagnose(r) ?? "ok")
+                    world.Annals.Entries.Count(e => e.Kind == AnnalKind.CityTransferred) + ", tribes conceded " + conceded + "; cities " + world.Cities.Count(c => c.Alive) + " (" + world.Cities.Count + " in all), one-city realms " + world.LiveRealms.Count(r => r.Cities.Count == 1) + "; cities by people " + string.Join("/", new[] { 0, 25, 50, 75, 100 }.Select(q => { var pops = world.Cities.Where(c => c.Alive).Select(c => c.Population).OrderBy(x => x).ToList(); return pops.Count == 0 ? 0 : (long)pops[Math.Min(pops.Count - 1, q * pops.Count / 100)]; })) + "; " + string.Join("; ", world.LiveRealms.GroupBy(r => EmpireFormationService.Diagnose(r) ?? "ok")
                     .OrderByDescending(g => g.Count()).Take(5).Select(g => g.Key + " " + g.Count())) +
                     "; regimes " + string.Join(", ", world.LiveRealms.GroupBy(r => r.GetRegime()?.type.ToString() ?? "none").OrderByDescending(g => g.Count()).Take(4).Select(g => g.Key + " " + g.Count())) +
                     "; peoples (era, institutions) " + string.Join(", ", world.LiveRealms.Select(r => CultureService.GetRealmCulture(r)).Distinct().OrderBy(c => c)
@@ -851,8 +875,10 @@ public static class RulesChecks
         Check(peoples.Count(c => (InstitutionSystem.GetOrCreateCultureState(c)?.enacted_node_ids?.Count ?? 0) > 1) * 2 >= peoples.Count, "most peoples carry out reforms");
         int settled = w.LiveRealms.Count(r => !TribalFissionService.IsTribal(r));
         // Realms growing out of the tribe within these years depends on how the world goes: reported, not required.
-        // Realms go to war on their own, cities change hands, and the world founds an empire by itself.
-        Check(w.Wars.Count(x => x.Kind == WarKinds.Normal) > 0 && w.Annals.Entries.Any(e => e.Kind == AnnalKind.CityTransferred), "realms go to war and cities change hands");
+        // Realms go to war on their own and win: cities change hands or, between tribes (one city each in the mod), the loser
+        // concedes and pays, joining the winner's confederation where it has a tribal union. Then the world founds an empire.
+        Check(w.Wars.Count(x => x.Kind == WarKinds.Normal) > 0 && (w.Annals.Entries.Any(e => e.Kind == AnnalKind.CityTransferred) || conceded > 0),
+            "realms go to war and win: cities change hands or tribes concede");
         // An empire proclaimed (become_empire) or, while realms are tribes, a tribal confederation won in war (the mod's empire of the tribal age).
         Check(founded.Count > 0, "the world founds an empire or a tribal confederation by itself");
         foreach (var e in w.Empires.list) Check(e.CoreKingdom != null && (!e.Alive || e.CoreKingdom.IsEmpire()), "an empire stands on its core realm");

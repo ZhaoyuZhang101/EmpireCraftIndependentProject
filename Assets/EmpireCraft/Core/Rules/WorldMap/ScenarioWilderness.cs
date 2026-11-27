@@ -54,7 +54,7 @@ public static class ScenarioWilderness
 
     // 归类门槛(照抄 WildernessSystem，改了那边这里也要改)
     private const float MaxWater = 0.25f;
-    private const int MinLand = 16;
+    private const int MinLand = 1; // a cell here is one tile (the mod's zone held 64)
     private const float MountainCore = 0.5f, MountainFlank = 0.35f, MountainRugged = 0.75f;
     private const float LavaCore = 0.3f, LavaFlank = 0.15f, LavaRugged = 0.6f;
     private const float BarrenShare = 0.85f, SwampShare = 0.75f, JungleShare = 0.85f;

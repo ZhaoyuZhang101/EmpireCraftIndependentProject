@@ -24,6 +24,8 @@ public static class Program
             }
             else if(args.Length>1&&args[0]=="--group")
                 typeof(RulesChecks).GetMethod(args[1])!.Invoke(null,null);   // one group of RulesChecks by name, e.g. --group Running
+            else if(args.Length>1&&args[0]=="--groups")
+                foreach(var name in args[1].Split(','))typeof(RulesChecks).GetMethod(name)!.Invoke(null,null);   // several groups in order, e.g. --groups Empires,CultureMap
             else if(args.Length>0&&args[0]=="--arise")
                 RulesChecks.EmpiresArise(args.Length>1?int.Parse(args[1]):512,args.Length>2?int.Parse(args[2]):80);
             else if(args.Length>0&&args[0]=="--fingerprint")

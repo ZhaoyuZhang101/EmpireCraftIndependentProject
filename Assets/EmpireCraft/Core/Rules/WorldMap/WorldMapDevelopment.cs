@@ -58,7 +58,7 @@ public static class WorldMapDevelopment
     // 离城越近开发度越高：腹地的数 × (1 + e^(−距离/Reach))，距离按度
     private const float Reach = 1f;
     // 陆地不到几格的地块不改(同 WildernessSystem.MinLand)；这一类格子要占陆地几成才改(同 WildernessSystem 外沿的门槛)
-    private const int MinLand = 16;
+    private const int MinLand = 1; // a cell here is one tile (the mod's zone held 64)
     private const float WetShare = 0.5f;
 
     private sealed class AreaFile

@@ -7,7 +7,7 @@ using System.Linq;
 namespace EmpireCraft.Core
 {
 
-public static class CultureService
+public static partial class CultureService
 {
     public const float AssimilatedThreshold = CultureShareRules.AssimilatedThreshold;
     public const float TitleConversionThreshold = CultureShareRules.TitleConversionThreshold;

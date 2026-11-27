@@ -78,5 +78,12 @@
   ],
   "WildernessDevelopmentSystem": [
     "Clear"
-  ]
+  ],
+  "CityConstructionSystem": [
+    "StartSettlement"
+  ],
+  "SettlementSeaSearch": [
+    "CanTransport"
+  ],
+  "CultureService": []
 }

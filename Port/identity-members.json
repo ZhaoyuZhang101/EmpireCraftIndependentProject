@@ -557,5 +557,15 @@
   "Cell.canBeClaimedByCity": "CanBeClaimedByCity",
   "Cell.isTemporaryFrozen": "IsTemporaryFrozen",
   "City.canGrowZones": "CanGrowZones",
-  "City.isZoneToClaimStillGood": "IsZoneToClaimStillGood"
+  "City.isZoneToClaimStillGood": "IsZoneToClaimStillGood",
+  "Cell.reachableFrom": "ReachableFrom",
+  "Cell.canStartCityHere": "CanStartCityHere",
+  "Cell.checkCanSettleInThisBiomes": "CheckCanSettleInThisBiomes",
+  "Cell.isGoodForBoat": "IsGoodForBoat",
+  "City.updateCityStatus": "UpdateCityStatus",
+  "City.newCityEvent": "NewCityEvent",
+  "City.setUnitMetas": "SetUnitMetas",
+  "City.getActorAsset": "GetActorAsset",
+  "Building.component_docks": "Docks",
+  "BuildingDocks.tiles_ocean": "TilesOcean"
 }

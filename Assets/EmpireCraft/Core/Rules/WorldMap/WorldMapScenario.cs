@@ -360,7 +360,7 @@ public static class WorldMapScenario
                     else if (string.IsNullOrEmpty(actor.GetModName().familyName) && actor.Clan != null)
                         actor.GetModName().familyName = actor.Clan.GetMemberSurname();
                     polity.kingdom.setUnitMetas(actor);
-                    planned.city.setUnitMetas(actor);
+                    planned.city.SetUnitMetas(actor);
                     actor.GetModName().SetName(actor);
                     founder = actor;
                     // 都城单设了别的种族：君主照国家的，城里另落一户本城种族的百姓
@@ -374,7 +374,7 @@ public static class WorldMapScenario
                     planned.city = WorldActions.BuildNewCity(actor, zone);
                     actor.JoinCity(planned.city);
                     PrepareName(actor, planned.culture);
-                    planned.city.setUnitMetas(actor);
+                    planned.city.SetUnitMetas(actor);
                     actor.GetModName().SetName(actor);
                 }
                 planned.city.GetOrCreate().placed_by_hand = true;

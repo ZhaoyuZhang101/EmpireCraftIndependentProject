@@ -35,7 +35,14 @@ namespace EmpireCraft.Core
         public Cell Cell;
         public bool UnderConstruction;
         public bool IsUnderConstruction() => UnderConstruction;
+        public BuildingDocks Docks => null;   // docks would be a built object; none is built here
         public bool IsUsable() => !UnderConstruction;
+    }
+
+    // A harbour's docks: the sea cells boats leave from.
+    public sealed class BuildingDocks
+    {
+        public readonly HashSet<Cell> TilesOcean = new HashSet<Cell>();
     }
 
     // The books a building keeps, by key.

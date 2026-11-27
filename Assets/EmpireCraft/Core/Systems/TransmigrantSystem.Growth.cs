@@ -71,7 +71,6 @@ public static partial class TransmigrantSystem
     private static readonly string[] BroughtTechs =
         { "industrialization", "rifling", "explosives", "electricity", "steam_press", "steam_ironclads", NavalBases };
 
-#if EC_PENDING
     private static void Grow(Realm kingdom, TransmigrantState state, float naturalized)
     {
         Disguise(kingdom, state);
@@ -90,7 +89,6 @@ public static partial class TransmigrantSystem
             $"外贸{Mathf.RoundToInt(CommodityMarketSystem.MarketOf(kingdom)?.trade_value ?? 0f)} " +
             $"{(DisguiseLord(kingdom) is Empire lord ? "伪装为" + lord.GetEmpireFullName() + "属国" : "已公开")}");
     }
-#endif
 
     #region 流民投奔
 
@@ -176,7 +174,6 @@ public static partial class TransmigrantSystem
 
     #region 开拓
 
-#if EC_PENDING
     private static void Settle(Realm kingdom, TransmigrantState state)
     {
         if (kingdom.GetMoney() < SettleCost || Random.value >= SettleChance) return;
@@ -209,10 +206,8 @@ public static partial class TransmigrantSystem
         TranslateHelper.LogEventOnly(string.Format(LM.Get("transmigrant_settled_history"), kingdom.GetKingdomFullName(),
             city.GetCityName(), from.GetCityName()), kingdom);
     }
-#endif
 
     // 离本国城 SettleReach 步以内、没有城、能建城的空地，挑最近的
-#if EC_PENDING
     private static Cell FrontierZone(Realm kingdom)
     {
         var seen = new HashSet<Cell>();
@@ -227,14 +222,13 @@ public static partial class TransmigrantSystem
                 foreach (Cell neighbour in zone.NeighboursAll)
                 {
                     if (neighbour == null || !seen.Add(neighbour)) continue;
-                    if (neighbour.City == null && neighbour.GroundCount >= 32 && neighbour.canStartCityHere()) return neighbour;
+                    if (neighbour.City == null && neighbour.GroundCount >= 32 && neighbour.CanStartCityHere()) return neighbour;
                     if (neighbour.GroundCount > 0 && (neighbour.City == null || neighbour.City.Realm == kingdom)) next.Add(neighbour);
                 }
             frontier = next;
         }
         return null;
     }
-#endif
 
     #endregion
 

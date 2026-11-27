@@ -31,6 +31,9 @@ namespace EmpireCraft.Core
         // True while the ported city expansion takes free land (CityExpansionPatch, a cell a month): the skeleton's own
         // hinterland growth then gives way.
         public static bool TerritoryElsewhere;
+        // True while the ported state settlement founds new cities (StateSettlementSystem): the skeleton's own daughter
+        // cities then give way.
+        public static bool SettlementElsewhere;
 
         static void Population(EmpireWorld w)
         {
@@ -47,7 +50,7 @@ namespace EmpireCraft.Core
         static void Year(EmpireWorld w)
         {
             if(!TerritoryElsewhere)Hinterland(w);
-            NewCities(w);
+            if(!SettlementElsewhere)NewCities(w);
             Ageing(w);
             Families(w);
             Thrones(w);

@@ -67,6 +67,7 @@ namespace EmpireCraft.Core
         // At most this many calls to settle a month of corps (each works through a slice of the realms).
         const int CorpsMonthSlices = 256;
         const int PopulationMonthSlices = 1024;
+        const int SettlementMonthSlices = 1024;
 
         // The kinds of plot, and the decision system told of every plot started. Code, not data: done once.
         static void Prepare()
@@ -78,6 +79,9 @@ namespace EmpireCraft.Core
             WorldActions.JoinHandler = CityPatch.joinAnotherKingdom;
             WorldActions.BeforeSetKingdom = CityPatch.setKingdom;
             WorldActions.AfterSetKingdom = CityPatch.setKingdom_Postfix;
+            // A new city: its culture set up, then whether it stays in the founder's realm (CityPatch).
+            WorldActions.NewCityHandler = CityPatch.newCity;
+            WorldActions.CityBuiltHandler = CityPatch.CityBuilt;
         }
 
         // Called by EmpireSimulation after the skeleton and the books, with the world current and the random stream seeded.
@@ -126,6 +130,15 @@ namespace EmpireCraft.Core
             {
                 CityPopulationSystem.Tick();
                 for (int slice = 0; slice < PopulationMonthSlices && CityPopulationSystem.MonthPending; slice++) CityPopulationSystem.Tick();
+            });
+            // State settlement: a realm whose cities have taken all the land they may sends settlers to found a new city
+            // on free land it can reach (paid from its treasury, people moved from its cities), and people flee famine or
+            // crowding to found one of their own. The mod checked each realm once a month and searched a realm a frame.
+            Run("state settlement", () =>
+            {
+                foreach (var realm in w.LiveRealms.ToArray()) StateSettlementSystem.Check(realm);
+                StateSettlementSystem.Tick();
+                for (int slice = 0; slice < SettlementMonthSlices && StateSettlementSystem.SearchesPending; slice++) StateSettlementSystem.Tick();
             });
             Run("small states submit", SmallStateSubmissionSystem.Tick);
             Run("national unification", NationalUnificationSystem.Tick);

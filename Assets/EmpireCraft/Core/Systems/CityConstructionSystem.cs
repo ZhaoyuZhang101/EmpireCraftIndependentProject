@@ -22,7 +22,7 @@ namespace EmpireCraft.Core
 //   - 拓荒：新城还没盖起民居时，没有砍树采石的实体，民居要的木头凑不齐，城就一直只有篝火。这时百姓自己拾柴采石，
 //     每次结算往仓库补一点木头、石头，凑够盖头几座民居为止(见 Pioneer)。
 // 富庶度(0~1，见 Wealth)：主要看人均产出与人口，工商、民间家底各占一小份，乘地利。
-public static class CityConstructionSystem
+public static partial class CityConstructionSystem
 {
     private const float BasePointsPerSecond = 3f;
     private const float PointsPerHousehold = 0.05f;
@@ -579,7 +579,9 @@ public static class CityConstructionSystem
             LogService.LogWarning($"[EmpireCraft][城市建设] 开工失败({city.Name}): {exception}");
         }
     }
+#endif
 
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
     public static void StartSettlement(City city)
     {
         if (city == null || city.IsGone() || HasConstruction(city)) return;
@@ -651,7 +653,7 @@ public static class CityConstructionSystem
 #if EC_PENDING
     private static bool TryUpgrade(City city)
     {
-        CityBuildOrderAsset orders = AssetManager.city_build_orders.get(city.getActorAsset()?.build_order_template_id ?? "");
+        CityBuildOrderAsset orders = AssetManager.city_build_orders.get(city.GetActorAsset()?.build_order_template_id ?? "");
         if (orders?.list == null) return false;
         var candidates = new List<BuildOrder>();
         foreach (BuildOrder order in orders.list)

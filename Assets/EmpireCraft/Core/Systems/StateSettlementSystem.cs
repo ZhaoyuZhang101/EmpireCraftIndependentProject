@@ -109,7 +109,6 @@ public static partial class StateSettlementSystem
         return CityPopulationSystem.GetGrowthFactors(city).Famine ? "famine" : null;
     }
 
-#if EC_PENDING
     public static void Check(Realm owner)
     {
         if (!PopulationMode || owner == null || owner.IsGone() || owner.IsWild || AncientWarfareCompatibility.Owns(owner)) return;
@@ -225,7 +224,6 @@ public static partial class StateSettlementSystem
             return;
         }
     }
-#endif
 
     private static void ReserveForProject(StateSettlementData state, int gold) => state.reserved_project_gold =
         Math.Max(0, gold);
@@ -250,7 +248,6 @@ public static partial class StateSettlementSystem
         return TreasuryRules.AvailableBalance(money, reserve, projectReserve);
     }
 
-#if EC_PENDING
     private static bool NeedsSettlement(City city, Realm payer, StateSettlementData state)
     {
         if (StateSettlementRules.AtZoneLimit(city.Zones.Count, ModClass.CITY_MAX_ZONES)) return true;
@@ -264,7 +261,6 @@ public static partial class StateSettlementSystem
         return pressure && payer.GetMoney() >= Math.Max(2000L, (long)ModClass.SETTLEMENT_BASE_GOLD * 5L) &&
                GameClock.MonthsSince(since) >= 120;
     }
-#endif
 
     private static string SpontaneousCause(City city)
     {
@@ -281,7 +277,6 @@ public static partial class StateSettlementSystem
         return null;
     }
 
-#if EC_PENDING
     private static bool HasClaimableLand(City city)
     {
         Person actor = Founder(city.Realm, city);
@@ -289,11 +284,10 @@ public static partial class StateSettlementSystem
         foreach (Cell border in city.BorderZones)
             foreach (Cell zone in border.Neighbours)
                 if (zone?.City == null && zone?.Center != null && zone.GroundCount > 0 &&
-                    zone.CanBeClaimedByCity(city) && zone.checkCanSettleInThisBiomes(actor.Subspecies) &&
-                    zone.Center.IsSameIsland(city.SeatCell()) && zone.Center.reachableFrom(city.SeatCell())) return true;
+                    zone.CanBeClaimedByCity(city) && zone.CheckCanSettleInThisBiomes(actor.Subspecies) &&
+                    zone.Center.IsSameIsland(city.SeatCell()) && zone.Center.ReachableFrom(city.SeatCell())) return true;
         return false;
     }
-#endif
 
     private static void QueueSearch(Realm payer, City source)
     {
@@ -319,7 +313,6 @@ public static partial class StateSettlementSystem
     }
 
     // 调度器每帧推进一个国家，最多 8 个区域和 128 格海面；不调用原版整图 CityPlaceFinder.recalc。
-#if EC_PENDING
     public static void Tick()
     {
         CityResettlementSystem.Tick();
@@ -418,10 +411,8 @@ public static partial class StateSettlementSystem
         // 自发迁民留到下一帧提交(逃荒、避战的不筹备，当即成行)，仍服从统一帧预算。
         if (project.spontaneous) PendingSearches.Enqueue(id);
     }
-#endif
 
     // 按成本的选址搜索(见类头)：每帧至多 8 块
-#if EC_PENDING
     private static void WeightedSteps(Search search, City source, Person actor, StateSettlementProject project, Realm payer)
     {
         ConnectivityConfig config = ConnectivitySystem.Config;
@@ -461,15 +452,15 @@ public static partial class StateSettlementSystem
         if (zone == null) return 0;
         Cell origin = landOrigin ?? source.SeatCell();
         if (zone.City != null || zone.Center == null || zone.GroundCount <= 0 ||
-            !zone.Center.IsSameIsland(origin) || !zone.Center.reachableFrom(origin) ||
-            !zone.checkCanSettleInThisBiomes(actor.Subspecies)) return 0;
+            !zone.Center.IsSameIsland(origin) || !zone.Center.ReachableFrom(origin) ||
+            !zone.CheckCanSettleInThisBiomes(actor.Subspecies)) return 0;
         if (search.terrainScores.TryGetValue(zone.Index, out int score)) return score;
         int fields = 0;
         if (zone.Tiles != null)
             foreach (Cell tile in zone.Tiles)
                 if (tile?.Type?.CanBeFarm == true) fields++;
         // 周围能建设/耕作的土地优先，木石加分设上限，避免一片矿石压过安置条件。
-        score = zone.GroundCount + fields * 2 + (zone.canStartCityHere() ? 32 : 0) +
+        score = zone.GroundCount + fields * 2 + (zone.CanStartCityHere() ? 32 : 0) +
             Math.Min(12, zone.GetHashset(BuildingList.Trees)?.Count ?? 0) * 3 +
             Math.Min(4, zone.GetHashset(BuildingList.Minerals)?.Count ?? 0) * 8;
         search.terrainScores[zone.Index] = score;
@@ -480,10 +471,10 @@ public static partial class StateSettlementSystem
         Cell landOrigin = null, bool overseas = false)
     {
         Cell origin = landOrigin ?? source.SeatCell();
-        if (zone?.Center == null || actor == null || zone.City != null || !zone.canStartCityHere() ||
-            !zone.checkCanSettleInThisBiomes(actor.Subspecies) ||
+        if (zone?.Center == null || actor == null || zone.City != null || !zone.CanStartCityHere() ||
+            !zone.CheckCanSettleInThisBiomes(actor.Subspecies) ||
             zone.Center.Region?.island == null || !spontaneous && !overseas && zone.Center.Region.island.getTileCount() < 300 ||
-            !zone.Center.IsSameIsland(origin) || !zone.Center.reachableFrom(origin)) return false;
+            !zone.Center.IsSameIsland(origin) || !zone.Center.ReachableFrom(origin)) return false;
         // 自发聚落可以靠近原居地，不沿用官办城市的四层留白。
         var queue = new Queue<(Cell zone, int depth)>();
         var seen = new HashSet<int> { zone.Index };
@@ -507,7 +498,6 @@ public static partial class StateSettlementSystem
         reason = "land";
         return GoodSite(target, source, actor, project.spontaneous, landfall, project.overseas);
     }
-#endif
 
     // 建城筹备月数(模组设置)：官办建城与百姓因住房拥挤、缺少岗位自发迁出的聚落都要筹备；逃荒、避战的难民当即动身。
     // 以前自发聚落一律不筹备，而满城、缺岗时常有自发迁民，看起来就像筹备月数不生效
@@ -522,15 +512,14 @@ public static partial class StateSettlementSystem
         (project.overseas ? SettlementSeaSearch.TravelMonths(project.sea_route?.Count ?? 0,
             EmpireWorld.Current?.CityByKey(project.embarkation_city)) : 0);
 
-#if EC_PENDING
     private static bool Prepare(Realm payer, StateSettlementProject project, City source, Cell target, out string reason)
     {
         if (project.spontaneous) return PrepareSpontaneous(project, source, out reason);
         reason = "people";
         List<City> all = Cities(payer).ToList();
         List<City> donors = all.Where(city => city.Realm == source.Realm && SafeCity(city) &&
-                city.SeatCell().IsSameIsland(source.SeatCell()) && city.SeatCell().reachableFrom(source.SeatCell()))
-            .OrderBy(city => city == source ? 0 : 1).ThenBy(city => city.id).ToList();
+                city.SeatCell().IsSameIsland(source.SeatCell()) && city.SeatCell().ReachableFrom(source.SeatCell()))
+            .OrderBy(city => city == source ? 0 : 1).ThenBy(city => city.Key).ToList();
         project.migrants.Clear(); project.cargo.Clear(); project.granary_food = 0;
         int targetScale = CityPopulationSystem.PeoplePerSlot(source);
         float need = Math.Max(ModClass.SETTLEMENT_MIN_HOUSEHOLDS, ModClass.SETTLEMENT_TARGET_HOUSEHOLDS) * (float)targetScale;
@@ -589,7 +578,6 @@ public static partial class StateSettlementSystem
         return cost <= int.MaxValue && StateSettlementRules.CanPay(payer.GetMoney(), project.gold,
             (int)Math.Min(int.MaxValue, TreasurySystem.SafetyReserve(payer)));
     }
-#endif
 
     private static bool PrepareSpontaneous(StateSettlementProject project, City source, out string reason)
     {
@@ -644,7 +632,6 @@ public static partial class StateSettlementSystem
             price = (amount - publicAmount) * Math.Max(0f, PopulationEconomySystem.UnitValue(donor, resource)) });
     }
 
-#if EC_PENDING
     private static void Complete(Realm payer, StateSettlementData state)
     {
         StateSettlementProject project = state.project;
@@ -691,7 +678,7 @@ public static partial class StateSettlementSystem
             {
                 Person actor = Founder(owner, source);
                 if (!project.native_initialized && actor != null)
-                { city.setUnitMetas(actor); city.newCityEvent(actor); project.native_initialized = true; }
+                { city.SetUnitMetas(actor); city.NewCityEvent(actor); project.native_initialized = true; }
                 CultureService.SetCityMainCulture(city, CultureService.GetMainCulture(source));
                 project.initialized = true;
             }
@@ -783,7 +770,7 @@ public static partial class StateSettlementSystem
             }
             // 启动现有正常建设：资源由公共库存支付，仍遵守住房/风车规划和科技。
             CityPopulationSystem.InvalidateHouseholdCaches();
-            city.updateCityStatus();
+            city.UpdateCityStatus();
             CityConstructionSystem.StartSettlement(city);
             if (!project.spontaneous)
             {
@@ -806,7 +793,6 @@ public static partial class StateSettlementSystem
             LogService.LogWarning($"[EmpireCraft] 国家建城项目待恢复({payer.Key}): {error.Message}");
         }
     }
-#endif
 
     private static bool FinishFief(Realm payer, StateSettlementProject project, City city)
     {

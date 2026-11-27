@@ -8,7 +8,7 @@ namespace EmpireCraft.Core
 {
 
 // 沿真实海面寻路，搜索队列只在运行时存在；选定的短航线以坐标保存。
-internal sealed class SettlementSeaSearch
+internal sealed partial class SettlementSeaSearch
 {
     internal sealed class SeaNode
     {
@@ -77,7 +77,6 @@ internal sealed class SettlementSeaSearch
     public string unavailable { get; private set; } = "port";
     public bool Finished => seaQueue.Count == 0 && landQueue.Count == 0;
 
-#if EC_PENDING
     public SettlementSeaSearch(City source, IEnumerable<City> ports, City existingTarget = null)
     {
         this.existingTarget = existingTarget;
@@ -93,16 +92,14 @@ internal sealed class SettlementSeaSearch
             int range = Range(city, port);
             oceanAvailable |= range > NearSeaRange;
             if (range > IndustrialSeaRange / 2) maxVisited = LongRangeVisitedTiles;
-            foreach (Cell tile in port.component_docks.tiles_ocean)
+            foreach (Cell tile in port.Docks.TilesOcean)
                 if (Navigable(tile) && Visit(tile, range))
                     seaQueue.Enqueue(new SeaNode { tile = tile, portCity = city, range = range });
             if (++count >= 4) break;
         }
     }
-#endif
 
     // 每帧至多 128 格海面；候选陆地由调用者另外分帧检查，不在海岸线循环中做建城检查。
-#if EC_PENDING
     public void Advance(City source)
     {
         for (int steps = 0; steps < 128 && seaQueue.Count > 0 && SimulationFrameBudget.HasTime; steps++)
@@ -126,7 +123,6 @@ internal sealed class SettlementSeaSearch
             }
         }
     }
-#endif
 
     private bool Visit(Cell tile, int remaining)
     {
@@ -136,7 +132,6 @@ internal sealed class SettlementSeaSearch
         return true;
     }
 
-#if EC_PENDING
     public Landing NextLanding()
     {
         if (landQueue.Count == 0) return null;
@@ -144,11 +139,10 @@ internal sealed class SettlementSeaSearch
         if (landing.depth < 4)
             foreach (Cell next in landing.zone.Neighbours ?? Array.Empty<Cell>())
                 if (next?.Center != null && (next.City == null || next.City == existingTarget) &&
-                    next.Center.IsSameIsland(landing.landfall) && next.Center.reachableFrom(landing.landfall) &&
+                    next.Center.IsSameIsland(landing.landfall) && next.Center.ReachableFrom(landing.landfall) &&
                     landSeen.Add(next.Index)) landQueue.Enqueue(landing.Next(next));
         return landing;
     }
-#endif
 
     public Candidate Accept(Landing landing)
     {
@@ -157,25 +151,23 @@ internal sealed class SettlementSeaSearch
     }
 
     private static SettlementRoutePoint Point(Cell tile) => new() { x = tile.X, y = tile.Y };
-#if EC_PENDING
-    internal static bool Navigable(Cell tile) => tile?.Type != null && tile.isGoodForBoat();
-#endif
+    internal static bool Navigable(Cell tile) => tile?.Type != null && tile.IsGoodForBoat();
     internal static Building Port(City city) => city?.GetBuildingOfType("type_docks", pCountOnlyFinished: true, pRandom: false);
 
-#if EC_PENDING
     private static bool EligiblePortCity(City city, City source) => city?.Record != null && !city.IsGone() &&
         !AncientWarfareCompatibility.OwnsObject(city) && city.SeatCell() != null &&
         StateSettlementSystem.FundingRealm(city.Realm) == StateSettlementSystem.FundingRealm(source.Realm) &&
-        city.SeatCell().IsSameIsland(source.SeatCell()) && city.SeatCell().reachableFrom(source.SeatCell());
+        city.SeatCell().IsSameIsland(source.SeatCell()) && city.SeatCell().ReachableFrom(source.SeatCell());
 
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
     private static bool CanTransport(City city, Building port)
     {
-        if (port?.component_docks?.tiles_ocean == null || port.Asset?.boat_types == null ||
+        if (port?.component_docks?.tiles_ocean == null || port.asset?.boat_types == null ||
             city.getActorAsset()?.architecture_asset == null) return false;
         // 按本族建筑和已有科技验证运输能力；不要求实体移民或运输船完成登船任务。
-        foreach (string type in port.Asset.boat_types)
+        foreach (string type in port.asset.boat_types)
         {
-            string id = port.Asset.getBoatAssetIDFromType(type, city);
+            string id = port.asset.getBoatAssetIDFromType(type, city);
             if (!string.IsNullOrEmpty(id) && AssetManager.actor_library.get(id)?.is_boat_transport == true &&
                 TechnologySystem.CanSpawnUnit(id, city)) return true;
         }
@@ -211,7 +203,6 @@ internal sealed class SettlementSeaSearch
     internal static int TransportGold(StateSettlementProject project) => project.overseas && !project.spontaneous
         ? 50 + (project.sea_route.Count + 7) / 8 * 5 : 0;
 
-#if EC_PENDING
     internal static bool Validate(StateSettlementProject project, City source, out Cell landfall, out string reason,
         City existingTarget = null)
     {
@@ -236,7 +227,7 @@ internal sealed class SettlementSeaSearch
             if (point == null) return false;
             Cell tile = EmpireWorld.Current.CellAt(point.x, point.y);
             if (!Navigable(tile) || previous != null && !Adjacent(previous, tile)) return false;
-            if (previous == null && !port.component_docks.tiles_ocean.Contains(tile)) return false;
+            if (previous == null && !port.Docks.TilesOcean.Contains(tile)) return false;
             previous = tile;
         }
         landfall = EmpireWorld.Current.CellAt(project.landfall.x, project.landfall.y);
@@ -244,7 +235,6 @@ internal sealed class SettlementSeaSearch
             (landfall.Zone.City == null || landfall.Zone.City == existingTarget) && landfall.Region?.island != null &&
             !landfall.IsSameIsland(source.SeatCell()) && Adjacent(previous, landfall);
     }
-#endif
 
     private static bool Adjacent(Cell a, Cell b) => a?.Neighbours?.Contains(b) == true;
 }

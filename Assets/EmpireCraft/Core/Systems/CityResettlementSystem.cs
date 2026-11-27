@@ -96,15 +96,13 @@ internal static class CityResettlementSystem
     }
 
     // 陆路够得着：同一块陆地、通达层的陆路成本够近(没算好时直线 192 格、原版寻路走得到)
-#if EC_PENDING
     private static bool LandReach(City source, City target)
     {
         if (!source.SeatCell().IsSameIsland(target.SeatCell())) return false;
         float cost = LandCost(source, target);
         if (cost >= 0f) return !float.IsPositiveInfinity(cost);
-        return Distance(source, target) <= 192L * 192L && target.SeatCell().reachableFrom(source.SeatCell());
+        return Distance(source, target) <= 192L * 192L && target.SeatCell().ReachableFrom(source.SeatCell());
     }
-#endif
 
     private static long Distance(City a, City b)
     {
@@ -112,7 +110,6 @@ internal static class CityResettlementSystem
         return dx * dx + dy * dy;
     }
 
-#if EC_PENDING
     public static void Tick()
     {
         if (!Enabled || Pending.Count == 0 || !SimulationFrameBudget.HasTime) return;
@@ -200,7 +197,7 @@ internal static class CityResettlementSystem
         {
             var landing = work.sea.NextLanding();
             if (landing == null) break;
-            if (!target.SeatCell().IsSameIsland(landing.landfall) || !target.SeatCell().reachableFrom(landing.landfall) ||
+            if (!target.SeatCell().IsSameIsland(landing.landfall) || !target.SeatCell().ReachableFrom(landing.landfall) ||
                 landing.zone.City != target) continue;
             work.sea.Accept(landing).Apply(plan.journey);
             plan.source = sailor.Key;
@@ -218,7 +215,6 @@ internal static class CityResettlementSystem
         }
         Pending.Enqueue(id);
     }
-#endif
 
     private static void Select(CityResettlementProject plan, City source)
     {
@@ -227,7 +223,6 @@ internal static class CityResettlementSystem
         plan.journey = new StateSettlementProject { source = source.Key, owner = source.Realm.Key, spontaneous = true };
     }
 
-#if EC_PENDING
     private static void Arrive(Realm payer, StateSettlementData state, City target)
     {
         var plan = state.resettlement;
@@ -242,7 +237,7 @@ internal static class CityResettlementSystem
                     ? "resettlement_" + reason : "resettlement_unreachable");
                 return;
             }
-            if (!target.SeatCell().IsSameIsland(shore) || !target.SeatCell().reachableFrom(shore))
+            if (!target.SeatCell().IsSameIsland(shore) || !target.SeatCell().ReachableFrom(shore))
             { Cancel(payer, state, "resettlement_unreachable"); return; }
             if (GameClock.MonthsSince(plan.journey.started) < SettlementSeaSearch.TravelMonths(plan.journey.sea_route.Count, source))
             { state.status = "resettlement_sailing"; return; }
@@ -268,7 +263,6 @@ internal static class CityResettlementSystem
         if (!plan.arrived) { Cancel(payer, state, "resettlement_people"); return; }
         Finish(payer, state, target);
     }
-#endif
 
     private static void PlanCargo(CityResettlementProject plan, City source, City target, float people)
     {
@@ -290,7 +284,6 @@ internal static class CityResettlementSystem
         }
     }
 
-#if EC_PENDING
     private static void Finish(Realm payer, StateSettlementData state, City target)
     {
         var plan = state.resettlement;
@@ -334,7 +327,7 @@ internal static class CityResettlementSystem
                 CityConstructionSystem.StartSettlement(target);
             }
             CityPopulationSystem.InvalidateHouseholdCaches();
-            target.updateCityStatus();
+            target.UpdateCityStatus();
             state.resettlement = null;
             state.status = "resettled";
             Works.Remove(payer.Key);
@@ -349,14 +342,12 @@ internal static class CityResettlementSystem
             LogService.LogWarning($"[EmpireCraft] 空城安置待恢复({target.Key}): {error.Message}");
         }
     }
-#endif
 
     private static void Requeue(long id, StateSettlementData state)
     { if (state.resettlement != null) Pending.Enqueue(id); }
     private static void Cancel(Realm payer, StateSettlementData state, string status)
     { state.resettlement = null; state.status = status; Works.Remove(payer.Key); }
     public static void ResetWorldState() { Works.Clear(); Pending.Clear(); }
-#if EC_PENDING
     public static void ModeChanged(bool enabled)
     {
         if (enabled) return;
@@ -369,6 +360,5 @@ internal static class CityResettlementSystem
             else Cancel(payer, state, "idle");
         }
     }
-#endif
 }
 }

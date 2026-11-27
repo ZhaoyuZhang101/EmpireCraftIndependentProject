@@ -152,7 +152,7 @@ public class CityPatch : GamePatch
         );
 
         new Harmony(nameof(newCity)).Patch(
-            AccessTools.Method(typeof(City), nameof(City.newCityEvent)),
+            AccessTools.Method(typeof(City), nameof(City.NewCityEvent)),
             prefix: new HarmonyMethod(GetType(), nameof(newCity))
         );
 

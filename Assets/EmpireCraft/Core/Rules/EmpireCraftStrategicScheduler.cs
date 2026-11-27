@@ -302,7 +302,6 @@ public static class EmpireCraftStrategicScheduler
     }
 
     // 轮转到下一国(重要的国家另在前面过，这里跳过)
-#if EC_PENDING
     private static bool ProcessNextKingdom(float realtime, IList<Realm> kingdoms)
     {
         if (kingdoms == null || kingdoms.Count == 0) return false;
@@ -316,10 +315,8 @@ public static class EmpireCraftStrategicScheduler
         ProcessKingdom(realtime, kingdom, false);
         return true;
     }
-#endif
 
     // major：重要的国家(见 RealmPriority)，月度各步预算用完也至少推进一步
-#if EC_PENDING
     private static void ProcessKingdom(float realtime, Realm kingdom, bool major)
     {
         if (kingdom == null || kingdom.IsGone() || AncientWarfareCompatibility.Owns(kingdom)) return;
@@ -396,7 +393,6 @@ public static class EmpireCraftStrategicScheduler
             LogService.LogWarning($"[EmpireCraft] Strategic kingdom slice failed for {kingdom.Key}: {error}");
         }
     }
-#endif
 
     private static void ProcessTemporaryFactions(Realm kingdom)
     {

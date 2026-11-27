@@ -200,6 +200,20 @@ namespace EmpireCraft.Core
             return mine >= 0 && mine == World.LandmassOf(other.Index);
         }
 
+        // Reachable over land from the other cell: the same landmass.
+        public bool ReachableFrom(Cell other) => IsSameIsland(other);
+        // Whether a new city may be founded here: free ground fit to live on, not touching another city's land.
+        public bool CanStartCityHere()
+        {
+            if (!CanSettle) return false;
+            foreach (var cell in NeighboursAll) if (World.TileCity[cell.Index] >= 0) return false;
+            return true;
+        }
+        // Whether this people can live here: every people lives wherever the ground is fit to live on.
+        public bool CheckCanSettleInThisBiomes(Subspecies subspecies) => World.Settleable(Index);
+        // Whether a boat can sail here: open water.
+        public bool IsGoodForBoat() => IsWater;
+
         public override string ToString() => "(" + X + "," + Y + ")";
     }
 

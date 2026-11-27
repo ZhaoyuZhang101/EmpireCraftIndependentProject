@@ -6,5 +6,9 @@ namespace EmpireCraft.Core
     public static partial class StateSettlementSystem
     {
         public static void ModeChanged(bool enabled) { }
+
+        // Whether realms are still waiting for their site search to go on. The mod's scheduler took one a frame;
+        // a month step here goes on until none is waiting (see PortedSystems).
+        public static bool SearchesPending => PendingSearches.Count > 0;
     }
 }
