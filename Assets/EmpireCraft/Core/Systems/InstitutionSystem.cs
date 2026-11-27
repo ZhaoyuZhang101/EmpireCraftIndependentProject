@@ -731,7 +731,6 @@ public static partial class InstitutionSystem
 
     #region 帝国侧：年度更新
 
-#if EC_PENDING
     public static void Update(Empire empire)
     {
         if (empire?.data == null || empire.IsArchived() || empire.IsGone() || EmpireWorld.Current == null ||
@@ -777,7 +776,6 @@ public static partial class InstitutionSystem
         if (state.active_reform != null) AdvanceReform(realm);
         else TryStartAiReform(realm);
     }
-#endif
 
     // 世界级的接触/吸收结算一年一次。以前由当年第一个更新的帝国顺带触发，没有帝国的年份(部落时代、天下大乱)
     // 就不结算；现在登记在城市钩子的年度扫描里(见 CityPatch.WorldYearlyScans"制度接触")，有没有帝国都照常结算
@@ -1918,7 +1916,6 @@ public static partial class InstitutionSystem
     private const float CrisisGrievanceFloor = 20f;
     private const float CrisisFloorPerStrain = 1f;
 
-#if EC_PENDING
     private static void UpdateSocialUnrest(Empire empire)
     {
         InstitutionSocialUnrestConfig config = InstitutionDefinitionRegistry.Global.social_unrest;
@@ -2068,7 +2065,6 @@ public static partial class InstitutionSystem
             state.social_quiet_reason = "no_city";
         else if (state.social_rebellion_war_id > 0) state.class_mobilization[mostAngry.Key] = 20f;
     }
-#endif
 
     private const float OppositionAdaptationHalfLifeYears = 40f;
 
@@ -2104,7 +2100,6 @@ public static partial class InstitutionSystem
         return total > 0 ? (float)matching / total : 0f;
     }
 
-#if EC_PENDING
     private static bool TryStartSocialRebellion(Empire empire, SocialClass socialClass, float grievance)
     {
         if (!RebellionSystem.CanAttempt(empire?.CoreKingdom))
@@ -2125,10 +2120,10 @@ public static partial class InstitutionSystem
                                                               !kingdom.IsFactionRebelling() &&
                                                               !kingdom.IsLocalRebelling() &&
                                                               !kingdom.GetWars().Any())
-            .Select(kingdom => new { Realm = kingdom, Share = GetKingdomClassShare(kingdom, socialClass) })
+            .Select(kingdom => new { Kingdom = kingdom, Share = GetKingdomClassShare(kingdom, socialClass) })
             .Where(candidate => candidate.Share > 0f)
             .OrderByDescending(candidate => candidate.Share)
-            .ThenByDescending(candidate => candidate.Kingdom.countTotalWarriors())
+            .ThenByDescending(candidate => candidate.Kingdom.Warriors())
             .Select(candidate => candidate.Kingdom).FirstOrDefault();
         // 单一王国的大帝国也可能爆发社会革命：没有现成封国可起兵时，由受损阶层成员
         // 在非首都城市建立叛军政权，避免“只有分封帝国才会有农民起义”的反直觉结果。
@@ -2212,7 +2207,6 @@ public static partial class InstitutionSystem
         }
         return true;
     }
-#endif
 
     // 阶层起义的叛军在占领扩散中以该阶层当前怨气(民心)作为天命
     public static bool TryGetSocialRebelMandate(Realm kingdom, out int mandate)

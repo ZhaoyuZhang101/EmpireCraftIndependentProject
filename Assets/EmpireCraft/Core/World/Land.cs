@@ -127,7 +127,9 @@ namespace EmpireCraft.Core
         // Drawing helpers belong to the client; there is nothing to reset here.
         public void ResetRenderHelpers() { }
         // Free land a city may take: ground no city holds yet.
-        public bool CanBeClaimedByCity(City city) => World.TileCity[Index] < 0 && World.Claimable(Index);
+        // As in the base game, a city with a leader takes only land its people can live on (the same answer as
+        // CheckCanSettleInThisBiomes); without one, any free land.
+        public bool CanBeClaimedByCity(City city) => World.TileCity[Index] < 0 && World.Claimable(Index) && (city?.Leader == null || World.Settleable(Index));
         // Ground here is never frozen for a season.
         public bool IsTemporaryFrozen() => false;
         public CellRegion Region => new CellRegion(World.IslandObject(Index));

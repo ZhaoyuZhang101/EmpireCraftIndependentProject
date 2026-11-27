@@ -4243,7 +4243,6 @@ public partial class Empire : RecordObject<EmpireData>
             actor.HasVirtualEnfeoff(this) && actor.GetOrCreate().virtual_enfeoff_title_id == data.powerful_minister_title_id;
     }
 
-#if EC_PENDING
     public bool GrantPowerfulMinisterNineBestowments(Person actor)
     {
         if (!CanPowerfulMinisterReceiveNineBestowments(actor)) return false;
@@ -4263,7 +4262,6 @@ public partial class Empire : RecordObject<EmpireData>
         ResolveMinisterOpposition(actor);
         return true;
     }
-#endif
 
     private static bool HasUsurpingDisposition(Person actor)
     {
@@ -4309,7 +4307,6 @@ public partial class Empire : RecordObject<EmpireData>
             .SelectMany(title => title.GetCities()).Where(IsLocal).OrderBy(city => city.Key).FirstOrDefault();
     }
 
-#if EC_PENDING
     private void ResolveMinisterOpposition(Person minister, int? influence = null)
     {
         if (EmpireCraft.Core.UnificationSystem.InGrace(CoreKingdom)) return;
@@ -4320,9 +4317,9 @@ public partial class Empire : RecordObject<EmpireData>
         // Snapshot before creating kingdoms: each successful revolt changes empire membership.
         var opponents = GetUnits().Where(actor => actor != null && actor != minister &&
                 !actor.IsGone() && PowerfulMinisterRules.ShouldRiseAgainstMinister(ministerInfluence, actor.Renown, true))
-            .Distinct().Select(actor => new { Person = actor, City = GetMinisterOpponentPowerBase(actor) })
-            .Where(item => item.City != null).OrderByDescending(item => item.Actor.renown)
-            .ThenBy(item => item.Actor.id).ToList();
+            .Distinct().Select(actor => new { Actor = actor, City = GetMinisterOpponentPowerBase(actor) })
+            .Where(item => item.City != null).OrderByDescending(item => item.Actor.Renown)
+            .ThenBy(item => item.Actor.Key).ToList();
         foreach (var opponent in opponents)
         {
             Person leader = opponent.Actor;
@@ -4408,7 +4405,6 @@ public partial class Empire : RecordObject<EmpireData>
         ClearPowerfulMinister();
         return Emperor?.Key == actor.Key;
     }
-#endif
 
     private Person GetLegalPeerageCandidate(KingdomTitle title, out PersonalClanIdentity predecessor)
     {

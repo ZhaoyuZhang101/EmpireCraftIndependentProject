@@ -1876,7 +1876,6 @@ public static partial class KingdomExtension
         return k.GetOrCreate().isFactionRebelling;
     }
 
-#if EC_PENDING
     public static bool StartLocalRebelling(this Realm kingdom, EmpireWarType warType, string pre = "")
     {
         if (kingdom?.Record == null) return false;
@@ -1919,7 +1918,7 @@ public static partial class KingdomExtension
                 kingdom.GetRegime().SetAllowArmy(true);
                 kingdom.GetRegime().SetAllowSupportCenterArmy(false);
                 kingdom.GetRegime().SetLeaderSelectMethod(LeaderSelectMethod.Succession);
-                kingdom.GetWars().ForEach(w=>EmpireWorld.Current.EndWar(w));
+                kingdom.GetWars().ToList().ForEach(w=>EmpireWorld.Current.EndWar(w));
                 var language = LM.Language;
                 if (language == "en")
                 {
@@ -1954,7 +1953,7 @@ public static partial class KingdomExtension
         if (warType == EmpireWarType.地方叛乱)
         {
             // 叛军规模由其领袖的既有城市容量决定，避免战时无限扩张。
-            extraData.rebellion_auto_expand_remaining = Mathf.CeilToInt(kingdom.getMaxCities() * 1.5f);
+            extraData.rebellion_auto_expand_remaining = Mathf.CeilToInt(kingdom.MaxCities() * 1.5f);
         }
         else
         {
@@ -1962,7 +1961,6 @@ public static partial class KingdomExtension
         }
         return true;
     }
-#endif
 
     public static void EndLocalRebelling(this Realm k)
     {

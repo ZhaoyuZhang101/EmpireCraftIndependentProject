@@ -635,7 +635,6 @@ public static class RevolutionSystem
         return state.post_revolution_phase == 2 ? 4f : state.post_revolution_radical >= 50f ? 2.5f : 1f;
     }
 
-#if EC_PENDING
     private static void Aftermath(Empire empire, ConstitutionalEconomyState state, double now)
     {
         if (!RepublicSystem.IsRepublic(empire))
@@ -681,7 +680,6 @@ public static class RevolutionSystem
         state.post_revolution_phase = 4;
         EventRecorder.Record(empire, string.Format(LM.Get("post_revolution_settled_history"), country));
     }
-#endif
 
     // 清洗：取缔与立国理念相去最远的在野党；没有政党可取缔就清算旧人
     private static void Purge(Empire empire, ConstitutionalEconomyState state, PartyIdeology founding)

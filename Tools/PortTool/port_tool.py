@@ -88,8 +88,9 @@ IDENTITY = [
     (r"\bCorruptionRules\.ModRealm\(", "CorruptionRules.Realm("),
     (r"\bWorld\.world\.getCurWorldTime\(\)", "GameClock.Now"),
     (r"\bWorld\.world\b", "EmpireWorld.Current"),
-    (r"(?<![.\w])Kingdom\b", "Realm"),
-    (r"(?<![.\w])Actor\b", "Person"),
+    # A member named in an anonymous type (new { Kingdom = kingdom }) is read back as .Kingdom and keeps its name.
+    (r"(?<![.\w])(?<!new \{ )Kingdom\b", "Realm"),
+    (r"(?<![.\w])(?<!new \{ )Actor\b", "Person"),
     # The map's size was a static of the world class; here it belongs to the world in play.
     (r"(?<![.\w])MapBox\.width\b", "EmpireWorld.Current.Width"),
     (r"(?<![.\w])MapBox\.height\b", "EmpireWorld.Current.Height"),
@@ -129,6 +130,8 @@ IDENTITY = [
     (r"(int cityLevels = )(city\.buildings\.Where\()", r"\1CityAnswers.CityLevel(city) + \2"),
     (r"\bcity\.getResourcesAmount\(requirement\.id\) >= requirement\.amount\b",
      r"(city.getResourcesAmount(requirement.id) >= requirement.amount || CityAnswers.LandYields(city, requirement.id))"),
+    # A realm's wars were a list in the base game; here they are a sequence, copied before wars are ended through it.
+    (r"\.getWars\(\)\.ForEach\(", ".getWars().ToList().ForEach("),
     # War targets (EmpireCraftPlotsAddition): realms a realm could turn on, and how far apart two realms lie.
     (r"\b(?:EmpireWorld\.Current|DiplomacyHelpers|World\.world)\.wars\.getNeutralKingdoms\(", "EmpireWorld.Current.NeutralRealms("),
     # The base game could lock its city list mid-update; this world's never is.

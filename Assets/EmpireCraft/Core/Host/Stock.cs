@@ -390,20 +390,37 @@ namespace EmpireCraft.Core
         public static bool ManualGround(Cell tile) => false;
     }
 
-    // Which free cell a city takes next as it grows: the most fertile one next to its land, within seven cells of its
-    // seat (a little less for each cell farther off). This game's rule, the same the skeleton's growth used; the mod
-    // then checks it its own way (CityExpansionPatch.GrowVirtualCity).
+    // Which free cell a city takes next as it grows. The base game's grower made a first pick and the mod hooked in on
+    // both sides (CityExpansionPatch: before, a city at its cap takes nothing; after, its own choice among that pick and
+    // every cell bordering the city, by its own checks and the lie of the land). Here the first pick is this game's
+    // rule (the most fertile land people can live on next to the city, within seven cells of its seat, a little less
+    // for each cell farther off) and the mod's two hooks run around it as they did there. Without the mod's choice the
+    // first pick alone was asked for again every month when the mod's checks turned it down, and the city stopped growing.
+    public sealed class ZoneConnection { public Cell zone; }
     public sealed class CityZoneGrowth
     {
         public static readonly CityZoneGrowth Instance = new CityZoneGrowth();
+        // The base game's grower kept the cells it had looked at this round, and could fall back on a random one; the
+        // mod's choice (CityExpansionPatch.AfterGetZoneToClaim) weighs those beside every cell bordering the city. Here
+        // nothing is kept and there is no random fallback: the mod's choice looks at the bordering cells itself.
+        public readonly List<ZoneConnection> _zones_checked = new List<ZoneConnection>();
+        public Cell getRandomZone(City city) => null;
         public Cell getZoneToClaim(Person claimer, City city)
+        {
+            Cell result = null;
+            if (!CityExpansionPatch.BeforeGetZoneToClaim(city, false, ref result)) return result;
+            result = FirstPick(city);
+            CityExpansionPatch.AfterGetZoneToClaim(this, claimer, city, false, ref result);
+            return result;
+        }
+        Cell FirstPick(City city)
         {
             var w = city?.World; if (w == null || !city.Alive) return null;
             int best = -1; float bestScore = -1f;
             foreach (int t in city.Tiles)
                 for (int d = 0; d < 4; d++)
                 {
-                    int n = w.Map.Neighbor(t, d); if (n < 0 || w.TileCity[n] >= 0 || !w.Claimable(n)) continue;
+                    int n = w.Map.Neighbor(t, d); if (n < 0 || w.TileCity[n] >= 0 || !w.Claimable(n) || !w.Settleable(n)) continue;
                     float distance = w.Distance(city.Tile, n); if (distance > 7) continue;
                     float s = w.Map.Fertility[n] - distance * .04f; if (s > bestScore || (s == bestScore && n < best)) { bestScore = s; best = n; }
                 }

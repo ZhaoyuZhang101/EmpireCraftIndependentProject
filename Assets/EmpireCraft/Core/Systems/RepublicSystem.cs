@@ -760,7 +760,6 @@ public static class RepublicSystem
 
     // 旧党反扑(革命之后的激进期，见 RevolutionSystem.Aftermath)：保守民心最盛的一座外城举兵，要把旧秩序请回来。
     // 打赢了(攻下都城)：原是君主国的迎回旧主、复辟帝制，原是共和国的由举兵者主政、取缔革命党(见 ResolveCounterRevolution)
-#if EC_PENDING
     public static bool StartCounterRevolution(Empire empire)
     {
         if (!IsRepublic(empire) || HasActiveRevolutionWar(empire) || empire.CoreKingdom == null) return false;
@@ -800,7 +799,6 @@ public static class RepublicSystem
             empire.GetEmpireFullName()), leader);
         return true;
     }
-#endif
 
     public static void ResolveCounterRevolution(War war, WarOutcome winner)
     {

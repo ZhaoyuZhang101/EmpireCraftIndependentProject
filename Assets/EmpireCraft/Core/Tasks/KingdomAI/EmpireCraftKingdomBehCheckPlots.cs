@@ -101,7 +101,7 @@ public class EmpireCraftKingdomBehCheckPlots : GameAIKingdomBase
         if (EmpireCraft.Core.PettyRebellion.IsPetty(pKingdom)) return;
         if (rebelData.rebellion_auto_expand_remaining < 0)
         {
-            rebelData.rebellion_auto_expand_remaining = (int)Math.Ceiling(pKingdom.getMaxCities() * 1.5d);
+            rebelData.rebellion_auto_expand_remaining = (int)Math.Ceiling(pKingdom.MaxCities() * 1.5d);
         }
         foreach (var k in empire.kingdoms_list.ToList())
         {

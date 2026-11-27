@@ -370,7 +370,6 @@ public partial class CityExpansionPatch : GamePatch
         return false;
     }
 
-#if EC_PENDING
     public static void AfterGetZoneToClaim(CityZoneGrowth __instance, Person pActor, City pCity,
         bool pDebug, ref Cell __result)
     {
@@ -409,7 +408,6 @@ public partial class CityExpansionPatch : GamePatch
         if (best == null) Consider(__instance.getRandomZone(pCity));
         __result = best;
     }
-#endif
 
     private static float ExpansionScore(City city, Cell zone)
     {

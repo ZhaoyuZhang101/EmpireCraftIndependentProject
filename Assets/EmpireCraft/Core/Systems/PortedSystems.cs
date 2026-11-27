@@ -160,8 +160,13 @@ namespace EmpireCraft.Core
             // Peace settlements hand over what was won (and check each war's objective).
             Run("war goals", WarGoalSystem.Tick);
             Run("roads", RoadBuildingSystem.Tick);
-            Run("tribal council", TribalCouncilSystem.Monthly);
-            Run("abdication", ShanrangSystem.Monthly);
+            // The mod's monthly royal-house pass (RoyalHouseSystem.Tick); its links that compile, in its order. City-states
+            // and tribes keep one city each; a tribe also follows its people's regime out of the tribal stage, holds its
+            // council and abdications, and members leave, are let go or are enfeoffed (TribalFissionService).
+            Run("city-states one city", CityStateService.EnforceOneCity);
+            Run("tribes", TribalFissionService.EnforceOneCity);
+            Run("tribal assembly", TribalAssemblySystem.Monthly);
+            Run("royal marriage", RoyalMarriageSystem.Monthly);
             Run("steppe order", SteppeOrderSystem.Monthly);
             Run("palace army", () => { foreach (var realm in w.LiveRealms.ToArray()) PalaceArmySystem.Monthly(realm); });
 
@@ -203,6 +208,9 @@ namespace EmpireCraft.Core
             var state = empire.data.constitutional_economy ??= new ConstitutionalEconomyState();
             state.recent_trade ??= new List<CompletedTradeVoyage>();
             state.stable_culture ??= "";
+            // Reforms the empire's court pushes along its people's institution line (in the tribal stage only a
+            // confederation pushes them), then the technology drive beside them.
+            Run("empire: institutions", () => InstitutionSystem.Update(empire));
             Run("empire: tech drive", () => TechDriveSystem.Update(empire));
             Run("empire: constitution", () => ConstitutionSystem.Update(empire, state));
             Run("empire: parliament", () => ParliamentSystem.Update(empire));

@@ -755,6 +755,21 @@ public static class RulesChecks
     }
 
     static string lastNullAt;
+    // Settleable land no city holds: how much, how much lies in wilderness, and how much borders a city.
+    static string FreeLand(EmpireWorld w)
+    {
+        var wild = new HashSet<int>(WildernessSystem.Regions.SelectMany(r => r.Zones));
+        int free = 0, inWild = 0, byCity = 0;
+        for (int i = 0; i < w.TileCity.Length; i++)
+        {
+            if (w.TileCity[i] >= 0 || !w.Settleable(i)) continue;
+            free++;
+            if (wild.Contains(i)) inWild++;
+            else if (w.Zones.ById(i)?.Neighbours.Any(n => w.TileCity[n.Index] >= 0) == true) byCity++;
+        }
+        return free + " (in wilderness " + inWild + ", next to a city " + byCity + ")";
+    }
+
     public static void EmpiresArise(int width = 256, int years = 150)
     {
         checks = 0;
@@ -875,10 +890,28 @@ public static class RulesChecks
         Check(peoples.Count(c => (InstitutionSystem.GetOrCreateCultureState(c)?.enacted_node_ids?.Count ?? 0) > 1) * 2 >= peoples.Count, "most peoples carry out reforms");
         int settled = w.LiveRealms.Count(r => !TribalFissionService.IsTribal(r));
         // Realms growing out of the tribe within these years depends on how the world goes: reported, not required.
-        // Realms go to war on their own and win: cities change hands or, between tribes (one city each in the mod), the loser
-        // concedes and pays, joining the winner's confederation where it has a tribal union. Then the world founds an empire.
-        Check(w.Wars.Count(x => x.Kind == WarKinds.Normal) > 0 && (w.Annals.Entries.Any(e => e.Kind == AnnalKind.CityTransferred) || conceded > 0),
-            "realms go to war and win: cities change hands or tribes concede");
+        // Realms go to war on their own and wars are won: cities change hands, a tribe (one city each in the mod) concedes
+        // and pays when its city falls, or the winner dictates the peace. Whether cities change hands within these years
+        // depends on how the world goes (all tribes, none do): reported, not required. Then the world founds an empire.
+        var normalWars = w.Wars.Where(x => x.Kind == WarKinds.Normal).ToList();
+        int won = normalWars.Count(x => x.Outcome == WarOutcome.Attackers || x.Outcome == WarOutcome.Defenders);
+        Console.WriteLine("   war outcomes: " + string.Join(", ", normalWars.GroupBy(x => x.Alive ? "running" : x.Outcome.ToString()).OrderByDescending(g => g.Count()).Select(g => g.Key + " " + g.Count())) +
+            "; cities changed hands " + w.Annals.Entries.Count(e => e.Kind == AnnalKind.CityTransferred) + ", tribes conceded " + conceded);
+        Check(normalWars.Count > 0 && won > 0, "realms go to war and wars are won");
+        // Where state settlement stands for each realm (why no new city is founded), and the land cities hold (the cap is per city).
+        var cells = w.Cities.Where(c => c.Alive).Select(c => c.Zones.Count).OrderBy(x => x).ToList();
+        Console.WriteLine("   settlement: " + string.Join(", ", w.LiveRealms.GroupBy(r => r.GetOrCreate().settlement?.status ?? "none").OrderByDescending(g => g.Count()).Select(g => g.Key + " " + g.Count())) +
+            "; city cells " + (cells.Count == 0 ? "none" : cells[0] + "/" + cells[cells.Count / 2] + "/" + cells[cells.Count - 1]) + " (cap " + ModClass.CITY_MAX_ZONES + ")" +
+            "; free settleable cells " + FreeLand(w));
+        // Cities short of the cap with free settleable land next to them: what growth picks and why it is not taken.
+        foreach (var city in w.Cities.Where(c => c.Alive && !CityExpansionPatch.AtLimit(c) &&
+                     c.Tiles.Any(i => w.Zones.ById(i).Neighbours.Any(n => w.TileCity[n.Index] < 0 && w.Settleable(n.Index)))).Take(6))
+        {
+            var target = CityZoneGrowth.Instance.getZoneToClaim(city.Leader, city);
+            Console.WriteLine("   stuck " + city.Name + " (" + city.Realm?.Name + ") cells " + city.Tiles.Count + " people " + city.Population + " target " + (target == null ? "none" :
+                target.ToString() + " claim " + CityExpansionPatch.CanClaimZone(city, target) + " settled " + CityExpansionPatch.Settled(city, target) +
+                " add " + CityExpansionPatch.CanAddZone(city, target) + " reach " + CityExpansionPatch.Reachable(target, city) + " border " + CityExpansionPatch.Bordering(city, target)));
+        }
         // An empire proclaimed (become_empire) or, while realms are tribes, a tribal confederation won in war (the mod's empire of the tribal age).
         Check(founded.Count > 0, "the world founds an empire or a tribal confederation by itself");
         foreach (var e in w.Empires.list) Check(e.CoreKingdom != null && (!e.Alive || e.CoreKingdom.IsEmpire()), "an empire stands on its core realm");

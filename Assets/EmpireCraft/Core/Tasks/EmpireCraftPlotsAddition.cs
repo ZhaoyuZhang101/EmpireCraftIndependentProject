@@ -2700,12 +2700,10 @@ namespace EmpireCraft.Core
         }
 #endif
 
-#if EC_PENDING
         private static bool minister_acquire_empire(Person pActor)
         {
             return pActor?.Realm?.GetEmpire()?.CompletePowerfulMinisterUsurpation(pActor) == true;
         }
-#endif
         public static bool BecomeEmpireAndStartEnfeoff(Person pActor)
         {
             if (EmpireCraft.Core.AncientWarfareCompatibility.BlocksEmpireFormation(pActor?.Realm))

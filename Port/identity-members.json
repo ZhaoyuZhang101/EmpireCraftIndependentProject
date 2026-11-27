@@ -250,6 +250,7 @@
   "WorldLaw.id": "Id",
   "WorldLaw.default_state": "Default",
   "Realm.countCities": "CountCities",
+  "Realm.getMaxCities": "MaxCities",
   "Realm.hasCities": "HasCities",
   "Realm.countZones": "CountZones",
   "City.countZones": "CountZones",
