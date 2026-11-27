@@ -465,3 +465,7 @@
 .ec-savename .unity-base-field__input { background-color: var(--ec-ins); color: var(--ec-val); border-color: rgb(12, 8, 7); border-width: 2px; min-height: 26px; padding: 2px 8px; }
 .ec-savebtns { margin-top: 6px; }
 .ec-savebtns > .ec-pbtn { margin-right: 4px; }
+
+/* share bar (v5 info cards) */
+.ec-share { flex-direction: row; height: 16px; border-width: 2px; border-color: rgb(12, 8, 7); background-color: var(--ec-ins); margin: 2px 0; }
+.ec-share-seg { height: 100%; border-right-width: 2px; border-right-color: rgb(12, 8, 7); border-top-width: 2px; border-top-color: rgba(255, 255, 255, 0.3); border-bottom-width: 2px; border-bottom-color: rgba(0, 0, 0, 0.3); }
