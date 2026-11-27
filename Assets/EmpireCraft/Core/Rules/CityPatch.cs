@@ -320,6 +320,7 @@ public class CityPatch : GamePatch
         }
         return true;
     }
+#endif
     public static bool AddCapturePoints(City __instance, Realm pKingdom, int pValue)
     {
         if (EmpireCraft.Core.AncientWarfareCompatibility.OwnsObject(__instance)) return true;
@@ -348,7 +349,6 @@ public class CityPatch : GamePatch
         __instance._capturing_units[pKingdom] = num + pValue + mandateAddition + kingDeathAddition;
         return false;
     }
-#endif
     public static bool getMainSubspecies(City __instance, ref Subspecies __result)
     {
         if (EmpireCraft.Core.AncientWarfareCompatibility.OwnsObject(__instance)) return true;

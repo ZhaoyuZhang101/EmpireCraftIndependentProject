@@ -1123,3 +1123,32 @@
 - 测试组之间仍有串档：同图同年数，`--arise` 单跑与全套里跑结果不同(上一步就这样)。
 - 部落之间几乎不破城(城易手 0)：一城之部的都城难打，仗都在议和台了结。
 - 宗族 `setParent` 空引用(帝位继承那条路)仍是一两次。
+
+## 二十八、第二十一步：仗有了结局(模组的战争补丁)(2026-11-28)
+
+上一步 150 年 85 场仗、城易手 0。查下来不是打法的事，是模组挂在原版 `War`/`WarManager` 上的战争补丁 `WarPatch` 整个没搬：
+
+- 一场"试打"的仗(手动宣战看十年)：攻方的军一直是 reserve/defend，没有战线段。守方城边的地块还记着**早已停战的别国占领**(城的 `OccupiedStatus`)，`FrontSystem.Controller` 照旧算那家的，接壤和陆路都断了。模组在原版 `endWar` 前缀(`WarPatch.end_war`)里清掉这场仗双方留下的占领(`ClearOccupationAfterWar`)，这里没有这一步。
+- 攻方胜 68 场是**欠饷求和**(`CorpsSystem.PayUpkeep → WarGoalSystem.TrySueForPeace`，守方养不起兵认输)，可是战争目标全是 None——定目标在原版 `War.update` 的后缀 `WarPatch.update` 里(`WarGoalSystem.Ensure`)，也没人调；结束时的和约结算 `WarGoalSystem.Settle` 同样在 `end_war` 里，也没跑。
+
+**做法**(照 Harmony 的接法，宿主在对应的地方调)：
+- 搬运候选加 `Scripts/GamePatches/WarPatch.cs`。`end_war` 要的原版零件在宿主补：`WarManager`(只有 `warStateChanged`，空)、`WorldLog.logWarEnded`(空，史书在 `FinishWar` 记)、世界统计 `peacesMade`；`War.SetWinner`(空)/`EndForSides`(这里的结束记账 `WorldOps.FinishWar`)/`DiedStamp`；城的原版攻城点数 `_capturing_units`、`being_captured_by`(空，占领由模组的 `OccupiedStatus` 管)。`ClearOccupationBy` 因此也活了。
+- `MakeOwnRealm` 补第三个参数(原版 `makeOwnKingdom(actor, rebellion, fellApart)`，教廷骑士团立国用)。
+- `Empire.AddRenown` 手写一半(`Seams/Empire.Seams.cs`)：模组加在核心国的"存着的名望"上；这里国的名望由君主、城主算出来(`Realm.GetRenown`)，帝国战胜得的另记 `Realm.WarRenown`(不低于 0)一并算进去(还不进存档，同帝国)。
+- `WorldOps.EndWar` 先过 `EndWarHandler`(=`WarPatch.end_war`)：和约按目标结算(赔款、割地、吞并、附庸……)、清这场仗的占领、史书与列传、叛乱/索取法理/去帝号等结局；`end_war` 里经 `War.EndForSides` 走这里自己的结束记账。它可以不让结束(开战不满三年不许议和，`WarPeaceRules.MayNegotiate`；神力停战要包 `MembershipCooldown.ByGod`)。同一场仗在它里面再被要求结束时直接结束；搬来的系统关着(只跑骨架)时不过它。
+- 月结加一环"wars"：每场在打的仗先过 `WarPatch.DropBrokenWar`(主攻/主守缺失的判和)，再跑 `WarPatch.update`(开打定目标、每年复核只升不降、满三年后每年议和台自己谈一次、攻下主城池即胜/叛乱攻下京城即胜、索取法理与去帝号够了即胜、超过战争年限强制停战)。
+- 还挂着的：`new_war`(缺 `WorldLogNamePatch`；记宣战、拉兄弟之国姻亲、动员排队)、`join_war_side` 一组、`BeforeLeaveWar/BeforeLostWar`(史书记"退出/覆灭"，没接)。
+
+**结果**(256 图 150 年，单跑 `--arise`)
+- 仗都有了目标：吞并、迫使附庸、赔款……；议和台了结 55 场、守方胜 16(都是吞并没打下)、攻方胜 4；**城易手 45 次**(上一步 0)。部落一部一城，夺来的城照模组规矩放出去另立一部，所以国、城数不变(36/36)。试打那场：三年后议和，洛阳向平津称臣纳贡。
+- 全套里那一遍(串档，见下)：城易手 22、部落服输 1。
+- 慢的系统：军团 6.5 毫秒、人口 3.9 毫秒(平均)。
+
+**验证**：全套 22 组通过；`--fingerprint 256 75 bare` 与 `512 120 bare` 与最初相同；Unity 本步没跑(父会话在跑批处理)。
+
+**测试改动**：长局打出胜负按目标分布、头几场攻方胜的史书；试打每年一行(双方各军任务与兵力、守方都城被占几块/要几成)、目标与史书。
+
+**看到但没修的**：
+- 吞并的仗 21 场全是守方胜：攻方破不了一城之部的都城。
+- 串档仍在(单跑与全套结果不同)。
+- 宗族 `setParent` 空引用(帝位继承那条路)仍一次。

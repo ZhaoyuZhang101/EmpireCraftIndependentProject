@@ -52,9 +52,7 @@ public class EmpirePeacePatch : GamePatch
     public static void BeforeRemove(War __instance, Realm pKingdom, out Snapshot __state) =>
         __state = __instance != null && __instance.Alive && !__instance.HasEnded() ? Capture(__instance, pKingdom) : null;
 
-#if EC_PENDING
     public static void AfterRemove(Snapshot __state) => Cascade(__state);
-#endif
 
     public static void BeforeEnd(War pWar, WarOutcome pWinner, out List<Snapshot> __state)
     {
@@ -70,13 +68,11 @@ public class EmpirePeacePatch : GamePatch
     }
 
     // 战争补丁可能拦下"结束"(如索取法理未达成)：真结束了才连带停战
-#if EC_PENDING
     public static void AfterEnd(War pWar, List<Snapshot> __state)
     {
         if (__state == null || pWar == null || !pWar.HasEnded()) return;
         foreach (Snapshot snapshot in __state) Cascade(snapshot);
     }
-#endif
 
     // 听命于中央的成员：没有自主外交权的成员，或朝廷任命(不世袭)的行政区、军府；
     // 世袭的藩镇、封国保留自主外交与兵权，正在叛乱的也不算；
@@ -127,7 +123,6 @@ public class EmpirePeacePatch : GamePatch
         EmpireWarType.对立国王, EmpireWarType.私战
     };
 
-#if EC_PENDING
     private static void Cascade(Snapshot snapshot)
     {
         if (snapshot == null || _cascading || EmpireWorld.Current == null) return;
@@ -165,10 +160,8 @@ public class EmpirePeacePatch : GamePatch
             _cascading = false;
         }
     }
-#endif
 
     // 停战后双方互相留下的占领(地块与攻城进度)清掉：整场战争结束时战争补丁会清，单方面退出时不会
-#if EC_PENDING
     private static void ClearMutualOccupation(Realm kingdom, HashSet<Realm> foes)
     {
         if (kingdom == null || kingdom.IsGone()) return;
@@ -181,7 +174,6 @@ public class EmpirePeacePatch : GamePatch
                 city?.ClearOccupationBy(occupier => occupier == kingdom);
         }
     }
-#endif
 
     private static void SetTruce(Realm a, Realm b, double now)
     {

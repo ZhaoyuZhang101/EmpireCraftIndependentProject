@@ -241,13 +241,13 @@ public partial class Empire : RecordObject<EmpireData>
         return false;
     }
 
-#if EC_PENDING
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
     public new void AddRenown(int value)
     {
-        this.CoreKingdom.Record.renown += value;
-        if (this.CoreKingdom.Record.renown<=0)
+        this.CoreKingdom.data.renown += value;
+        if (this.CoreKingdom.data.renown<=0)
         {
-            this.CoreKingdom.Record.renown = 0;
+            this.CoreKingdom.data.renown = 0;
         }
     }
 #endif

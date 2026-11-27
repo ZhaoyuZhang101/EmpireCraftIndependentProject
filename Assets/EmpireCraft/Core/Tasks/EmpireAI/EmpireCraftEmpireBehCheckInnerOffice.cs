@@ -43,6 +43,7 @@ public class EmpireCraftEmpireBehCheckInnerOffice: GameAIEmpireBase
             offices[i]?.DetectPower(empire);
         }
     }
+#endif
     private void StartCalcOfficePerformance(Empire pEmpire)
     {
         if (pEmpire == null || pEmpire.IsGone() || pEmpire.IsArchived()) return;
@@ -108,7 +109,6 @@ public class EmpireCraftEmpireBehCheckInnerOffice: GameAIEmpireBase
             pEmpire.data.last_office_exam_timestamp = GameClock.Now;
         }
     }
-#endif
     //三省六部官员选拔机制
     public void SelectOfficer(Empire pEmpire)
     {

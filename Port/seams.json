@@ -14,7 +14,8 @@
   ],
   "Empire": [
     "getColorLibrary",
-    "getColor"
+    "getColor",
+    "AddRenown"
   ],
   "KingdomTitle": [
     "getColor",

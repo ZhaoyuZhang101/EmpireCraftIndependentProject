@@ -69,6 +69,9 @@ namespace EmpireCraft.Core
         const int PopulationMonthSlices = 1024;
         const int SettlementMonthSlices = 1024;
 
+        // The war manager the mod's war end is handed (it tells the windows that wars changed).
+        static readonly WarManager Wars = new WarManager();
+
         // The kinds of plot, and the decision system told of every plot started. Code, not data: done once.
         static void Prepare()
         {
@@ -82,6 +85,9 @@ namespace EmpireCraft.Core
             // A new city: its culture set up, then whether it stays in the founder's realm (CityPatch).
             WorldActions.NewCityHandler = CityPatch.newCity;
             WorldActions.CityBuiltHandler = CityPatch.CityBuilt;
+            // A war ends through the mod's war end (WarPatch.end_war): the peace settled by the war's aim, the occupation the
+            // two sides left in each other's cities cleared, the endings of rebellions and claims (see WorldOps.EndWar).
+            WorldOps.EndWarHandler = (war, outcome) => WarPatch.end_war(Wars, war, outcome);
         }
 
         // Called by EmpireSimulation after the skeleton and the books, with the world current and the random stream seeded.
@@ -159,6 +165,11 @@ namespace EmpireCraft.Core
             Run("offices", OfficeManager.Tick);
             // Peace settlements hand over what was won (and check each war's objective).
             Run("war goals", WarGoalSystem.Tick);
+            // Each running war's own month (the mod's War.update patch, WarPatch.update): a war missing its main attacker or
+            // defender ends (DropBrokenWar); then the war's aim is set when it starts and reviewed yearly, the two sides talk
+            // peace once a year, taking the aimed-at city (a rebel's, the capital) wins it, claims and wars over an emperor's
+            // title end when won, and a war past the longest a war runs is brought to a stop.
+            Run("wars", () => { foreach (War war in new System.Collections.Generic.List<War>(w.LiveWars)) if (war.Alive && WarPatch.DropBrokenWar(war) && war.Alive) WarPatch.update(war); });
             Run("roads", RoadBuildingSystem.Tick);
             // The mod's monthly royal-house pass (RoyalHouseSystem.Tick); its links that compile, in its order. City-states
             // and tribes keep one city each; a tribe also follows its people's regime out of the tribal stage, holds its

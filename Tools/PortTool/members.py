@@ -33,6 +33,7 @@ import port_tool as tool
 DIRS = closure.DEFAULT_DIRS + ["Scripts/GameClassExtensions", "Scripts/AI", "Scripts/Compatibility/NuclearDoctrineSystem.cs",
         "Scripts/GamePatches/EmpirePeacePatch.cs",
         "Scripts/GamePatches/CityPatch.cs",
+        "Scripts/GamePatches/WarPatch.cs",
         "Scripts/GamePatches/CityExpansionPatch.cs"]
 
 

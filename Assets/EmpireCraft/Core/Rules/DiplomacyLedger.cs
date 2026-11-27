@@ -359,8 +359,8 @@ public static class DiplomacyLedger
             bool opposed = attackers.Contains(a.Key) && defenders.Contains(b.Key) || attackers.Contains(b.Key) && defenders.Contains(a.Key);
             if (!opposed) continue;
             Add(war.StartedStamp, string.Format(LM.Get("diplomacy_history_war_started"), war.Name));
-            if (war.HasEnded() && war.Record.died_time > 0d)
-                Add(war.Record.died_time, string.Format(LM.Get("diplomacy_history_war_ended"), war.Name,
+            if (war.HasEnded() && war.DiedStamp > 0d)
+                Add(war.DiedStamp, string.Format(LM.Get("diplomacy_history_war_ended"), war.Name,
                     LM.Get("diplomacy_war_result_" + war.Record.winner.ToString().ToLowerInvariant())));
         }
 

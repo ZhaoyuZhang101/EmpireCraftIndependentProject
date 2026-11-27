@@ -207,7 +207,28 @@ namespace EmpireCraft.Core
             if(!attacker&&war.MainDefender==r)war.MainDefender=side[0];
         }
 
+        // Ending a war goes through EndWarHandler first (the mod's war end, WarPatch.end_war, as Harmony put it in front of
+        // the base game's): it settles the peace (cities ceded, annexation, reparations), clears the occupation the two sides
+        // left in each other's cities, writes the chronicle and the endings of rebellions and claims, and ends the war through
+        // War.EndForSides (FinishWar). It may keep the war on (no peace before the shortest war). It answers true when the
+        // war is not its to end (then it ends here). A war already being ended by it ends here when asked again, and with the
+        // ported systems switched off (the skeleton alone) a war simply ends.
+        public static Func<War,WarOutcome,bool> EndWarHandler;
+        static readonly HashSet<War> Ending=new HashSet<War>();
         public static void EndWar(EmpireWorld w,War war,WarOutcome outcome)
+        {
+            LiveWar(w,war);
+            if(EndWarHandler!=null&&PortedSystems.Enabled&&Ending.Add(war))
+            {
+                bool ours;
+                try{ours=EndWarHandler(war,outcome);}finally{Ending.Remove(war);}
+                if(!ours||!war.Alive)return;
+            }
+            FinishWar(w,war,outcome);
+        }
+
+        // This game's bookkeeping of a war's end: the outcome, the sides' lists of wars, the annals.
+        public static void FinishWar(EmpireWorld w,War war,WarOutcome outcome)
         {
             LiveWar(w,war);
             war.EndedMonth=w.Month;war.Outcome=outcome;
@@ -313,7 +334,8 @@ namespace EmpireCraft.Core
         // A person goes over to another realm: home becomes its capital. A reigning ruler stays where the throne is.
         public static void SetRealm(this Person person,Realm realm){if(person!=null&&person.Alive&&person.Throne==null&&!realm.IsGone()&&realm.Capital!=null&&person.Realm!=realm)person.City=realm.Capital;}
         // A city stands up as a realm of its own under a leader who rules nothing yet; it is named after the city.
-        public static Realm MakeOwnRealm(this City city,Person leader,bool rebellion=false)
+        // Whether it rose in rebellion or the realm fell apart around it makes no difference to how it stands up here.
+        public static Realm MakeOwnRealm(this City city,Person leader,bool rebellion=false,bool fellApart=false)
         {
             if(city==null||!city.Alive||leader==null||!leader.Alive||leader.Throne!=null)return null;
             unchecked

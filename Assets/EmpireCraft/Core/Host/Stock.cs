@@ -305,10 +305,14 @@ namespace EmpireCraft.Core
     public sealed class WorldStatsData
     {
         public string name;
-        public long citiesConquered, citiesRebelled, citiesCreated, citiesDestroyed, kingdomsCreated, kingdomsDestroyed;
-        public void initNewWorld() { citiesConquered = citiesRebelled = citiesCreated = citiesDestroyed = kingdomsCreated = kingdomsDestroyed = 0; }
+        public long citiesConquered, citiesRebelled, citiesCreated, citiesDestroyed, kingdomsCreated, kingdomsDestroyed, peacesMade;
+        public void initNewWorld() { citiesConquered = citiesRebelled = citiesCreated = citiesDestroyed = kingdomsCreated = kingdomsDestroyed = peacesMade = 0; }
     }
     public sealed class WorldStats { public readonly WorldStatsData data = new WorldStatsData(); }
+    // The base game's war manager, handed to the mod's war end (WarPatch.end_war): it only told the windows that wars changed.
+    public sealed class WarManager { public void warStateChanged() { } }
+    // The base game's announcement of a war's end. The annals record it here (WorldOps.FinishWar), the mod's chronicle its story.
+    public static class WorldLog { public static void logWarEnded(War war) { } }
 
     // The mod's game patches derive from these; there is no game to patch here.
     public interface GamePatch { }

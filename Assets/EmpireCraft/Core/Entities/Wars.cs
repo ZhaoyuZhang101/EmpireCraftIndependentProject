@@ -66,6 +66,11 @@ namespace EmpireCraft.Core
         public List<Realm> GetDefenders() => Defenders;
         public WarKind GetKind() => Kind;
         public bool IsTotalWar() => Kind != null && Kind.TotalWar;
+        // The base game's last steps of ending a war, as the mod's war end (WarPatch.end_war) calls them: the winner is
+        // written as the war ends for its sides, which is where this game's bookkeeping ends it (WorldOps.FinishWar).
+        public void SetWinner(WarOutcome outcome) { }
+        public void EndForSides(WarOutcome outcome) { var world = EmpireWorld.Current; if (world != null && Alive) WorldOps.FinishWar(world, this, outcome); }
+        public double DiedStamp { get => EndedMonth; set { } }
         public int DurationMonths() => (int)((HasEnded() ? EndedMonth : GameClock.Now) - StartedMonth);
         public int AgeYears() => DurationMonths() / 12;
         // The side a realm fights on faces the other one.

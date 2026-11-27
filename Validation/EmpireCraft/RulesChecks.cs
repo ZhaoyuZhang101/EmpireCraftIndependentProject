@@ -877,10 +877,22 @@ public static class RulesChecks
             int handsBefore = w.Annals.Entries.Count(e => e.Kind == AnnalKind.CityTransferred);
             var trial = w.StartWar(strong, weak, WarKinds.Normal);
             int corpsSeen = 0;
-            for (int m = 0; m < 120 && trial != null && trial.Alive; m++) { EmpireSimulation.Month(w); corpsSeen = Math.Max(corpsSeen, CorpsSystem.All().Count()); }
+            for (int m = 0; m < 120 && trial != null && trial.Alive; m++)
+            {
+                EmpireSimulation.Month(w); corpsSeen = Math.Max(corpsSeen, CorpsSystem.All().Count());
+                if (m % 12 != 11 && trial.Alive) continue;
+                // Where the trial war stands: each side's corps by task and men, how much of the weak capital the strong side holds.
+                string Side(Realm r) => string.Join("/", CorpsSystem.All().Where(c => c.kingdom == r).Select(c => c.corps).GroupBy(c => c.task).Select(g => g.Key + " " + g.Count() + "x" + (int)g.Average(c => c.strength)));
+                var cap = weak.Capital;
+                Console.WriteLine("     month " + (m + 1) + ": " + strong.Name + " [" + Side(strong) + "] " + weak.Name + " [" + Side(weak) + "]; " +
+                    (cap == null ? "weak capital gone" : cap.Name + " cells " + cap.Zones.Count + " valid " + cap.GetValidCityZoneCount() + " held by attacker " + cap.GetOccupiedTileZoneCount(strong) +
+                    " need " + cap.GetRequiredFinishedCaptureRate(strong).ToString("0.00")));
+            }
             Console.WriteLine("   trial war " + strong.Name + " (" + strong.Cities.Count + " cities, power " + WarSituation.Power(strong) + ") on " + weak.Name + " (" + weak.Cities.Count + ", " + WarSituation.Power(weak) + "), " +
                 (int)w.Distance(strong.Capital.Tile, weak.Capital.Tile) + " cells apart: " + (trial == null ? "not declared" : trial.Alive ? "still on after 10 years" : "ended " + trial.Outcome + " after " + trial.DurationMonths() + " months") +
                 ", corps up to " + corpsSeen + ", cities changed hands " + (w.Annals.Entries.Count(e => e.Kind == AnnalKind.CityTransferred) - handsBefore));
+            if (trial != null)
+                Console.WriteLine("   trial war aim " + WarGoalSystem.Get(trial) + ", chronicle: " + string.Join(" | ", (trial.GetOrCreate().chronicle ?? new List<WarChronicleEntry>()).Select(e => e.kind + ":" + e.text)));
         }
         Console.WriteLine("   war gates: " + string.Join("; ", w.LiveRealms.GroupBy(Gate).OrderByDescending(g => g.Count()).Select(g => g.Key + " " + g.Count())));
         Check(PortedSystems.TotalFaults == 0, "no ported system fails while realms weigh empires: " + faults);
@@ -897,6 +909,11 @@ public static class RulesChecks
         int won = normalWars.Count(x => x.Outcome == WarOutcome.Attackers || x.Outcome == WarOutcome.Defenders);
         Console.WriteLine("   war outcomes: " + string.Join(", ", normalWars.GroupBy(x => x.Alive ? "running" : x.Outcome.ToString()).OrderByDescending(g => g.Count()).Select(g => g.Key + " " + g.Count())) +
             "; cities changed hands " + w.Annals.Entries.Count(e => e.Kind == AnnalKind.CityTransferred) + ", tribes conceded " + conceded);
+        // How the wars that were won were won: by aim, and the last line of each one's chronicle.
+        Console.WriteLine("   won wars by aim: " + string.Join(", ", normalWars.Where(x => x.Outcome == WarOutcome.Attackers || x.Outcome == WarOutcome.Defenders)
+            .GroupBy(x => x.Outcome + " " + WarGoalSystem.Get(x)).OrderByDescending(g => g.Count()).Select(g => g.Key + " " + g.Count())));
+        foreach (var x in normalWars.Where(x => x.Outcome == WarOutcome.Attackers).Take(4))
+            Console.WriteLine("     " + x.Name + ": " + string.Join(" | ", (x.GetOrCreate().chronicle ?? new List<WarChronicleEntry>()).Select(e => e.kind + ":" + e.text)));
         Check(normalWars.Count > 0 && won > 0, "realms go to war and wars are won");
         // Where state settlement stands for each realm (why no new city is founded), and the land cities hold (the cap is per city).
         var cells = w.Cities.Where(c => c.Alive).Select(c => c.Zones.Count).OrderBy(x => x).ToList();
