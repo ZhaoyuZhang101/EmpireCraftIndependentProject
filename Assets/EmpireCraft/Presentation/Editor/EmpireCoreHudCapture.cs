@@ -55,6 +55,7 @@ namespace EmpireCraft.EditorTools
 
         sealed class View { public string Name; public Action Setup; public int Frames = 75; }
         static List<View> views; static int viewIndex = -1, waited; static double ahead;
+        static int savedYear, savedRealms;
         static RenderTexture ui; static FlatWorldApp app; static StringBuilder texts;
 
         static object Field(string name) => typeof(FlatWorldApp).GetField(name, Private).GetValue(app);
@@ -165,6 +166,16 @@ namespace EmpireCraft.EditorTools
                     new View { Name = "24_truce", Frames = 60, Setup = () => Press("停战") },
                     new View { Name = "25_crown_done", Frames = 60, Setup = () => { Call("OpenCoreCrown", Largest()); if (!Press("立为君主")) Press("改朝立之"); } },
                     new View { Name = "26_empire", Frames = 90, Setup = () => { Call("CloseHudWindow"); Power("Empire"); Call("CorePowerPick", Second(Largest()).Capital.Tile); Power("None"); Call("OpenHudNations"); } },
+                    // Saves: write a slot, load it back (the world reloads), and check the core came back as saved.
+                    new View { Name = "27_saves", Frames = 60, Setup = () => { Call("CloseHudWindow"); Call("OpenCoreSaves"); savedYear = core.Year; savedRealms = core.LiveRealms.Count; Press("存档"); } },
+                    new View { Name = "28_loaded", Frames = 600, Setup = () => { Press("读取"); } },
+                    new View { Name = "29_saves_after", Frames = 60, Setup = () =>
+                        {
+                            var d = EmpireCraft.Presentation.EmpireCoreDriver.Instance;
+                            texts.AppendLine("[restored] " + d.Restored + " · saved year " + savedYear + " realms " + savedRealms +
+                                             " · now year " + d.World.Year + " realms " + d.World.LiveRealms.Count);
+                            Call("OpenCoreSaves");
+                        } },
                     new View { Name = "10_globe_political", Frames = 150, Setup = () =>
                         {
                             // Daylight over the largest realm (the same sun placement as the HUD review shots).
@@ -172,7 +183,8 @@ namespace EmpireCraft.EditorTools
                             double lon = ((tile % w.Width + .5) / w.Width - .5) * Math.PI * 2;
                             double fraction = (-lon + 35 * Math.PI / 180) / (Math.PI * 2) - .5; fraction -= Math.Floor(fraction);
                             w.Day = Math.Floor(w.Day) + fraction;
-                            Call("CloseHudWindow"); nav.Home(app.CalendarDay);
+                            // The world was reloaded by the save test: take the navigator it has now.
+                            Call("CloseHudWindow"); ((FlatScrollNavigator)Field("navigation")).Home(app.CalendarDay);
                         } },
                 };
             }
@@ -249,6 +261,8 @@ namespace EmpireCraft.EditorTools
         {
             EditorApplication.update -= Step; SessionState.EraseString(Flag);
             File.WriteAllText(Path.Combine(output, "result.txt"), result);
+            // The window texts so far, also when a view failed.
+            if (texts != null && code != 0) File.WriteAllText(Path.Combine(output, "windows.txt"), texts.ToString());
             Debug.Log("EmpireCoreHudCapture " + result);
             if (Application.isBatchMode) EditorApplication.Exit(code); else EditorApplication.ExitPlaymode();
         }

@@ -458,3 +458,10 @@
 .theme-lacquer .ec-hud Label { -unity-font-style: normal; }
 .theme-lacquer .ec-hud .ec-label, .theme-lacquer .ec-hud .ec-ch-title, .theme-lacquer .ec-hud .ec-hd-title, .theme-lacquer .ec-hud .ec-kpi-n,
 .theme-lacquer .ec-hud .ec-date, .theme-lacquer .ec-hud .ec-win-title { -unity-font-style: normal; }
+
+/* save slots */
+.ec-savethumb { width: 152px; height: 60px; margin-right: 8px; border-width: 2px; border-color: rgb(12, 8, 7); background-color: rgb(29, 58, 92); -unity-background-scale-mode: stretch-to-fill; flex-shrink: 0; }
+.ec-savename { flex-grow: 1; margin: 0 8px 0 0; }
+.ec-savename .unity-base-field__input { background-color: var(--ec-ins); color: var(--ec-val); border-color: rgb(12, 8, 7); border-width: 2px; min-height: 26px; padding: 2px 8px; }
+.ec-savebtns { margin-top: 6px; }
+.ec-savebtns > .ec-pbtn { margin-right: 4px; }

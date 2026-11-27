@@ -264,6 +264,16 @@ namespace Orbis.Flat
         void BuildHudFilesPage(VisualElement page)
         {
             page.Add(Hud.Header("存档", Application.persistentDataPath));
+            if (CoreEnabled)
+            {
+                // With the core on, saves are slots holding the world and the realms together.
+                var slots = Hud.Card("存档与读档", "iconHistory", null, true);
+                slots.Add(Hud.Text("世界与列国一起存，可存多份，每十年自动存一份。", "ec-text"));
+                var sb = new VisualElement(); sb.AddToClassList("ec-btns");
+                sb.Add(Hud.Button("ec-btn", null, "打开存档窗口", OpenCoreSaves));
+                slots.Add(sb);
+                page.Add(slots);
+            }
             var save = Hud.Card("世界存档", "iconHistory", null, true);
             save.Add(Hud.Row("存档位置", SavePath, false));
             var b = new VisualElement(); b.AddToClassList("ec-btns");

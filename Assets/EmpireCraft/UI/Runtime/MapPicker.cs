@@ -26,6 +26,7 @@ namespace EmpireCraft.UI
         public enum Edge : byte { Plain, Gold, White }
 
         public readonly VisualElement Root;
+        public Texture2D Texture => texture;   // the drawn map (save thumbnails use it)
         public Func<int, int> KeyAt;           // tile → key (-1: nobody's)
         public Func<int, bool> IsWater;
         public Func<int, Look> LookOf;          // key → look

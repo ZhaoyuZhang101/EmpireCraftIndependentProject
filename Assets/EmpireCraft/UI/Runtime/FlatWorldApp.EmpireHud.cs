@@ -335,6 +335,7 @@ namespace Orbis.Flat
             AddHudView("civ_atlas", "总览", ToggleMode, () => navigation && navigation.IsAtlas);
             AddHudView("civ_surface", "地表", Focus, () => navigation && navigation.IsFlat && !navigation.IsAtlas);
             AddHudView(null, "截图", () => { if (World != null && !Busy) StartCoroutine(Capture()); }, null);
+            if (CoreEnabled) AddHudView("iconHistory", "存档", OpenCoreSaves, () => hudWindow != null && hudWindowKey == "saves");
             AddHudView("TabColor", "设置", () => OpenHudWorld(0), () => hudWindow != null && hudWindowKey == "world");
         }
 
@@ -482,6 +483,7 @@ namespace Orbis.Flat
             hudLegend.EnableInClassList("ec-hidden", !legendOn);
             if (legendOn) { hudLegendTitle.text = layerField.value; if (hudLegendText.text != legend.text) hudLegendText.text = legend.text; }
             SyncCoreTerritory();
+            if (CoreEnabled) TickAutosave();
             FollowCoreSelection();
             UpdateHudInfo();
             UpdateHudFeed();
