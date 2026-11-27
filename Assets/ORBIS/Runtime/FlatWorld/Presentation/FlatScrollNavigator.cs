@@ -8,15 +8,15 @@ namespace Orbis.Flat
     // Sphere data is authoritative. The local chart and strategic atlas are presentation only.
     public sealed partial class FlatScrollNavigator : MonoBehaviour
     {
-        const float Fov=42,Start=1.6f,End=1.08f,Tau=Mathf.PI*2;
+        const float Fov=(float)PlanetScrollNavigationMath.Fov,Start=(float)PlanetScrollNavigationMath.Start,End=1.08f,Tau=Mathf.PI*2;
         // One zoom coordinate spans globe, unfold and local chart: altitude=EndGap*exp(zoom*ZoomRate).
         // A single critically damped spring drives it, so no hand-off stalls at the fold endpoints.
-        const float EndGap=.22f,ZoomRate=.075f,ZoomOmega=18,MaxAltitude=5,HomeAltitude=2.1f;
+        const float EndGap=(float)PlanetScrollNavigationMath.EndGap,ZoomRate=(float)PlanetScrollNavigationMath.ZoomRate,ZoomOmega=(float)PlanetScrollNavigationMath.ZoomOmega,MaxAltitude=(float)PlanetScrollNavigationMath.MaxAltitude,HomeAltitude=(float)PlanetScrollNavigationMath.HomeAltitude;
         Camera viewCamera;WorldData world;FlatMapRenderer maps;PlanetLocalProjection projection;
         Mesh mesh,routeMesh;Material surface,routeMaterial;MeshRenderer terrain,routeRenderer;MarkleyAtlasNavigator atlas;bool atlasMode;
         readonly List<Vector3> routeVertices=new List<Vector3>();
         readonly List<int> routeIndices=new List<int>();
-        float distance=3.1f,morph,pixels=16,spin,zoom,targetZoom,zoomVelocity;
+        float distance=1+(float)PlanetScrollNavigationMath.HomeAltitude,morph,pixels=16,spin,zoom,targetZoom,zoomVelocity;
         Vector2 zoomScreen;bool zoomAnchor;Quaternion orbitRotation=Quaternion.Euler(18,0,0);
         PlanetVector zoomGroundAnchor;
         double currentDay,lockDay;bool locked;Vector3 normal,east,north;Vector2 poles;int revision=-1;
@@ -141,7 +141,7 @@ namespace Orbis.Flat
             // frame. Release this transport at the globe endpoint so idle cameras stay free.
             if(locked)orbitRotation=Spin*Quaternion.Inverse(previousSpin)*orbitRotation;
             Frame();
-            viewCamera.allowHDR=true;viewCamera.nearClipPlane=.001f;viewCamera.farClipPlane=80;viewCamera.fieldOfView=Fov;viewCamera.orthographic=IsFlat;
+            viewCamera.allowHDR=true;viewCamera.nearClipPlane=.001f;viewCamera.farClipPlane=120;viewCamera.fieldOfView=Fov;viewCamera.orthographic=IsFlat;
             OrbisCelestialBackdrop.Apply(viewCamera,morph<.95f);
             if(IsFlat)
             {
@@ -167,7 +167,7 @@ namespace Orbis.Flat
                 if(morph==0){viewCamera.ResetProjectionMatrix();if(targetZoom>=FoldZoom)locked=false;}
                 else
                 {
-                    float h=viewCamera.orthographicSize;var p=Matrix4x4.Perspective(Fov,viewCamera.aspect,viewCamera.nearClipPlane,80);var o=Matrix4x4.Ortho(-h*viewCamera.aspect,h*viewCamera.aspect,-h,h,viewCamera.nearClipPlane,80);
+                    float h=viewCamera.orthographicSize;var p=Matrix4x4.Perspective(Fov,viewCamera.aspect,viewCamera.nearClipPlane,120);var o=Matrix4x4.Ortho(-h*viewCamera.aspect,h*viewCamera.aspect,-h,h,viewCamera.nearClipPlane,120);
                     var mix=new Matrix4x4();float t=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.62f,1,morph));
                     for(int r=0;r<4;r++)for(int c=0;c<4;c++)mix[r,c]=Mathf.Lerp(p[r,c]/gap,o[r,c],t);viewCamera.projectionMatrix=mix;
                 }

@@ -191,8 +191,12 @@ class Program
  static int ZoomUnfoldAndWidescreenCoverage()
  {
   int checks=0;
-  const double fov=42.0,localHeightSpan=21000.0*(2.5/6371008.8),reliefTilt=.72,reliefCameraHeight=.18;
+  const double fov=PlanetScrollNavigationMath.Fov,localHeightSpan=21000.0*(2.5/6371008.8),reliefTilt=.72,reliefCameraHeight=.18;
   double halfTan=Math.Tan(fov*Math.PI/360.0);
+  double homeCapDeg=Math.Acos(1.0/(1.0+PlanetScrollNavigationMath.HomeAltitude))*180.0/Math.PI;
+  double unfoldCapDeg=Math.Acos(1.0/PlanetScrollNavigationMath.Start)*180.0/Math.PI;
+  Require(fov<=20.0&&homeCapDeg>81.0&&unfoldCapDeg>65.0,"telephoto globe distortion correction must expose >81 deg hemisphere at home and >65 deg at unfold");
+  checks++;
   double foldZoom=PlanetScrollNavigationMath.ZoomFor(PlanetScrollNavigationMath.Start-1);
   double maxZoom=PlanetScrollNavigationMath.ZoomFor(PlanetScrollNavigationMath.MaxAltitude);
   double minZoom=PlanetScrollNavigationMath.ZoomFor(PlanetScrollNavigationMath.EndGap/4.0);

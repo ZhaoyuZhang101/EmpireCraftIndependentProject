@@ -266,7 +266,11 @@ namespace Orbis.Planet
     // Shared pure navigation math for FlatScrollNavigator and standalone CPU regressions.
     public static class PlanetScrollNavigationMath
     {
-        public const double Start = 1.6, EndGap = .22, ZoomRate = .075, ZoomOmega = 18, MaxAltitude = 5, HomeAltitude = 2.1;
+        // Telephoto external-viewpoint rig (18 deg vs legacy 42 deg wide-angle, HalfTan-invariant):
+        // expands visible globe hemisphere from 71.2 deg to 82.0 deg (and unfold threshold from
+        // 51.3 deg to 67.2 deg), cutting perspective limb/corner distortion by 2.42x while keeping
+        // identical screen planet size (88.8%), EntryPixels, FoldZoom/HomeZoom ratio, and cloud parity.
+        public const double Fov = 18.0, Start = 2.58, EndGap = .5332, ZoomRate = .075, ZoomOmega = 18, MaxAltitude = 13.35, HomeAltitude = 6.18;
         public const double MaxLocalRadius = Math.PI - .0001;
 
         static bool Finite(double value) => !double.IsNaN(value) && !double.IsInfinity(value);

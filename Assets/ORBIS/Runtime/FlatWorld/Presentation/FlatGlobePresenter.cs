@@ -6,7 +6,7 @@ namespace Orbis.Flat
     {
         public OrbisPlanetView View { get; private set; }
         public OrbisWorld Snapshot { get; private set; }
-        public float Yaw,Pitch=18,Distance=3.1f,SunAngle;
+        public float Yaw,Pitch=18,Distance=1+(float)Orbis.Planet.PlanetScrollNavigationMath.HomeAltitude,SunAngle;
         Camera viewCamera;double clock;FlatMapRenderer maps;
         float baseAir,baseHaze,baseCloudDensity;bool scrollPrepared;
         OrbisAtmosphereRenderer scrollVolume;FlatScrollNavigator scrollNav;Vector2 poles;int poleRevision=-1;
@@ -33,7 +33,7 @@ namespace Orbis.Flat
         {
             viewCamera.backgroundColor=Color.black;
             clock+=dt;View.SurfaceMaterial.SetFloat("_WaterClock",(float)clock);Snapshot.settings.clouds=clouds;Snapshot.settings.cloudShadows=shadows;Snapshot.settings.atmosphere=atmosphere;Snapshot.settings.night=dayNight;
-            viewCamera.orthographic=false;viewCamera.allowHDR=true;viewCamera.allowMSAA=false;viewCamera.nearClipPlane=.002f;viewCamera.farClipPlane=100;viewCamera.fieldOfView=42;
+            viewCamera.orthographic=false;viewCamera.allowHDR=true;viewCamera.allowMSAA=false;viewCamera.nearClipPlane=.002f;viewCamera.farClipPlane=120;viewCamera.fieldOfView=(float)Orbis.Planet.PlanetScrollNavigationMath.Fov;
             Quaternion q=Quaternion.Euler(Pitch,Yaw,0);viewCamera.transform.position=q*new Vector3(0,0,-Distance);viewCamera.transform.LookAt(Vector3.zero);
             Snapshot.day=(float)maps.World.Day; // Read-only calendar mirror, no second simulation.
             maps.SetVegetationDay(maps.World.Day,View.SurfaceMaterial);
@@ -108,6 +108,6 @@ namespace Orbis.Flat
             // The viewCamera image effect keeps its display transform at both endpoints; only volume density fades.
         }
         public void Orbit(Vector2 delta) { Yaw+=delta.x*.25f;Pitch=Mathf.Clamp(Pitch+delta.y*.2f,-84,84); }
-        public void Zoom(float wheel) { Distance=Mathf.Clamp(Distance*Mathf.Exp(wheel*.035f),1.09f,6); }
+        public void Zoom(float wheel) { Distance=Mathf.Clamp(Distance*Mathf.Exp(wheel*.035f),1.22f,1+(float)Orbis.Planet.PlanetScrollNavigationMath.MaxAltitude); }
     }
 }

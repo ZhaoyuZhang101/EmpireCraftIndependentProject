@@ -10,6 +10,12 @@ namespace Orbis.Editor
 {
  public static class LocalNavigationRegression
  {
+  [MenuItem("Tools/ORBIS/Local Planet/Validate all navigation and atlas handoff")]
+  public static void RunAllNavigation()
+  {
+   Run();
+   AtlasDetailRegression.Run();
+  }
   [MenuItem("Tools/ORBIS/Local Planet/Validate zoom drag and water")]
   public static void Run()
   {
@@ -260,12 +266,13 @@ namespace Orbis.Editor
    var flags=System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic;
    var localPoint=typeof(FlatScrollNavigator).GetMethod("LocalPoint",flags);
    var direction=typeof(FlatScrollNavigator).GetMethod("LocalDirection",flags);
+   float endGap=(float)PlanetScrollNavigationMath.EndGap,startGap=(float)(PlanetScrollNavigationMath.Start-1),zoomRate=(float)PlanetScrollNavigationMath.ZoomRate;
    foreach(double latitude in new[]{-89.0,-80,80,89})foreach(float morph in new[]{.75f,.9f,.95f,.98f,.995f})
    {
     nav.Focus(16*data.Width+17,3);nav.Tick(3,3);
     nav.Recenter(new PlanetLocation(Math.PI-.01,latitude*Math.PI/180),3);
-    float altitude=.22f+(.6f-.22f)*(1-morph);
-    nav.Wheel(Mathf.Log(altitude/.22f)/.075f,camera.pixelRect.center,3);nav.Tick(3,3);
+    float altitude=endGap+(startGap-endGap)*(1-morph);
+    nav.Wheel(Mathf.Log(altitude/endGap)/zoomRate,camera.pixelRect.center,3);nav.Tick(3,3);
     double maximum=0;
     foreach(var chart in new[]{new Vector2(.13617012f,.07036180f),new Vector2(-.13617012f,-.07036180f),new Vector2(.08f,.03f),new Vector2(-.08f,-.03f)})
     {
@@ -278,13 +285,17 @@ namespace Orbis.Editor
    }
    int centre=16*data.Width+17;
    nav.Focus(centre,3);nav.Tick(3,3);
-   nav.Wheel(Mathf.Log(.239f/.22f)/.075f,camera.pixelRect.center,3);nav.Tick(3,3);
+   float routeAltitude=endGap+(startGap-endGap)*.05f;
+   nav.Wheel(Mathf.Log(routeAltitude/endGap)/zoomRate,camera.pixelRect.center,3);nav.Tick(3,3);
    nav.SetRoute(new[]{centre-1,centre,centre+data.Width/2,centre,centre+1});
    Mesh routeMesh=null;
    foreach(var filter in nav.GetComponentsInChildren<MeshFilter>())if(filter.sharedMesh.name=="Clipped local route")routeMesh=filter.sharedMesh;
    report.Add((routeMesh&&routeMesh.vertexCount==8&&routeMesh.triangles.Length==12?"PASS":"FAIL")+" off-patch route endpoint cuts adjacent segments while retaining both visible sections");
    nav.SetRoute(new int[0]);
    nav.Home(0);nav.Tick(3,0);
+   double homeCapDeg=Math.Acos(1.0/nav.Distance)*180.0/Math.PI;
+   double unfoldCapDeg=Math.Acos(1.0/PlanetScrollNavigationMath.Start)*180.0/Math.PI;
+   report.Add((camera.fieldOfView<=20.01f&&homeCapDeg>81.0&&unfoldCapDeg>65.0?"PASS":"FAIL")+" telephoto external-viewpoint globe reduces distortion and exposes full hemisphere; fov="+camera.fieldOfView+" homeCapDeg="+homeCapDeg+" unfoldCapDeg="+unfoldCapDeg);
   }
   static void DisplayedGroundShape(List<string> report,FlatScrollNavigator nav,Camera camera,WorldData data)
   {
@@ -399,7 +410,7 @@ namespace Orbis.Editor
       commands.SetViewProjectionMatrices(camera.worldToCameraMatrix,GL.GetGPUProjectionMatrix(camera.projectionMatrix,false));
       foreach(var renderer in nav.GetComponentsInChildren<MeshRenderer>())
       {
-       if(!renderer.enabled||renderer.sharedMaterial!=nav.SurfaceMaterial)continue;
+       if(!renderer.enabled||!renderer.sharedMaterial||renderer.sharedMaterial.shader!=nav.SurfaceMaterial.shader)continue;
        var filter=renderer.GetComponent<MeshFilter>();var block=new MaterialPropertyBlock();renderer.GetPropertyBlock(block);
        commands.DrawMesh(filter.sharedMesh,filter.transform.localToWorldMatrix,material,0,pass,block);
       }
