@@ -587,7 +587,7 @@ public static class RulesChecks
         checks = 0;
         // Rule data first, as at startup: the world must not run its first years without it.
         LM.Clear(); LM.LoadFile(Path.Combine(DataFolder(), "Locales", "ch.json")); LM.Language = "ch";
-        GameData.Folder = DataFolder(); OnomasticsRule.ReadSetting(); RegimeManager.init();
+        GameData.Folder = DataFolder(); RuleData.Load();
         Check(RegimeManager.regimes != null && RegimeManager.regimes.Count >= 12 && RegimeManager.regimes.ContainsKey(RegimeType.Feudalism), "regime templates load: " + (RegimeManager.regimes?.Count ?? 0));
         var map = FlatGenerator.Generate(256, 128, "EMPIRE-EMPIRES", TerrainPreset.Continents, default);
         PortedSystems.Reset(); PortedSystems.Enabled = true;
@@ -642,7 +642,7 @@ public static class RulesChecks
     {
         checks = 0;
         LM.Clear(); LM.LoadFile(Path.Combine(DataFolder(), "Locales", "ch.json")); LM.Language = "ch";
-        GameData.Folder = DataFolder(); OnomasticsRule.ReadSetting(); RegimeManager.init();
+        GameData.Folder = DataFolder(); RuleData.Load();
         PortedSystems.Reset(); PortedSystems.Enabled = true;
         var map = FlatGenerator.Generate(512, 256, "EMPIRE-CULTURES", TerrainPreset.Continents, default);
         var w = Start(map);
@@ -694,7 +694,7 @@ public static class RulesChecks
     {
         var map = FlatGenerator.Generate(256, 128, "EMPIRE-ARISE", TerrainPreset.Continents, default);
         LM.Clear(); LM.LoadFile(Path.Combine(DataFolder(), "Locales", "ch.json")); LM.Language = "ch";
-        GameData.Folder = DataFolder(); OnomasticsRule.ReadSetting(); RegimeManager.init();
+        GameData.Folder = DataFolder(); RuleData.Load();
         PortedSystems.Reset(); PortedSystems.Enabled = true;
         var w = Start(map); Run(w, 1);
         Console.WriteLine("   zone limit " + CityExpansionPatch.ZoneLimit + ", borders locked " + CityTerritoryProtection.BordersLocked + ", wilderness on " + WildernessSystem.Enabled + " regions " + WildernessSystem.Regions.Count);
@@ -774,7 +774,7 @@ public static class RulesChecks
     {
         checks = 0;
         LM.Clear(); LM.LoadFile(Path.Combine(DataFolder(), "Locales", "ch.json")); LM.Language = "ch";
-        GameData.Folder = DataFolder(); OnomasticsRule.ReadSetting(); RegimeManager.init();
+        GameData.Folder = DataFolder(); RuleData.Load();
         PortedSystems.Reset(); PortedSystems.Enabled = true;
         var map = FlatGenerator.Generate(width, width / 2, "EMPIRE-ARISE", TerrainPreset.Continents, default);
         // What the ported systems write to the log (several catch their own errors and only log them).
@@ -1032,9 +1032,22 @@ public static class RulesChecks
         LM.Clear(); int texts = LM.LoadFile(Path.Combine(GameData.Folder, "Locales", "ch.json")); LM.Language = "ch";
         Check(texts > 5000 && SocialClass.Peasant.ToTranslate() != "class_peasant", "text table: " + texts + " entries");
         Check(!string.IsNullOrEmpty("Huaxia".GetCultureTranslate()), "culture names translate");
+        // What the regime editor changes in Data is what the game reads at start (RuleData, the mod's start order): the rank and
+        // title tables, every people's word lists, era names, shared party names and book titles, and the laws.
+        string FirstKey(string file) => File.ReadLines(file).Skip(1).Select(l => l.Split(',')[0].Trim()).First(k => k.Length > 0);
+        string locales = Path.Combine(GameData.Folder, "Locales"), cultures = Path.Combine(locales, "Cultures");
+        RuleData.Load();
+        var tables = new[] { Path.Combine(locales, "OfficialRanks.csv"), Path.Combine(locales, "PeeragesLevelNames.csv"), Path.Combine(cultures, "YearName1.csv"),
+            Directory.EnumerateFiles(Path.Combine(cultures, "Culture_Huaxia"), "*.csv").OrderBy(f => f, StringComparer.Ordinal).First(),
+            Directory.EnumerateFiles(Path.Combine(cultures, "Culture_Roma"), "*.csv").OrderBy(f => f, StringComparer.Ordinal).First(),
+            Directory.EnumerateFiles(Path.Combine(cultures, "PartyNames"), "*.csv").OrderBy(f => f, StringComparer.Ordinal).First(),
+            Directory.EnumerateFiles(Path.Combine(cultures, "Books"), "*.csv").OrderBy(f => f, StringComparer.Ordinal).First() };
+        foreach (string table in tables) Check(LM.Has(FirstKey(table)), "texts of " + Path.GetFileName(table) + " are read");
+        int wordLists = Directory.EnumerateFiles(cultures, "*.csv", SearchOption.AllDirectories).Count();
+        Check(EmpireLawSystem.Laws.Count > 0, "the laws are read: " + EmpireLawSystem.Laws.Count);
         LogService.Sink = null;
         Console.WriteLine("PASS rule data (" + checks + " checks): " + trees.Count + " institution lines, " + nodes + " nodes, " +
-                          OnomasticsRule.ALL_CULTURE_RULE.Count + " cultures, " + texts + " texts; " + institutionWarnings + " institution warnings, " +
+                          OnomasticsRule.ALL_CULTURE_RULE.Count + " cultures, " + texts + " texts, " + wordLists + " word lists, " + EmpireLawSystem.Laws.Count + " laws; " + institutionWarnings + " institution warnings, " +
                           (LogService.Warnings - warnings - institutionWarnings) + " culture warnings (the mod's own data notes)");
     }
 

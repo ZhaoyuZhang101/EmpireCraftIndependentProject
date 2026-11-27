@@ -69,15 +69,9 @@ namespace EmpireCraft.Presentation
             // Traditional, and most peoples carry only a "cz" name).
             LM.Language = "cz";
             if (!Directory.Exists(GameData.Folder)) { Debug.LogWarning("[EmpireCraft] rule data folder missing: " + GameData.Folder); return; }
-            try
-            {
-                InstitutionDefinitionRegistry.Load();
-                OnomasticsRule.ReadSetting();
-                string texts = Path.Combine(GameData.Folder, "Locales", LM.Language + ".json");
-                if (File.Exists(texts)) LM.LoadFile(texts);
-                // Regime templates and their titles; realms take theirs from their people when a world opens.
-                RegimeManager.init();
-            }
+            // Texts, word lists, the peoples' rules, institution trees, regime templates and their titles, factions, laws
+            // (see RuleData); realms take their regime from their people when a world opens.
+            try { RuleData.Load(); }
             catch (Exception e) { Debug.LogException(e); }
         }
 

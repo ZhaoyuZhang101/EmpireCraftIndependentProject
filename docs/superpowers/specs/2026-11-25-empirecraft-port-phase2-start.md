@@ -1152,3 +1152,25 @@
 - 吞并的仗 21 场全是守方胜：攻方破不了一城之部的都城。
 - 串档仍在(单跑与全套结果不同)。
 - 宗族 `setParent` 空引用(帝位继承那条路)仍一次。
+
+## 二十九、政体编辑器兼容：小修三项(2026-11-28)
+
+用户要模组的政体编辑器能直接编辑独立游戏的 `Assets/EmpireCraft/Data`(父会话已让编辑器认只有 `Scripts/Regimes/Configs` 的数据目录)。核对全文在共享笔记 editor-data-compat-2026-11-28.md：政体配置、制度线、文化规则、科技树、ClaimRules、宪法模板、共和部委、军制、文武等级都已经从 Data 按模组格式读；不行的四类里用户全选了修法，这里先做三项小修。
+
+**1. 缺的数据补上、开局照模组的顺序读**
+- 用 PortTool data 从模组 HEAD 补拷 1462 个文件(登记进清单，Unity 的 .meta 一并写好，文本资源 TextScriptImporter)：`Locales/` 下四个表(OfficialRanks、HonoraryOfficial、MeritLevel、PeeragesLevelNames)、`Locales/Cultures/**` 全部词库(各文化目录、年号、庙号谥号、PartyNames、Books、Settlements、Wilderness、UrbanLabels)、律法 `Scripts/GeneralSystems/EmpireLaw/EmpireLawConfig.json`/`EmpireLawEras.json`、考绩 `Scripts/Data/PerformanceData.json`。`Locales/Compat`(ModernMod/WarBox 兼容译文)不要。`Locales/{cz,en,ch}.json` 重新同步(补上 11 个 `modern_autonomy_*` 键)。
+- 新的宿主 `Core/Host/RuleData.Load()`：照模组 `ModClass.OnLoad` 的顺序读——本语言的文本表、四个表、各文化词库(模组 `LoadCultureNameTemplate`：每个 `Culture_*` 目录下所有 CSV、年号庙号谥号、通用党名书名，首行不是表头的跳过)、制度线、文化规则、政体模板、派系(`FactionManager.init`)、律法(`EmpireLawSystem.init`，以前没人调)。目录是列举的，编辑器新加的文化、词库也读得到。`EmpireCoreDriver.PrepareHost` 与测试都改调它。
+- 派系那步现在登记 0 条诉求：模组的诉求类(`Scripts/Regimes/TemporaryFactions/Claims` 下的 TempFac_*)还没搬，属阶段 4。
+- 人名、城名、国名仍来自手写的 `Core/World/Names.cs`，词库读进来了但起名还没改用(用户定的后续第二项)。
+
+**2. PortTool 不再冲掉编辑器改的数据**
+- `data_edited`：Data 里的文件和它拷来时模组那一版比(不计换行和 BOM)，不同就是在游戏这边改过。
+- `sync`：改过的数据文件按三方合并(游戏这边、拷来时的模组、模组现在)，冲突照代码那样报；没改过的照旧换新。试过：把 en.json 一行改掉再同步，改动留下、11 个新键也进来了(试完已还原)。
+- `data --force`：改过的不覆盖，除非加 `--overwrite-edited`。
+- 现有 1544 个数据文件没有一个算"改过"。编辑器新建的文件不在清单里，同步不碰它们。
+
+**3. claims.html 兜底**：父会话在模组仓库的编辑器里做了(没有 TemporaryFactionType.cs 时取 ClaimRules.json 已有的条目，并提示是数据目录)。
+
+**验证**：全套 22 组通过("rule data"组加了：四个表、华夏/罗马词库、年号、党名、书名各取一个键读得到，律法 58 条)；两个指纹与最初相同；Unity 本轮没跑(父会话在跑存读档实测)。
+
+**下一步(用户 11-28 改序)**：完整存档——EmpireSave v8 在 v7 骨架后追加模组 `DataManager.SaveAll` 那份 JSON；之后故土表进数据、起名按词库、政体枚举数据化(开工前方案先给父会话)。
