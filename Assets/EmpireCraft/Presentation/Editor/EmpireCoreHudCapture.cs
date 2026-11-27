@@ -68,6 +68,31 @@ namespace EmpireCraft.EditorTools
         }
         static IHudWindow Window => Field("hudWindow") as IHudWindow;
 
+        // Choose a god power by its name (FlatWorldApp.CorePower).
+        static void Power(string name)
+        {
+            var type = typeof(FlatWorldApp).GetNestedType("CorePower", Private);
+            var method = typeof(FlatWorldApp).GetMethod("ChooseCorePower", Private);
+            method.Invoke(app, new[] { Enum.Parse(type, name) });
+        }
+
+        // Press the first enabled button in the open window whose text starts with the prefix.
+        static bool Press(string prefix)
+        {
+            var root = Window?.Root;
+            if (root == null) return false;
+            foreach (var b in root.Query<VisualElement>(className: "ec-pbtn").ToList())
+            {
+                var label = b.Q<Label>();
+                if (label == null || !label.text.StartsWith(prefix) || !(b.userData is Action act)) continue;
+                act();
+                texts.AppendLine("[press] " + label.text + " → status: " + Field("status"));
+                return true;
+            }
+            texts.AppendLine("[press] no enabled button starting with " + prefix);
+            return false;
+        }
+
         static void Step()
         {
             string output = SessionState.GetString(Flag, "");
@@ -99,6 +124,12 @@ namespace EmpireCraft.EditorTools
                         foreach (var r in core.LiveRealms) if (r.Alive && (largest == null || r.Cities.Count > largest.Cities.Count)) largest = r;
                     return largest;
                 };
+                Func<Realm, Realm> Second = first =>
+                {
+                    Realm best = null;
+                    foreach (var r in core.LiveRealms) if (r.Alive && r != first && (best == null || r.Cities.Count > best.Cities.Count)) best = r;
+                    return best ?? first;
+                };
                 views = new List<View>
                 {
                     // The map alone first: the whole political atlas, then the largest realm close up, political and natural.
@@ -121,6 +152,19 @@ namespace EmpireCraft.EditorTools
                     new View { Name = "15_clan_houses", Frames = 30, Setup = () => Window.Show(3) },
                     new View { Name = "16_annals", Setup = () => Call("OpenCoreAnnals") },
                     new View { Name = "17_annals_news", Frames = 30, Setup = () => Window.Show(1) },
+                    // God powers (docs/design/ui-style.md v5): the 文明 power bar on 帝国, then the diplomacy
+                    // window (战与和 between the largest realm and the next largest), its other pages, and 立君.
+                    new View { Name = "18_powers_civ", Frames = 30, Setup = () => { Call("CloseHudWindow"); Call("SelectHudMode", 2); Call("ShowHudCategory", 1); } },
+                    // The 外交 power the way a click on the map runs it: choose the power, click one capital, then the other.
+                    new View { Name = "19_diplo_war", Frames = 60, Setup = () => { Call("ShowHudCategory", -1); Power("Diplomacy"); Call("CorePowerPick", Largest().Capital.Tile); Call("CorePowerPick", Second(Largest()).Capital.Tile); } },
+                    new View { Name = "20_diplo_overview", Frames = 30, Setup = () => Window.Show(0) },
+                    new View { Name = "21_diplo_pair", Frames = 30, Setup = () => Window.Show(1) },
+                    new View { Name = "22_crown", Frames = 30, Setup = () => Call("OpenCoreCrown", Largest()) },
+                    // Press the buttons: declare war, stop it, crown someone, proclaim an empire (each result is in windows.txt).
+                    new View { Name = "23_declare", Frames = 60, Setup = () => { Call("OpenCoreDiplomacy", Largest(), Second(Largest())); Press("以「"); } },
+                    new View { Name = "24_truce", Frames = 60, Setup = () => Press("停战") },
+                    new View { Name = "25_crown_done", Frames = 60, Setup = () => { Call("OpenCoreCrown", Largest()); if (!Press("立为君主")) Press("改朝立之"); } },
+                    new View { Name = "26_empire", Frames = 90, Setup = () => { Call("CloseHudWindow"); Power("Empire"); Call("CorePowerPick", Second(Largest()).Capital.Tile); Power("None"); Call("OpenHudNations"); } },
                     new View { Name = "10_globe_political", Frames = 150, Setup = () =>
                         {
                             // Daylight over the largest realm (the same sun placement as the HUD review shots).

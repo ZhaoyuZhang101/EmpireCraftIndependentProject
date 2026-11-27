@@ -191,11 +191,12 @@ namespace Orbis.Flat
 
         static readonly Color32[][] HudThemeSwatches =
         {
+            new[] { new Color32(26, 19, 17, 255), new Color32(196, 90, 72, 255), new Color32(246, 212, 138, 255) },
             new[] { new Color32(18, 28, 38, 255), new Color32(222, 184, 112, 255), new Color32(132, 214, 232, 255) },
             new[] { new Color32(60, 48, 34, 255), new Color32(238, 218, 170, 255), new Color32(196, 52, 40, 255) },
             new[] { new Color32(32, 41, 50, 255), new Color32(218, 226, 232, 255), new Color32(104, 190, 150, 255) },
         };
-        static readonly string[] HudThemeNotes = { "青铜星盘、刻度与星芒", "羊皮舆图、绳纹与罗盘", "石青底板、白玉与铆钉" };
+        static readonly string[] HudThemeNotes = { "黑漆朱边、金角像素框与像素字", "青铜星盘、刻度与星芒", "羊皮舆图、绳纹与罗盘", "石青底板、白玉与铆钉" };
 
         void BuildHudThemePage(VisualElement page)
         {

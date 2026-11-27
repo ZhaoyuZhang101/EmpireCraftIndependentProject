@@ -289,3 +289,172 @@
 .ec-arc .unity-scroller__low-button, .ec-arc .unity-scroller__high-button { display: none; }
 .ec-arc .unity-base-slider__tracker { background-color: var(--ec-ins); border-width: 0; }
 .ec-arc .unity-base-slider__dragger { background-color: var(--ec-line); border-width: 0; }
+
+/* ===================================================================================
+   漆器朱 lacquer theme: the house style (docs/design/ui-style.md, reference v5).
+   Pixel frames from Frames/Lacquer (1:1, point-filtered, nine-sliced); the pixel font is
+   set on the panel root in code (PixelFont). Layout rules for the shared components come
+   first (all themes), then the lacquer textures.
+   =================================================================================== */
+.theme-lacquer {
+    --ec-gold: rgb(246, 212, 138); --ec-cyan: rgb(127, 216, 234); --ec-grey: rgb(138, 122, 106);
+    --ec-val: rgb(242, 230, 212); --ec-sub: rgb(203, 184, 162); --ec-title: rgb(42, 30, 26);
+    --ec-ins: rgb(21, 16, 14); --ec-line: rgb(78, 64, 58); --ec-page: rgb(26, 19, 17);
+}
+
+/* ---------- shared component layout ---------- */
+.ec-prow { flex-direction: row; align-items: center; }
+.ec-pcol { flex-direction: column; }
+.ec-icon.ec-xs { width: 14px; height: 14px; }
+.ec-icon.ec-md { width: 32px; height: 32px; }
+.ec-phead { flex-direction: row; align-items: center; height: 26px; flex-shrink: 0; margin-bottom: 6px; }
+.ec-phead-t { color: var(--ec-gold); font-size: 16px; }
+.ec-phead-q { color: var(--ec-sub); font-size: 12px; }
+.ec-lead { flex-grow: 1; height: 2px; margin: 0 8px; background-color: var(--ec-line); }
+.ec-arc .ec-kpis { margin-right: -8px; margin-bottom: 8px; }
+.ec-arc .ec-kpi { margin-right: 8px; }
+.ec-pgrid { flex-direction: column; flex-shrink: 0; }
+.ec-pgrid-row { flex-direction: row; margin-right: -8px; margin-bottom: 8px; }
+.ec-pgrid-cell { flex-grow: 1; flex-basis: 0; margin-right: 8px; margin-bottom: 0; }
+.ec-icard { flex-direction: column; }
+.ec-icard > .ec-ch { border-bottom-width: 0; margin-bottom: 4px; }
+.ec-icard > .ec-ch > .ec-badge { margin-left: 4px; }
+.ec-verdict { color: rgb(240, 160, 80); white-space: normal; margin-top: 4px; font-size: 12px; }
+.ec-list { background-color: var(--ec-ins); border-width: 2px; border-color: rgb(12, 8, 7); border-top-color: rgb(6, 4, 3); margin-top: 2px; }
+.ec-li { flex-direction: row; align-items: center; padding: 2px 6px; min-height: 24px; }
+.ec-li.ec-alt { background-color: rgb(29, 22, 19); }
+.ec-li-head { min-height: 18px; }
+.ec-li-name { flex-grow: 1; flex-shrink: 1; -unity-text-align: middle-left; white-space: nowrap; overflow: hidden; color: var(--ec-val); }
+.ec-li-v { min-width: 54px; -unity-text-align: middle-right; color: var(--ec-val); }
+.ec-li-col { width: 28px; -unity-text-align: middle-right; color: var(--ec-val); flex-shrink: 0; }
+.ec-li > .ec-badge { margin-left: 6px; }
+.ec-li > .ec-pbtn { margin-left: 6px; }
+.ec-dot { width: 8px; height: 8px; border-width: 1px; border-color: rgb(12, 8, 7); margin-right: 6px; flex-shrink: 0; }
+.ec-legend2 { flex-direction: row; flex-wrap: wrap; margin: 2px 0; }
+.ec-legend2-i { flex-direction: row; align-items: center; margin-right: 10px; }
+.ec-legend2-i > .ec-label { color: var(--ec-sub); font-size: 12px; }
+.ec-chipgrid { flex-direction: row; flex-wrap: wrap; margin: 2px -4px 2px 0; }
+.ec-chipcell { padding: 0 4px 4px 0; }
+.ec-chipcell > .ec-arc-chip { margin-left: 0; height: 24px; }
+.ec-pbtn { flex-direction: row; align-items: center; justify-content: center; height: 26px; padding: 2px 10px 4px 10px; flex-shrink: 0; }
+.ec-pbtn > .ec-icon { margin-right: 4px; }
+.ec-pb-big { height: 32px; margin-top: 6px; }
+.ec-badge { padding: 0 5px 1px 5px; color: var(--ec-gold); font-size: 12px; flex-shrink: 0; border-width: 1px; border-color: var(--ec-line); }
+.ec-toast { flex-direction: row; align-items: center; padding: 4px 10px; margin-bottom: 6px; flex-shrink: 0; border-width: 2px; border-color: rgb(63, 154, 72); background-color: rgb(20, 32, 15); }
+.ec-toast > .ec-icon { margin-right: 6px; }
+.ec-toast-t { color: rgb(101, 214, 110); white-space: normal; }
+.ec-toast-bad { border-color: rgb(138, 50, 50); background-color: rgb(36, 16, 14); }
+.ec-toast-bad > .ec-toast-t { color: rgb(255, 122, 102); }
+.ec-steprow { flex-direction: row; align-items: center; margin: 2px 0; }
+.ec-step { width: 18px; height: 18px; align-items: center; justify-content: center; margin-right: 6px; flex-shrink: 0; background-color: rgb(138, 106, 34); }
+.ec-step-done { background-color: rgb(46, 106, 48); }
+.ec-step-todo { background-color: rgb(42, 34, 32); }
+.ec-step-t { color: rgb(255, 243, 200); font-size: 12px; -unity-text-align: middle-center; }
+.ec-step-todo > .ec-step-t { color: var(--ec-grey); }
+.ec-steprow-t { color: var(--ec-val); white-space: normal; flex-shrink: 1; }
+.ec-tug { flex-direction: row; align-items: center; margin: 2px 0; }
+.ec-tug-a { width: 46px; -unity-text-align: middle-right; color: var(--ec-gold); margin-right: 4px; }
+.ec-tug-b { width: 46px; margin-left: 4px; color: var(--ec-val); }
+.ec-tug > .ec-icon { margin: 0 4px; }
+.ec-ptrack { flex-grow: 1; flex-basis: 0; height: 12px; flex-direction: row; padding: 2px; background-color: var(--ec-ins); }
+.ec-ptrack-r { flex-direction: row-reverse; }
+.ec-pfill { height: 100%; border-top-width: 2px; border-bottom-width: 2px; border-top-color: rgba(255, 255, 255, 0.3); border-bottom-color: rgba(0, 0, 0, 0.3); }
+.ec-meter { flex-direction: row; align-items: center; margin: 2px 0; }
+.ec-meter-l { width: 16px; color: var(--ec-sub); }
+.ec-meter-v { width: 24px; -unity-text-align: middle-right; color: var(--ec-val); }
+.ec-meter > .ec-ptrack { height: 10px; }
+.ec-stile { flex-direction: row; align-items: center; flex-grow: 1; flex-basis: 0; margin-right: 4px; padding: 4px 6px; }
+.ec-stile-l { color: var(--ec-grey); margin: 0 4px; }
+.ec-stile-v { color: var(--ec-val); }
+.ec-pflag { width: 22px; height: 22px; border-width: 2px; border-color: rgb(12, 8, 7); align-items: center; justify-content: center; margin-right: 6px; flex-shrink: 0;
+    border-top-color: rgba(255, 255, 255, 0.45); border-left-color: rgba(255, 255, 255, 0.45); }
+.ec-pflag-t { color: rgb(255, 255, 255); font-size: 12px; -unity-text-align: middle-center; text-shadow: 1px 1px 0 rgb(0, 0, 0); }
+.ec-lockrow { flex-direction: row; align-items: center; margin-top: 2px; flex-shrink: 0; }
+.ec-lockrow-l { color: var(--ec-grey); margin: 0 4px 0 8px; }
+.ec-lockchip { flex-direction: row; align-items: center; padding: 2px 8px 3px 6px; margin-left: 4px; }
+.ec-lockchip > .ec-icon { -unity-background-image-tint-color: rgb(110, 100, 90); margin-right: 3px; }
+.ec-lockchip > .ec-label { color: var(--ec-grey); }
+.ec-mappick { background-color: rgb(12, 8, 7); padding: 2px; align-self: center; margin: 2px 0; flex-shrink: 0; }
+.ec-mappick-img { position: absolute; left: 2px; top: 2px; -unity-background-scale-mode: stretch-to-fill; }
+.ec-mappick-labels { position: absolute; left: 2px; top: 2px; right: 2px; bottom: 2px; overflow: hidden; }
+.ec-mappick-label { position: absolute; translate: -50% -50%; color: rgb(255, 255, 255); font-size: 12px; text-shadow: 1px 1px 0 rgb(0, 0, 0); margin: 0; padding: 0; }
+.ec-mapmodes { justify-content: flex-end; margin-bottom: 2px; }
+.ec-mapmodes > .ec-arc-chip { height: 22px; }
+
+/* ---------- lacquer textures ---------- */
+.theme-lacquer .ec-frame {
+    background-image: resource("EmpireCraft/Frames/Lacquer/card");
+    -unity-slice-left: 12; -unity-slice-right: 12; -unity-slice-top: 12; -unity-slice-bottom: 12; -unity-slice-type: sliced;
+    padding: 10px 12px;
+}
+.theme-lacquer .ec-frame.ec-on, .theme-lacquer .ec-frame.ec-sel { background-image: resource("EmpireCraft/Frames/Lacquer/card_gold"); }
+.theme-lacquer .ec-frame.ec-k-dim { background-image: resource("EmpireCraft/Frames/Lacquer/card_dim"); }
+.theme-lacquer .ec-kpi { padding: 8px 12px; }
+.theme-lacquer .ec-kpi-l { color: var(--ec-sub); }
+.theme-lacquer .ec-hud .ec-kpi-n { font-size: 24px; }
+/* window and title bar */
+.theme-lacquer .ec-win {
+    background-image: resource("EmpireCraft/Frames/Lacquer/window");
+    -unity-slice-left: 8; -unity-slice-right: 8; -unity-slice-top: 8; -unity-slice-bottom: 8; padding: 8px;
+}
+.theme-lacquer .ec-win-tb {
+    background-color: rgba(0, 0, 0, 0); border-bottom-width: 0; height: 38px;
+    background-image: resource("EmpireCraft/Frames/Lacquer/titlebar");
+    -unity-slice-left: 2; -unity-slice-right: 2; -unity-slice-top: 4; -unity-slice-bottom: 6;
+}
+.theme-lacquer .ec-hud .ec-win-title { font-size: 16px; color: var(--ec-gold); text-shadow: 2px 2px 0 rgb(0, 0, 0); }
+.theme-lacquer .ec-hud .ec-phead-t { text-shadow: 2px 2px 0 rgb(0, 0, 0); }
+/* buttons: notched, lit on top, dark below; pressed when on */
+.theme-lacquer .ec-ib, .theme-lacquer .ec-mode, .theme-lacquer .ec-vbtn, .theme-lacquer .ec-cat, .theme-lacquer .ec-tool,
+.theme-lacquer .ec-btn, .theme-lacquer .ec-chip, .theme-lacquer .ec-win-back, .theme-lacquer .ec-win-close,
+.theme-lacquer .ec-pbtn, .theme-lacquer .ec-arc-chip, .theme-lacquer .ec-theme-card {
+    background-image: resource("EmpireCraft/Frames/Lacquer/btn");
+    -unity-slice-left: 4; -unity-slice-right: 4; -unity-slice-top: 4; -unity-slice-bottom: 6; -unity-slice-type: sliced;
+    border-width: 0; background-color: rgba(0, 0, 0, 0);
+}
+.theme-lacquer .ec-ib.ec-on, .theme-lacquer .ec-mode.ec-on, .theme-lacquer .ec-vbtn.ec-on, .theme-lacquer .ec-cat.ec-on, .theme-lacquer .ec-tool.ec-on,
+.theme-lacquer .ec-ib.ec-sel, .theme-lacquer .ec-vbtn.ec-sel, .theme-lacquer .ec-tool.ec-sel, .theme-lacquer .ec-chip.ec-on, .theme-lacquer .ec-chip.ec-sel,
+.theme-lacquer .ec-arc-chip.ec-on, .theme-lacquer .ec-theme-card.ec-on {
+    background-image: resource("EmpireCraft/Frames/Lacquer/btn_pressed");
+}
+.theme-lacquer .ec-pb-gold { background-image: resource("EmpireCraft/Frames/Lacquer/btn_gold"); }
+.theme-lacquer .ec-pb-red { background-image: resource("EmpireCraft/Frames/Lacquer/btn_red"); }
+.theme-lacquer .ec-pb-off { background-image: resource("EmpireCraft/Frames/Lacquer/btn_off"); }
+.theme-lacquer .ec-hud .ec-pbtn > .ec-label { color: rgb(255, 243, 200); }
+.theme-lacquer .ec-hud .ec-pb-plain > .ec-label { color: var(--ec-val); }
+.theme-lacquer .ec-hud .ec-pb-off > .ec-label { color: rgb(106, 90, 80); }
+.theme-lacquer .ec-hud .ec-on > .ec-label, .theme-lacquer .ec-hud .ec-sel > .ec-label { color: rgb(255, 243, 200); }
+/* wells, menu, steps, badges, receipts */
+.theme-lacquer .ec-arc-mi {
+    background-image: resource("EmpireCraft/Frames/Lacquer/well");
+    -unity-slice-left: 4; -unity-slice-right: 4; -unity-slice-top: 4; -unity-slice-bottom: 4;
+    margin-bottom: 4px; padding: 3px 8px 5px 8px; border-width: 0;
+}
+.theme-lacquer .ec-arc-mi.ec-active { background-image: resource("EmpireCraft/Frames/Lacquer/btn_gold"); -unity-slice-bottom: 6; background-color: rgba(0, 0, 0, 0); }
+.theme-lacquer .ec-hud .ec-arc-mi.ec-active > .ec-label, .theme-lacquer .ec-hud .ec-arc-mi.ec-active > .ec-opt-n { color: rgb(255, 243, 200); }
+.theme-lacquer .ec-ptrack { background-image: resource("EmpireCraft/Frames/Lacquer/well"); -unity-slice-left: 4; -unity-slice-right: 4; -unity-slice-top: 4; -unity-slice-bottom: 4; background-color: rgba(0, 0, 0, 0); }
+.theme-lacquer .ec-step { background-image: resource("EmpireCraft/Frames/Lacquer/btn_gold"); background-color: rgba(0, 0, 0, 0); -unity-slice-left: 4; -unity-slice-right: 4; -unity-slice-top: 4; -unity-slice-bottom: 6; }
+.theme-lacquer .ec-step-done { background-image: resource("EmpireCraft/Frames/Lacquer/btn_green"); }
+.theme-lacquer .ec-step-todo { background-image: resource("EmpireCraft/Frames/Lacquer/btn_off"); }
+.theme-lacquer .ec-badge { border-width: 0; background-image: resource("EmpireCraft/Frames/Lacquer/badge"); -unity-slice-left: 3; -unity-slice-right: 3; -unity-slice-top: 3; -unity-slice-bottom: 3; padding: 1px 6px 2px 6px; }
+.theme-lacquer .ec-badge-r { background-image: resource("EmpireCraft/Frames/Lacquer/badge_r"); }
+.theme-lacquer .ec-badge-g { background-image: resource("EmpireCraft/Frames/Lacquer/badge_g"); }
+.theme-lacquer .ec-badge-o { background-image: resource("EmpireCraft/Frames/Lacquer/badge_o"); }
+.theme-lacquer .ec-badge-c { background-image: resource("EmpireCraft/Frames/Lacquer/badge_c"); }
+.theme-lacquer .ec-badge-m { color: var(--ec-grey); }
+.theme-lacquer .ec-toast { border-width: 0; background-color: rgba(0, 0, 0, 0); background-image: resource("EmpireCraft/Frames/Lacquer/toast"); -unity-slice-left: 4; -unity-slice-right: 4; -unity-slice-top: 4; -unity-slice-bottom: 4; }
+.theme-lacquer .ec-toast-bad { -unity-background-image-tint-color: rgb(255, 150, 140); }
+.theme-lacquer .ec-lockchip { background-image: resource("EmpireCraft/Frames/Lacquer/btn_off"); -unity-slice-left: 4; -unity-slice-right: 4; -unity-slice-top: 4; -unity-slice-bottom: 4; }
+.theme-lacquer .ec-lead { background-color: rgba(0, 0, 0, 0); background-image: resource("EmpireCraft/Frames/Lacquer/lead"); background-repeat: repeat-x; background-size: 6px 2px; }
+.theme-lacquer .ec-arc-group { background-image: resource("EmpireCraft/Frames/Lacquer/banner"); -unity-slice-left: 4; -unity-slice-right: 4; -unity-slice-top: 4; -unity-slice-bottom: 4; background-color: rgba(0, 0, 0, 0); border-width: 0; }
+.theme-lacquer .ec-arc-ava { background-image: resource("EmpireCraft/Frames/Lacquer/medal"); -unity-slice-left: 6; -unity-slice-right: 6; -unity-slice-top: 6; -unity-slice-bottom: 6; background-color: rgba(0, 0, 0, 0); border-width: 0; }
+.theme-lacquer .ec-arc-tag { background-image: resource("EmpireCraft/Frames/Lacquer/badge"); -unity-slice-left: 3; -unity-slice-right: 3; -unity-slice-top: 3; -unity-slice-bottom: 3; border-width: 0; }
+.theme-lacquer .ec-arc-stats { background-image: resource("EmpireCraft/Frames/Lacquer/well"); -unity-slice-left: 4; -unity-slice-right: 4; -unity-slice-top: 4; -unity-slice-bottom: 4; background-color: rgba(0, 0, 0, 0); border-width: 0; }
+.theme-lacquer .ec-arc-track { background-image: resource("EmpireCraft/Frames/Lacquer/well"); -unity-slice-left: 4; -unity-slice-right: 4; -unity-slice-top: 4; -unity-slice-bottom: 4; background-color: rgba(0, 0, 0, 0); border-width: 0; padding: 2px; }
+.theme-lacquer .ec-arc-fill { border-top-width: 2px; border-bottom-width: 2px; border-top-color: rgba(255, 255, 255, 0.3); border-bottom-color: rgba(0, 0, 0, 0.3); }
+.theme-lacquer .ec-ch { border-bottom-width: 0; }
+.theme-lacquer .ec-row.ec-alt, .theme-lacquer .ec-arc-line.ec-alt { background-color: rgb(29, 22, 19); }
+/* the pixel font has no bold face: emphasis by colour only */
+.theme-lacquer .ec-hud Label { -unity-font-style: normal; }
+.theme-lacquer .ec-hud .ec-label, .theme-lacquer .ec-hud .ec-ch-title, .theme-lacquer .ec-hud .ec-hd-title, .theme-lacquer .ec-hud .ec-kpi-n,
+.theme-lacquer .ec-hud .ec-date, .theme-lacquer .ec-hud .ec-win-title { -unity-font-style: normal; }

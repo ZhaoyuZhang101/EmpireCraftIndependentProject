@@ -14,9 +14,11 @@ namespace Orbis.Flat
     // yet are shown greyed. The classic ORBIS sidebar stays reachable as a drawer.
     public sealed partial class FlatWorldApp
     {
-        const string HudThemePref = "EmpireCraft.UiTheme";
-        static readonly string[] HudThemes = { "star", "atlas", "slate" };
-        static readonly string[] HudThemeNames = { "星图青铜", "舆图羊皮", "石青白玉" };
+        // The lacquer theme is the house style (docs/design/ui-style.md) and comes first; the
+        // key changed with it so an older saved index does not pick another theme.
+        const string HudThemePref = "EmpireCraft.UiTheme2";
+        static readonly string[] HudThemes = { "lacquer", "star", "atlas", "slate" };
+        static readonly string[] HudThemeNames = { "漆器朱", "星图青铜", "舆图羊皮", "石青白玉" };
         const int HudFeedRows = 5, HudCompactRows = 12;
 
         VisualElement hud, hudModes, hudViews, hudRail, hudPop, hudPopGrid, hudPopIcon, hudInfoButtons, hudFeedRows,
@@ -87,6 +89,9 @@ namespace Orbis.Flat
         {
             hudTheme = theme;
             for (int i = 0; i < HudThemes.Length; i++) root.EnableInClassList("theme-" + HudThemes[i], i == theme);
+            // The lacquer theme sets its text in the pixel font (inherited by the whole panel).
+            root.style.unityFontDefinition = HudThemes[theme] == "lacquer" && PixelFont.Definition.HasValue
+                ? new StyleFontDefinition(PixelFont.Definition.Value) : new StyleFontDefinition(StyleKeyword.Null);
             PlayerPrefs.SetInt(HudThemePref, theme);
         }
 
@@ -94,6 +99,7 @@ namespace Orbis.Flat
         {
             if (e.keyCode != KeyCode.Escape) return;
             if (hudWindow != null) CloseHudWindow();
+            else if (corePower != CorePower.None) ChooseCorePower(CorePower.None);
             else if (hudCategory >= 0) ShowHudCategory(-1);
             else if (toolField.index != 0) toolField.index = 0;
             else return;
@@ -204,11 +210,12 @@ namespace Orbis.Flat
                 CoreEnabled ? HudLater("播种文明", "population_add") : HudAction("播种文明", "population_add", SeedNationsFromHud, "在世界上随机新增 4 个文明。"),
                 HudWindow("列国榜", "empire_list", OpenHudNations, CoreEnabled ? "列国的民族、政体、城池与人口，各民族的时代与制度。" : "各文明的疆域、人口与存粮。"),
                 CoreEnabled ? HudLater("路径", "road_connect") : HudEdit("路径", "road_connect", 7, "显示从首都到所点地块的陆路。"),
-                HudLater("立君", "civ_crown")));
+                CoreEnabled ? HudCorePower("立君", "ChineseCrown", CorePower.Crown, "点一国，在名单里挑人立为君主。") : HudLater("立君", "civ_crown")));
             civ.Categories.Add(HudCat("帝国", "civ_empire", "国务与从属",
                 HudWindow("国务", "TabEmpire", OpenHudState, "选中之国的君主、国势、文明与城池。"),
                 HudWindow("史书", "iconHistory", OpenCoreAnnals, "天下大事与编年。"),
-                HudLater("称帝", "create_empire"), HudLater("从属", "TabDependencies")));
+                CoreEnabled ? HudCorePower("称帝", "create_empire", CorePower.Empire, "点一国，它即称帝；已在别国帝国里的先脱离。") : HudLater("称帝", "create_empire"),
+                HudLater("从属", "TabDependencies")));
             civ.Categories.Add(HudCat("法理", "civ_claims", "法理与宣称",
                 HudLater("法理", "iconToolTitleCreate"), HudLater("核心", "iconToolCoreCreate"), HudLater("宣称", "TabClaimScale")));
             civ.Categories.Add(HudCat("朝堂", "civ_court", "官署与制度",
@@ -219,10 +226,12 @@ namespace Orbis.Flat
                 CoreEnabled ? HudWindow("名人", "famous_talents", () => OpenHudClans(1), "按名望排列的人物。") : HudLater("名人", "famous_talents")));
             civ.Categories.Add(HudCat("宗教", "TabPapacy", "教会与教派", HudLater("宗教", "TabPapacy"), HudLater("圣地", "iconToolHolyCity")));
             civ.Categories.Add(HudCat("外交", "diplomacy", "盟约与往来",
-                HudLater("外交", "diplomacy"), HudLater("结盟", "plot_kingdom_start_join_taken_alliance")));
+                CoreEnabled ? HudCorePower("外交", "diplomacy", CorePower.Diplomacy, "先点本国，再点另一国：宣战、议和、停战。") : HudLater("外交", "diplomacy"),
+                HudLater("结盟", "plot_kingdom_start_join_taken_alliance")));
             civ.Categories.Add(HudCat("征伐", "TabWarfare", "战争与军团",
                 HudWindow("战争", "TabWarfare", OpenHudWar, "列出正在进行的战争。"),
-                HudLater("军团", "corps_command"), HudLater("停战", "plot_force_stop_war")));
+                HudLater("军团", "corps_command"),
+                CoreEnabled ? HudCorePower("停战", "plot_force_stop_war", CorePower.Truce, "先点交战的一方，再点它的敌国；同一国点两下，它所有的仗都停。") : HudLater("停战", "plot_force_stop_war")));
 
             var build = new HudMode { Name = "营建", Icon = "civ_build" };
             build.Categories.Add(HudCat("农桑", "civ_farm", "田亩",

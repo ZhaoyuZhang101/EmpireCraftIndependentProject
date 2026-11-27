@@ -108,7 +108,7 @@ namespace EmpireCraft.UI
     // Parts of the archive windows (the mod's WideKit, in UI Toolkit). Colour classes for
     // figures: g green (good), r red (bad), c cyan (information), y gold (key), o orange
     // (cost/warning), m grey (muted).
-    public static class Arc
+    public static partial class Arc
     {
         public static Label Text(string text, string cls, string tone = null)
         {
