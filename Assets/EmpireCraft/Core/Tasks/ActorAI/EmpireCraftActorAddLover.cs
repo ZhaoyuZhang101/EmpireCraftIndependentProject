@@ -46,7 +46,7 @@ public class EmpireCraftActorAddLover:GameAIActorBase
         }
         if (pActor.Money > 25&&pActor.IsNeedToAddLover())
         {
-            Random random = new Random();
+            Random random = new EmpireCraft.Core.EcSystemRandom();
             var possibility = random.NextDouble();
             if (possibility < 0.3f)
             {

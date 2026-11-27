@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/Data/WorldOrderData.cs @ 573aceb9. Body kept line-for-line for three-way sync;
+// Ported from the EmpireCraft mod: Scripts/Data/WorldOrderData.cs @ 1a066290. Body kept line-for-line for three-way sync;
 // see Port/manifest.json and Tools/PortTool.
 using System.Collections.Generic;
 
@@ -75,6 +75,8 @@ public class ColdWarData
     public int crises;
     // 两边盟主真打过(立阵营时就在交战，或冷战转热)：收场时不说"不战而终"
     public bool hot;
+    // 开始对峙时两边盟主的国力(-1 = 没记，旧档头一回结算时补记)：一方"衰"了要比这时候的对比掉一大截才算
+    public double power_a = -1d, power_b = -1d;
 }
 
 public class LeagueData

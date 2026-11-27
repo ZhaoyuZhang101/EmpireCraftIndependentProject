@@ -45,6 +45,7 @@ public class EmpireCraftKingdomBehCheckPlots : GameAIKingdomBase
         if (ked != null) ked.last_plots_check_ts = GameClock.Now;
         return BehResult.Continue;
     }
+#endif
 
     private static void CheckPowerfulMinisterPlot(Realm kingdom)
     {
@@ -73,7 +74,6 @@ public class EmpireCraftKingdomBehCheckPlots : GameAIKingdomBase
                 $"({minister.Key}), stage={empire.data.powerful_minister_stage}, plot={plotId}");
         }
     }
-#endif
     public void CheckMainTitle(Realm pKingdom)
     {
         pKingdom.ReconcileMainTitle();

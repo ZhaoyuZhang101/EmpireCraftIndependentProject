@@ -2,6 +2,7 @@
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Vector2 = EmpireCraft.Core.EcVector2;
+using Random = EmpireCraft.Core.EcRandom;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -71,6 +72,46 @@ public static partial class BannerSystem
         if (BannerRules.StopDue(years, extra.banner_enclosure_stopped)) StopEnclosure(empire, core, extra);
         if (BannerRules.RelaxDue(years, extra.banner_fugitive_law, extra.banner_law_relaxed, core.HasEnemies()))
             RelaxFugitiveLaw(empire, core, extra);
+        Defections(empire, core);
+    }
+
+    // 望风降附(见 BannerRules.DefectChance)：带着城和兵整个归进本帝国，像吴三桂那样当藩
+    private static void Defections(Empire empire, Realm core)
+    {
+        if (EmpireWorld.Current?.LiveRealms == null || empire == null || empire.IsGone()) return;
+        int done = 0;
+        foreach (Realm kingdom in EmpireWorld.Current.LiveRealms.ToList().OrderBy(_ => Random.value))
+        {
+            if (done >= BannerRules.DefectMaxPerYear) break;
+            if (!DefectCandidate(empire, core, kingdom)) continue;
+            float pressure = ScenarioEventSystem.ConquestPressure(core, CultureService.GetRealmCulture(kingdom));
+            if (Random.value >= BannerRules.DefectChance(pressure)) continue;
+            foreach (Realm member in empire.kingdoms_list.ToList())
+                if (member?.Record != null && !member.IsGone()) DiplomacyActions.EndWars(member, kingdom);
+            empire.join(kingdom, true, pForce: true, pLegitimacyTransfer: true);
+            if (kingdom.GetEmpire() != empire) continue;
+            done++;
+            EmpireCraft.Core.EmpireCraftKingdomBehCheckKingdomType.SyncKingdomStatus(kingdom);
+            string text = string.Format(LM.Get("scenario_rally_history"), kingdom.GetKingdomName(), core.GetKingdomName(), empire.GetEmpireName());
+            Announce(empire, core, text);
+            LogService.LogInfo($"[EmpireCraft][绿营] 望风降附：压力 {pressure:P0}，{kingdom.GetKingdomName()} 带 {kingdom.Cities.Count} 城、" +
+                               $"{CorpsSystem.Of(kingdom).Sum(corps => corps.strength):0} 兵归 {empire.GetEmpireName()}");
+        }
+    }
+
+    private static bool DefectCandidate(Empire empire, Realm core, Realm kingdom)
+    {
+        if (kingdom?.Record == null || kingdom.IsGone() || !kingdom.IsCivilized() || !kingdom.HasRuler() || (kingdom.Cities?.Count ?? 0) == 0) return false;
+        Empire own = kingdom.GetEmpire();
+        // 本帝国的、编旗的、称了帝的(明廷、大顺)不降；起兵领头人还在的流寇、殖民地、穿越者不降
+        if (own == empire || own != null && own.CoreKingdom == kingdom || Organized(CoreOf(kingdom))) return false;
+        if (ScenarioEventSystem.LedByRebelFounder(kingdom) || ColonySystem.IsColony(kingdom) ||
+            TransmigrantSystem.IsTransmigrant(kingdom)) return false;
+        // 比的是这一家自己的国力(WarSituation.Power 给帝国成员算的是整个帝国，明的一省就成了全明，永远不降)和本帝国全体
+        if (!FrontSystem.Hostile(kingdom, core) || kingdom.GetNationalPower() >= WarSituation.Power(empire)) return false;
+        // 挨着本帝国的地盘
+        return kingdom.Cities.Any(city => city?.NeighbourCities != null &&
+                                          city.NeighbourCities.Any(next => next?.Realm != null && next.Realm.GetEmpire() == empire));
     }
 
     private static void Announce(Empire empire, Realm core, string text)

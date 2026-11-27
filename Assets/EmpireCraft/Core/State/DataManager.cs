@@ -42,7 +42,6 @@ public static class DataManager
         _loadWatch.Restart();
     }
 
-#if EC_PENDING
     public static void LoadAll(string loadRootPath)
     {
         _loadWatch = SimWatch.StartNew();
@@ -468,7 +467,6 @@ public static class DataManager
         // 给读进来的各帝国记底，读档后按月对账(见 EmpireLossDiagnostics)
         EmpireCraft.Core.EmpireLossDiagnostics.OnLoaded();
     }
-#endif
 
     // 没有模组存档、或读不出来：各国按文化定政体(古战模组的国家不归本模组管)
     private static void InitialRegimeForAll()
@@ -488,13 +486,11 @@ public static class DataManager
     }
 
     // 没有模组存档的图(原版图、模组数据丢了)也可能带着混进字表名的起名模板(见 TemplateNameRepair)
-#if EC_PENDING
     private static void RepairTemplateNamesWithoutSave()
     {
         Guarded("起名模板修复", TemplateNameRepair.RepairCultures);
         Guarded("字表名修复", TemplateNameRepair.RepairNames);
     }
-#endif
 
     // 读档链上的一段出错只记日志：以前整个读档只有最外面一层 try，一段抛异常，后面定政体、国名、帝国迁移全部跳过
     private static void Guarded(string what, Action action)
@@ -535,7 +531,6 @@ public static class DataManager
             city.Name = city.Name.UseLocalizedNameSeparator();
         }
     }
-#if EC_PENDING
     public static void SaveAll(string saveRootPath)
     {
         if (string.IsNullOrEmpty(saveRootPath))
@@ -668,7 +663,6 @@ public static class DataManager
                            $"共 {totalMs:0} ms，文件 {new FileInfo(savePath).Length / 1048576d:0.0} MB");
         LogService.LogInfo("Save Finished");
     }
-#endif
 
     private static void NormalizeSaveData(SaveData saveData)
     {
@@ -822,7 +816,6 @@ public static class DataManager
         data.province_name_history ??= new Dictionary<string, string>();
     }
 
-#if EC_PENDING
     private static void NormalizeKingdomTitleData(KingdomTitleData data, Dictionary<long, long> savedCityTitles,
         Dictionary<long, City> cityById)
     {
@@ -870,7 +863,7 @@ public static class DataManager
             data.title_capital > 0 &&
             cityById.TryGetValue(data.title_capital, out City capital))
         {
-            data.original_actor_asset = capital.Realm?.Ruler?.Asset?.Id ?? capital.Realm?.asset?.id ?? capital.GetSpecies();
+            data.original_actor_asset = capital.Realm?.Ruler?.Asset?.Id ?? capital.Realm?.Asset?.Id ?? capital.GetSpecies();
         }
     }
 
@@ -916,7 +909,7 @@ public static class DataManager
                 title_capital = capitalId,
                 province_name = capital?.GetCityName(),
                 name = name,
-                original_actor_asset = capital?.Realm?.Ruler?.Asset?.Id ?? capital?.Realm?.asset?.id ?? capital?.GetSpecies(),
+                original_actor_asset = capital?.Realm?.Ruler?.Asset?.Id ?? capital?.Realm?.Asset?.Id ?? capital?.GetSpecies(),
                 banner_background_id = capital?.Realm?.Record?.BannerBackgroundId ?? 0,
                 banner_icon_id = capital?.Realm?.Record?.BannerIconId ?? 0,
                 founder_kingdom_id = capital?.Realm?.Key ?? -1L,
@@ -926,7 +919,6 @@ public static class DataManager
 
         return result;
     }
-#endif
 
 }
 }

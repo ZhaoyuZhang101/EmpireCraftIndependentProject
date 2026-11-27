@@ -25,7 +25,7 @@ public class EmpireCraftActorCheckTraits: GameAIActorBase
         if (pActor.Realm.GetRegime().type == RegimeType.LvLing|| pActor.Realm.GetRegime().type == RegimeType.ZhouFeudalism) return BehResult.Continue;
         if (!pActor.HasChooseToBecomeCleric())
         {
-            Random random = new Random();
+            Random random = new EmpireCraft.Core.EcSystemRandom();
             random.NextDouble();
             // 宗教等级越高，入神职的人越多(原来一律四成)：政教合一 25%、国教限制 15%、国教自由 8%、无国教 4%
             double clergy = pActor.Realm.GetRegime().GetReligionLevel() switch

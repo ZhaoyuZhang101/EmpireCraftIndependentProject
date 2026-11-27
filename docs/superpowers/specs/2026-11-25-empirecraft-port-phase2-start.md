@@ -1174,3 +1174,34 @@
 **验证**：全套 22 组通过("rule data"组加了：四个表、华夏/罗马词库、年号、党名、书名各取一个键读得到，律法 58 条)；两个指纹与最初相同；Unity 本轮没跑(父会话在跑存读档实测)。
 
 **下一步(用户 11-28 改序)**：完整存档——EmpireSave v8 在 v7 骨架后追加模组 `DataManager.SaveAll` 那份 JSON；之后故土表进数据、起名按词库、政体枚举数据化(开工前方案先给父会话)。
+
+## 三十、完整存档：EmpireSave 版本 8(2026-11-28)
+
+用户要读档后搬来的系统状态不丢(父会话已做存档位，接 `EmpireCoreDriver.EncodeCore/DecodeCore/PendingCore`)。以前的核心存档(版本 7)只有骨架：国、城、人、账本、战争、信仰文化、同盟、史书；搬来的各系统状态读档全丢。
+
+**做法：用模组自己的存档。** 模组把这些都写进一份 `EmpireCraftModData.json`(`DataManager.SaveAll`：各实体的附加数据、帝国与法理、官署、无人区、村镇、道路、决议、公司、各系统自己的记录)，读档时原版世界建好后再挂回去(`DataManager.LoadAll`)。这里：
+- `DataManager` 做活。缺的零件：
+  - 宿主答(`Core/Host/SaveStandIns.cs`)：`CulturePatch` 文化绑定(这里文化自带规则族，版本 6 已存，空)、`CoreGameId`(无服务器核心)、`EmpireCraftWorldLawLibrary.Capture/Apply`(世界法则随存档，照模组按 id 存开关、没记的回默认)、`SaveIntegrityChecker`(只写日志，空)。
+  - 手写一半(`Seams/SaveRepairs.Seams.cs`)：修旧版模组存档的几处(`TemplateNameRepair.RepairCultures/RepairNames`、`BookNamingSystem.RepairLegacyNames`、`LeftEmpireRepair.AfterLoad`；这里的存档由这里写，没有那些毛病，空)；`FixedFaction.ToSaveCopy`(不带按钮卡片)。
+  - `EmpireManager.CheckOne` 手写一半(`Seams/EmpireManager.Seams.cs`)：同模组查帝国存续、修不好的记下解散，不跑帝国月度更新(这里帝国年结由调度器跑，见 `PortedSystems.EmpireYear`)。于是读档修复 `RepairAfterLoad` 和每月存续 `CheckLiveness` 都活了。
+  - 零碎：`Realm.Asset`(都是人)、`Realm.MaxWarriors`(城应养守军全额，账本 Required 之和)、`Empire.clearCursorOver`(空)、`EmpireCraftDebugProbe`(空)、`Alliance.IsForced`(这里没有强制同盟)、`beginChecksCities`(这里城名单随时是新的)。
+- `Core/Systems/PortedSave.cs`：存：在系统临时目录下另建一个文件夹，`DataManager.SaveAll` 写进去，读出来 gzip；读：解开写进临时文件夹，`DataManager.LoadAll`。用完删掉文件夹。
+- `EmpireSave` 版本 8：版本 7 之后写记录编号计数(帝国、头衔等用的键)、各国战功名望(`Realm.WarRenown`)、搬来系统的状态(上面那份，压缩，没有就是空)。**搬来的系统开着、存的是当前世界时才写版本 8**；骨架世界照旧写版本 7(所以两个裸指纹不变)。搬来系统的状态是挂在当前世界上的静态量(换世界就清)，所以只有当前世界有可写的。
+- 读：版本 8 先把那份状态记在世界上(`EmpireWorld.PendingPortedState`)，世界变成当前时(`Activate`)挂回去。还没变成当前就再存，原样写回。
+- 调度器加"empire liveness"(模组战略调度每月的帝国存续)：核心国没有领土的帝国整轮查完后解散。以前一直没跑。
+
+**同步模组**：做这一步时模组多了 8 个提交(公司系统改组、港口、抗战与明清平衡等)。`sync --all` 把合并的数据类、规则、语言表同步到最新(无冲突)，生成代码也跟到最新。
+
+**测试**："full save"组：256 图 60 年，存成版本 8、读回、变成当前、照模组读档后第一帧接上无人区与在办的决议，比较帝国、无人区、军团兵力、决议、在打的仗的目标、城里人口、政体、国库——一致；记录键与战功名望一致。"running"组的骨架对照改为关着时存。
+
+**看到的**：
+- 读档会给没有官署的国、城补官署(模组读档就这样)：存档时 5 个，读回 57 个。运行中的世界里多数国、城一直没有官署，是另一处缺口(模组在立政体时给)。
+- **两处不确定已修**(存档测试查出来的)：
+  - 搬来的代码里有几处不带种子的 `new Random()`(按时钟起种)：考绩事件 `PerformanceSystem.s_random`(上一步读进考绩数据后才开始跑)、国家扩展、派系、特质、阴谋。搬运工具加改写规则，改成宿主的 `EcSystemRandom`(`System.Random` 的子类，每一次取数都从世界的种子流 `EcRandom` 取)。
+  - 派系编号等用 `Guid.NewGuid()`：每次运行、每份存档都不同。改写规则换成 `RecordIds.NewGuid()`(用世界的记录编号计数拼出 GUID，同一世界同一编号)。
+  - 修后"empires"组"同样经历后的两遍二十年后完全相同"连带模组存档那份一起比也过(以前只比骨架)。
+- 同一进程里两次读同一份存档再跑五年仍不同：第二次读之前跑过的世界留下的静态缓存没清(已知的跨世界泄漏，约 65 个静态量不在任何 ResetWorldState 里)，不是存档的事。游戏里只开一个世界，不受影响。测试里只报不判。
+
+**同步模组**：做这一步期间模组又多了几个提交，最后同步到 e004675a(无冲突)，生成代码也跟到最新。
+
+**验证**：全套 23 组通过；两个裸指纹与最初相同；父会话 Unity 批处理编译通过，存档读回"core restored"、第 41 年 75 国与存档时一致(那一轮还没有随机数这两处改动)。

@@ -410,6 +410,8 @@ namespace EmpireCraft.Core
         // What the base game did around a change of hands that is a matter of display or of its own bookkeeping here:
         // capture points (occupation is kept by the ported rules), the event shown to the townsfolk, a realm's mood.
         public static void ClearCapture(this City city){}
+        // The base game re-sorted its realms' city lists a frame after they changed; here WorldOps keeps them current.
+        public static void beginChecksCities(this List<Realm> realms){}
         public static void RemoveFromCurrentKingdom(this City city){}
         public static void SwitchedKingdom(this City city){}
         public static void NewForceKingdomEvent(this City city,IEnumerable<Person> people,IEnumerable<Person> boats,Realm realm,string happinessEvent){}

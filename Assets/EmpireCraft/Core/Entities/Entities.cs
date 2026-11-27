@@ -84,7 +84,9 @@ namespace EmpireCraft.Core
         public void DecreaseHappinessFromLostCityCapture(City city){}
         // How far apart two realms lie: from capital to capital, in cells.
         public static float DistanceBetween(Realm a,Realm b)=>a?.Capital==null||b?.Capital==null||a.World==null?float.MaxValue:a.World.Distance(a.Capital.Tile,b.Capital.Tile);
-        // Renown the realm won in its wars as the core of an empire (Empire.AddRenown). Not saved yet, as empires are not.
+        // The kind of people the realm is of (the base game's kingdom asset): everyone is human here.
+        public PersonKind Asset=>PersonKind.Human;
+        // Renown the realm won in its wars as the core of an empire (Empire.AddRenown). Saved from version 8 of the core's save.
         public int WarRenown;
         // The realm's renown: its ruler's, a tenth of each city leader's, and what it won in war.
         public int GetRenown(){long total=WarRenown+(Ruler!=null&&Ruler.Alive?Ruler.Renown:0);foreach(var city in Cities){var leader=city.Leader;if(leader!=null&&leader!=Ruler&&leader.Alive)total+=leader.Renown/10;}return (int)System.Math.Min(int.MaxValue,total);}

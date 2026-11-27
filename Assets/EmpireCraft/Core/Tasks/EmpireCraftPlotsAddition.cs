@@ -1252,7 +1252,7 @@ namespace EmpireCraft.Core
                                 (double)Math.Max(1, empire.countWarriors())) * 0.5d +
                                 Math.Max(0d, 100d - empire.Legitimacy) / 200d;
                         }
-                        Random rand = new Random();
+                        Random rand = new EmpireCraft.Core.EcSystemRandom();
                         rebellingPossibility *= RebellionSystem.ChanceFactor(target);
                         if (RebellionSystem.CanAttempt(target) && CityStabilitySystem.CanRise(target.capital) &&
                             rand.NextDouble() < rebellingPossibility)

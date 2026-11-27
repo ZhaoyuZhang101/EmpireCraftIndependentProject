@@ -138,6 +138,7 @@ public static partial class CorpsSystem
         EmbarkRetry.Clear();
         GrantRatio.Clear();
         MemberGaps.Clear();
+        SharedFactor.Clear();
         RoadNetwork.ResetWorldState();
         PureMapMode.ResetWorldState();
         CorpsArmSystem.ResetWorldState();
@@ -718,6 +719,8 @@ public static partial class CorpsSystem
     // 中央自己养兵之外的余额按各省缺口摊下去(够就补齐，不够按比例)，晚一个月生效；还没算过的当补得齐，免得读档那个月先裁一轮
     private static readonly Dictionary<long, float> GrantRatio = new();
     private static readonly Dictionary<long, double> MemberGaps = new();
+    // 总体战时帝国中央自己的军费系数(与各省同一成数，见 BudgetFactor)
+    private static readonly Dictionary<long, float> SharedFactor = new();
     // 兵不过民：一国的兵额不超过人口(连已在军中的)按军制全征的数。战时满编只增不减是怕边征边缩，可丢了大半国土、
     // 人口只剩零头的残国照旧按全盛时的满编补员(同一份反馈：30 万人口的国养着 11.8 万兵)。超出 OverCeilingSlack 的，
     // 各军满编按比例收回来，多出来的兵每月放归 OverCeilingShare(平时照旧按 DemobilizeShare)
@@ -728,6 +731,18 @@ public static partial class CorpsSystem
     // 不成军：军府算下来不足这么多人的不单独成军，兵额并进都城那支(群友"把最低军团人数限制在 1000")；
     // 以前养不起时各军府缩成 5/5、8/22 这种空架子，军团页几百行
     private const float MinCorpsMen = 1000f;
+
+    // 总体战(用户 2026-11-27 选"近代工业国总体战机制")：工业化程度高的国家(见 TechnologySystem.IndustrialLaborFactor)打仗时
+    // 军费比例照生死存亡之战拨、兵源多征至多 TotalWarLevy 成；0 = 前工业时代，1 = 1937 年的日本、西欧那样科技齐全。
+    // 以前工业国和农业国一样按七成收入养兵，日本只养得起一两千兵
+    private const float TotalWarLevy = 0.6f, TotalWarFullFactor = 5f;
+
+    public static float TotalWar(Realm kingdom)
+    {
+        if (kingdom?.Record == null || kingdom.IsGone()) return 0f;
+        float factor = TechnologySystem.IndustrialLaborFactor(TechnologySystem.GetCultureOf(kingdom));
+        return Mathf.Clamp01((factor - 1f) / (TotalWarFullFactor - 1f));
+    }
 
     private static Realm ObeyedCore(Realm kingdom)
     {
@@ -747,9 +762,13 @@ public static partial class CorpsSystem
         if (TreasurySystem.Report(kingdom).months < 3) return 1f;
         // 世界大战倾国而战，照生死存亡之战拨军费；军备竞赛中平时多拨(见 WorldOrderSystem)
         float share = !war ? PeaceBudgetShare + WorldOrderSystem.ArmsBudget(kingdom)
-            : WarGoalSystem.FightingForSurvival(kingdom) || WorldOrderSystem.InWorldWar(kingdom) ? SurvivalBudgetShare : WarBudgetShare;
+            : WarGoalSystem.FightingForSurvival(kingdom) || WorldOrderSystem.InWorldWar(kingdom) ? SurvivalBudgetShare
+            // 总体战：工业国战时经常收入全数可拨作军费(见 TotalWar)
+            : Mathf.Lerp(WarBudgetShare, SurvivalBudgetShare, TotalWar(kingdom));
         double budget = StateDebtSystem.AnnualStableIncome(kingdom) * (double)share +
-                        Math.Max(0L, kingdom.GetTreasuryBalance()) / (double)ReserveYears;
+                        Math.Max(0L, kingdom.GetTreasuryBalance()) / (double)ReserveYears +
+                        // 战时公债：工业国打仗时还能借的钱摊进军费(见 StateDebtSystem.WarBondBudget)
+                        (war ? StateDebtSystem.WarBondBudget(kingdom) : 0d);
         float perSoldier = Math.Max(0.01f, (war ? WarCostPerSoldier : PeaceCostPerSoldier) * AverageUpkeep(kingdom));
         double need = wanted * (double)perSoldier;
         Realm core = ObeyedCore(kingdom);
@@ -763,11 +782,29 @@ public static partial class CorpsSystem
             }
             budget += gap * (GrantRatio.TryGetValue(core.Key, out float ratio) ? ratio : 1f);
         }
-        else if (report && kingdom.GetEmpire()?.CoreKingdom == kingdom)
+        else if (kingdom.GetEmpire()?.CoreKingdom == kingdom)
         {
-            MemberGaps.TryGetValue(kingdom.Key, out double gaps);
-            GrantRatio[kingdom.Key] = gaps <= 0d ? 1f : Mathf.Clamp01((float)(Math.Max(0d, budget - need) / gaps));
-            MemberGaps[kingdom.Key] = 0d;
+            if (report)
+            {
+                MemberGaps.TryGetValue(kingdom.Key, out double gaps);
+                float spare = gaps <= 0d ? 1f : Mathf.Clamp01((float)(Math.Max(0d, budget - need) / gaps));
+                // 总体战：全国一盘棋，钱不够时中央与听调遣的各省按同一成数养兵(见 TotalWar)。以前中央先养足自己的军、
+                // 有余才补各省，日本中央倾国出征，九州、畿内这些行政区的兵饿到几十人，本土空虚，东京守军 0 人
+                float total = war ? TotalWar(kingdom) : 0f;
+                if (total > 0f && gaps > 0d && budget < need + gaps)
+                {
+                    float even = Mathf.Clamp01((float)(budget / (need + gaps)));
+                    GrantRatio[kingdom.Key] = Mathf.Lerp(spare, even, total);
+                    SharedFactor[kingdom.Key] = Mathf.Lerp(Mathf.Clamp01((float)(budget / need)), even, total);
+                }
+                else
+                {
+                    GrantRatio[kingdom.Key] = spare;
+                    SharedFactor.Remove(kingdom.Key);
+                }
+                MemberGaps[kingdom.Key] = 0d;
+            }
+            if (war && SharedFactor.TryGetValue(kingdom.Key, out float shared)) return shared;
         }
         return Mathf.Clamp01((float)(budget / need));
     }
@@ -816,6 +853,21 @@ public static partial class CorpsSystem
         {
             City home = Home(corps);
             if (home != null && home.Realm == kingdom) continue;
+            // 绿营：驻地被编旗之国攻下，守在城边的正规军六成降附，编为绿营驻这座城，统领另委；其余溃散(见 BannerSystem.ReceivesSurrender)
+            if (Surrenders(kingdom, corps, home))
+            {
+                Realm captor = home.Realm;
+                float before = corps.strength;
+                corps.strength *= BannerRules.GreenShare;
+                corps.full = Mathf.Max(corps.strength, corps.full * BannerRules.GreenShare);
+                corps.org = Mathf.Min(corps.org, 50f);
+                corps.entrench = 0f;
+                corps.general_id = -1L;
+                Transfer(corps, kingdom, captor, home);
+                LogService.LogInfo($"[EmpireCraft][绿营] {kingdom.Name} 驻 {home.Name} 的 {before:0} 人降 {captor.Name}，" +
+                                   $"{corps.strength:0} 人编为绿营");
+                continue;
+            }
             if (FollowsHome(kingdom, corps, home))
             {
                 // 改驻那一国的都城：驻地若不是那国的军镇，那国征兵时不会清点它，满编不跟着养不养得起缩，一直不裁
@@ -877,7 +929,8 @@ public static partial class CorpsSystem
         foreach (City city in cities)
             background += CityPopulationSystem.LevyBackground(city) + BannerSystem.ExtraLevy(city);
         // 武备废弛：兵籍虚冒、军户逃亡，兵源打折(见 MaladySystem.LevyFactor)
-        float levyShare = war ? WarLevyShare(kingdom, peace) : peace;
+        // 总体战：工业国战时多征(见 TotalWar)
+        float levyShare = war ? WarLevyShare(kingdom, peace) * (1f + TotalWarLevy * TotalWar(kingdom)) : peace;
         float malady = MaladySystem.LevyFactor(kingdom);
         float pool = background * doctrine.LevyShare * levyShare * malady;
         // 军团数跟着兵额走(见 MaxSeatLegions)：按养得起的兵源试算，军团不够装的在都城添
@@ -1028,6 +1081,15 @@ public static partial class CorpsSystem
         Realm realm = FrontSystem.ModRealm(kingdom) ?? kingdom;
         return !Unpaid(kingdom) && !Unpaid(realm) && !BannerSystem.SelfSupplied(kingdom) && !Insurgent(kingdom) &&
                DynasticCycleSystem.PayArrears(kingdom) < UnpaidShortfall && realm.GetTreasuryBalance() > 0;
+    }
+
+    // 驻地被编旗之国攻下、这支军还守在城边(不是出征在外的)：降附编为绿营。义军、手动组建、骑士团、渡海先遣的不降
+    private static bool Surrenders(Realm kingdom, CorpsData corps, City home)
+    {
+        if (home?.Realm?.Record == null || home.IsGone() || !BannerSystem.ReceivesSurrender(home.Realm, kingdom)) return false;
+        if (corps.militia || corps.manual || corps.order_id >= 0 || corps.parent_id >= 0 || corps.embarked || corps.strength < 1f) return false;
+        if (corps.task == "attack") return false;
+        return Zone(corps) is Cell at && home.SeatCell()?.Zone is Cell seat && ZoneDistance(at, seat) <= BannerRules.GreenReach;
     }
 
     // 驻地划给了同一帝国里的别国(行政区、封国)：正规军随驻地过去；正在攻守的、渡海先遣、手动组建、义军、骑士团的不动
@@ -2013,9 +2075,7 @@ public static partial class CorpsSystem
     private static City PortFor(Realm kingdom, Cell at)
     {
         if (kingdom == null) return null;
-        Realm realm = FrontSystem.ModRealm(kingdom);
-        IEnumerable<City> ports = NavySystem.Ports(kingdom);
-        if (realm != null && realm != kingdom) ports = ports.Concat(NavySystem.Ports(realm));
+        IEnumerable<City> ports = NavySystem.Sides(kingdom).SelectMany(NavySystem.Ports);
         City best = null;
         float bestDistance = float.MaxValue;
         foreach (City port in ports)

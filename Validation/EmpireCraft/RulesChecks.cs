@@ -561,11 +561,72 @@ public static class RulesChecks
         PortedSystems.Reset();
         var again = Start(map); Run(again, 40);
         Check(EmpireSave.Encode(again).SequenceEqual(bytes), "the same seed gives the same world with the ported systems running");
-        PortedSystems.Enabled = false; var bare = Start(map); Run(bare, 40); var bareTwin = Start(map); Run(bareTwin, 40); PortedSystems.Enabled = true;
+        // Saved while still switched off: a world saves the ported systems' state only while they run (EmpireSave, version 8).
+        PortedSystems.Enabled = false; var bare = Start(map); Run(bare, 40); var bareTwin = Start(map); Run(bareTwin, 40);
+        var bareBytes = EmpireSave.Encode(bare); var twinBytes = EmpireSave.Encode(bareTwin); PortedSystems.Enabled = true;
         // Switched on, the ported systems now keep the population and wage the wars, so the skeleton's part changes with them.
-        Check(EmpireSave.Encode(bare).SequenceEqual(EmpireSave.Encode(bareTwin)) && bare.Living.All(p => p.Renown == 0), "switched off, the world is the skeleton's alone, the same for the same seed");
+        Check(bareBytes.SequenceEqual(twinBytes) && bare.Living.All(p => p.Renown == 0), "switched off, the world is the skeleton's alone, the same for the same seed (" +
+              bareBytes.Length + "/" + twinBytes.Length + " bytes, version " + BitConverter.ToInt32(bareBytes, 4) + "/" + BitConverter.ToInt32(twinBytes, 4) + ", renown " + bare.Living.Sum(p => (long)p.Renown) + ")");
         EmpireWorld.Current = null;
         Console.WriteLine("PASS ported systems running 40 years (" + checks + " checks): " + PortedSystems.Slots.Count + " systems, standing " + total + " in all, the greatest ruler " + great.Renown + " (earns " + income + " a year)");
+    }
+
+    // The full save (EmpireSave, version 8): a world of 60 years with the ported systems running is saved together with their
+    // state (the mod's own save, DataManager, inside the section), loaded, and has the same state back once it is current.
+    public static void FullSave()
+    {
+        checks = 0;
+        LM.Clear(); LM.LoadFile(Path.Combine(DataFolder(), "Locales", "ch.json")); LM.Language = "ch";
+        GameData.Folder = DataFolder(); RuleData.Load();
+        PortedSystems.Reset(); PortedSystems.Enabled = true;
+        var map = FlatGenerator.Generate(256, 128, "EMPIRE-SAVE", TerrainPreset.Continents, default);
+        var w = Start(map); Run(w, 60);
+        // What the ported systems hold beside the skeleton, read the same way before saving and after loading.
+        string State(EmpireWorld world) => string.Join("; ", new[]
+        {
+            "empires " + world.Empires.list.Count(e => e.Alive) + " [" + string.Join(",", world.Empires.list.Where(e => e.Alive).Select(e => e.Name).OrderBy(n => n, StringComparer.Ordinal)) + "]",
+            "wilderness " + WildernessSystem.Regions.Count,
+            "corps " + CorpsSystem.All().Count() + " men " + (long)CorpsSystem.All().Sum(c => c.corps.strength),
+            "decisions " + DecisionSystem.Save().Count,
+            "war aims " + string.Join(",", world.LiveWars.Select(x => WarGoalSystem.Get(x).ToString()).OrderBy(n => n, StringComparer.Ordinal)),
+            "people in towns " + (long)world.Cities.Where(c => c.Alive).Sum(c => CityPopulationSystem.GetBackgroundTotal(c)),
+            "regimes " + string.Join(",", world.LiveRealms.GroupBy(r => r.GetRegime()?.type.ToString() ?? "none").OrderBy(g => g.Key, StringComparer.Ordinal).Select(g => g.Key + " " + g.Count())),
+            "treasuries " + world.LiveRealms.Sum(r => r.GetTreasuryBalance()),
+        });
+        // Saving tidies a little first (the mod prunes empty offices as it saves): read the state after it.
+        var bytes = EmpireSave.Encode(w);
+        string before = State(w);
+        int officesBefore = OfficeManager.Offices.Count;
+        Check(BitConverter.ToInt32(bytes, 4) == 8, "the current world with the ported systems running saves as version 8");
+        var loaded = EmpireSave.Decode(bytes, map.Clone());
+        Check(loaded.PendingPortedState != null && loaded.PendingPortedState.Length > 0, "the ported state comes back with the section");
+        Check(EmpireSave.Encode(loaded).SequenceEqual(bytes), "a loaded world that is not current yet saves what it was loaded from");
+        Check(loaded.NextRecordId == w.NextRecordId && loaded.Realms.Select(r => r.WarRenown).SequenceEqual(w.Realms.Select(r => r.WarRenown)), "the record keys and war renown are kept");
+        loaded.Activate();
+        // The mod takes back two things on the first frame after a load: the wilderness (checked against the land again)
+        // and the decisions under way (their plots put back up).
+        WildernessSystem.Tick(); DecisionSystem.Tick();
+        string after = State(loaded);
+        Console.WriteLine("   before: " + before);
+        if (after != before) Console.WriteLine("   after:  " + after);
+        Check(after == before, "loaded and made current, the world has the ported systems' state it was saved with");
+        // The mod's load gives every realm and city without an office one (as its regime asks); in the running world most
+        // have none yet (they get theirs when a regime is put in), so the load adds them: reported.
+        Console.WriteLine("   offices: " + officesBefore + " saved, " + OfficeManager.Offices.Count + " after loading (the load gives realms and cities without one theirs)");
+        var again = EmpireSave.Encode(loaded);
+        Console.WriteLine("   saved again right after loading: " + (again.SequenceEqual(bytes) ? "the same bytes" : again.Length + " bytes against " + bytes.Length));
+        // Two loads of one save going on five years: the same only if the simulation is deterministic, which with the full
+        // rule data loaded it is not yet (one world run twice already differs): reported, not required.
+        Run(loaded, 5); var first = EmpireSave.Encode(loaded);
+        var twin = EmpireSave.Decode(bytes, map.Clone()); Run(twin, 5); var second = EmpireSave.Encode(twin);
+        Console.WriteLine("   two loads of one save, five years on: " + (first.SequenceEqual(second) ? "the same bytes" : "differ (" + first.Length + " against " + second.Length + " bytes)"));
+        // And against the world that was never saved: what the save does not carry shows here.
+        PortedSystems.Reset(); var unbroken = Start(map); Run(unbroken, 65); var straight = EmpireSave.Encode(unbroken);
+        Console.WriteLine("   against the world never saved, five years on: " + (straight.SequenceEqual(first) ? "the same bytes" : "differs (" + straight.Length + " against " + first.Length + " bytes)"));
+        int faults = PortedSystems.TotalFaults;
+        Check(faults == 0, "no ported system fails around the save: " + string.Join("; ", PortedSystems.Slots.Where(s => s.Faults > 0).Select(s => s.Name + " x" + s.Faults + " " + s.LastFault)));
+        EmpireWorld.Current = null;
+        Console.WriteLine("PASS full save (" + checks + " checks): " + bytes.Length + " bytes, " + loaded.LiveRealms.Count + " realms");
     }
 
     // An empire founded by the ported code on a realm of the running world.
@@ -626,11 +687,17 @@ public static class RulesChecks
         var (third, thirdRealm, thirdEmpire, thirdName, thirdFault) = FoundOne(map, realm.Id);
         var thirdYears = new List<string>();
         Run(third, 20, world => thirdYears.Add(Sum(world)));
+        // Saved while it is the current world (the ported systems' state goes with it, EmpireSave version 8), as twin was.
+        var thirdBytes = EmpireSave.Encode(third); var thirdSkeleton = EmpireSave.Encode(third, 7);
         twin.Activate();
+        var twinSkeleton = EmpireSave.Encode(twin, 7);
+        int yearParted = Enumerable.Range(0, 20).FirstOrDefault(i => thirdYears[i] != twinYears[i]) + 1;
+        Console.WriteLine("   two runs after the same history: years " + (thirdYears.SequenceEqual(twinYears) ? "the same" : "part at year " + yearParted + " (" + thirdYears[yearParted - 1] + " | " + twinYears[yearParted - 1] + ")") +
+                          "; skeleton " + (thirdSkeleton.SequenceEqual(twinSkeleton) ? "the same" : "differs") + "; full save " + thirdBytes.Length + "/" + twinBytes.Length + " bytes");
         Check(WorldSwitch.Resets >= 80 && WorldSwitch.Switches > 0, "switching worlds resets the ported systems' state (" + WorldSwitch.Resets + " resets)");
         Check(twinFault == null && twinEmpire != null && twinEmpire.Key == empire.Key && twinName == foundedAs && empire.Key < 1000000,
               "the same world founds the same empire under the same key (" + empire.Key + " '" + foundedAs + "' vs " + (twinEmpire == null ? "none " + twinFault : twinEmpire.Key + " '" + twinName + "'") + ")");
-        Check(thirdYears.SequenceEqual(twinYears) && EmpireSave.Encode(third).SequenceEqual(twinBytes), "two runs after the same history are the same twenty years on");
+        Check(thirdYears.SequenceEqual(twinYears) && thirdBytes.SequenceEqual(twinBytes), "two runs after the same history are the same twenty years on");
         Console.WriteLine("   known: state carried between worlds - " + leftover + " static values differ between the starts of the first and the second run" +
                           (years.SequenceEqual(twinYears) ? "; the runs agree all the same" : "; the first run parts from the later ones in year " + parted));
         EmpireWorld.Current = null;

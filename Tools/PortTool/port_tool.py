@@ -102,6 +102,8 @@ IDENTITY = [
     (r"(?<![.\w])SmoothLoader\.isLoading\(\)", "GameClock.Loading"),
     # Record keys come from the world's counter, not the clock (Core/Host/Stock.cs RecordIds).
     (r"(?<![.\w])(?:OverallHelperFunc\.)?IdGenerator\.NextId\(\)", "RecordIds.Next()"),
+    # Random GUIDs (faction ids ...) from the same counter, so the same world makes the same ones.
+    (r"(?<![.\w])(?:System\.)?Guid\.NewGuid\(\)", "RecordIds.NewGuid()"),
     # Entity kinds, the kind of a person, name-making data, and the culture helpers the mod kept in a patch class.
     (r"(?<![.\w])MetaType\b", "EntityKind"),
     # Buildings, jobs and game options (Core/Host/Stock.cs).
@@ -206,6 +208,8 @@ IDENTITY = [
     (r"(?<![.\w])AttackType\b", "DeathCause"),
     (r"(?<![.\w])Randy\.randomChance\b", "EcRandom.Chance"),
     (r"(?<![.\w])Randy\.random(Int|Float)\b", "EcRandom.Range"),
+    # The base library's random numbers seeded from the clock: drawn from the host's stream instead (EcSystemRandom).
+    (r"(?<![.\w])new (System\.)?Random\(\)", "new EmpireCraft.Core.EcSystemRandom()"),
     (r"(?<![.\w])Config\.CITY_ZONE_SIZE\b", "EmpireCraft.Core.Land.ZoneSize"),
     (r"\bToolbox\.SquaredDistTile\b", "Land.SquaredDist"),
     (r"\bToolbox\.DistTile\b", "Land.Dist"),

@@ -23,7 +23,7 @@ namespace EmpireCraft.Core
 //         $topic$ 主题词  $dynasty_short$ 去掉"朝/国"的朝代名(宋朝 → 宋，用于"宋书")
 // 中文下人名、国名里的空格会去掉(赵 平程 → 赵平程)。
 // 模板里的占位符取不到值(没有帝国、没有年号、没有先帝)就换一个模板。含占位符的固定书名也当模板用。
-public static class BookNamingSystem
+public static partial class BookNamingSystem
 {
     private static readonly Dictionary<string, List<string>> PoolCache = new(StringComparer.Ordinal);
     private static HashSet<string> _usedNames;
@@ -146,19 +146,19 @@ public static class BookNamingSystem
     }
 
     // 帝国史书加载完成后修复已生成的书，保留原有题材、作者与卷号。
-#if EC_PENDING
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
     public static int RepairLegacyNames()
     {
-        if (EmpireWorld.Current?.Books == null) return 0;
+        if (EmpireWorld.Current?.books == null) return 0;
         int repaired = 0;
-        foreach (Book book in EmpireWorld.Current.Books)
+        foreach (Book book in EmpireWorld.Current.books)
         {
-            if (book?.data == null || book.IsGone() || string.IsNullOrEmpty(book.Name) ||
-                !LegacyTemplePrefix.IsMatch(book.Name)) continue;
-            Realm kingdom = EmpireWorld.Current.RealmByKey(book.data.author_kingdom_id);
-            string title = RepairLegacyTitle(book.Name, kingdom?.GetEmpire()?.data?.history);
-            if (title == book.Name) continue;
-            book.SetName(title);
+            if (book?.data == null || book.IsGone() || string.IsNullOrEmpty(book.name) ||
+                !LegacyTemplePrefix.IsMatch(book.name)) continue;
+            Realm kingdom = EmpireWorld.Current.kingdoms.get(book.data.author_kingdom_id);
+            string title = RepairLegacyTitle(book.name, kingdom?.GetEmpire()?.data?.history);
+            if (title == book.name) continue;
+            book.setName(title);
             repaired++;
         }
         if (repaired > 0)

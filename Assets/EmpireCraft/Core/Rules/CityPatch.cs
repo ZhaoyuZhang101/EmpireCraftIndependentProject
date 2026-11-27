@@ -1119,7 +1119,7 @@ public class CityPatch : GamePatch
         {
             if (city?.Record == null || city.Realm != null) continue;
             Realm previous = city.Record.last_kingdom_id > 0 ? EmpireWorld.Current.RealmByKey(city.Record.last_kingdom_id) : null;
-            Realm fallback = previous != null && !previous.IsGone() && previous.asset != null
+            Realm fallback = previous != null && !previous.IsGone() && previous.Asset != null
                 ? previous
                 : WildKingdomsManager.neutral;
             city.SetKingdom(fallback, pFromLoad: true);

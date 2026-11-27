@@ -155,7 +155,6 @@ public static class NameCultureRepair
     }
 
     // 年度扫描(CityPatch.WorldYearlyScans)
-#if EC_PENDING
     public static void TryYearlyScan()
     {
         if (EmpireWorld.Current?.LiveRealms == null || ModClass.IS_CLEAR) return;
@@ -179,6 +178,5 @@ public static class NameCultureRepair
             LogService.LogWarning($"[EmpireCraft][国号文化] 年度核对失败: {exception.Message}");
         }
     }
-#endif
 }
 }

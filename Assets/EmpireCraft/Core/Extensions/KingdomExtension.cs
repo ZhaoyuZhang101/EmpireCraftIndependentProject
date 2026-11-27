@@ -1521,7 +1521,7 @@ public static partial class KingdomExtension
 
         if (!(k.GetOrCreate().leave_taken_alliance_preference >= 1.0)) return;
         k.RemoveTakenAlliance();
-        Random random = new Random();
+        Random random = new EmpireCraft.Core.EcSystemRandom();
         var possibility = random.NextDouble();
         if (core.GetMoney() <= 0) return;
         if (!empire.CanStartPunitiveWar(k)) return;

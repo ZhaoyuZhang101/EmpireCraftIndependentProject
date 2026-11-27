@@ -3795,7 +3795,6 @@ public partial class Empire : RecordObject<EmpireData>
             .FirstOrDefault();
     }
 
-#if EC_PENDING
     private void UpdatePowerfulMinister(Regime currentRegime)
     {
         Person emperor = Emperor;
@@ -3931,7 +3930,6 @@ public partial class Empire : RecordObject<EmpireData>
         emperor?.RecordPersonalHistory(string.Format(LM.Get("personal_history_became_puppet"),
             candidate.FullName()), relatedActorId: candidate.Key);
     }
-#endif
 
     private void RecordMinisterTransition(Person minister, string key)
     {
@@ -5089,7 +5087,7 @@ public partial class Empire : RecordObject<EmpireData>
     {
         Realm pKingdom = capital?.Realm;
         // 先校验再拆城：拆完城后建国失败，城市会变成没有王国的孤城
-        if (pKingdom == null || pKingdom.asset == null || capital.IsGone() ||
+        if (pKingdom == null || pKingdom.Asset == null || capital.IsGone() ||
             EnfeoffmentHelper.IsRealmCapital(capital) || !king.CanFoundCivKingdom()) return null;
         king.ClearDisposedKingdom();
         capital.RemoveFromCurrentKingdom();

@@ -330,7 +330,7 @@ public static class ActorExtension
 #if EC_PENDING
     public static void ClearDisposedKingdom(this Person actor)
     {
-        if (actor?.Realm != null && actor.Realm.asset == null) actor.Realm = null;
+        if (actor?.Realm != null && actor.Realm.Asset == null) actor.Realm = null;
     }
 #endif
 

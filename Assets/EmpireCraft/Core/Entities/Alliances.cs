@@ -9,6 +9,8 @@ namespace EmpireCraft.Core
         public int Id;
         public string Name;
         public Realm Founder;
+        // Forced on its members by hand (the base game's god power): no alliance is, here, yet.
+        public bool IsForced() => false;
         public int FoundedMonth;
         public int EndedMonth = -1;
         public readonly List<Realm> Members = new List<Realm>();       // in the order they joined

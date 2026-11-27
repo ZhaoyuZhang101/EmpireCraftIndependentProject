@@ -121,6 +121,9 @@ namespace EmpireCraft.Core
                 foreach (var realm in w.LiveRealms.ToArray())
                     if (realm.Alive && (realm.Id + w.Month) % RealmCheckMonths == 0) check.Execute(realm);
             });
+            // Each empire still stands (the mod's monthly liveness pass, EmpireManager.CheckLiveness): what can be repaired is,
+            // an empire whose core realm holds no land is dissolved once the round is through.
+            Run("empire liveness", () => w.Empires.CheckLiveness());
             // Plots under way move on, those due are weighed and started, finished ones take effect.
             Run("decisions", () => { for (int i = 0; i < DecisionSlices; i++) DecisionSystem.Tick(); });
             Run("plots sweep", () => w.Plots.Sweep());

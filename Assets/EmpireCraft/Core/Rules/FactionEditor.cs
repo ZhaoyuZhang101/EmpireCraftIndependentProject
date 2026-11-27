@@ -158,7 +158,7 @@ public static class FactionEditor
         }
         var faction = new FixedFaction
         {
-            _id = Guid.NewGuid().ToString(),
+            _id = RecordIds.NewGuid().ToString(),
             Members = new List<long>(),
             TemporaryFactions = new List<TemporaryFaction>(),
             Leader = -1L,

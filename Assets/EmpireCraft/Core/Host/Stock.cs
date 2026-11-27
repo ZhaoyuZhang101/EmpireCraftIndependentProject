@@ -152,6 +152,15 @@ namespace EmpireCraft.Core
     {
         static long _loose = 1;   // only when no world is current, as in a tool run outside one
         public static long Next() { var world = EmpireWorld.Current; return world != null ? world.TakeRecordId() : _loose++; }
+        // The mod's random GUIDs (faction ids and the like) made from the same counter: unique in a world, and the same world
+        // makes the same ones (a random GUID would differ on every run and in every save).
+        public static Guid NewGuid()
+        {
+            var bytes = new byte[16];
+            BitConverter.GetBytes(Next()).CopyTo(bytes, 0);
+            BitConverter.GetBytes(0x4543524543494449L).CopyTo(bytes, 8);   // "ECRECIDI": marks a record GUID
+            return new Guid(bytes);
+        }
     }
 
     // A random pick from a list, on the world's random stream.
@@ -313,6 +322,12 @@ namespace EmpireCraft.Core
     public sealed class WarManager { public void warStateChanged() { } }
     // The base game's announcement of a war's end. The annals record it here (WorldOps.FinishWar), the mod's chronicle its story.
     public static class WorldLog { public static void logWarEnded(War war) { } }
+    // The mod's debug probes (switched on by players to record one kind of event for a bug report). None record here.
+    public static class EmpireCraftDebugProbe
+    {
+        public static bool Hit(string probe, Func<string> details = null) => false;
+        public static bool Observe(string probe, string scope, string state, Func<string> details = null) => false;
+    }
 
     // The mod's game patches derive from these; there is no game to patch here.
     public interface GamePatch { }

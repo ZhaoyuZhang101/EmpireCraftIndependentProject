@@ -315,7 +315,7 @@ public enum FactionType
     外戚,  //后党(朋党，见 CliqueSystem)；追加在末尾
     宦官   //阉党
 }
-public class FixedFaction
+public partial class FixedFaction
 {
     // 2：派系诉求重新分配(血脉、攘夷、绥靖、尊王、民主、融入、同化)
     // 3：加修氏族志(尊王、绥靖)、抑豪强(尊王、中央)，旧存档的派系按新清单重建一次
@@ -426,7 +426,7 @@ public class FixedFaction
 
     // 存档用的副本：保留 id、名称、党员、领袖、理念、阶层基础等全部持久字段；
     // 诉求对象(抽象类，无法反序列化)不存，读档后按诉求清单重新生成(FixMissedTemporaryFactions)
-#if EC_PENDING
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
     public FixedFaction ToSaveCopy()
     {
         var copy = (FixedFaction)MemberwiseClone();
@@ -442,7 +442,7 @@ public class FixedFaction
     {
         FixedFaction newFaction = new FixedFaction()
         {
-            _id = Guid.NewGuid().ToString(),
+            _id = RecordIds.NewGuid().ToString(),
             RequiredTraits = _requiredTraits.ToList(),
             _requiredTraits = _requiredTraits,
             only_king = only_king,
@@ -480,7 +480,7 @@ public class FixedFaction
     {
         FixedFaction newFaction = new FixedFaction()
         {
-            _id = Guid.NewGuid().ToString(),
+            _id = RecordIds.NewGuid().ToString(),
             RequiredTraits = RequiredTraits,
             _requiredTraits = _requiredTraits,
             only_king = only_king,
