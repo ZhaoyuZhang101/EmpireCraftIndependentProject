@@ -155,6 +155,21 @@ namespace Orbis.EditorTools
                 }
                 if(wet>=0)return wet;
             }
+            if(Arg("-orbisMountain")!=null)
+            {
+                // Steepest mid-latitude mountain flank below the snow: where terrain detail shows.
+                int steep=-1;float slope=-1;
+                for(int i=0;i<w.Count;i++)
+                {
+                    if(w.Water[i]!=WaterKind.Land||w.Elevation[i]<600||w.Elevation[i]>2600)continue;
+                    float lat=Math.Abs(w.Latitude(i));if(lat<15||lat>50)continue;
+                    int e=w.Neighbor(i,0),n=w.Neighbor(i,1),west=w.Neighbor(i,2),s=w.Neighbor(i,3);
+                    if(e<0||n<0||west<0||s<0)continue;
+                    float g=Math.Abs(w.Elevation[e]-w.Elevation[west])+Math.Abs(w.Elevation[n]-w.Elevation[s]);
+                    if(g>slope){slope=g;steep=i;}
+                }
+                if(steep>=0)return steep;
+            }
             // A river mouth: coast, fresh water and likely weather in one frame.
             int best=-1;float flow=0;
             for(int i=0;i<w.Count;i++)
@@ -178,6 +193,19 @@ namespace Orbis.EditorTools
                 RenderTexture.active=rt;var image=new Texture2D(Width,Height,TextureFormat.RGB24,false);
                 image.ReadPixels(new Rect(0,0,Width,Height),0,0);image.Apply();File.WriteAllBytes(path,image.EncodeToPNG());UnityEngine.Object.DestroyImmediate(image);
                 Debug.Log($"OrbisLightingCapture wrote {path} morph={nav.Morph:F2} px/tile={nav.PixelsPerTile:F1} day={app.CalendarDay:F3}");
+                if(Arg("-orbisBench")!=null)
+                {
+                    // Frame cost of this view: render again, a one-pixel read back to wait for the GPU, median of 24.
+                    var probe=new Texture2D(1,1,TextureFormat.RGB24,false);var times=new List<double>();
+                    for(int k=0;k<25;k++)
+                    {
+                        var clock=System.Diagnostics.Stopwatch.StartNew();
+                        camera.Render();RenderTexture.active=rt;probe.ReadPixels(new Rect(0,0,1,1),0,0);probe.Apply();
+                        if(k>0)times.Add(clock.Elapsed.TotalMilliseconds);
+                    }
+                    times.Sort();UnityEngine.Object.DestroyImmediate(probe);
+                    Debug.Log($"OrbisLightingCapture bench {Path.GetFileNameWithoutExtension(path)} median={times[times.Count/2]:F2}ms p90={times[times.Count*9/10]:F2}ms");
+                }
             }
             finally{camera.targetTexture=previous;RenderTexture.active=active;RenderTexture.ReleaseTemporary(rt);}
         }

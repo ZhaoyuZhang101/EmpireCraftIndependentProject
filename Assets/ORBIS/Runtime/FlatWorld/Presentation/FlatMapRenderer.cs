@@ -108,6 +108,9 @@ namespace Orbis.Flat
             Shader.SetGlobalFloat("_RiverMinPixels",2.4f);Shader.SetGlobalFloat("_RiverTint",.38f);
             // Light and shade look in FlatSkyComposite (0 = reference): blue sky-lit shadows, warm low sun, sun-side cloud shading.
             Shader.SetGlobalFloat("_FlatLightLook",1);
+            // Gully-and-ridge detail on steep slopes in the close views (FlatErosionDetail.cginc;
+            // its built-in scale: 12 tiles, 1200 m, from 50 m per tile). 0 turns it off.
+            Shader.SetGlobalFloat("_ErosionDetail",1);
             // Cloud translucency (ScrollCloudSource globals, 0 = reference): thin cover and cirrus let the
             // surface show through; only thick cores stay opaque white.
             Shader.SetGlobalFloat("_CloudHighCut",.7f);Shader.SetGlobalFloat("_CloudThinFade",1);Shader.SetGlobalFloat("_CloudCoverCut",.15f);
