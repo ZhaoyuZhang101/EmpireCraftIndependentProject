@@ -141,10 +141,11 @@ namespace Orbis.Flat
             // frame. Release this transport at the globe endpoint so idle cameras stay free.
             if(locked)orbitRotation=Spin*Quaternion.Inverse(previousSpin)*orbitRotation;
             Frame();
-            viewCamera.allowHDR=true;viewCamera.nearClipPlane=.001f;viewCamera.farClipPlane=120;viewCamera.fieldOfView=Fov;viewCamera.orthographic=IsFlat;
+            viewCamera.allowHDR=true;viewCamera.fieldOfView=Fov;viewCamera.orthographic=IsFlat;
             OrbisCelestialBackdrop.Apply(viewCamera,morph<.95f);
             if(IsFlat)
             {
+                viewCamera.nearClipPlane=.001f;viewCamera.farClipPlane=80;
                 // Keep the geography under the wheel cursor fixed while the chart scales.
                 bool atlasHeading=atlasAligning||atlasExitPending;
                 bool anchored=zoomAnchor&&wasFlat&&zoom!=previousZoom;
@@ -160,6 +161,11 @@ namespace Orbis.Flat
                 Quaternion orbit=orbitRotation;float gap=Mathf.Min(altitude,Start-1);
                 Quaternion pose=Quaternion.Slerp(orbit,Quaternion.LookRotation(-normal,north),morph);
                 float cameraDistance=(float)PlanetScrollNavigationMath.CameraDistanceForUnfold(distance,altitude,morph);
+                // Scale near/far clip with orbital distance so 24-bit _CameraDepthTexture retains sub-10m
+                // precision across the 0.5-3km cumulus deck even at MaxAltitude (distance = 14.35).
+                float safeNear=morph==0?Mathf.Max(.002f,(cameraDistance-1.22f)*.65f):Mathf.Max(.001f,Mathf.Min(.5f,(cameraDistance-1.06f)*.25f));
+                float safeFar=Mathf.Max(40f,cameraDistance+16f);
+                viewCamera.nearClipPlane=safeNear;viewCamera.farClipPlane=safeFar;
                 viewCamera.transform.SetPositionAndRotation(pose*new Vector3(0,0,-cameraDistance),pose);
                 viewCamera.orthographicSize=gap*HalfTan;
                 // A distant perspective globe covers fewer pixels per ground tile than the fold endpoint.
@@ -167,7 +173,7 @@ namespace Orbis.Flat
                 if(morph==0){viewCamera.ResetProjectionMatrix();if(targetZoom>=FoldZoom)locked=false;}
                 else
                 {
-                    float h=viewCamera.orthographicSize;var p=Matrix4x4.Perspective(Fov,viewCamera.aspect,viewCamera.nearClipPlane,120);var o=Matrix4x4.Ortho(-h*viewCamera.aspect,h*viewCamera.aspect,-h,h,viewCamera.nearClipPlane,120);
+                    float h=viewCamera.orthographicSize;var p=Matrix4x4.Perspective(Fov,viewCamera.aspect,safeNear,safeFar);var o=Matrix4x4.Ortho(-h*viewCamera.aspect,h*viewCamera.aspect,-h,h,safeNear,safeFar);
                     var mix=new Matrix4x4();float t=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.62f,1,morph));
                     for(int r=0;r<4;r++)for(int c=0;c<4;c++)mix[r,c]=Mathf.Lerp(p[r,c]/gap,o[r,c],t);viewCamera.projectionMatrix=mix;
                 }

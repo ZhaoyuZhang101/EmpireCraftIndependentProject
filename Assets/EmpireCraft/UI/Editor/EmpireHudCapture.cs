@@ -114,7 +114,11 @@ namespace EmpireCraft.EditorTools
             Call(app, "ApplyHudTheme", theme);
             double day = app.CalendarDay;
             var location = PlanetCoordinateSystem.FromMapUV((tile % app.World.Width + .5) / app.World.Width, (tile / app.World.Width + .5) / app.World.Height);
-            if (shot == "globe") { nav.GoGlobe(day); nav.Recenter(location, day); SetZoom(nav, globeZoom, day); }
+            if (shot == "globe" || shot == "globe_far")
+            {
+                float z = shot == "globe_far" ? (float)PlanetScrollNavigationMath.ZoomFor(PlanetScrollNavigationMath.MaxAltitude) : globeZoom;
+                nav.GoGlobe(day); nav.Recenter(location, day); SetZoom(nav, z, day);
+            }
             else { nav.Focus(tile, day); SetZoom(nav, surfaceZoom, day); }
             Set(app, "selected", tile);
             map.Select(tile);
@@ -127,7 +131,8 @@ namespace EmpireCraft.EditorTools
                     var tool = Get<DropdownField>(app, "toolField"); if (tool != null) tool.index = 3;
                     break;
                 case "world": Call(app, "SelectHudMode", 2); Call(app, "OpenHudWorld", 0); break;
-                case "globe": Call(app, "SelectHudMode", 0); break;
+                case "globe":
+                case "globe_far": Call(app, "SelectHudMode", 0); break;
             }
             Call(app, "UpdateHUD");
             Call(app, "TickEmpireHud");

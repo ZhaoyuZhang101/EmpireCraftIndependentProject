@@ -33,7 +33,8 @@ namespace Orbis.Flat
         {
             viewCamera.backgroundColor=Color.black;
             clock+=dt;View.SurfaceMaterial.SetFloat("_WaterClock",(float)clock);Snapshot.settings.clouds=clouds;Snapshot.settings.cloudShadows=shadows;Snapshot.settings.atmosphere=atmosphere;Snapshot.settings.night=dayNight;
-            viewCamera.orthographic=false;viewCamera.allowHDR=true;viewCamera.allowMSAA=false;viewCamera.nearClipPlane=.002f;viewCamera.farClipPlane=120;viewCamera.fieldOfView=(float)Orbis.Planet.PlanetScrollNavigationMath.Fov;
+            float safeNear=Mathf.Max(.002f,(Distance-1.22f)*.65f),safeFar=Mathf.Max(40f,Distance+16f);
+            viewCamera.orthographic=false;viewCamera.allowHDR=true;viewCamera.allowMSAA=false;viewCamera.nearClipPlane=safeNear;viewCamera.farClipPlane=safeFar;viewCamera.fieldOfView=(float)Orbis.Planet.PlanetScrollNavigationMath.Fov;
             Quaternion q=Quaternion.Euler(Pitch,Yaw,0);viewCamera.transform.position=q*new Vector3(0,0,-Distance);viewCamera.transform.LookAt(Vector3.zero);
             Snapshot.day=(float)maps.World.Day; // Read-only calendar mirror, no second simulation.
             maps.SetVegetationDay(maps.World.Day,View.SurfaceMaterial);

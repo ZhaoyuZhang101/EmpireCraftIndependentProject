@@ -24,8 +24,9 @@ float2 OrbisWeatherUV(float3 p)
 }
 float2 OrbisSphere(float3 origin,float3 direction,float radius)
 {
-    float b=dot(origin,direction),c=dot(origin,origin)-radius*radius;
-    float d=b*b-c;
+    float b=dot(origin,direction);
+    float3 perp=origin-b*direction;
+    float d=radius*radius-dot(perp,perp);
     if(d<0.0)return float2(1e8,-1e8);
     float h=sqrt(max(0.0,d));return float2(-b-h,-b+h);
 }
