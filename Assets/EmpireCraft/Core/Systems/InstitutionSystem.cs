@@ -2974,7 +2974,7 @@ public static partial class InstitutionSystem
                 }
                 break;
             case "change_regime":
-                if (Enum.TryParse(effect.value, true, out RegimeType regimeType)) ChangeRegime(realm, regimeType);
+                if (RegimeVariants.TryParse(effect.value, out RegimeType regimeType)) ChangeRegime(realm, regimeType);
                 break;
             case "grant_trait":
                 GrantTraitToWarriors(realm, effect.value);

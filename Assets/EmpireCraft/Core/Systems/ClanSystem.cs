@@ -1647,7 +1647,7 @@ public class PersonalClanIdentity
             merit = string.Join("_", culture, "meritlevel", identity.peerageType.ToString(), identity.meritLevel);
             honoraryOfficial = OfficialRankSystem.Of(actor).Key ??
                                string.Join("_", culture, "honoraryofficial", identity.peerageType.ToString(), identity.honoraryOfficial);
-            officialLevel = DynastyNaming.RankKey(actor.Realm.GetRegime().type, identity.officialLevel,
+            officialLevel = EmpireCraft.Core.RegimeVariants.RankKey(actor.Realm.GetRegime().type, identity.officialLevel,
                 actor.IsCityLeader() ? actor.City : actor.Realm);
         }
         if (actor.GetOffice() != null)

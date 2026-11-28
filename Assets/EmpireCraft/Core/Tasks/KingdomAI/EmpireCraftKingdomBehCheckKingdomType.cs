@@ -401,7 +401,7 @@ public class EmpireCraftKingdomBehCheckKingdomType: GameAIKingdomBase
         bool alias = pKingdom.AdministrativeFront(newkingdomType, out string aliasFront, out string aliasBack);
         if (alias) kingdomFront = aliasFront;
         // 华夏朝代演进下京畿与行政区改称(司州/京畿道/直隶省，州/道/省，见 DynastyNaming)
-        var kingdomBack = aliasBack ?? LM.Get(DynastyNaming.KingdomTypeKey(pKingdom, newkingdomType));
+        var kingdomBack = aliasBack ?? LM.Get(EmpireCraft.Core.RegimeVariants.KingdomTypeKey(pKingdom, newkingdomType));
         string cultureName = pKingdom.GetEmpireCraftCulture() ?? "Western";
         string kingdomName = OverallHelperFunc.FormatCountryTypeName(kingdomFront, kingdomBack, cultureName);
         // 同名去重：法理省名可能被两个政权同时用上(自持法理的行政区不经过省名归属判定；交战中改不了名的政权

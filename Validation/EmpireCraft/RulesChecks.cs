@@ -629,6 +629,56 @@ public static class RulesChecks
         Console.WriteLine("PASS full save (" + checks + " checks): " + bytes.Length + " bytes, " + loaded.LiveRealms.Count + " realms");
     }
 
+    // Variant regimes (RegimeVariants): a regime file may add a regime the code does not know, with "base" naming the known
+    // regime it behaves as. It is read, behaves as its base, can be named by culture rules, shows its own wording and keeps
+    // in a save; kinds of realm the code does not know are left out, army titles it does not know are kept.
+    public static void RegimeVariantsCheck()
+    {
+        checks = 0;
+        LM.Clear(); LM.LoadFile(Path.Combine(DataFolder(), "Locales", "ch.json")); LM.Language = "ch";
+        GameData.Folder = DataFolder(); RuleData.Load();
+        PortedSystems.Reset(); PortedSystems.Enabled = true;
+        var source = Newtonsoft.Json.Linq.JObject.Parse(File.ReadAllText(Path.Combine(DataFolder(), "Scripts", "Regimes", "Configs", "Feudalism", "SystemConfig.json")));
+        var spec = (Newtonsoft.Json.Linq.JObject)source["Feudalism"].DeepClone();
+        spec["base"] = "Feudalism";
+        if (spec["bureau_config"] is not Newtonsoft.Json.Linq.JObject) spec["bureau_config"] = new Newtonsoft.Json.Linq.JObject();
+        var bureau = (Newtonsoft.Json.Linq.JObject)spec["bureau_config"];
+        if (bureau["kingdoms"] is not Newtonsoft.Json.Linq.JObject) bureau["kingdoms"] = new Newtonsoft.Json.Linq.JObject();
+        ((Newtonsoft.Json.Linq.JObject)bureau["kingdoms"])["Bogus_kind"] = new Newtonsoft.Json.Linq.JObject();
+        bureau["armies"] = new Newtonsoft.Json.Linq.JObject { ["test_marshal"] = new Newtonsoft.Json.Linq.JObject() };
+        string folder = Path.Combine(Path.GetTempPath(), "EmpireCraftVariant-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(folder);
+        string file = Path.Combine(folder, "SystemConfig.json");
+        File.WriteAllText(file, new Newtonsoft.Json.Linq.JObject { ["TestVariant"] = spec }.ToString());
+        typeof(RegimeManager).GetMethod("LoadRegimeFile", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static).Invoke(null, new object[] { file });
+        Directory.Delete(folder, true);
+        Check(RegimeVariants.TryParse("TestVariant", out RegimeType variant) && variant != RegimeType.Feudalism && RegimeVariants.IsVariant(variant) &&
+              RegimeVariants.BaseOf(variant) == RegimeType.Feudalism && RegimeManager.regimes.TryGetValue(variant, out Regime template) && template.type == RegimeType.Feudalism,
+              "a regime file adds a variant that behaves as its base");
+        Check(RegimeVariants.Register("TestVariant", RegimeType.Feudalism) == variant && (int)variant >= 100000, "a variant keeps its value (the same name, the same value)");
+        Console.WriteLine("   variant kinds: " + string.Join(",", RegimeManager.regimes[variant].bureau_config.kingdoms.Keys) + "; armies: " + string.Join(",", RegimeManager.regimes[variant].bureau_config.armies.Keys.Select(k => ArmyTitles.NameOf(k))));
+        Check(!RegimeManager.regimes[variant].bureau_config.kingdoms.Keys.Any(k => k.ToString() == "Bogus_kind") &&
+              RegimeManager.regimes[variant].bureau_config.armies.Keys.Any(k => ArmyTitles.NameOf(k) == "test_marshal"),
+              "kinds of realm the code does not know are left out; army titles it does not know are kept by name");
+        var setting = Newtonsoft.Json.JsonConvert.DeserializeObject<Setting>("{\"regime\": \"TestVariant\"}");
+        Check(setting != null && setting.regime == variant, "a culture rule may name a variant");
+        var map = FlatGenerator.Generate(128, 64, "EMPIRE-VARIANT", TerrainPreset.Continents, default);
+        var w = Start(map); Run(w, 2);
+        var realm = w.LiveRealms[0];
+        realm.SetRegimeType(variant); realm.LoadRegime();
+        Check(realm.GetRegime()?.type == RegimeType.Feudalism && RegimeVariants.VariantOf(realm) == "TestVariant" && RegimeManager.IsMonarchy(realm.GetOrCreate().regimeType) == RegimeManager.IsMonarchy(RegimeType.Feudalism),
+              "a realm of the variant decides as its base");
+        LM.Set("TestVariant_duchy", "测试公国"); LM.Set("TestVariant_officiallevel_1", "测试官");
+        Check(RegimeVariants.KingdomTypeKey(realm, KingdomType.Feudalism_duchy) == "TestVariant_duchy" && RegimeVariants.KingdomTypeKey(realm, KingdomType.Feudalism_county) != "TestVariant_county" &&
+              RegimeVariants.RankKey(RegimeType.Feudalism, 1, realm) == "TestVariant_officiallevel_1", "a variant's own wording comes first, the base's where it has none");
+        // Chosen by hand (the mod's load gives a realm without an office its culture's regime again otherwise).
+        realm.GetOrCreate().regime_manually_selected = true;
+        var loaded = EmpireSave.Decode(EmpireSave.Encode(w), map.Clone()); loaded.Activate();
+        Check(loaded.Realms[realm.Id].GetOrCreate().regimeType == variant && RegimeVariants.VariantOf(loaded.Realms[realm.Id]) == "TestVariant", "a realm keeps its variant through a save");
+        RegimeManager.regimes.Remove(variant);
+        EmpireWorld.Current = null;
+        Console.WriteLine("PASS regime variants (" + checks + " checks): TestVariant = " + (int)variant);
+    }
+
     // An empire founded by the ported code on a realm of the running world.
     // The same steps for every world it is used on: nothing may ask a realm anything before founding,
     // since the answers are cached on the realm (its regime, its culture) and would change the path.

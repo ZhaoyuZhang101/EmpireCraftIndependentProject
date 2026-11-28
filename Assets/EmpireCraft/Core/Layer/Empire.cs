@@ -1062,7 +1062,7 @@ public partial class Empire : RecordObject<EmpireData>
             descriptions = new List<HistoryDescription>(),
             is_republic = NoDynasty,
             office_title = IsRepublicState ? RepublicSystem.GetHeadOfStateTitle(this)
-                : NoDynasty ? LM.Get(DynastyNaming.RankKey(RegimeType.Transmigrant, 0, CoreKingdom)) : ""
+                : NoDynasty ? LM.Get(EmpireCraft.Core.RegimeVariants.RankKey(RegimeType.Transmigrant, 0, CoreKingdom)) : ""
         };
         RepairFoundingEmperorMarker();
         if (!NoDynasty)

@@ -29885,7 +29885,7 @@
       "commit": "e004675ae1eb962438a4f8e1f49e3db7adf71867",
       "ported": "2026-11-28",
       "dest": "Assets/EmpireCraft/Core/Regimes/RegimeSystem.cs",
-      "lines": 560,
+      "lines": 564,
       "sha256": "65eaec65394fe1ecefac6ab510026694bdcba02bd60b76e222f7765981873d12",
       "kind": "source",
       "identity": true,

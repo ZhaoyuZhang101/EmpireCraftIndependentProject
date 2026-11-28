@@ -111,7 +111,7 @@ public static partial class CompositeEmpireService
             TianxiaSystem.MandateOf(core) != null || !IsNomadicCulture(ruling) || !CultureService.IsValidCulture(institutional) ||
             empire.data.composite_identity_adopted_timestamp >= 0d &&
             GameClock.YearsSince(empire.data.composite_identity_adopted_timestamp) < RetreatGraceYears ||
-            !Enum.TryParse(empire.data.military_tradition, true, out RegimeType tradition) ||
+            !RegimeVariants.TryParse(empire.data.military_tradition, out RegimeType tradition) ||
             RegimeManager.regimes == null || !RegimeManager.regimes.ContainsKey(tradition)) return false;
         City seat = HomelandSeat(empire, ruling, homesick);
         if (seat == null) return false;

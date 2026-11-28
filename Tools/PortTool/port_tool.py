@@ -102,6 +102,13 @@ IDENTITY = [
     (r"(?<![.\w])SmoothLoader\.isLoading\(\)", "GameClock.Loading"),
     # Record keys come from the world's counter, not the clock (Core/Host/Stock.cs RecordIds).
     (r"(?<![.\w])(?:OverallHelperFunc\.)?IdGenerator\.NextId\(\)", "RecordIds.Next()"),
+    # Regimes by name may be variants a regime file adds (Core/Seams/RegimeVariants.cs); a kind of realm's and a rank's
+    # text keys look at the variant's own wording first.
+    (r"(?<![.\w])Enum\.TryParse\(([^,()]+),\s*(?:true|false),\s*out RegimeType (\w+)\)", r"RegimeVariants.TryParse(\1, out RegimeType \2)"),
+    (r"(?<![.\w])Enum\.TryParse\(([^,()]+),\s*out RegimeType (\w+)\)", r"RegimeVariants.TryParse(\1, out RegimeType \2)"),
+    (r"(?<![.\w])Enum\.IsDefined\(typeof\(RegimeType\),\s*(\w+)\)", r"RegimeVariants.IsKnown(\1)"),
+    (r"(?<![\w.])(?:\w+\.)*DynastyNaming\.KingdomTypeKey\(", "EmpireCraft.Core.RegimeVariants.KingdomTypeKey("),
+    (r"(?<![\w.])(?:\w+\.)*DynastyNaming\.RankKey\(", "EmpireCraft.Core.RegimeVariants.RankKey("),
     # Random GUIDs (faction ids ...) from the same counter, so the same world makes the same ones.
     (r"(?<![.\w])(?:System\.)?Guid\.NewGuid\(\)", "RecordIds.NewGuid()"),
     # Entity kinds, the kind of a person, name-making data, and the culture helpers the mod kept in a patch class.

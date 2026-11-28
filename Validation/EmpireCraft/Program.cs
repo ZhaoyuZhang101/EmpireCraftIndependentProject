@@ -34,7 +34,7 @@ public static class Program
                 if(args.Length>3&&args[3]=="bare")PortedSystems.Enabled=false;
                 Fingerprint(args.Length>1?int.Parse(args[1]):256,args.Length>2?int.Parse(args[2]):75);
             }
-            else{Operations();Skeleton();RulesChecks.Rules();RulesChecks.MoreRules();RulesChecks.Generated();RulesChecks.Wars();RulesChecks.People();RulesChecks.Grid();RulesChecks.Beliefs();RulesChecks.HostSwitches();RulesChecks.FirstEntry();RulesChecks.NewsChecks();RulesChecks.MakingPeople();RulesChecks.Alliances();RulesChecks.Running();RulesChecks.Empires();RulesChecks.CultureMap();RulesChecks.EmpiresArise();RulesChecks.FullSave();RulesChecks.Scheduling();RulesChecks.Data();RulesChecks.Accounts();RulesChecks.Runner();}
+            else{Operations();Skeleton();RulesChecks.Rules();RulesChecks.MoreRules();RulesChecks.Generated();RulesChecks.Wars();RulesChecks.People();RulesChecks.Grid();RulesChecks.Beliefs();RulesChecks.HostSwitches();RulesChecks.FirstEntry();RulesChecks.NewsChecks();RulesChecks.MakingPeople();RulesChecks.Alliances();RulesChecks.Running();RulesChecks.Empires();RulesChecks.CultureMap();RulesChecks.EmpiresArise();RulesChecks.FullSave();RulesChecks.RegimeVariantsCheck();RulesChecks.Scheduling();RulesChecks.Data();RulesChecks.Accounts();RulesChecks.Runner();}
             return 0;
         }
         catch(Exception e){Console.Error.WriteLine(e);return 1;}

@@ -7,7 +7,8 @@ namespace EmpireCraft.Core
     // The rule data read before a world opens, from GameData.Folder, in the order the mod read its own as it started
     // (ModClass.OnLoad): the text table of the game's language, the tables of ranks, honorary offices, merit and peerage
     // names, the peoples' word lists (names, era names, temple and posthumous names, party names, book titles), the
-    // peoples' rules, the institution trees, the regime templates and their titles, the factions, the laws.
+    // institution trees, the regime templates and their titles, the peoples' rules, the factions, the laws (regimes before
+    // the peoples' rules here, so a people may name a variant regime).
     // What a system reads the first time it needs it (technology, claims, formations ...) is left to that system.
     //
     // Everything is read from files, so what the regime editor changes in Data is what the game runs on; folders are
@@ -26,8 +27,12 @@ namespace EmpireCraft.Core
                 LM.LoadLocales(Path.Combine(locales, table));
             LoadWordLists(Path.Combine(locales, "Cultures"));
             InstitutionDefinitionRegistry.Load();
-            OnomasticsRule.ReadSetting();
+            // Regimes before the culture rules (the mod read them after): a culture may name a variant regime a regime
+            // file adds (RegimeVariants), and the rules are read with that known.
+            if (Newtonsoft.Json.JsonConvert.DefaultSettings == null)
+                Newtonsoft.Json.JsonConvert.DefaultSettings = () => new Newtonsoft.Json.JsonSerializerSettings { Converters = { new RegimeVariants.Reader() } };
             RegimeManager.init();
+            OnomasticsRule.ReadSetting();
             FactionManager.init();
             EmpireLawSystem.init();
         }

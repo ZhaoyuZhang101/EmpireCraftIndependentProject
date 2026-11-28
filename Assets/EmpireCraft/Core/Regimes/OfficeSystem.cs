@@ -194,7 +194,7 @@ public class OfficeObject
                 }
                 break;
         }
-        string post = LM.Get(EmpireCraft.Core.DynastyNaming.RankKey(regimeType, officeType,
+        string post = LM.Get(EmpireCraft.Core.RegimeVariants.RankKey(regimeType, officeType,
             pNano ?? meta_object)) ?? "";
         if (flag) return post;
         // 封国国君的官称：单字国名补“国”(湘国侯)
@@ -246,7 +246,7 @@ public class OfficeObject
     {
         string officePrefix = pre ?? "";
         var flag = officePrefix.Contains("full")||officePrefix.Contains("all");
-        var preX = LM.Get(EmpireCraft.Core.DynastyNaming.RankKey(regimeType, officeType,
+        var preX = LM.Get(EmpireCraft.Core.RegimeVariants.RankKey(regimeType, officeType,
             pNano ?? meta_object));
         if (flag) preX = LM.Get(officePrefix);
         switch (pNano?.KindOfEntity)

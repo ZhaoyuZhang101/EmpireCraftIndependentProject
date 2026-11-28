@@ -125,7 +125,7 @@ public static class GreatPowerDiplomacy
         Empire empire = core.GetEmpire();
         if (empire != null && empire.CoreKingdom == core && RepublicSystem.IsRepublic(empire)) return RepublicSystem.GetHeadOfStateTitle(empire);
         if (empire != null && empire.CoreKingdom == core && RepublicSystem.CustomHeadTitle(empire) is string custom) return custom;
-        return regime == null ? LM.Get("actor_emperor_B") : LM.Get(DynastyNaming.RankKey(regime.Value, 0, core));
+        return regime == null ? LM.Get("actor_emperor_B") : LM.Get(EmpireCraft.Core.RegimeVariants.RankKey(regime.Value, 0, core));
     }
 
     // 依约相助(王国 AI 每月一查，帝国核心自己查)

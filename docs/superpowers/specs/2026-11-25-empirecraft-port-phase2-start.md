@@ -1226,3 +1226,20 @@
 **还没做的**：国号仍是"都城名+国"(模组的国号系统在月结里会按政体改)；人名、城名以外的词库(书名、党名、村镇名)本来就由各自的系统读。
 
 **验证**：全套 23 组通过；两个裸指纹与最初相同；Unity 本步没跑。
+
+## 三十二、政体编辑器兼容：变体政体(2026-11-28)
+
+用户选的方案 A。政体种类(RegimeType)、国家类别(KingdomType)、城市类别(CityType)、军职(ArmyOfficialType)都是代码里的枚举；搬来的代码有四百多处按某个具体政体分支。新政体光有配置不够，要知道走哪条分支。
+
+**做法：新政体是某个已有政体的变体。**
+- 政体配置(`Scripts/Regimes/Configs/<目录>/SystemConfig.json`)里，代码不认识的政体名写上 `"base": "<已有政体>"` 就是变体。`RegimeManager.LoadRegimeFile` 手写一半(`Seams/RegimeSystem.Seams.cs`)：变体登记一个自己的政体值(枚举的已命名值之外，由名字算出来，每次运行、存档里都一样，撞了顺延一个)，模板的 type 是基础政体，所以一切按 `regime.type` 判的分支(三百多处)都走基础政体；名字、官职、派系等读变体自己的配置。
+- 国家存的政体类型就是变体值(随模组存档 KingdomExtraData 存数字)。查模板、是否君主制、地主阶级这些按模板查的都对；`IsPrimitive` 改为按基础政体判。
+- `Core/Seams/RegimeVariants.cs`：登记、按名查(`TryParse`，已有政体或变体)、基础政体、变体名；国家类别与官阶的文字键先找变体自己的(`<变体>_<类别后缀>`、`<变体>_officiallevel_<n>`，写在变体目录的 OfficialType.csv)，没有用基础政体的(经 `DynastyNaming`)；政体名的文字键 `DisplayKey`(给界面用)。
+- 搬运工具改写规则：`Enum.TryParse(..., out RegimeType ...)`/`Enum.IsDefined(typeof(RegimeType), ...)` 改走 `RegimeVariants`(制度树里"改行某政体"、文化政体等按名字的地方都认变体)；`DynastyNaming.KingdomTypeKey/RankKey` 的调用改走 `RegimeVariants`(先看变体的叫法)。
+- 文化规则的 `regime` 可写变体名：核心的 JSON 读取加了一个读政体名的转换器(`RegimeVariants.Reader`，只管读，写照旧是数字)；`RuleData.Load` 改为先读政体再读文化规则(模组是先文化后政体)。
+- 国家类别、城市类别：变体用基础政体的类别名(代码按类别判的分支照旧)，自己的叫法写进 OfficialType.csv；配置里写了代码不认识的类别名，略过并记日志。军职：代码里没按军职判的地方，不认识的军职名按名字登记一个值保留(`ArmyTitles`)。
+- 编辑器那边的改法已告诉父会话(新建政体加"行为同"下拉框写 base、变体的类别只选基础政体的、叫法写 OfficialType.csv、Data 模式不再要求同步代码枚举)。
+
+**测试**("regime variants"组，7 项)：临时配置里写一个以封建为基础的变体，读进来、行为同封建、同名同值；不认识的国家类别被略过、新军职按名保留；文化规则写变体名能读；国家改行变体后按封建判、显示变体自己的叫法(没写的用封建的)；存档读回仍是变体(手选的政体；没官署又非手选的国，模组读档会按文化重定政体，内置政体也一样)。
+
+**验证**：全套 24 组通过；两个裸指纹与最初相同；Unity 本步没跑。

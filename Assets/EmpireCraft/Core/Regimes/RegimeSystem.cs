@@ -407,7 +407,7 @@ public class Regime
     }
 }
 
-public static class RegimeManager
+public static partial class RegimeManager
 {
     public static Dictionary<RegimeType, Regime> regimes;
 
@@ -419,7 +419,9 @@ public static class RegimeManager
     public static bool IsMonarchy(RegimeType? type) => GetTemplate(type)?.is_monarchy == true;
 
     // 原始政体(各文化共用的原始政体与华夏原始政体)
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
     public static bool IsPrimitive(RegimeType? type) => type is RegimeType.Origin or RegimeType.HuaxiaOrigin;
+#endif
 
     public static bool AllowsLandlordClass(RegimeType? type) => GetTemplate(type)?.allows_landlord_class ?? true;
 
@@ -459,6 +461,7 @@ public static class RegimeManager
 
     // 一个文件里的政体逐个读，哪个读不了只跳过哪个：以前整个文件一次反序列化，政体编辑器新建的政体名
     // 还没进 RegimeType 枚举就抛异常，排在它后面的政体和全部制度线都没读，别的文化跟着坏
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
     private static void LoadRegimeFile(string filePath)
     {
         Newtonsoft.Json.Linq.JObject root;
@@ -473,7 +476,7 @@ public static class RegimeManager
         }
         foreach (var property in root.Properties())
         {
-            if (!Enum.TryParse(property.Name, false, out RegimeType type) || !Enum.IsDefined(typeof(RegimeType), type))
+            if (!RegimeVariants.TryParse(property.Name, out RegimeType type) || !RegimeVariants.IsKnown(type))
             {
                 LogService.LogWarning($"政体 {property.Name}({filePath})不在代码的 RegimeType 枚举里，已跳过。" +
                                       "在政体编辑器点“同步代码枚举”后重启游戏");
@@ -496,6 +499,7 @@ public static class RegimeManager
             }
         }
     }
+#endif
     private static void NormalizeRegime(Regime regime)
     {
         var bc = regime.bureau_config ?? new BureauConfig();

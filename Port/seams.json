@@ -100,5 +100,9 @@
   ],
   "FixedFaction": [
     "ToSaveCopy"
+  ],
+  "RegimeManager": [
+    "LoadRegimeFile",
+    "IsPrimitive"
   ]
 }
