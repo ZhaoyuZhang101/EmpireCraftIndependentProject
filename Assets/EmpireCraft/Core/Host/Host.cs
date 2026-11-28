@@ -222,6 +222,23 @@ namespace EmpireCraft.Core
         public static bool Chance(float probability) => value < probability;
     }
 
+    // The base library's random numbers where the mod made its own (new Random(), seeded from the clock): every draw
+    // comes from the host's stream, so a world replays the same draws however often it runs.
+    public sealed class EcSystemRandom : Random
+    {
+        public override int Next() => EcRandom.Range(0, int.MaxValue);
+        public override int Next(int maxValue) => maxValue <= 0 ? 0 : EcRandom.Range(0, maxValue);
+        public override int Next(int minValue, int maxValue)
+        {
+            if (maxValue <= minValue) return minValue;
+            long span = (long)maxValue - minValue;
+            return span <= int.MaxValue ? EcRandom.Range(minValue, maxValue) : (int)(minValue + (long)(EcRandom.Range(0d, 1d) * span));
+        }
+        public override double NextDouble() => EcRandom.Range(0d, 1d);
+        protected override double Sample() => EcRandom.Range(0d, 1d);
+        public override void NextBytes(byte[] buffer) { for (int i = 0; i < buffer.Length; i++) buffer[i] = (byte)EcRandom.Range(0, 256); }
+    }
+
     // The mod asks here whether a realm or person belongs to another mod it coexists with.
     // There is no other mod in this game, so nothing ever does.
     public static class AncientWarfareCompatibility

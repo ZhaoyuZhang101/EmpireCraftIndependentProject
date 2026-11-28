@@ -152,6 +152,15 @@ namespace EmpireCraft.Core
     {
         static long _loose = 1;   // only when no world is current, as in a tool run outside one
         public static long Next() { var world = EmpireWorld.Current; return world != null ? world.TakeRecordId() : _loose++; }
+        // The mod's random GUIDs (faction ids and the like) made from the same counter: unique in a world, and the same world
+        // makes the same ones (a random GUID would differ on every run and in every save).
+        public static Guid NewGuid()
+        {
+            var bytes = new byte[16];
+            BitConverter.GetBytes(Next()).CopyTo(bytes, 0);
+            BitConverter.GetBytes(0x4543524543494449L).CopyTo(bytes, 8);   // "ECRECIDI": marks a record GUID
+            return new Guid(bytes);
+        }
     }
 
     // A random pick from a list, on the world's random stream.
@@ -305,10 +314,20 @@ namespace EmpireCraft.Core
     public sealed class WorldStatsData
     {
         public string name;
-        public long citiesConquered, citiesRebelled, citiesCreated, citiesDestroyed, kingdomsCreated, kingdomsDestroyed;
-        public void initNewWorld() { citiesConquered = citiesRebelled = citiesCreated = citiesDestroyed = kingdomsCreated = kingdomsDestroyed = 0; }
+        public long citiesConquered, citiesRebelled, citiesCreated, citiesDestroyed, kingdomsCreated, kingdomsDestroyed, peacesMade;
+        public void initNewWorld() { citiesConquered = citiesRebelled = citiesCreated = citiesDestroyed = kingdomsCreated = kingdomsDestroyed = peacesMade = 0; }
     }
     public sealed class WorldStats { public readonly WorldStatsData data = new WorldStatsData(); }
+    // The base game's war manager, handed to the mod's war end (WarPatch.end_war): it only told the windows that wars changed.
+    public sealed class WarManager { public void warStateChanged() { } }
+    // The base game's announcement of a war's end. The annals record it here (WorldOps.FinishWar), the mod's chronicle its story.
+    public static class WorldLog { public static void logWarEnded(War war) { } }
+    // The mod's debug probes (switched on by players to record one kind of event for a bug report). None record here.
+    public static class EmpireCraftDebugProbe
+    {
+        public static bool Hit(string probe, Func<string> details = null) => false;
+        public static bool Observe(string probe, string scope, string state, Func<string> details = null) => false;
+    }
 
     // The mod's game patches derive from these; there is no game to patch here.
     public interface GamePatch { }
@@ -390,20 +409,37 @@ namespace EmpireCraft.Core
         public static bool ManualGround(Cell tile) => false;
     }
 
-    // Which free cell a city takes next as it grows: the most fertile one next to its land, within seven cells of its
-    // seat (a little less for each cell farther off). This game's rule, the same the skeleton's growth used; the mod
-    // then checks it its own way (CityExpansionPatch.GrowVirtualCity).
+    // Which free cell a city takes next as it grows. The base game's grower made a first pick and the mod hooked in on
+    // both sides (CityExpansionPatch: before, a city at its cap takes nothing; after, its own choice among that pick and
+    // every cell bordering the city, by its own checks and the lie of the land). Here the first pick is this game's
+    // rule (the most fertile land people can live on next to the city, within seven cells of its seat, a little less
+    // for each cell farther off) and the mod's two hooks run around it as they did there. Without the mod's choice the
+    // first pick alone was asked for again every month when the mod's checks turned it down, and the city stopped growing.
+    public sealed class ZoneConnection { public Cell zone; }
     public sealed class CityZoneGrowth
     {
         public static readonly CityZoneGrowth Instance = new CityZoneGrowth();
+        // The base game's grower kept the cells it had looked at this round, and could fall back on a random one; the
+        // mod's choice (CityExpansionPatch.AfterGetZoneToClaim) weighs those beside every cell bordering the city. Here
+        // nothing is kept and there is no random fallback: the mod's choice looks at the bordering cells itself.
+        public readonly List<ZoneConnection> _zones_checked = new List<ZoneConnection>();
+        public Cell getRandomZone(City city) => null;
         public Cell getZoneToClaim(Person claimer, City city)
+        {
+            Cell result = null;
+            if (!CityExpansionPatch.BeforeGetZoneToClaim(city, false, ref result)) return result;
+            result = FirstPick(city);
+            CityExpansionPatch.AfterGetZoneToClaim(this, claimer, city, false, ref result);
+            return result;
+        }
+        Cell FirstPick(City city)
         {
             var w = city?.World; if (w == null || !city.Alive) return null;
             int best = -1; float bestScore = -1f;
             foreach (int t in city.Tiles)
                 for (int d = 0; d < 4; d++)
                 {
-                    int n = w.Map.Neighbor(t, d); if (n < 0 || w.TileCity[n] >= 0 || !w.Claimable(n)) continue;
+                    int n = w.Map.Neighbor(t, d); if (n < 0 || w.TileCity[n] >= 0 || !w.Claimable(n) || !w.Settleable(n)) continue;
                     float distance = w.Distance(city.Tile, n); if (distance > 7) continue;
                     float s = w.Map.Fertility[n] - distance * .04f; if (s > bestScore || (s == bestScore && n < best)) { bestScore = s; best = n; }
                 }

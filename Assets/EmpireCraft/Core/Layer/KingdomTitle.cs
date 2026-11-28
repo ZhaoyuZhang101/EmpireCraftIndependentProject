@@ -584,7 +584,6 @@ public partial class KingdomTitle : RecordObject<KingdomTitleData>
         return city_list;
     }
 
-#if EC_PENDING
     public override void LoadData(KingdomTitleData pData)
     {
         base.LoadData(pData);
@@ -614,13 +613,12 @@ public partial class KingdomTitle : RecordObject<KingdomTitleData>
         pData.jurisdiction_history ??= new List<KingdomTitleJurisdictionRecord>();
         if (string.IsNullOrWhiteSpace(this.data.original_actor_asset) && this.title_capital != null)
         {
-            this.data.original_actor_asset = this.title_capital.Realm?.Ruler?.Asset?.Id ?? this.title_capital.Realm?.asset?.id ?? this.title_capital.GetSpecies();
+            this.data.original_actor_asset = this.title_capital.Realm?.Ruler?.Asset?.Id ?? this.title_capital.Realm?.Asset?.Id ?? this.title_capital.GetSpecies();
         }
         if(string.IsNullOrEmpty(pData.province_name) && title_capital != null)
         {
             pData.province_name = title_capital.GetCityName();
         } 
     }
-#endif
 }
 }

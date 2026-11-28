@@ -241,13 +241,13 @@ public partial class Empire : RecordObject<EmpireData>
         return false;
     }
 
-#if EC_PENDING
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
     public new void AddRenown(int value)
     {
-        this.CoreKingdom.Record.renown += value;
-        if (this.CoreKingdom.Record.renown<=0)
+        this.CoreKingdom.data.renown += value;
+        if (this.CoreKingdom.data.renown<=0)
         {
-            this.CoreKingdom.Record.renown = 0;
+            this.CoreKingdom.data.renown = 0;
         }
     }
 #endif
@@ -3795,7 +3795,6 @@ public partial class Empire : RecordObject<EmpireData>
             .FirstOrDefault();
     }
 
-#if EC_PENDING
     private void UpdatePowerfulMinister(Regime currentRegime)
     {
         Person emperor = Emperor;
@@ -3931,7 +3930,6 @@ public partial class Empire : RecordObject<EmpireData>
         emperor?.RecordPersonalHistory(string.Format(LM.Get("personal_history_became_puppet"),
             candidate.FullName()), relatedActorId: candidate.Key);
     }
-#endif
 
     private void RecordMinisterTransition(Person minister, string key)
     {
@@ -4243,7 +4241,6 @@ public partial class Empire : RecordObject<EmpireData>
             actor.HasVirtualEnfeoff(this) && actor.GetOrCreate().virtual_enfeoff_title_id == data.powerful_minister_title_id;
     }
 
-#if EC_PENDING
     public bool GrantPowerfulMinisterNineBestowments(Person actor)
     {
         if (!CanPowerfulMinisterReceiveNineBestowments(actor)) return false;
@@ -4263,7 +4260,6 @@ public partial class Empire : RecordObject<EmpireData>
         ResolveMinisterOpposition(actor);
         return true;
     }
-#endif
 
     private static bool HasUsurpingDisposition(Person actor)
     {
@@ -4309,7 +4305,6 @@ public partial class Empire : RecordObject<EmpireData>
             .SelectMany(title => title.GetCities()).Where(IsLocal).OrderBy(city => city.Key).FirstOrDefault();
     }
 
-#if EC_PENDING
     private void ResolveMinisterOpposition(Person minister, int? influence = null)
     {
         if (EmpireCraft.Core.UnificationSystem.InGrace(CoreKingdom)) return;
@@ -4320,9 +4315,9 @@ public partial class Empire : RecordObject<EmpireData>
         // Snapshot before creating kingdoms: each successful revolt changes empire membership.
         var opponents = GetUnits().Where(actor => actor != null && actor != minister &&
                 !actor.IsGone() && PowerfulMinisterRules.ShouldRiseAgainstMinister(ministerInfluence, actor.Renown, true))
-            .Distinct().Select(actor => new { Person = actor, City = GetMinisterOpponentPowerBase(actor) })
-            .Where(item => item.City != null).OrderByDescending(item => item.Actor.renown)
-            .ThenBy(item => item.Actor.id).ToList();
+            .Distinct().Select(actor => new { Actor = actor, City = GetMinisterOpponentPowerBase(actor) })
+            .Where(item => item.City != null).OrderByDescending(item => item.Actor.Renown)
+            .ThenBy(item => item.Actor.Key).ToList();
         foreach (var opponent in opponents)
         {
             Person leader = opponent.Actor;
@@ -4408,7 +4403,6 @@ public partial class Empire : RecordObject<EmpireData>
         ClearPowerfulMinister();
         return Emperor?.Key == actor.Key;
     }
-#endif
 
     private Person GetLegalPeerageCandidate(KingdomTitle title, out PersonalClanIdentity predecessor)
     {
@@ -5093,7 +5087,7 @@ public partial class Empire : RecordObject<EmpireData>
     {
         Realm pKingdom = capital?.Realm;
         // 先校验再拆城：拆完城后建国失败，城市会变成没有王国的孤城
-        if (pKingdom == null || pKingdom.asset == null || capital.IsGone() ||
+        if (pKingdom == null || pKingdom.Asset == null || capital.IsGone() ||
             EnfeoffmentHelper.IsRealmCapital(capital) || !king.CanFoundCivKingdom()) return null;
         king.ClearDisposedKingdom();
         capital.RemoveFromCurrentKingdom();

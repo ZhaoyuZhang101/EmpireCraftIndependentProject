@@ -1093,3 +1093,115 @@
 - 部落之间 112 场仗只有 4 次服输，多数仗无果而终；部落 150 年没有走出部落阶段。这是节奏问题，待查是移植缺口还是模组本来如此。
 - 禅让推举共主时宗族一处空引用(`PersonalClanIdentity.setParent`：父辈身份标着在世却找不到人)，150 年一两次(也经帝位继承那条路触发)，模组同一行代码。
 - 村镇(纯净地图才有)、过海迁民(要船)、存档、性能仍待做。
+
+## 二十七、第二十步：部落走出部落阶段(2026-11-27)
+
+上一步 150 年里没有一个国走出部落阶段。查下来是三处移植缺口，不是模组的节奏：
+
+**1. 帝国推改革整段被挂起。** 模组里原始改革由部落联盟(帝国)来推(华夏下一项「父系氏族」"须由帝国推")，入口是 `InstitutionSystem.Update(empire)`。它连同社会民变两个成员被 `#if EC_PENDING` 挂着，根因是搬运工具的一处改名错：`Kingdom → Realm` 的整词替换把匿名类型里的成员名也换了(`new { Kingdom = kingdom }` 变成 `new { Realm = kingdom }`，后面读的 `.Kingdom` 没变)。`Actor → Person` 同样(`Empire.ResolveMinisterOpposition`)。
+- 搬运工具：这两条改名跳过 `new { ` 后面紧跟的成员名。
+- 下一处卡点：原版 `kingdom.getWars()` 是列表、这里是序列，`getWars().ForEach(...)` 改成先 `ToList()`(也免得边遍历边结束战争)。
+- 再下一处：原版的国家城数上限 `getMaxCities`(模组拿来定叛军能占多少城)。按本游戏规则手写一半 `RealmAnswers.MaxCities`：3 座，君主治政每 5 点加 1 座(才干 1～19)，再加法理免占的城(`CountDeJureCapacityExemptCities`)。
+- 结果多搬过来约 750 行，`InstitutionSystem` 整个活了；帝国年结里加上"帝国推改革"(放在科技革新之前，模组同序)。
+
+**2. 宗室月结没排进月结。** 模组每月由 `RoyalHouseSystem.Tick` 跑一串：城邦一城一国、**部落一城一部**(`TribalFissionService.EnforceOneCity`：部落随本文化政体走出原始阶段 `Migrate`、诸部议事、禅让、成员脱离、超额放走、改行分封纳为诸侯)、部落大会、王室联姻……这里以前只单独排了诸部议事和禅让。现在把这串里能编译的四环按模组顺序排进月结(城邦、部落、部落大会、王室联姻；争储、继承会议、东西分治、军阀投降还挂着)。
+- 开局骨架给一个部落的几座城会被分成各自一部(模组规矩：部落一部一城)。
+
+**3. 城扩张卡死。** 部落都有了首领以后，城长到十来格就不长了(中位 9 格，上限 50)。原因是第十八步本游戏自己的选地规则 `CityZoneGrowth`：它挑"能领的地"(含河、不宜居地)，而有首领时模组(即原版)核对还要"地貌能定居"，被拒后下个月又挑同一块，永远不长。修法照原版：
+- 原版 `getZoneToClaim` 之前之后模组各挂一个补丁：之前(到上限不领)、之后(模组自己在原版候选和本城四邻里按自己的核对与地形挑一块，`AfterGetZoneToClaim`)。之后那个以前挂着(缺原版选地的候选表 `_zones_checked`)：补上候选表(空，模组那步自己看四邻)和原版随机兜底(答无)，`CityZoneGrowth.getZoneToClaim` 像 Harmony 那样在本游戏的第一选前后调这两个补丁。
+- `Cell.CanBeClaimedByCity` 照原版：城有首领时只领宜居地(以前漏了这条，模组挑中的地又被城的核对拒掉)。第一选也只挑宜居地。
+
+**结果**(256×128，150 年)
+- 华夏第 136 年立帝国，到第 140 年华夏 30 个部落改行周制(`ZhouFeudalism`)，走出部落阶段；别的文化仍在部落阶段(研究慢、缺冶铜青铜等科技)。
+- 城领地第 20 年 1100 格(上一步 725)、第 60 年起约 1205 格；城 45 座、国 45 个(都是一城)；部落停在"等城长满"的 23 个(城被邻居和地形围住长不到 50 格，模组的迁民规矩要各城都满才立项)。
+- 正常战争 85 场：攻方胜 68、议和 15、在打 2；城易手 0、部落服输 0(部落之仗多由议和台了结)。长局测试的要求改为"开战且有胜负"(城易手、部落服输、按胜方议和都算)，并报战果分布、各国迁民状态、城格数分布、空闲宜居地，城长不动时打出卡在哪。
+- 慢的系统：军团 5 毫秒、人口 3.5 毫秒(城少了)。
+
+**验证**：全套 22 组通过；关掉搬来的系统时两个指纹与最初相同；Unity 本步没跑。
+
+**看到但没修的**：
+- 测试组之间仍有串档：同图同年数，`--arise` 单跑与全套里跑结果不同(上一步就这样)。
+- 部落之间几乎不破城(城易手 0)：一城之部的都城难打，仗都在议和台了结。
+- 宗族 `setParent` 空引用(帝位继承那条路)仍是一两次。
+
+## 二十八、第二十一步：仗有了结局(模组的战争补丁)(2026-11-28)
+
+上一步 150 年 85 场仗、城易手 0。查下来不是打法的事，是模组挂在原版 `War`/`WarManager` 上的战争补丁 `WarPatch` 整个没搬：
+
+- 一场"试打"的仗(手动宣战看十年)：攻方的军一直是 reserve/defend，没有战线段。守方城边的地块还记着**早已停战的别国占领**(城的 `OccupiedStatus`)，`FrontSystem.Controller` 照旧算那家的，接壤和陆路都断了。模组在原版 `endWar` 前缀(`WarPatch.end_war`)里清掉这场仗双方留下的占领(`ClearOccupationAfterWar`)，这里没有这一步。
+- 攻方胜 68 场是**欠饷求和**(`CorpsSystem.PayUpkeep → WarGoalSystem.TrySueForPeace`，守方养不起兵认输)，可是战争目标全是 None——定目标在原版 `War.update` 的后缀 `WarPatch.update` 里(`WarGoalSystem.Ensure`)，也没人调；结束时的和约结算 `WarGoalSystem.Settle` 同样在 `end_war` 里，也没跑。
+
+**做法**(照 Harmony 的接法，宿主在对应的地方调)：
+- 搬运候选加 `Scripts/GamePatches/WarPatch.cs`。`end_war` 要的原版零件在宿主补：`WarManager`(只有 `warStateChanged`，空)、`WorldLog.logWarEnded`(空，史书在 `FinishWar` 记)、世界统计 `peacesMade`；`War.SetWinner`(空)/`EndForSides`(这里的结束记账 `WorldOps.FinishWar`)/`DiedStamp`；城的原版攻城点数 `_capturing_units`、`being_captured_by`(空，占领由模组的 `OccupiedStatus` 管)。`ClearOccupationBy` 因此也活了。
+- `MakeOwnRealm` 补第三个参数(原版 `makeOwnKingdom(actor, rebellion, fellApart)`，教廷骑士团立国用)。
+- `Empire.AddRenown` 手写一半(`Seams/Empire.Seams.cs`)：模组加在核心国的"存着的名望"上；这里国的名望由君主、城主算出来(`Realm.GetRenown`)，帝国战胜得的另记 `Realm.WarRenown`(不低于 0)一并算进去(还不进存档，同帝国)。
+- `WorldOps.EndWar` 先过 `EndWarHandler`(=`WarPatch.end_war`)：和约按目标结算(赔款、割地、吞并、附庸……)、清这场仗的占领、史书与列传、叛乱/索取法理/去帝号等结局；`end_war` 里经 `War.EndForSides` 走这里自己的结束记账。它可以不让结束(开战不满三年不许议和，`WarPeaceRules.MayNegotiate`；神力停战要包 `MembershipCooldown.ByGod`)。同一场仗在它里面再被要求结束时直接结束；搬来的系统关着(只跑骨架)时不过它。
+- 月结加一环"wars"：每场在打的仗先过 `WarPatch.DropBrokenWar`(主攻/主守缺失的判和)，再跑 `WarPatch.update`(开打定目标、每年复核只升不降、满三年后每年议和台自己谈一次、攻下主城池即胜/叛乱攻下京城即胜、索取法理与去帝号够了即胜、超过战争年限强制停战)。
+- 还挂着的：`new_war`(缺 `WorldLogNamePatch`；记宣战、拉兄弟之国姻亲、动员排队)、`join_war_side` 一组、`BeforeLeaveWar/BeforeLostWar`(史书记"退出/覆灭"，没接)。
+
+**结果**(256 图 150 年，单跑 `--arise`)
+- 仗都有了目标：吞并、迫使附庸、赔款……；议和台了结 55 场、守方胜 16(都是吞并没打下)、攻方胜 4；**城易手 45 次**(上一步 0)。部落一部一城，夺来的城照模组规矩放出去另立一部，所以国、城数不变(36/36)。试打那场：三年后议和，洛阳向平津称臣纳贡。
+- 全套里那一遍(串档，见下)：城易手 22、部落服输 1。
+- 慢的系统：军团 6.5 毫秒、人口 3.9 毫秒(平均)。
+
+**验证**：全套 22 组通过；`--fingerprint 256 75 bare` 与 `512 120 bare` 与最初相同；Unity 本步没跑(父会话在跑批处理)。
+
+**测试改动**：长局打出胜负按目标分布、头几场攻方胜的史书；试打每年一行(双方各军任务与兵力、守方都城被占几块/要几成)、目标与史书。
+
+**看到但没修的**：
+- 吞并的仗 21 场全是守方胜：攻方破不了一城之部的都城。
+- 串档仍在(单跑与全套结果不同)。
+- 宗族 `setParent` 空引用(帝位继承那条路)仍一次。
+
+## 二十九、政体编辑器兼容：小修三项(2026-11-28)
+
+用户要模组的政体编辑器能直接编辑独立游戏的 `Assets/EmpireCraft/Data`(父会话已让编辑器认只有 `Scripts/Regimes/Configs` 的数据目录)。核对全文在共享笔记 editor-data-compat-2026-11-28.md：政体配置、制度线、文化规则、科技树、ClaimRules、宪法模板、共和部委、军制、文武等级都已经从 Data 按模组格式读；不行的四类里用户全选了修法，这里先做三项小修。
+
+**1. 缺的数据补上、开局照模组的顺序读**
+- 用 PortTool data 从模组 HEAD 补拷 1462 个文件(登记进清单，Unity 的 .meta 一并写好，文本资源 TextScriptImporter)：`Locales/` 下四个表(OfficialRanks、HonoraryOfficial、MeritLevel、PeeragesLevelNames)、`Locales/Cultures/**` 全部词库(各文化目录、年号、庙号谥号、PartyNames、Books、Settlements、Wilderness、UrbanLabels)、律法 `Scripts/GeneralSystems/EmpireLaw/EmpireLawConfig.json`/`EmpireLawEras.json`、考绩 `Scripts/Data/PerformanceData.json`。`Locales/Compat`(ModernMod/WarBox 兼容译文)不要。`Locales/{cz,en,ch}.json` 重新同步(补上 11 个 `modern_autonomy_*` 键)。
+- 新的宿主 `Core/Host/RuleData.Load()`：照模组 `ModClass.OnLoad` 的顺序读——本语言的文本表、四个表、各文化词库(模组 `LoadCultureNameTemplate`：每个 `Culture_*` 目录下所有 CSV、年号庙号谥号、通用党名书名，首行不是表头的跳过)、制度线、文化规则、政体模板、派系(`FactionManager.init`)、律法(`EmpireLawSystem.init`，以前没人调)。目录是列举的，编辑器新加的文化、词库也读得到。`EmpireCoreDriver.PrepareHost` 与测试都改调它。
+- 派系那步现在登记 0 条诉求：模组的诉求类(`Scripts/Regimes/TemporaryFactions/Claims` 下的 TempFac_*)还没搬，属阶段 4。
+- 人名、城名、国名仍来自手写的 `Core/World/Names.cs`，词库读进来了但起名还没改用(用户定的后续第二项)。
+
+**2. PortTool 不再冲掉编辑器改的数据**
+- `data_edited`：Data 里的文件和它拷来时模组那一版比(不计换行和 BOM)，不同就是在游戏这边改过。
+- `sync`：改过的数据文件按三方合并(游戏这边、拷来时的模组、模组现在)，冲突照代码那样报；没改过的照旧换新。试过：把 en.json 一行改掉再同步，改动留下、11 个新键也进来了(试完已还原)。
+- `data --force`：改过的不覆盖，除非加 `--overwrite-edited`。
+- 现有 1544 个数据文件没有一个算"改过"。编辑器新建的文件不在清单里，同步不碰它们。
+
+**3. claims.html 兜底**：父会话在模组仓库的编辑器里做了(没有 TemporaryFactionType.cs 时取 ClaimRules.json 已有的条目，并提示是数据目录)。
+
+**验证**：全套 22 组通过("rule data"组加了：四个表、华夏/罗马词库、年号、党名、书名各取一个键读得到，律法 58 条)；两个指纹与最初相同；Unity 本轮没跑(父会话在跑存读档实测)。
+
+**下一步(用户 11-28 改序)**：完整存档——EmpireSave v8 在 v7 骨架后追加模组 `DataManager.SaveAll` 那份 JSON；之后故土表进数据、起名按词库、政体枚举数据化(开工前方案先给父会话)。
+
+## 三十、完整存档：EmpireSave 版本 8(2026-11-28)
+
+用户要读档后搬来的系统状态不丢(父会话已做存档位，接 `EmpireCoreDriver.EncodeCore/DecodeCore/PendingCore`)。以前的核心存档(版本 7)只有骨架：国、城、人、账本、战争、信仰文化、同盟、史书；搬来的各系统状态读档全丢。
+
+**做法：用模组自己的存档。** 模组把这些都写进一份 `EmpireCraftModData.json`(`DataManager.SaveAll`：各实体的附加数据、帝国与法理、官署、无人区、村镇、道路、决议、公司、各系统自己的记录)，读档时原版世界建好后再挂回去(`DataManager.LoadAll`)。这里：
+- `DataManager` 做活。缺的零件：
+  - 宿主答(`Core/Host/SaveStandIns.cs`)：`CulturePatch` 文化绑定(这里文化自带规则族，版本 6 已存，空)、`CoreGameId`(无服务器核心)、`EmpireCraftWorldLawLibrary.Capture/Apply`(世界法则随存档，照模组按 id 存开关、没记的回默认)、`SaveIntegrityChecker`(只写日志，空)。
+  - 手写一半(`Seams/SaveRepairs.Seams.cs`)：修旧版模组存档的几处(`TemplateNameRepair.RepairCultures/RepairNames`、`BookNamingSystem.RepairLegacyNames`、`LeftEmpireRepair.AfterLoad`；这里的存档由这里写，没有那些毛病，空)；`FixedFaction.ToSaveCopy`(不带按钮卡片)。
+  - `EmpireManager.CheckOne` 手写一半(`Seams/EmpireManager.Seams.cs`)：同模组查帝国存续、修不好的记下解散，不跑帝国月度更新(这里帝国年结由调度器跑，见 `PortedSystems.EmpireYear`)。于是读档修复 `RepairAfterLoad` 和每月存续 `CheckLiveness` 都活了。
+  - 零碎：`Realm.Asset`(都是人)、`Realm.MaxWarriors`(城应养守军全额，账本 Required 之和)、`Empire.clearCursorOver`(空)、`EmpireCraftDebugProbe`(空)、`Alliance.IsForced`(这里没有强制同盟)、`beginChecksCities`(这里城名单随时是新的)。
+- `Core/Systems/PortedSave.cs`：存：在系统临时目录下另建一个文件夹，`DataManager.SaveAll` 写进去，读出来 gzip；读：解开写进临时文件夹，`DataManager.LoadAll`。用完删掉文件夹。
+- `EmpireSave` 版本 8：版本 7 之后写记录编号计数(帝国、头衔等用的键)、各国战功名望(`Realm.WarRenown`)、搬来系统的状态(上面那份，压缩，没有就是空)。**搬来的系统开着、存的是当前世界时才写版本 8**；骨架世界照旧写版本 7(所以两个裸指纹不变)。搬来系统的状态是挂在当前世界上的静态量(换世界就清)，所以只有当前世界有可写的。
+- 读：版本 8 先把那份状态记在世界上(`EmpireWorld.PendingPortedState`)，世界变成当前时(`Activate`)挂回去。还没变成当前就再存，原样写回。
+- 调度器加"empire liveness"(模组战略调度每月的帝国存续)：核心国没有领土的帝国整轮查完后解散。以前一直没跑。
+
+**同步模组**：做这一步时模组多了 8 个提交(公司系统改组、港口、抗战与明清平衡等)。`sync --all` 把合并的数据类、规则、语言表同步到最新(无冲突)，生成代码也跟到最新。
+
+**测试**："full save"组：256 图 60 年，存成版本 8、读回、变成当前、照模组读档后第一帧接上无人区与在办的决议，比较帝国、无人区、军团兵力、决议、在打的仗的目标、城里人口、政体、国库——一致；记录键与战功名望一致。"running"组的骨架对照改为关着时存。
+
+**看到的**：
+- 读档会给没有官署的国、城补官署(模组读档就这样)：存档时 5 个，读回 57 个。运行中的世界里多数国、城一直没有官署，是另一处缺口(模组在立政体时给)。
+- **两处不确定已修**(存档测试查出来的)：
+  - 搬来的代码里有几处不带种子的 `new Random()`(按时钟起种)：考绩事件 `PerformanceSystem.s_random`(上一步读进考绩数据后才开始跑)、国家扩展、派系、特质、阴谋。搬运工具加改写规则，改成宿主的 `EcSystemRandom`(`System.Random` 的子类，每一次取数都从世界的种子流 `EcRandom` 取)。
+  - 派系编号等用 `Guid.NewGuid()`：每次运行、每份存档都不同。改写规则换成 `RecordIds.NewGuid()`(用世界的记录编号计数拼出 GUID，同一世界同一编号)。
+  - 修后"empires"组"同样经历后的两遍二十年后完全相同"连带模组存档那份一起比也过(以前只比骨架)。
+- 同一进程里两次读同一份存档再跑五年仍不同：第二次读之前跑过的世界留下的静态缓存没清(已知的跨世界泄漏，约 65 个静态量不在任何 ResetWorldState 里)，不是存档的事。游戏里只开一个世界，不受影响。测试里只报不判。
+
+**同步模组**：做这一步期间模组又多了几个提交，最后同步到 e004675a(无冲突)，生成代码也跟到最新。
+
+**验证**：全套 23 组通过；两个裸指纹与最初相同；父会话 Unity 批处理编译通过，存档读回"core restored"、第 41 年 75 国与存档时一致(那一轮还没有随机数这两处改动)。

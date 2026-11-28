@@ -32,24 +32,20 @@ public partial class EmpireManager : RecordStore<Empire, EmpireData>
     {
     }
 
-#if EC_PENDING
     public override void Update(float pElapsed)
     {
         base.Update(pElapsed);
         Process(runEmpireUpdates: true);
     }
-#endif
 
     // 读档时(见 DataManager.LoadAll)只整理成员、核心国与解散无领土的帝国，不跑各帝国的月度更新(Empire.update)：
     // 这时帝国核心、法理、宗族、史书、城墙村镇都还没读进来，月度更新里的各系统按"没有核心/法理/宗族"处置——
     // 帝国改划按空法理排程、一读档就记成改划完成，武家执政把旧档的天皇家记录当成找不到清掉，分封把已见法理记成空的……
     // 读档后战略调度第一轮就会给每个帝国补跑一次(见 EmpireCraftStrategicScheduler，读档时排程已清空)
-#if EC_PENDING
     public void RepairAfterLoad()
     {
         Process(runEmpireUpdates: false);
     }
-#endif
 
     private double _lastLivenessCheck = -1d;
 
@@ -64,7 +60,6 @@ public partial class EmpireManager : RecordStore<Empire, EmpireData>
     // 战略调度每帧调用，自带月度计时：整理成员与核心国、解散已没有领土的帝国(同读档时，不跑帝国月度更新)。
     // 帝国管理器不在原版的管理器列表里，update 只在存档、读档时跑：核心国丢光城池、各省都已独立的帝国，
     // 地图上早已解体，帝国界面却一直显示现存，要到下次存档才解散
-#if EC_PENDING
     public void CheckLiveness()
     {
         double now = EmpireWorld.Current?.Now() ?? -1d;
@@ -97,7 +92,6 @@ public partial class EmpireManager : RecordStore<Empire, EmpireData>
             if (item != null && !item.IsArchived() && !CoreStillHolds(item)) dissolveEmpire(item);
         _livenessDissolve.Clear();
     }
-#endif
 
     // 存续检查分几帧做完、整轮查完才解散：查的那一帧判了空壳，到解散时中央还在、有城、还挂着本帝国编号的不解散
     // (出过世界地图开局一个月大明被当空壳解散：解散时中央明明 59 城、还归大明)；修一遍，记下当时各项供查
@@ -111,7 +105,6 @@ public partial class EmpireManager : RecordStore<Empire, EmpireData>
     }
 
     // 到月开一轮：整理同盟、正统对手这些全局的当帧做完，各帝国排队(见 CheckLiveness)
-#if EC_PENDING
     private void BeginLivenessPass(double worldTime)
     {
         _livenessQueue.Clear();
@@ -128,7 +121,6 @@ public partial class EmpireManager : RecordStore<Empire, EmpireData>
         _empiresToProcess.Clear();
         _livenessStats = BeginStatsRefresh(worldTime);
     }
-#endif
 
     private void DropLivenessPass()
     {
@@ -136,7 +128,6 @@ public partial class EmpireManager : RecordStore<Empire, EmpireData>
         _livenessDissolve.Clear();
     }
 
-#if EC_PENDING
     private void Process(bool runEmpireUpdates)
     {
         // 读档、存档时整轮一次做完，还没做完的分帧存续检查就此作废
@@ -165,10 +156,8 @@ public partial class EmpireManager : RecordStore<Empire, EmpireData>
         _to_dissolve.Clear();
         _empiresToProcess.Clear();
     }
-#endif
 
     // 这一轮要不要重点人口(城变了、或满一个月)：要点就先清同盟(全局，当帧做完)，记下点过的时间
-#if EC_PENDING
     private bool BeginStatsRefresh(double worldTime)
     {
         if (!_dirty_cities && _lastStatsCacheTimestamp > 0 && worldTime >= _lastStatsCacheTimestamp &&
@@ -181,10 +170,8 @@ public partial class EmpireManager : RecordStore<Empire, EmpireData>
         _dirty_cities = false;
         return true;
     }
-#endif
 
     // 点一个帝国的人口、兵力(各成员国、各城一并记下)
-#if EC_PENDING
     private static void RefreshStats(Empire e, double worldTime)
     {
         if (e.IsArchived()) return;
@@ -201,7 +188,7 @@ public partial class EmpireManager : RecordStore<Empire, EmpireData>
             ked.last_cached_timestamp = -1L;
             int kp = k.PopulationCount();
             int kw = k.Warriors();
-            int km = k.countWarriorsMax();
+            int km = k.MaxWarriors();
             pop += kp;
             warriors += kw;
             warriorsMax += km;
@@ -224,10 +211,9 @@ public partial class EmpireManager : RecordStore<Empire, EmpireData>
         e.data.cached_warriors_max = warriorsMax;
         e.data.last_cached_timestamp = worldTime;
     }
-#endif
 
     // 查一个帝国还在不在：修不好的记进 dissolve(整轮查完再解散)；runEmpireUpdates 时顺带跑月度更新
-#if EC_PENDING
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
     private static void CheckOne(Empire current, bool runEmpireUpdates, List<Empire> dissolve)
     {
         if (current.IsArchived() || dissolve.Contains(current)) return;

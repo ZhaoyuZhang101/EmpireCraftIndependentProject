@@ -2054,7 +2054,6 @@ public static class CityExtension
 
     // 只清除指定国家留下的占领(区块占领与原版占领进度)，其他国家的占领保留。
     // 战争结束时用：A 与 C 停战，不能把 B 正在攻占 A 城的进度一并清掉
-#if EC_PENDING
     public static void ClearOccupationBy(this City city, Func<Realm, bool> occupier)
     {
         if (city == null || occupier == null) return;
@@ -2083,7 +2082,6 @@ public static class CityExtension
             // Ignore vanilla capture cleanup failures here.
         }
     }
-#endif
 
     public static void ClearOccupiedStatus(this City city)
     {

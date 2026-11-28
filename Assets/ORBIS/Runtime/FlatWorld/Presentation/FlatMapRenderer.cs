@@ -114,6 +114,9 @@ namespace Orbis.Flat
             // The globe, local surface and river map share these display settings.
             Shader.SetGlobalFloat("_RiverWidthGain",FlatRiverCurves.DisplayWidthGain);
             Shader.SetGlobalFloat("_RiverMinPixels",2.4f);Shader.SetGlobalFloat("_RiverTint",.38f);
+            // Gully-and-ridge detail on steep slopes in the close views (FlatErosionDetail.cginc;
+            // its built-in scale: 12 tiles, 1200 m, from 50 m per tile). 0 turns it off.
+            Shader.SetGlobalFloat("_ErosionDetail",1);
             Material=new Material(shader);Material.SetTexture("_MainTex",DisplayTexture);Material.SetTexture("_OwnerTex",OwnerTexture);Material.SetTexture("_InfoTex",InfoTexture);Material.SetVector("_MapSize",new Vector4(world.Width,world.Height,1f/world.Width,1f/world.Height));
             HydroTexture=MakeData(world.Width,world.Height,"Depth / downhill flow / river width",true);
             MixingTexture=MakeData(world.Width,world.Height,"River meander / sediment / freshwater / links",true);

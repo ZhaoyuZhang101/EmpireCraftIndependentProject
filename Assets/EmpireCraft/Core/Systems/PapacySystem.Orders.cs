@@ -204,7 +204,6 @@ public static partial class PapacySystem
     }
 
     // 圣战收复圣地而当时没有教廷：骑士团在圣地立国，大团长为君
-#if EC_PENDING
     private static bool TryFoundOrderState(Religion religion, City holy)
     {
         KnightOrderData order = Orders(religion).FirstOrDefault(item => item.state_kingdom_id < 0 && Host(item) != null);
@@ -224,6 +223,5 @@ public static partial class PapacySystem
         RecordReligion(former, string.Format(LM.Get("knight_order_state_history"), order.name, holy.GetCityName()));
         return true;
     }
-#endif
 }
 }

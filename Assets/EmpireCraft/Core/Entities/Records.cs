@@ -48,6 +48,8 @@ namespace EmpireCraft.Core
         // Kept on record even with nobody in it: nothing here is struck off for being empty.
         public void PreserveAlive() { }
         public virtual void ClearListUnits() { }
+        // The base game's highlight of a record under the map cursor: nothing is highlighted from the core.
+        public void clearCursorOver() { }
         public virtual void GenerateNewMetaObject() { }
         // The colours of this object, for those that have any (an empire, a title).
         public virtual Tint GetColor() => null;

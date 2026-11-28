@@ -14,10 +14,12 @@ namespace Orbis.Flat
     //   - Every panel and ScrollWindow remains collapsible into a draggable pill and freely draggable.
     public sealed partial class FlatWorldApp
     {
-        const string HudThemePref = "EmpireCraft.UiTheme";
-        static readonly string[] HudThemes = { "star", "atlas", "slate" };
-        static readonly string[] HudThemeNames = { "星图青铜", "舆图羊皮", "石青白玉" };
-        const int HudFeedRows = 8, HudCompactRows = 6;
+        // The lacquer theme is the house style (docs/design/ui-style.md) and comes first; the
+        // key changed with it so an older saved index does not pick another theme.
+        const string HudThemePref = "EmpireCraft.UiTheme2";
+        static readonly string[] HudThemes = { "lacquer", "star", "atlas", "slate" };
+        static readonly string[] HudThemeNames = { "漆器朱", "星图青铜", "舆图羊皮", "石青白玉" };
+        const int HudFeedRows = 5, HudCompactRows = 8;
 
         VisualElement hud, hudEra, hudModes, hudModesBody, hudViews, hudViewsBody, hudRail, hudRailList,
             hudPop, hudPopGrid, hudPopIcon, hudInfo, hudInfoButtons, hudBrush, hudBrushBody,
@@ -46,7 +48,7 @@ namespace Orbis.Flat
         bool hudInfoExpanded;
         string hudLastStatus, hudInfoSource;
         int hudInfoLastSelected = int.MinValue;
-        ScrollWindow hudWindow;
+        IHudWindow hudWindow;
         float hudWindowAge;
 
         void InstallEmpireHud()
@@ -127,7 +129,13 @@ namespace Orbis.Flat
             if (minimap != null && minimap.Frame != null && minimap.Frame.Contains(e.target as VisualElement)) return;
             // Touching the map automatically closes any open layer popout so it never blocks sightlines.
             if (hudCategory >= 0) ShowHudCategory(-1);
-            // Right-clicking on the map cancels any active build/edit tool (except SeaRoute, which resets its origin).
+            // Right-clicking on the map cancels any active god power or build/edit tool (except SeaRoute, which resets its origin).
+            if (e.button == 1 && corePower != CorePower.None)
+            {
+                CancelActiveHudTool();
+                e.StopPropagation();
+                return;
+            }
             if (e.button == 1 && toolField != null && toolField.index != 0 && toolField.value != SeaRouteToolName)
             {
                 CancelActiveHudTool();
@@ -137,6 +145,14 @@ namespace Orbis.Flat
 
         void CancelActiveHudTool()
         {
+            if (corePower != CorePower.None)
+            {
+                ChooseCorePower(CorePower.None);
+                SetStatus("已返回地图浏览模式。");
+                UpdateHUD();
+                TickEmpireHud();
+                return;
+            }
             if (toolField == null || toolField.index == 0) return;
             if (toolField.value == SeaRouteToolName) ResetSeaRoute();
             toolField.index = 0;
@@ -276,6 +292,9 @@ namespace Orbis.Flat
         {
             hudTheme = theme;
             for (int i = 0; i < HudThemes.Length; i++) root.EnableInClassList("theme-" + HudThemes[i], i == theme);
+            // The lacquer theme sets its text in the pixel font (inherited by the whole panel).
+            root.style.unityFontDefinition = HudThemes[theme] == "lacquer" && PixelFont.Definition.HasValue
+                ? new StyleFontDefinition(PixelFont.Definition.Value) : new StyleFontDefinition(StyleKeyword.Null);
             PlayerPrefs.SetInt(HudThemePref, theme);
         }
 
@@ -283,6 +302,7 @@ namespace Orbis.Flat
         {
             if (e.keyCode != KeyCode.Escape) return;
             if (hudWindow != null && !hudWindow.IsCollapsed) CloseHudWindow();
+            else if (corePower != CorePower.None) ChooseCorePower(CorePower.None);
             else if (hudCategory >= 0) ShowHudCategory(-1);
             else if (toolField.index != 0) CancelActiveHudTool();
             else if (selected >= 0) ClearHudSelection();
@@ -396,15 +416,35 @@ namespace Orbis.Flat
                 HudEdit("定高笔刷", "nat_level", 3, "点击地块刷入目标高度（右键或 Esc 结束）"),
                 HudAction("重算", "nat_rebuild", RebuildFromHud, "重新计算全球排水、月均气候与生物群系。")));
 
-            // 文明: 1-click direct rail for founding, expansion, routes, and nation books.
+            hudToolPrompts[1] = ("建立文明", "点击无主可居住陆地建立新文明（右键或 Esc 结束）");
+
+            // 文明: 1-click direct rail — exposes live EmpireCraft archive windows & god powers when Core is active,
+            // or classic ORBIS nation tools when Core is disabled (zero dead placeholders).
             var civ = new HudMode { Name = "文明", Icon = "civ_mode", RailTitle = "列国", DirectRail = true };
-            civ.Categories.Add(HudCat("列国", "civ_nations", "立国、扩张与总览",
-                HudEdit("建立文明", "actor_create_kingdom", 1, "点击无主可居住陆地建立新文明（右键或 Esc 结束）"),
-                HudEdit("扩张", "wild_develop", 2, "先选本国地块，再点相邻无主区域，耗粮 60（右键结束）"),
-                HudAction("播种文明", "population_add", SeedNationsFromHud, "立即在世界上随机新增 4 个文明。"),
-                HudEdit("路径", "road_connect", 7, "点击目标地块查看从当前国首都出发的陆路"),
-                HudWindow("列国榜", "empire_list", OpenHudNations, "查看全部文明疆域、人口与存粮排行。"),
-                HudWindow("国务", "TabEmpire", OpenHudState, "查看当前选中文明的国土与国事。")));
+            if (CoreEnabled)
+            {
+                civ.Categories.Add(HudCat("列国", "civ_nations", "列国、国务、战争、宗族与神权",
+                    HudWindow("列国榜", "empire_list", OpenHudNations, "列国的民族、政体、城池与人口，各民族的时代与制度。"),
+                    HudWindow("国务", "TabEmpire", OpenHudState, "选中之国的君主、国势、文明与城池。"),
+                    HudWindow("战争", "TabWarfare", OpenHudWar, "列出正在进行的战争与天下战事。"),
+                    HudWindow("宗族", "specificClanIcon", OpenHudClans, "各家门第与族人。"),
+                    HudWindow("名人", "famous_talents", () => OpenHudClans(1), "按名望排列的人物。"),
+                    HudWindow("史书", "iconHistory", OpenCoreAnnals, "天下大事与编年。"),
+                    HudCorePower("外交", "diplomacy", CorePower.Diplomacy, "先点本国，再点另一国：宣战、议和、停战。"),
+                    HudCorePower("停战", "plot_force_stop_war", CorePower.Truce, "先点交战的一方，再点它的敌国；同一国点两下，它所有的仗都停。"),
+                    HudCorePower("称帝", "create_empire", CorePower.Empire, "点一国，它即称帝；已在别国帝国里的先脱离。"),
+                    HudCorePower("立君", "ChineseCrown", CorePower.Crown, "点一国，在名单里挑人立为君主。")));
+            }
+            else
+            {
+                civ.Categories.Add(HudCat("列国", "civ_nations", "立国、扩张与总览",
+                    HudEdit("建立文明", "actor_create_kingdom", 1, "点击无主可居住陆地建立新文明（右键或 Esc 结束）"),
+                    HudEdit("扩张", "wild_develop", 2, "先选本国地块，再点相邻无主区域，耗粮 60（右键结束）"),
+                    HudAction("播种文明", "population_add", SeedNationsFromHud, "立即在世界上随机新增 4 个文明。"),
+                    HudEdit("路径", "road_connect", 7, "点击目标地块查看从当前国首都出发的陆路"),
+                    HudWindow("列国榜", "empire_list", OpenHudNations, "查看全部文明疆域、人口与存粮排行。"),
+                    HudWindow("国务", "TabEmpire", OpenHudState, "查看当前选中文明的国土与国事。")));
+            }
 
             // 营建: 1-click direct rail for farms, roads, bridges, and sea routes.
             var build = new HudMode { Name = "营建", Icon = "civ_build", RailTitle = "建设", DirectRail = true };
@@ -478,6 +518,7 @@ namespace Orbis.Flat
                 }
             }
 
+            hudRail.EnableInClassList("ec-rail-dense", currentMode.DirectRail && hudDirectRailTools.Count > 5);
             hudModesPanel?.SetPillContent(currentMode.Icon, currentMode.Name);
             hudRailPanel?.SetPillContent(currentMode.Icon, currentMode.Name + "栏");
             ShowHudCategory(-1);
@@ -556,6 +597,7 @@ namespace Orbis.Flat
             hudDemoReturnBtn.AddToClassList("ec-on");
             hudDemoReturnBtn.AddToClassList("ec-hidden");
             hudViewsBody.Add(hudDemoReturnBtn);
+            if (CoreEnabled) AddHudView("iconHistory", "存档", OpenCoreSaves, () => hudWindow != null && hudWindowKey == "saves", "保存或读取世界与列国存档");
             AddHudView("TabColor", "设置", () => OpenHudWorld(0), () => hudWindow != null && hudWindowKey == "world", "打开世界设置中心");
         }
 
@@ -579,7 +621,15 @@ namespace Orbis.Flat
 
             hudInfoNationBtn = Hud.Button("ec-btn", null, "国务", () =>
             {
-                if (World != null && selected >= 0 && selected < World.Count && World.Owner[selected] >= 0)
+                if (World == null || selected < 0 || selected >= World.Count) return;
+                var coreWorld = CoreHere();
+                if (coreWorld != null)
+                {
+                    var realm = SafeValue(() => coreWorld.RealmAt(selected), null);
+                    if (realm != null && realm.Alive) { activeRealm = realm; OpenHudState(); }
+                    return;
+                }
+                if (World.Owner[selected] >= 0)
                 {
                     activeNation = World.Owner[selected];
                     OpenHudState();
@@ -602,21 +652,27 @@ namespace Orbis.Flat
                 return;
             }
 
-            string source = info.text;
+            var coreWorld = CoreHere();
+            string coreNote = coreWorld != null ? CoreTileNote(selected) : null;
+            var coreCity = coreWorld?.CityAt(selected);
+            var coreRealm = coreCity != null && coreCity.Alive ? coreCity.Realm : null;
+            int corePop = coreCity != null && coreCity.Alive ? coreCity.PopulationCount() : -1;
+            string source = info.text + "|" + coreNote + "|" + corePop;
             if (source == hudInfoSource && selected == hudInfoLastSelected) return;
             hudInfoSource = source;
             hudInfoLastSelected = selected;
 
             int owner = World.Owner[selected];
             bool owned = owner >= 0 && owner < World.Nations.Count;
+            bool hasNation = coreWorld != null ? (coreRealm != null && coreRealm.Alive) : owned;
             hudInfoTitle.text = "地块 " + selected % World.Width + ", " + selected / World.Width;
-            hudInfoNote.text = owned ? World.Nations[owner].Name : "无主";
-            hudInfoPanel?.SetPillContent("civ_surface", owned ? World.Nations[owner].Name : "地块");
-            hudInfoNationBtn?.EnableInClassList("ec-hidden", !owned);
+            hudInfoNote.text = coreNote ?? (owned ? World.Nations[owner].Name : "无主");
+            hudInfoPanel?.SetPillContent("civ_surface", hasNation ? (coreRealm != null ? coreRealm.Name : World.Nations[owner].Name) : "地块");
+            hudInfoNationBtn?.EnableInClassList("ec-hidden", !hasNation);
 
             int totalRows = 0;
             int shown = 0;
-            var lines = source.Split('\n');
+            var lines = info.text.Split('\n');
             foreach (var raw in lines)
             {
                 string line = raw.Trim();
@@ -624,7 +680,11 @@ namespace Orbis.Flat
                 totalRows++;
                 if (!hudInfoExpanded && shown >= HudCompactRows) continue;
                 int colon = line.IndexOf('：');
-                if (colon > 0) SetHudInfoRow(shown++, line.Substring(0, colon), line.Substring(colon + 1));
+                string key = colon > 0 ? line.Substring(0, colon) : null;
+                // With the core on, ownership and people are the core's: the city's realm and its count.
+                if (coreNote != null && key == "归属") { SetHudInfoRow(shown++, "归属", coreNote); continue; }
+                if (coreNote != null && key == "人口") { SetHudInfoRow(shown++, "城中人口", corePop >= 0 ? corePop.ToString("N0") : "—"); continue; }
+                if (colon > 0) SetHudInfoRow(shown++, key, line.Substring(colon + 1));
                 else if (line.EndsWith("以下") || line.Contains(" m · ")) SetHudInfoRow(shown++, "海拔", line);
                 else SetHudInfoRow(shown++, "", line);
             }
@@ -650,12 +710,19 @@ namespace Orbis.Flat
         // ---------- compact chronicle ----------
         void UpdateHudFeed()
         {
-            if (status == hudLastStatus) return;
-            hudLastStatus = status;
-            if (string.IsNullOrWhiteSpace(status)) return;
-            string when = World == null ? "开辟" : "第" + ((int)(CalendarDay / 360) + 1) + "年" + (World.Month + 1) + "月";
-            hudFeed.Insert(0, (when, status.Trim()));
-            if (hudFeed.Count > HudFeedRows) hudFeed.RemoveAt(hudFeed.Count - 1);
+            bool changed = FeedCoreNews();
+            if (status != hudLastStatus)
+            {
+                hudLastStatus = status;
+                if (!string.IsNullOrWhiteSpace(status))
+                {
+                    string when = World == null ? "开辟" : "第" + ((int)(CalendarDay / 360) + 1) + "年" + (World.Month + 1) + "月";
+                    hudFeed.Insert(0, (when, status.Trim()));
+                    if (hudFeed.Count > HudFeedRows) hudFeed.RemoveAt(hudFeed.Count - 1);
+                    changed = true;
+                }
+            }
+            if (!changed) return;
             while (hudFeedPool.Count < HudFeedRows)
             {
                 var row = Hud.Row("", "", hudFeedPool.Count % 2 == 1);
@@ -714,7 +781,8 @@ namespace Orbis.Flat
         {
             int activeTool = toolField != null ? toolField.index : 0;
             bool showTerrainBrush = hudModeList[hudMode].Brush || activeTool == 3;
-            bool showToolBanner = !showTerrainBrush && activeTool != 0;
+            bool showCorePower = !showTerrainBrush && corePower != CorePower.None;
+            bool showToolBanner = !showTerrainBrush && (activeTool != 0 || showCorePower);
             hudBrushPanel?.SetLogicalVisible(showTerrainBrush || showToolBanner);
             if (!showTerrainBrush && !showToolBanner) return;
 
@@ -726,6 +794,20 @@ namespace Orbis.Flat
                 if (hudHeightLabel != null) hudHeightLabel.text = heightField.value;
                 hudTerrainBrushDoneBtn?.EnableInClassList("ec-hidden", activeTool != 3);
                 hudBrushPanel?.SetPillContent("nat_level", "笔刷");
+            }
+            else if (showCorePower)
+            {
+                (string name, string hint) = corePower switch
+                {
+                    CorePower.Diplomacy => ("外交", "先点本国，再点另一国（右键或 Esc 结束）"),
+                    CorePower.Truce => ("停战", "先点交战的一方，再点敌国；同国点两下全停"),
+                    CorePower.Empire => ("称帝", "点击地图上一国使其称帝（右键或 Esc 结束）"),
+                    CorePower.Crown => ("立君", "点击地图上一国挑人立为君主（右键或 Esc 结束）"),
+                    _ => ("操作", "")
+                };
+                hudActiveToolName.text = name;
+                hudActiveToolHint.text = hint;
+                hudBrushPanel?.SetPillContent("civ_mode", name);
             }
             else if (hudToolPrompts.TryGetValue(activeTool, out var info))
             {
@@ -744,8 +826,10 @@ namespace Orbis.Flat
                 double day = CalendarDay;
                 hudDate.text = "第 " + ((int)(day / 360) + 1) + " 年 · " + (World.Month + 1) + " 月";
                 float phase = (float)FlatSolarClock.Phase(day);
+                var coreHere = CoreHere();
+                long totalPop = coreHere != null ? CoreTotalPopulation(coreHere) : (long)Simulation.TotalPopulation();
                 hudDateSub.text = ((int)(phase * 24)).ToString("00") + ":" + ((int)(phase * 1440) % 60).ToString("00") +
-                    " · 人口 " + Simulation.TotalPopulation().ToString("N0") + (navigation ? " · " + navigation.ModeName : "");
+                    " · 人口 " + totalPop.ToString("N0") + (navigation ? " · " + navigation.ModeName : "");
                 hudEraPanel?.SetPillContent("nat_daynight", hudDate.text);
             }
             else
@@ -770,10 +854,14 @@ namespace Orbis.Flat
                 hudLegendTitle.text = layerName;
                 if (hudLegendText.text != legend.text) hudLegendText.text = legend.text;
                 hudLegendResetBtn?.EnableInClassList("ec-hidden", layerField.index == (int)MapLayer.Natural);
+                hudBrushPanel?.ClampActiveToContainer();
                 hudLegendPanel?.SetPillContent("nat_terrain", string.IsNullOrEmpty(layerName) ? "图例" : layerName);
             }
             hudMinimapPanel?.SetLogicalVisible(World != null && minimap != null && minimap.Bound);
 
+            SyncCoreTerritory();
+            if (CoreEnabled) TickAutosave();
+            FollowCoreSelection();
             UpdateHudInfo();
             UpdateHudFeed();
             hudWindowAge += .25f;

@@ -10,11 +10,13 @@
     "*"
   ],
   "EmpireManager": [
-    "EnsureDistinctColor"
+    "EnsureDistinctColor",
+    "CheckOne"
   ],
   "Empire": [
     "getColorLibrary",
-    "getColor"
+    "getColor",
+    "AddRenown"
   ],
   "KingdomTitle": [
     "getColor",
@@ -85,5 +87,18 @@
   "SettlementSeaSearch": [
     "CanTransport"
   ],
-  "CultureService": []
+  "CultureService": [],
+  "TemplateNameRepair": [
+    "RepairCultures",
+    "RepairNames"
+  ],
+  "BookNamingSystem": [
+    "RepairLegacyNames"
+  ],
+  "LeftEmpireRepair": [
+    "AfterLoad"
+  ],
+  "FixedFaction": [
+    "ToSaveCopy"
+  ]
 }

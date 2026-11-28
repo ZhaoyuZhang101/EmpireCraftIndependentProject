@@ -88,8 +88,9 @@ IDENTITY = [
     (r"\bCorruptionRules\.ModRealm\(", "CorruptionRules.Realm("),
     (r"\bWorld\.world\.getCurWorldTime\(\)", "GameClock.Now"),
     (r"\bWorld\.world\b", "EmpireWorld.Current"),
-    (r"(?<![.\w])Kingdom\b", "Realm"),
-    (r"(?<![.\w])Actor\b", "Person"),
+    # A member named in an anonymous type (new { Kingdom = kingdom }) is read back as .Kingdom and keeps its name.
+    (r"(?<![.\w])(?<!new \{ )Kingdom\b", "Realm"),
+    (r"(?<![.\w])(?<!new \{ )Actor\b", "Person"),
     # The map's size was a static of the world class; here it belongs to the world in play.
     (r"(?<![.\w])MapBox\.width\b", "EmpireWorld.Current.Width"),
     (r"(?<![.\w])MapBox\.height\b", "EmpireWorld.Current.Height"),
@@ -101,6 +102,8 @@ IDENTITY = [
     (r"(?<![.\w])SmoothLoader\.isLoading\(\)", "GameClock.Loading"),
     # Record keys come from the world's counter, not the clock (Core/Host/Stock.cs RecordIds).
     (r"(?<![.\w])(?:OverallHelperFunc\.)?IdGenerator\.NextId\(\)", "RecordIds.Next()"),
+    # Random GUIDs (faction ids ...) from the same counter, so the same world makes the same ones.
+    (r"(?<![.\w])(?:System\.)?Guid\.NewGuid\(\)", "RecordIds.NewGuid()"),
     # Entity kinds, the kind of a person, name-making data, and the culture helpers the mod kept in a patch class.
     (r"(?<![.\w])MetaType\b", "EntityKind"),
     # Buildings, jobs and game options (Core/Host/Stock.cs).
@@ -129,6 +132,8 @@ IDENTITY = [
     (r"(int cityLevels = )(city\.buildings\.Where\()", r"\1CityAnswers.CityLevel(city) + \2"),
     (r"\bcity\.getResourcesAmount\(requirement\.id\) >= requirement\.amount\b",
      r"(city.getResourcesAmount(requirement.id) >= requirement.amount || CityAnswers.LandYields(city, requirement.id))"),
+    # A realm's wars were a list in the base game; here they are a sequence, copied before wars are ended through it.
+    (r"\.getWars\(\)\.ForEach\(", ".getWars().ToList().ForEach("),
     # War targets (EmpireCraftPlotsAddition): realms a realm could turn on, and how far apart two realms lie.
     (r"\b(?:EmpireWorld\.Current|DiplomacyHelpers|World\.world)\.wars\.getNeutralKingdoms\(", "EmpireWorld.Current.NeutralRealms("),
     # The base game could lock its city list mid-update; this world's never is.
@@ -203,6 +208,8 @@ IDENTITY = [
     (r"(?<![.\w])AttackType\b", "DeathCause"),
     (r"(?<![.\w])Randy\.randomChance\b", "EcRandom.Chance"),
     (r"(?<![.\w])Randy\.random(Int|Float)\b", "EcRandom.Range"),
+    # The base library's random numbers seeded from the clock: drawn from the host's stream instead (EcSystemRandom).
+    (r"(?<![.\w])new (System\.)?Random\(\)", "new EmpireCraft.Core.EcSystemRandom()"),
     (r"(?<![.\w])Config\.CITY_ZONE_SIZE\b", "EmpireCraft.Core.Land.ZoneSize"),
     (r"\bToolbox\.SquaredDistTile\b", "Land.SquaredDist"),
     (r"\bToolbox\.DistTile\b", "Land.Dist"),
@@ -635,6 +642,24 @@ def cmd_extract(args):
     save_manifest(manifest)
 
 
+def normalised(raw):
+    if raw.startswith(b"\xef\xbb\xbf"):
+        raw = raw[3:]
+    return raw.replace(b"\r\n", b"\n")
+
+
+# A data file the game's own tools (the regime editor) have changed since it was copied from the mod: its bytes no longer
+# match the mod's at the commit it was copied from. Line endings and a leading BOM do not count (git on Windows writes CRLF).
+def data_edited(mod, entry):
+    full = os.path.join(ROOT, entry["dest"])
+    if not os.path.exists(full):
+        return False
+    with open(full, "rb") as f:
+        ours = normalised(f.read())
+    base = normalised(git(mod, "show", "%s:%s" % (entry["commit"], entry["mod"])).stdout)
+    return ours != base
+
+
 def cmd_data(args):
     mod = mod_repo(args)
     commit = git(mod, "rev-parse", args.commit).stdout.decode().strip()
@@ -644,6 +669,9 @@ def cmd_data(args):
         entry = find(manifest, path)
         if entry and not args.force:
             print("skip (already ported, use --force to regenerate): " + path)
+            continue
+        if entry and data_edited(mod, entry) and not args.overwrite_edited:
+            print("skip (edited in the game since it was copied; --overwrite-edited replaces it): " + path)
             continue
         # Keep the mod's own folder layout below Data/ unless told otherwise.
         sub = args.dest if args.dest is not None else os.path.dirname(path)
@@ -750,10 +778,33 @@ def cmd_sync(args):
             continue
         if entry.get("kind") == "data":
             raw = git(mod, "show", "%s:%s" % (now, entry["mod"])).stdout
-            with open(os.path.join(ROOT, entry["dest"]), "wb") as f:
-                f.write(raw)
+            if data_edited(mod, entry):
+                # Edited in the game (the regime editor): keep the edits and bring the mod's change in three ways.
+                base = normalised(git(mod, "show", "%s:%s" % (entry["commit"], entry["mod"])).stdout)
+                with open(os.path.join(ROOT, entry["dest"]), "rb") as f:
+                    ours = normalised(f.read())
+                with tempfile.TemporaryDirectory() as tmp:
+                    names = {}
+                    for label, data in (("ours", ours), ("base", base), ("theirs", normalised(raw))):
+                        names[label] = os.path.join(tmp, label)
+                        with open(names[label], "wb") as f:
+                            f.write(data)
+                    result = subprocess.run(["git", "merge-file", "-p", "-L", "game", "-L", "mod@" + entry["commit"][:8],
+                                             "-L", "mod@" + now[:8], names["ours"], names["base"], names["theirs"]], capture_output=True)
+                if result.returncode < 0 or result.returncode > 127:
+                    raise SystemExit("merge-file failed for " + entry["mod"])
+                with open(os.path.join(ROOT, entry["dest"]), "wb") as f:
+                    f.write(result.stdout)
+                if result.returncode:
+                    conflicts += 1
+                    print("CONFLICT data %s (%d hunks, edited in the game) -> resolve in %s" % (entry["mod"], result.returncode, entry["dest"]))
+                else:
+                    print("merged data %s (kept the game's edits)" % entry["mod"])
+            else:
+                with open(os.path.join(ROOT, entry["dest"]), "wb") as f:
+                    f.write(raw)
+                print("updated data " + entry["mod"])
             entry.update(commit=now, lines=raw.count(b"\n"), sha256=hashlib.sha256(raw).hexdigest())
-            print("updated data " + entry["mod"])
             continue
         rewrite = (bool(entry.get("identity")), entry.get("keep", []))
         base, _ = transform(source_of(mod, entry["commit"], entry["mod"]), entry["mod"], entry["commit"], mod_namespaces(mod, entry["commit"]), *rewrite)
@@ -800,6 +851,7 @@ def main():
         p.add_argument("--commit", default="HEAD", help="mod revision to copy from (default HEAD)")
         p.add_argument("--note")
         p.add_argument("--force", action="store_true")
+        p.add_argument("--overwrite-edited", action="store_true", help="data: with --force, also replace files edited in the game")
         p.add_argument("--identity", action="store_true", help="rewrite WorldBox polity objects to this repository's entities")
         p.add_argument("--keep", nargs="*", help="with --identity: text such as title.capital to leave alone")
     p = sub.add_parser("extract")

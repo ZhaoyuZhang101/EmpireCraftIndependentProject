@@ -640,8 +640,9 @@ namespace EmpireCraft.UI
 
     // 卷册 wide window: draggable title bar with 返回 / − (collapse to draggable pill) / ×,
     // a page rail on the left and a scrolling main column.
-    public sealed class ScrollWindow
+    public sealed class ScrollWindow : IHudWindow
     {
+        VisualElement IHudWindow.Root => Root;
         public sealed class Page
         {
             public string Name, Icon;

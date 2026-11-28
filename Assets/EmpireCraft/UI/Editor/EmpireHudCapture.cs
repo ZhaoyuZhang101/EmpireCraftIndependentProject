@@ -23,7 +23,7 @@ namespace EmpireCraft.EditorTools
         const string Flag = "EmpireHudCapture.Out";
         const int Width = 1440, Height = 900;
         const BindingFlags Private = BindingFlags.NonPublic | BindingFlags.Instance;
-        static readonly string[] ThemeKeys = { "star", "atlas", "slate" };
+        static readonly string[] ThemeKeys = { "lacquer", "star", "atlas", "slate" };
 
         static EmpireHudCapture() { if (!string.IsNullOrEmpty(SessionState.GetString(Flag, ""))) EditorApplication.update += Step; }
 

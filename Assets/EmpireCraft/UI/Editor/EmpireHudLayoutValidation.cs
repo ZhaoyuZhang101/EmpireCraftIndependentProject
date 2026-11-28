@@ -158,6 +158,9 @@ namespace EmpireCraft.EditorTools
                             "Contextual ecInfo auto-hides cleanly when no tile is selected");
                         Check(byId["brush"].IsLogicalVisible && !byId["brush"].Panel.ClassListContains("ec-hidden"),
                             "Bottom-center contextual tool bar appears automatically when a map tool is active");
+                        var hudEl = Get<VisualElement>(app, "hud");
+                        Check(!hudEl.Q("ecRail").worldBound.Overlaps(hudEl.Q("ecFeed").worldBound),
+                            $"Civilization direct rail disjoint from bottom-left feed (railYMax={hudEl.Q("ecRail").worldBound.yMax:F0}, feedYMin={hudEl.Q("ecFeed").worldBound.yMin:F0})");
                         CaptureComposite(app, cam, nav, Path.Combine(outDir, "06_civ_direct_rail_clean.png"));
                         Call(app, "CancelActiveHudTool");
                         Check(!byId["brush"].IsLogicalVisible,

@@ -320,6 +320,7 @@ public class CityPatch : GamePatch
         }
         return true;
     }
+#endif
     public static bool AddCapturePoints(City __instance, Realm pKingdom, int pValue)
     {
         if (EmpireCraft.Core.AncientWarfareCompatibility.OwnsObject(__instance)) return true;
@@ -348,7 +349,6 @@ public class CityPatch : GamePatch
         __instance._capturing_units[pKingdom] = num + pValue + mandateAddition + kingDeathAddition;
         return false;
     }
-#endif
     public static bool getMainSubspecies(City __instance, ref Subspecies __result)
     {
         if (EmpireCraft.Core.AncientWarfareCompatibility.OwnsObject(__instance)) return true;
@@ -1119,7 +1119,7 @@ public class CityPatch : GamePatch
         {
             if (city?.Record == null || city.Realm != null) continue;
             Realm previous = city.Record.last_kingdom_id > 0 ? EmpireWorld.Current.RealmByKey(city.Record.last_kingdom_id) : null;
-            Realm fallback = previous != null && !previous.IsGone() && previous.asset != null
+            Realm fallback = previous != null && !previous.IsGone() && previous.Asset != null
                 ? previous
                 : WildKingdomsManager.neutral;
             city.SetKingdom(fallback, pFromLoad: true);

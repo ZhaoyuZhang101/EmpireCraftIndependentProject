@@ -15,7 +15,7 @@ namespace EmpireCraft.Core
 // 读档时：坏了的模板重套；在世的人、氏族、家族、宗族与族谱、名册里的这类名字按各自文化重起。史书里已写下的旧名不改。
 // 原版按物种起的英文名(Foxen、Vien……)同样算没按文明起名(用户 10-29 "姓氏为什么始终没有按照文明来同步"：日本的征夷大将军叫
 // "Foxen正")：中文界面下各文明的名都是汉字，名字里带英文字母的就是原版起的，按本人文明重起；除读档外每年也查一遍(见 NameCultureRepair)
-public static class TemplateNameRepair
+public static partial class TemplateNameRepair
 {
     private static readonly Regex RawName = new("(?:unit|clan|city|country|family|middenclan)(?:nick)?names",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
@@ -38,12 +38,12 @@ public static class TemplateNameRepair
     }
 
     // 起名模板坏了的文化重套模板(读档读完文化绑定之后)
-#if EC_PENDING
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
     public static void RepairCultures()
     {
-        if (EmpireWorld.Current?.Cultures == null) return;
+        if (EmpireWorld.Current?.cultures == null) return;
         int repaired = 0;
-        foreach (Culture culture in EmpireWorld.Current.Cultures)
+        foreach (Culture culture in EmpireWorld.Current.cultures)
         {
             if (culture?.data == null || !HasRawTemplate(culture)) continue;
             string name = Cultures.FamilyOf(culture);
@@ -73,7 +73,7 @@ public static class TemplateNameRepair
 #endif
 
     // 已经起坏的名字按文化重起(读档读完宗族、族谱之后)
-#if EC_PENDING
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
     public static void RepairNames()
     {
         if (EmpireWorld.Current == null) return;

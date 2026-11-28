@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/Data/ColonyState.cs @ e770dbbe. Body kept line-for-line for three-way sync;
+// Ported from the EmpireCraft mod: Scripts/Data/ColonyState.cs @ 1a066290. Body kept line-for-line for three-way sync;
 // see Port/manifest.json and Tools/PortTool.
 namespace EmpireCraft.Core
 {
@@ -32,5 +32,8 @@ public sealed class ColonyState
     // 租借地：出租的国家与租期届满的时间
     public long lessor_id = -1L;
     public double lease_until = -1d;
+    // 特许公司：特许状到期的时间(-1 = 旧档，头一年从那时起算)、续过几回
+    public double charter_until = -1d;
+    public int charter_renewals;
 }
 }

@@ -9,7 +9,7 @@ namespace EmpireCraft.Core
 
 public class EmpireCraftActorCheckFaction : GameAIActorBase
 {
-    private static readonly Random _rng = new Random();
+    private static readonly Random _rng = new EmpireCraft.Core.EcSystemRandom();
 
     public override Type OriginalBeh => GetType();
 

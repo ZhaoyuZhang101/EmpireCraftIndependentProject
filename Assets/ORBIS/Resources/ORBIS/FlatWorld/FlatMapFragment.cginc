@@ -17,6 +17,7 @@
    #ifdef ORBIS_DIAGNOSTIC
    #include "FlatCirculationOverlay.cginc"
    #endif
+   #include "FlatErosionDetail.cginc"
 #ifdef ORBIS_LOCAL_SURFACE
    float4 _LocalFocus,_LocalEditFootprint;
    float FlatFocusCorners(float2 pixels,float radius)
@@ -187,6 +188,9 @@
     float inundatedWeight=saturate(waterMask-baseWaterMask);
     float landBed=field.r,landSurvey=0;
     if(terrainView>.5)landSurvey=FlatEarthLandRelief(i.uv,1-baseWaterMask,landBed,terrainGradient);
+    // Close views: gullies and ridges in the lighting slope (off unless _ErosionDetail > 0).
+    if(terrainView>.5&&_ErosionDetail>0)
+     terrainGradient=FlatErosionGradient(cell,gridBed,terrainGradient,_PixelsPerTile,(1-waterMask)*smoothstep(.1,1.2,-field.g));
     float polarIce=FlatPolarIceMask(i.uv,waterMask,0)*naturalView;
     float landSnow=FlatLandSnow(cell,_InfoTex)*(1-waterMask)*naturalView;
     float4 season=float4(1,1,0,.5);

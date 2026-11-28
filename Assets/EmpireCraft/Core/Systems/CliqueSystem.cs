@@ -268,7 +268,7 @@ public static class CliqueSystem
     {
         var clique = new FixedFaction
         {
-            _id = Guid.NewGuid().ToString(),
+            _id = RecordIds.NewGuid().ToString(),
             EmpireId = empire.Key,
             Members = new List<long>(),
             TemporaryFactions = new List<TemporaryFaction>(),

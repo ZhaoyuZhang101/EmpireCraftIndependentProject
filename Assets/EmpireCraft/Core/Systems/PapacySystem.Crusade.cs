@@ -200,7 +200,6 @@ public static partial class PapacySystem
 #endif
 
     // 战争结束(WarPatch 在开战目标结算之后调用)：圣地交接、教权与正统
-#if EC_PENDING
     public static void OnWarEnded(War war, WarOutcome winner)
     {
         try
@@ -259,7 +258,6 @@ public static partial class PapacySystem
             LogService.LogWarning($"[EmpireCraft][圣战] 结算失败: {exception.Message}");
         }
     }
-#endif
 
     // 攻方里奉本宗教、城最多的(教廷除外)
     private static Realm LeadingCrusader(War war, Religion religion)

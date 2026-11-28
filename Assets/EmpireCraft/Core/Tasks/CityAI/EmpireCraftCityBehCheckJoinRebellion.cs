@@ -13,7 +13,6 @@ public class EmpireCraftCityBehCheckJoinRebellion: GameAICityBase
     // 这一步排在模组城市大任务"do_mod_city_beh"里(见 GameAIMain.CityAIs)，返回 Stop 会结束整个任务、后面各步都不跑：
     // 只有已毁、无主的城整座不跑模组城市 AI 才用 Stop。帝国都城只是不投叛军，后面的律令、城主、官职、收税、法理首都、
     // 合并民居照常(以前这里也返回 Stop，帝国都城这些步一直轮不到)
-#if EC_PENDING
     public override BehResult Execute(City pCity)
     {
         if (pCity.IsGone()) return BehResult.Stop;
@@ -41,10 +40,9 @@ public class EmpireCraftCityBehCheckJoinRebellion: GameAICityBase
         });
         if (target == null) return BehResult.Continue;
         var targetKingdom = target.Realm;
-        if (targetKingdom.CountCities()>=targetKingdom.getMaxCities()*2) return BehResult.Continue;
+        if (targetKingdom.CountCities()>=targetKingdom.MaxCities()*2) return BehResult.Continue;
         pCity.JoinRealm(target.Realm);
         return  BehResult.Continue;
     }
-#endif
 }
 }

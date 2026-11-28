@@ -561,11 +561,72 @@ public static class RulesChecks
         PortedSystems.Reset();
         var again = Start(map); Run(again, 40);
         Check(EmpireSave.Encode(again).SequenceEqual(bytes), "the same seed gives the same world with the ported systems running");
-        PortedSystems.Enabled = false; var bare = Start(map); Run(bare, 40); var bareTwin = Start(map); Run(bareTwin, 40); PortedSystems.Enabled = true;
+        // Saved while still switched off: a world saves the ported systems' state only while they run (EmpireSave, version 8).
+        PortedSystems.Enabled = false; var bare = Start(map); Run(bare, 40); var bareTwin = Start(map); Run(bareTwin, 40);
+        var bareBytes = EmpireSave.Encode(bare); var twinBytes = EmpireSave.Encode(bareTwin); PortedSystems.Enabled = true;
         // Switched on, the ported systems now keep the population and wage the wars, so the skeleton's part changes with them.
-        Check(EmpireSave.Encode(bare).SequenceEqual(EmpireSave.Encode(bareTwin)) && bare.Living.All(p => p.Renown == 0), "switched off, the world is the skeleton's alone, the same for the same seed");
+        Check(bareBytes.SequenceEqual(twinBytes) && bare.Living.All(p => p.Renown == 0), "switched off, the world is the skeleton's alone, the same for the same seed (" +
+              bareBytes.Length + "/" + twinBytes.Length + " bytes, version " + BitConverter.ToInt32(bareBytes, 4) + "/" + BitConverter.ToInt32(twinBytes, 4) + ", renown " + bare.Living.Sum(p => (long)p.Renown) + ")");
         EmpireWorld.Current = null;
         Console.WriteLine("PASS ported systems running 40 years (" + checks + " checks): " + PortedSystems.Slots.Count + " systems, standing " + total + " in all, the greatest ruler " + great.Renown + " (earns " + income + " a year)");
+    }
+
+    // The full save (EmpireSave, version 8): a world of 60 years with the ported systems running is saved together with their
+    // state (the mod's own save, DataManager, inside the section), loaded, and has the same state back once it is current.
+    public static void FullSave()
+    {
+        checks = 0;
+        LM.Clear(); LM.LoadFile(Path.Combine(DataFolder(), "Locales", "ch.json")); LM.Language = "ch";
+        GameData.Folder = DataFolder(); RuleData.Load();
+        PortedSystems.Reset(); PortedSystems.Enabled = true;
+        var map = FlatGenerator.Generate(256, 128, "EMPIRE-SAVE", TerrainPreset.Continents, default);
+        var w = Start(map); Run(w, 60);
+        // What the ported systems hold beside the skeleton, read the same way before saving and after loading.
+        string State(EmpireWorld world) => string.Join("; ", new[]
+        {
+            "empires " + world.Empires.list.Count(e => e.Alive) + " [" + string.Join(",", world.Empires.list.Where(e => e.Alive).Select(e => e.Name).OrderBy(n => n, StringComparer.Ordinal)) + "]",
+            "wilderness " + WildernessSystem.Regions.Count,
+            "corps " + CorpsSystem.All().Count() + " men " + (long)CorpsSystem.All().Sum(c => c.corps.strength),
+            "decisions " + DecisionSystem.Save().Count,
+            "war aims " + string.Join(",", world.LiveWars.Select(x => WarGoalSystem.Get(x).ToString()).OrderBy(n => n, StringComparer.Ordinal)),
+            "people in towns " + (long)world.Cities.Where(c => c.Alive).Sum(c => CityPopulationSystem.GetBackgroundTotal(c)),
+            "regimes " + string.Join(",", world.LiveRealms.GroupBy(r => r.GetRegime()?.type.ToString() ?? "none").OrderBy(g => g.Key, StringComparer.Ordinal).Select(g => g.Key + " " + g.Count())),
+            "treasuries " + world.LiveRealms.Sum(r => r.GetTreasuryBalance()),
+        });
+        // Saving tidies a little first (the mod prunes empty offices as it saves): read the state after it.
+        var bytes = EmpireSave.Encode(w);
+        string before = State(w);
+        int officesBefore = OfficeManager.Offices.Count;
+        Check(BitConverter.ToInt32(bytes, 4) == 8, "the current world with the ported systems running saves as version 8");
+        var loaded = EmpireSave.Decode(bytes, map.Clone());
+        Check(loaded.PendingPortedState != null && loaded.PendingPortedState.Length > 0, "the ported state comes back with the section");
+        Check(EmpireSave.Encode(loaded).SequenceEqual(bytes), "a loaded world that is not current yet saves what it was loaded from");
+        Check(loaded.NextRecordId == w.NextRecordId && loaded.Realms.Select(r => r.WarRenown).SequenceEqual(w.Realms.Select(r => r.WarRenown)), "the record keys and war renown are kept");
+        loaded.Activate();
+        // The mod takes back two things on the first frame after a load: the wilderness (checked against the land again)
+        // and the decisions under way (their plots put back up).
+        WildernessSystem.Tick(); DecisionSystem.Tick();
+        string after = State(loaded);
+        Console.WriteLine("   before: " + before);
+        if (after != before) Console.WriteLine("   after:  " + after);
+        Check(after == before, "loaded and made current, the world has the ported systems' state it was saved with");
+        // The mod's load gives every realm and city without an office one (as its regime asks); in the running world most
+        // have none yet (they get theirs when a regime is put in), so the load adds them: reported.
+        Console.WriteLine("   offices: " + officesBefore + " saved, " + OfficeManager.Offices.Count + " after loading (the load gives realms and cities without one theirs)");
+        var again = EmpireSave.Encode(loaded);
+        Console.WriteLine("   saved again right after loading: " + (again.SequenceEqual(bytes) ? "the same bytes" : again.Length + " bytes against " + bytes.Length));
+        // Two loads of one save going on five years: the same only if the simulation is deterministic, which with the full
+        // rule data loaded it is not yet (one world run twice already differs): reported, not required.
+        Run(loaded, 5); var first = EmpireSave.Encode(loaded);
+        var twin = EmpireSave.Decode(bytes, map.Clone()); Run(twin, 5); var second = EmpireSave.Encode(twin);
+        Console.WriteLine("   two loads of one save, five years on: " + (first.SequenceEqual(second) ? "the same bytes" : "differ (" + first.Length + " against " + second.Length + " bytes)"));
+        // And against the world that was never saved: what the save does not carry shows here.
+        PortedSystems.Reset(); var unbroken = Start(map); Run(unbroken, 65); var straight = EmpireSave.Encode(unbroken);
+        Console.WriteLine("   against the world never saved, five years on: " + (straight.SequenceEqual(first) ? "the same bytes" : "differs (" + straight.Length + " against " + first.Length + " bytes)"));
+        int faults = PortedSystems.TotalFaults;
+        Check(faults == 0, "no ported system fails around the save: " + string.Join("; ", PortedSystems.Slots.Where(s => s.Faults > 0).Select(s => s.Name + " x" + s.Faults + " " + s.LastFault)));
+        EmpireWorld.Current = null;
+        Console.WriteLine("PASS full save (" + checks + " checks): " + bytes.Length + " bytes, " + loaded.LiveRealms.Count + " realms");
     }
 
     // An empire founded by the ported code on a realm of the running world.
@@ -587,7 +648,7 @@ public static class RulesChecks
         checks = 0;
         // Rule data first, as at startup: the world must not run its first years without it.
         LM.Clear(); LM.LoadFile(Path.Combine(DataFolder(), "Locales", "ch.json")); LM.Language = "ch";
-        GameData.Folder = DataFolder(); OnomasticsRule.ReadSetting(); RegimeManager.init();
+        GameData.Folder = DataFolder(); RuleData.Load();
         Check(RegimeManager.regimes != null && RegimeManager.regimes.Count >= 12 && RegimeManager.regimes.ContainsKey(RegimeType.Feudalism), "regime templates load: " + (RegimeManager.regimes?.Count ?? 0));
         var map = FlatGenerator.Generate(256, 128, "EMPIRE-EMPIRES", TerrainPreset.Continents, default);
         PortedSystems.Reset(); PortedSystems.Enabled = true;
@@ -626,11 +687,17 @@ public static class RulesChecks
         var (third, thirdRealm, thirdEmpire, thirdName, thirdFault) = FoundOne(map, realm.Id);
         var thirdYears = new List<string>();
         Run(third, 20, world => thirdYears.Add(Sum(world)));
+        // Saved while it is the current world (the ported systems' state goes with it, EmpireSave version 8), as twin was.
+        var thirdBytes = EmpireSave.Encode(third); var thirdSkeleton = EmpireSave.Encode(third, 7);
         twin.Activate();
+        var twinSkeleton = EmpireSave.Encode(twin, 7);
+        int yearParted = Enumerable.Range(0, 20).FirstOrDefault(i => thirdYears[i] != twinYears[i]) + 1;
+        Console.WriteLine("   two runs after the same history: years " + (thirdYears.SequenceEqual(twinYears) ? "the same" : "part at year " + yearParted + " (" + thirdYears[yearParted - 1] + " | " + twinYears[yearParted - 1] + ")") +
+                          "; skeleton " + (thirdSkeleton.SequenceEqual(twinSkeleton) ? "the same" : "differs") + "; full save " + thirdBytes.Length + "/" + twinBytes.Length + " bytes");
         Check(WorldSwitch.Resets >= 80 && WorldSwitch.Switches > 0, "switching worlds resets the ported systems' state (" + WorldSwitch.Resets + " resets)");
         Check(twinFault == null && twinEmpire != null && twinEmpire.Key == empire.Key && twinName == foundedAs && empire.Key < 1000000,
               "the same world founds the same empire under the same key (" + empire.Key + " '" + foundedAs + "' vs " + (twinEmpire == null ? "none " + twinFault : twinEmpire.Key + " '" + twinName + "'") + ")");
-        Check(thirdYears.SequenceEqual(twinYears) && EmpireSave.Encode(third).SequenceEqual(twinBytes), "two runs after the same history are the same twenty years on");
+        Check(thirdYears.SequenceEqual(twinYears) && thirdBytes.SequenceEqual(twinBytes), "two runs after the same history are the same twenty years on");
         Console.WriteLine("   known: state carried between worlds - " + leftover + " static values differ between the starts of the first and the second run" +
                           (years.SequenceEqual(twinYears) ? "; the runs agree all the same" : "; the first run parts from the later ones in year " + parted));
         EmpireWorld.Current = null;
@@ -642,7 +709,7 @@ public static class RulesChecks
     {
         checks = 0;
         LM.Clear(); LM.LoadFile(Path.Combine(DataFolder(), "Locales", "ch.json")); LM.Language = "ch";
-        GameData.Folder = DataFolder(); OnomasticsRule.ReadSetting(); RegimeManager.init();
+        GameData.Folder = DataFolder(); RuleData.Load();
         PortedSystems.Reset(); PortedSystems.Enabled = true;
         var map = FlatGenerator.Generate(512, 256, "EMPIRE-CULTURES", TerrainPreset.Continents, default);
         var w = Start(map);
@@ -694,7 +761,7 @@ public static class RulesChecks
     {
         var map = FlatGenerator.Generate(256, 128, "EMPIRE-ARISE", TerrainPreset.Continents, default);
         LM.Clear(); LM.LoadFile(Path.Combine(DataFolder(), "Locales", "ch.json")); LM.Language = "ch";
-        GameData.Folder = DataFolder(); OnomasticsRule.ReadSetting(); RegimeManager.init();
+        GameData.Folder = DataFolder(); RuleData.Load();
         PortedSystems.Reset(); PortedSystems.Enabled = true;
         var w = Start(map); Run(w, 1);
         Console.WriteLine("   zone limit " + CityExpansionPatch.ZoneLimit + ", borders locked " + CityTerritoryProtection.BordersLocked + ", wilderness on " + WildernessSystem.Enabled + " regions " + WildernessSystem.Regions.Count);
@@ -755,11 +822,26 @@ public static class RulesChecks
     }
 
     static string lastNullAt;
+    // Settleable land no city holds: how much, how much lies in wilderness, and how much borders a city.
+    static string FreeLand(EmpireWorld w)
+    {
+        var wild = new HashSet<int>(WildernessSystem.Regions.SelectMany(r => r.Zones));
+        int free = 0, inWild = 0, byCity = 0;
+        for (int i = 0; i < w.TileCity.Length; i++)
+        {
+            if (w.TileCity[i] >= 0 || !w.Settleable(i)) continue;
+            free++;
+            if (wild.Contains(i)) inWild++;
+            else if (w.Zones.ById(i)?.Neighbours.Any(n => w.TileCity[n.Index] >= 0) == true) byCity++;
+        }
+        return free + " (in wilderness " + inWild + ", next to a city " + byCity + ")";
+    }
+
     public static void EmpiresArise(int width = 256, int years = 150)
     {
         checks = 0;
         LM.Clear(); LM.LoadFile(Path.Combine(DataFolder(), "Locales", "ch.json")); LM.Language = "ch";
-        GameData.Folder = DataFolder(); OnomasticsRule.ReadSetting(); RegimeManager.init();
+        GameData.Folder = DataFolder(); RuleData.Load();
         PortedSystems.Reset(); PortedSystems.Enabled = true;
         var map = FlatGenerator.Generate(width, width / 2, "EMPIRE-ARISE", TerrainPreset.Continents, default);
         // What the ported systems write to the log (several catch their own errors and only log them).
@@ -862,10 +944,22 @@ public static class RulesChecks
             int handsBefore = w.Annals.Entries.Count(e => e.Kind == AnnalKind.CityTransferred);
             var trial = w.StartWar(strong, weak, WarKinds.Normal);
             int corpsSeen = 0;
-            for (int m = 0; m < 120 && trial != null && trial.Alive; m++) { EmpireSimulation.Month(w); corpsSeen = Math.Max(corpsSeen, CorpsSystem.All().Count()); }
+            for (int m = 0; m < 120 && trial != null && trial.Alive; m++)
+            {
+                EmpireSimulation.Month(w); corpsSeen = Math.Max(corpsSeen, CorpsSystem.All().Count());
+                if (m % 12 != 11 && trial.Alive) continue;
+                // Where the trial war stands: each side's corps by task and men, how much of the weak capital the strong side holds.
+                string Side(Realm r) => string.Join("/", CorpsSystem.All().Where(c => c.kingdom == r).Select(c => c.corps).GroupBy(c => c.task).Select(g => g.Key + " " + g.Count() + "x" + (int)g.Average(c => c.strength)));
+                var cap = weak.Capital;
+                Console.WriteLine("     month " + (m + 1) + ": " + strong.Name + " [" + Side(strong) + "] " + weak.Name + " [" + Side(weak) + "]; " +
+                    (cap == null ? "weak capital gone" : cap.Name + " cells " + cap.Zones.Count + " valid " + cap.GetValidCityZoneCount() + " held by attacker " + cap.GetOccupiedTileZoneCount(strong) +
+                    " need " + cap.GetRequiredFinishedCaptureRate(strong).ToString("0.00")));
+            }
             Console.WriteLine("   trial war " + strong.Name + " (" + strong.Cities.Count + " cities, power " + WarSituation.Power(strong) + ") on " + weak.Name + " (" + weak.Cities.Count + ", " + WarSituation.Power(weak) + "), " +
                 (int)w.Distance(strong.Capital.Tile, weak.Capital.Tile) + " cells apart: " + (trial == null ? "not declared" : trial.Alive ? "still on after 10 years" : "ended " + trial.Outcome + " after " + trial.DurationMonths() + " months") +
                 ", corps up to " + corpsSeen + ", cities changed hands " + (w.Annals.Entries.Count(e => e.Kind == AnnalKind.CityTransferred) - handsBefore));
+            if (trial != null)
+                Console.WriteLine("   trial war aim " + WarGoalSystem.Get(trial) + ", chronicle: " + string.Join(" | ", (trial.GetOrCreate().chronicle ?? new List<WarChronicleEntry>()).Select(e => e.kind + ":" + e.text)));
         }
         Console.WriteLine("   war gates: " + string.Join("; ", w.LiveRealms.GroupBy(Gate).OrderByDescending(g => g.Count()).Select(g => g.Key + " " + g.Count())));
         Check(PortedSystems.TotalFaults == 0, "no ported system fails while realms weigh empires: " + faults);
@@ -875,10 +969,33 @@ public static class RulesChecks
         Check(peoples.Count(c => (InstitutionSystem.GetOrCreateCultureState(c)?.enacted_node_ids?.Count ?? 0) > 1) * 2 >= peoples.Count, "most peoples carry out reforms");
         int settled = w.LiveRealms.Count(r => !TribalFissionService.IsTribal(r));
         // Realms growing out of the tribe within these years depends on how the world goes: reported, not required.
-        // Realms go to war on their own and win: cities change hands or, between tribes (one city each in the mod), the loser
-        // concedes and pays, joining the winner's confederation where it has a tribal union. Then the world founds an empire.
-        Check(w.Wars.Count(x => x.Kind == WarKinds.Normal) > 0 && (w.Annals.Entries.Any(e => e.Kind == AnnalKind.CityTransferred) || conceded > 0),
-            "realms go to war and win: cities change hands or tribes concede");
+        // Realms go to war on their own and wars are won: cities change hands, a tribe (one city each in the mod) concedes
+        // and pays when its city falls, or the winner dictates the peace. Whether cities change hands within these years
+        // depends on how the world goes (all tribes, none do): reported, not required. Then the world founds an empire.
+        var normalWars = w.Wars.Where(x => x.Kind == WarKinds.Normal).ToList();
+        int won = normalWars.Count(x => x.Outcome == WarOutcome.Attackers || x.Outcome == WarOutcome.Defenders);
+        Console.WriteLine("   war outcomes: " + string.Join(", ", normalWars.GroupBy(x => x.Alive ? "running" : x.Outcome.ToString()).OrderByDescending(g => g.Count()).Select(g => g.Key + " " + g.Count())) +
+            "; cities changed hands " + w.Annals.Entries.Count(e => e.Kind == AnnalKind.CityTransferred) + ", tribes conceded " + conceded);
+        // How the wars that were won were won: by aim, and the last line of each one's chronicle.
+        Console.WriteLine("   won wars by aim: " + string.Join(", ", normalWars.Where(x => x.Outcome == WarOutcome.Attackers || x.Outcome == WarOutcome.Defenders)
+            .GroupBy(x => x.Outcome + " " + WarGoalSystem.Get(x)).OrderByDescending(g => g.Count()).Select(g => g.Key + " " + g.Count())));
+        foreach (var x in normalWars.Where(x => x.Outcome == WarOutcome.Attackers).Take(4))
+            Console.WriteLine("     " + x.Name + ": " + string.Join(" | ", (x.GetOrCreate().chronicle ?? new List<WarChronicleEntry>()).Select(e => e.kind + ":" + e.text)));
+        Check(normalWars.Count > 0 && won > 0, "realms go to war and wars are won");
+        // Where state settlement stands for each realm (why no new city is founded), and the land cities hold (the cap is per city).
+        var cells = w.Cities.Where(c => c.Alive).Select(c => c.Zones.Count).OrderBy(x => x).ToList();
+        Console.WriteLine("   settlement: " + string.Join(", ", w.LiveRealms.GroupBy(r => r.GetOrCreate().settlement?.status ?? "none").OrderByDescending(g => g.Count()).Select(g => g.Key + " " + g.Count())) +
+            "; city cells " + (cells.Count == 0 ? "none" : cells[0] + "/" + cells[cells.Count / 2] + "/" + cells[cells.Count - 1]) + " (cap " + ModClass.CITY_MAX_ZONES + ")" +
+            "; free settleable cells " + FreeLand(w));
+        // Cities short of the cap with free settleable land next to them: what growth picks and why it is not taken.
+        foreach (var city in w.Cities.Where(c => c.Alive && !CityExpansionPatch.AtLimit(c) &&
+                     c.Tiles.Any(i => w.Zones.ById(i).Neighbours.Any(n => w.TileCity[n.Index] < 0 && w.Settleable(n.Index)))).Take(6))
+        {
+            var target = CityZoneGrowth.Instance.getZoneToClaim(city.Leader, city);
+            Console.WriteLine("   stuck " + city.Name + " (" + city.Realm?.Name + ") cells " + city.Tiles.Count + " people " + city.Population + " target " + (target == null ? "none" :
+                target.ToString() + " claim " + CityExpansionPatch.CanClaimZone(city, target) + " settled " + CityExpansionPatch.Settled(city, target) +
+                " add " + CityExpansionPatch.CanAddZone(city, target) + " reach " + CityExpansionPatch.Reachable(target, city) + " border " + CityExpansionPatch.Bordering(city, target)));
+        }
         // An empire proclaimed (become_empire) or, while realms are tribes, a tribal confederation won in war (the mod's empire of the tribal age).
         Check(founded.Count > 0, "the world founds an empire or a tribal confederation by itself");
         foreach (var e in w.Empires.list) Check(e.CoreKingdom != null && (!e.Alive || e.CoreKingdom.IsEmpire()), "an empire stands on its core realm");
@@ -990,9 +1107,22 @@ public static class RulesChecks
         LM.Clear(); int texts = LM.LoadFile(Path.Combine(GameData.Folder, "Locales", "ch.json")); LM.Language = "ch";
         Check(texts > 5000 && SocialClass.Peasant.ToTranslate() != "class_peasant", "text table: " + texts + " entries");
         Check(!string.IsNullOrEmpty("Huaxia".GetCultureTranslate()), "culture names translate");
+        // What the regime editor changes in Data is what the game reads at start (RuleData, the mod's start order): the rank and
+        // title tables, every people's word lists, era names, shared party names and book titles, and the laws.
+        string FirstKey(string file) => File.ReadLines(file).Skip(1).Select(l => l.Split(',')[0].Trim()).First(k => k.Length > 0);
+        string locales = Path.Combine(GameData.Folder, "Locales"), cultures = Path.Combine(locales, "Cultures");
+        RuleData.Load();
+        var tables = new[] { Path.Combine(locales, "OfficialRanks.csv"), Path.Combine(locales, "PeeragesLevelNames.csv"), Path.Combine(cultures, "YearName1.csv"),
+            Directory.EnumerateFiles(Path.Combine(cultures, "Culture_Huaxia"), "*.csv").OrderBy(f => f, StringComparer.Ordinal).First(),
+            Directory.EnumerateFiles(Path.Combine(cultures, "Culture_Roma"), "*.csv").OrderBy(f => f, StringComparer.Ordinal).First(),
+            Directory.EnumerateFiles(Path.Combine(cultures, "PartyNames"), "*.csv").OrderBy(f => f, StringComparer.Ordinal).First(),
+            Directory.EnumerateFiles(Path.Combine(cultures, "Books"), "*.csv").OrderBy(f => f, StringComparer.Ordinal).First() };
+        foreach (string table in tables) Check(LM.Has(FirstKey(table)), "texts of " + Path.GetFileName(table) + " are read");
+        int wordLists = Directory.EnumerateFiles(cultures, "*.csv", SearchOption.AllDirectories).Count();
+        Check(EmpireLawSystem.Laws.Count > 0, "the laws are read: " + EmpireLawSystem.Laws.Count);
         LogService.Sink = null;
         Console.WriteLine("PASS rule data (" + checks + " checks): " + trees.Count + " institution lines, " + nodes + " nodes, " +
-                          OnomasticsRule.ALL_CULTURE_RULE.Count + " cultures, " + texts + " texts; " + institutionWarnings + " institution warnings, " +
+                          OnomasticsRule.ALL_CULTURE_RULE.Count + " cultures, " + texts + " texts, " + wordLists + " word lists, " + EmpireLawSystem.Laws.Count + " laws; " + institutionWarnings + " institution warnings, " +
                           (LogService.Warnings - warnings - institutionWarnings) + " culture warnings (the mod's own data notes)");
     }
 

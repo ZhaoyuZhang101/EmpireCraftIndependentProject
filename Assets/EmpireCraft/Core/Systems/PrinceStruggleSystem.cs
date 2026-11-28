@@ -178,7 +178,6 @@ public static class PrinceStruggleSystem
     }
 
     // 诸王之乱：宗室里就藩为王的各自起兵争位；返回起兵了几家
-#if EC_PENDING
     private static int RiseOfPrinces(Empire empire, Person emperor, float severity)
     {
         Realm core = empire.CoreKingdom;
@@ -216,10 +215,8 @@ public static class PrinceStruggleSystem
             Record(empire, string.Format(LM.Get("prince_rose_history"), risen[0].FullName(), emperor.FullName()), risen[0]);
         return risen.Count;
     }
-#endif
 
     // 诸王争位：新君即位一个月后结算；半年内一直没有新君就作罢
-#if EC_PENDING
     public static void Monthly()
     {
         foreach (var pair in Contests.ToList())
@@ -273,7 +270,6 @@ public static class PrinceStruggleSystem
             if (state != null) state.stability = Mathf.Max(0f, state.stability - 6f);
         }
     }
-#endif
 
     // 换上新君(照宫廷政变的做法：旧君离位，新君坐上君主官职)
     private static void Install(Empire empire, Person successor, string note)

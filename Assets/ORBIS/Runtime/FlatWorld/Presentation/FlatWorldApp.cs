@@ -921,6 +921,8 @@ namespace Orbis.Flat
                 Math.Min(World.Height-.0001,PlanetCoordinateSystem.MapV(location)*World.Height),World.Width,World.Height);
             if(hit<0)return;
             selected=hit;map.Select(hit,location);
+            // EmpireCraft god powers (外交、停战、称帝、立君) take the click while one is chosen.
+            if(CorePowerPick(hit)){UpdateHUD();return;}
             var water=WaterAtLocation(location);
             bool matches=SameSurface(water,World.Water[hit]);
             if(matches&&World.Owner[hit]>=0)activeNation=World.Owner[hit];

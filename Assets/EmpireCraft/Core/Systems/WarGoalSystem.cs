@@ -580,6 +580,8 @@ public static class WarGoalSystem
     {
         // 部落之间破城求和已经了结(见 TribalWarSystem)
         if (TribalWarSystem.Settling(war)) return;
+        // 剧本写的停战：条款由剧本自己的献城写定
+        if (DiplomacyActions.ScenarioTruce) return;
         try
         {
             if (war?.Record == null || winner == WarOutcome.Nobody || winner == WarOutcome.Merged || !Applies(war) &&

@@ -16,7 +16,7 @@ namespace Orbis.Flat
         double[] hudNationPeople = new double[WorldData.MaxNations];
         int[] hudNationZones = new int[WorldData.MaxNations];
 
-        void OpenHudWindow(string key, ScrollWindow window, int page = 0)
+        void OpenHudWindow(string key, IHudWindow window, int page = 0)
         {
             hudWindows.Clear();
             hudWindow = window; hudWindowKey = key; hudWindowAge = 0;
@@ -68,6 +68,7 @@ namespace Orbis.Flat
         // ---------- 列国榜 ----------
         void OpenHudNations()
         {
+            if (CoreEnabled) { OpenCoreNations(); return; }
             var w = new ScrollWindow("列国榜", "empire_list", CloseHudWindow);
             w.Add("列国", "civ_nations", BuildHudNations, true, () => World == null ? null : World.Nations.Count.ToString());
             OpenHudWindow("nations", w);
@@ -122,6 +123,7 @@ namespace Orbis.Flat
         // ---------- 国务 ----------
         void OpenHudState()
         {
+            if (CoreEnabled) { OpenCoreState(activeRealm); return; }
             var w = new ScrollWindow("国务", "TabEmpire", CloseHudWindow);
             w.Add("总览", "civ_empire", BuildHudState, true);
             OpenHudWindow("state", w);
@@ -166,8 +168,11 @@ namespace Orbis.Flat
         }
 
         // ---------- 宗族 / 战争 (systems not ported yet) ----------
-        void OpenHudClans()
+        void OpenHudClans() => OpenHudClans(0);
+
+        void OpenHudClans(int first)
         {
+            if (CoreEnabled) { OpenHudClansCore(first); return; }
             var w = new ScrollWindow("宗族", "specificClanIcon", CloseHudWindow);
             w.Add("门第", "specificClanIcon", page =>
             {
@@ -179,6 +184,7 @@ namespace Orbis.Flat
 
         void OpenHudWar()
         {
+            if (CoreEnabled) { OpenCoreWar(); return; }
             var w = new ScrollWindow("战争", "TabWarfare", CloseHudWindow);
             w.Add("战事", "TabWarfare", page =>
             {
@@ -209,11 +215,12 @@ namespace Orbis.Flat
 
         static readonly Color32[][] HudThemeSwatches =
         {
+            new[] { new Color32(26, 19, 17, 255), new Color32(196, 90, 72, 255), new Color32(246, 212, 138, 255) },
             new[] { new Color32(18, 28, 38, 255), new Color32(222, 184, 112, 255), new Color32(132, 214, 232, 255) },
             new[] { new Color32(60, 48, 34, 255), new Color32(238, 218, 170, 255), new Color32(196, 52, 40, 255) },
             new[] { new Color32(32, 41, 50, 255), new Color32(218, 226, 232, 255), new Color32(104, 190, 150, 255) },
         };
-        static readonly string[] HudThemeNotes = { "青铜星盘、刻度与星芒", "羊皮舆图、绳纹与罗盘", "石青底板、白玉与铆钉" };
+        static readonly string[] HudThemeNotes = { "黑漆朱边、金角像素框与像素字", "青铜星盘、刻度与星芒", "羊皮舆图、绳纹与罗盘", "石青底板、白玉与铆钉" };
 
         void BuildHudThemePage(VisualElement page)
         {
@@ -414,8 +421,17 @@ namespace Orbis.Flat
         void BuildHudFilesPage(VisualElement page)
         {
             page.Add(Hud.Header("存档与高度图", Application.persistentDataPath));
+            if (CoreEnabled)
+            {
+                // With the core on, saves are slots holding the world and the realms together.
+                var slots = Hud.Card("存档与读档", "iconHistory", null, true);
+                slots.Add(Hud.Text("世界与列国一起存，可存多份，每十年自动存一份。", "ec-text"));
+                var sb = new VisualElement(); sb.AddToClassList("ec-btns");
+                sb.Add(Hud.Button("ec-btn", null, "打开存档窗口", OpenCoreSaves));
+                slots.Add(sb);
+                page.Add(slots);
+            }
             var two = new VisualElement(); two.AddToClassList("ec-two");
-
             var save = Hud.Card("世界存档", "iconHistory", null, true);
             save.Add(Hud.Row("存档文件", Path.GetFileName(SavePath), false));
             var b = new VisualElement(); b.AddToClassList("ec-btns");

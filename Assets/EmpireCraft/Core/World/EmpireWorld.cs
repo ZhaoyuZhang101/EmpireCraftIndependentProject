@@ -56,7 +56,14 @@ namespace EmpireCraft.Core
         public readonly BookStore Books;                        // written works and plots on record (see Works.cs); empty until a system fills them
         public readonly PlotStore Plots;
         // Makes this the world the static ported systems act on.
-        public void Activate(){if(!ReferenceEquals(Current,this))WorldSwitch.Leaving(this);Current=this;ModClass.EMPIRE_MANAGER=Empires;ModClass.KINGDOM_TITLE_MANAGER=Titles;ModClass.IS_CLEAR=false;}
+        // The ported systems' state a loaded world was saved with (EmpireSave, version 8), put back when it first becomes current.
+        public byte[] PendingPortedState;
+        public void Activate()
+        {
+            if(!ReferenceEquals(Current,this))WorldSwitch.Leaving(this);
+            Current=this;ModClass.EMPIRE_MANAGER=Empires;ModClass.KINGDOM_TITLE_MANAGER=Titles;ModClass.IS_CLEAR=false;
+            if(PendingPortedState!=null){var state=PendingPortedState;PendingPortedState=null;PortedSave.Restore(this,state);}
+        }
 
         // Lookups by the key a ported system stored; null for none and for an entity that has ended.
         public Realm RealmByKey(long key){var x=key>=0&&key<Realms.Count?Realms[(int)key]:null;return x!=null&&x.Alive?x:null;}

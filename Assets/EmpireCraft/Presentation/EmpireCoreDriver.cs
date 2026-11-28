@@ -11,8 +11,11 @@ namespace EmpireCraft.Presentation
     // frame at a time, inside the shared frame budget. Nothing is drawn here; windows
     // and map layers read EmpireCoreDriver.Instance.World.
     //
-    // Not done yet: the EmpireCraft state is not written with the ORBIS save (a world
-    // opens afresh each time), and terrain edits do not re-check city sites.
+    // Saves: the HUD's save slots write the core beside the ORBIS world (EncodeCore) and,
+    // before loading one, hand its bytes back here (PendingCore); the next world that opens
+    // takes them if they belong to its map, otherwise it opens afresh. EncodeCore/DecodeCore
+    // are the base EmpireSave section for now; the ported systems' own state plugs in there.
+    // Not done yet: terrain edits do not re-check city sites.
     public sealed class EmpireCoreDriver : MonoBehaviour
     {
         public static EmpireCoreDriver Instance { get; private set; }
@@ -20,6 +23,13 @@ namespace EmpireCraft.Presentation
         public static bool Enabled = true;
         public EmpireWorld World { get { return runner != null ? runner.World : null; } }
         public EmpireRunner Runner { get { return runner; } }
+
+        // A saved core waiting for its map (set just before that map is loaded).
+        public static byte[] PendingCore;
+        public static Func<EmpireWorld, byte[]> EncodeCore = w => EmpireSave.Encode(w);
+        public static Func<byte[], WorldData, EmpireWorld> DecodeCore = EmpireSave.Decode;
+        // True when the world on screen came from a save rather than a fresh opening.
+        public bool Restored { get; private set; }
 
         FlatWorldApp app; WorldData map; EmpireRunner runner;
         static bool hostReady;
@@ -55,16 +65,13 @@ namespace EmpireCraft.Presentation
                 else if (level == LogLevel.Warning) Debug.LogWarning(message);
             };
             GameData.Folder = DataFolder;
+            // The game's text is Simplified Chinese: the mod's "cz" tables (its "ch" ones are
+            // Traditional, and most peoples carry only a "cz" name).
+            LM.Language = "cz";
             if (!Directory.Exists(GameData.Folder)) { Debug.LogWarning("[EmpireCraft] rule data folder missing: " + GameData.Folder); return; }
-            try
-            {
-                OnomasticsRule.ReadSetting();
-                string texts = Path.Combine(GameData.Folder, "Locales", LM.Language + ".json");
-                if (File.Exists(texts)) LM.LoadFile(texts);
-                // Regime templates, their titles and institution trees; realms take theirs from their people when a world opens.
-                RegimeManager.init();
-                if (InstitutionDefinitionRegistry.Lines.Count == 0) InstitutionDefinitionRegistry.Load();
-            }
+            // Texts, word lists, the peoples' rules, institution trees, regime templates and their titles, factions, laws
+            // (see RuleData); realms take their regime from their people when a world opens.
+            try { RuleData.Load(); }
             catch (Exception e) { Debug.LogException(e); }
         }
 
@@ -92,10 +99,17 @@ namespace EmpireCraft.Presentation
             try
             {
                 var clock = System.Diagnostics.Stopwatch.StartNew();
-                var empire = EmpireRunner.Open(world, FMath.Seed(world.Seed));
+                var pending = PendingCore; PendingCore = null;
+                EmpireWorld empire = null; Restored = false;
+                if (pending != null)
+                {
+                    try { empire = DecodeCore(pending, world); Restored = empire != null; }
+                    catch (Exception e) { Debug.LogWarning("[EmpireCraft] saved core not used, opening afresh: " + e.Message); }
+                }
+                if (empire == null) empire = EmpireRunner.Open(world, FMath.Seed(world.Seed));
                 runner = new EmpireRunner(empire, world.Day);
                 int realms = 0; foreach (var realm in empire.Realms) if (realm.Alive) realms++;
-                Debug.Log("[EmpireCraft] core opened on " + world.Width + "x" + world.Height + " world \"" + world.Seed + "\": " +
+                Debug.Log("[EmpireCraft] core " + (Restored ? "restored" : "opened") + " on " + world.Width + "x" + world.Height + " world \"" + world.Seed + "\": " +
                           realms + " realms, " + empire.Cities.Count + " cities, " + empire.Living.Count + " people (" + clock.ElapsedMilliseconds + " ms).");
             }
             catch (Exception e) { Debug.LogException(e); }

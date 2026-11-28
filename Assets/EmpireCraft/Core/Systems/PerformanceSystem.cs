@@ -10,7 +10,7 @@ namespace EmpireCraft.Core
 {
 public class PerformanceEvent
 {
-    internal static readonly Random s_random = new Random();
+    internal static readonly Random s_random = new EmpireCraft.Core.EcSystemRandom();
     public PerformanceEventType eventType { get; set; }
     public bool is_good { get; set; }
     public double trigger_rate { get; set; }

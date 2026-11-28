@@ -84,8 +84,12 @@ namespace EmpireCraft.Core
         public void DecreaseHappinessFromLostCityCapture(City city){}
         // How far apart two realms lie: from capital to capital, in cells.
         public static float DistanceBetween(Realm a,Realm b)=>a?.Capital==null||b?.Capital==null||a.World==null?float.MaxValue:a.World.Distance(a.Capital.Tile,b.Capital.Tile);
-        // The realm's renown: its ruler's, and a tenth of each city leader's.
-        public int GetRenown(){long total=Ruler!=null&&Ruler.Alive?Ruler.Renown:0;foreach(var city in Cities){var leader=city.Leader;if(leader!=null&&leader!=Ruler&&leader.Alive)total+=leader.Renown/10;}return (int)System.Math.Min(int.MaxValue,total);}
+        // The kind of people the realm is of (the base game's kingdom asset): everyone is human here.
+        public PersonKind Asset=>PersonKind.Human;
+        // Renown the realm won in its wars as the core of an empire (Empire.AddRenown). Saved from version 8 of the core's save.
+        public int WarRenown;
+        // The realm's renown: its ruler's, a tenth of each city leader's, and what it won in war.
+        public int GetRenown(){long total=WarRenown+(Ruler!=null&&Ruler.Alive?Ruler.Renown:0);foreach(var city in Cities){var leader=city.Leader;if(leader!=null&&leader!=Ruler&&leader.Alive)total+=leader.Renown/10;}return (int)System.Math.Min(int.MaxValue,total);}
         // The persons on record who belong here (rulers, their houses, office holders). Not the population.
         public List<Person> People{get{var found=new List<Person>();if(World!=null)foreach(var person in World.Living)if(person.Realm==this)found.Add(person);return found;}}
     }
@@ -105,6 +109,10 @@ namespace EmpireCraft.Core
         public override long Key=>Id;
         public City Record=>this;
         public double FoundedStamp=>FoundedMonth;
+        // The base game's capture points by realm and the realm taking the city by them. Occupation is kept by the ported
+        // rules (the city's OccupiedStatus), so these stay empty; the mod clears them alongside its own.
+        public readonly Dictionary<Realm,int> _capturing_units=new Dictionary<Realm,int>();
+        public Realm being_captured_by=>null;
         // The local governor. Not saved yet: nothing appoints one until the office systems are ported.
         public Person Leader;
         public bool HasLeader()=>Leader!=null&&Leader.Alive;

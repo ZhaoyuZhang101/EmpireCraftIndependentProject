@@ -221,7 +221,7 @@ public class Regime
             type = this.type,
             CentreMind = new FixedFaction()
             {
-                _id = Guid.NewGuid().ToString(),
+                _id = RecordIds.NewGuid().ToString(),
             },
             description = this.description,
             control_kingdom_id = kingdom.Key,

@@ -10,7 +10,7 @@ namespace EmpireCraft.Core
     // a bed fingerprint. Derived indices (tile owners, living list) are rebuilt.
     public static class EmpireSave
     {
-        public const int Version=7;
+        public const int Version=8;
         const uint Magic=0x44574345; // "ECWD"
         const int MaxEntities=4_000_000,MaxString=256;
 
@@ -26,10 +26,13 @@ namespace EmpireCraft.Core
             }
         }
 
-        // `version` below the current one writes that older layout (used to check old sections still load).
-        public static byte[] Encode(EmpireWorld w,int version=Version)
+        // `version` below the current one writes that older layout (used to check old sections still load). Left out, it is
+        // version 8 when there is ported state to carry (the ported systems are on and this is the current world, or a loaded
+        // world still holds the state it was saved with), otherwise version 7: a skeleton world saves as it always did.
+        public static byte[] Encode(EmpireWorld w,int version=-1)
         {
             using var stream=new MemoryStream();using var b=new BinaryWriter(stream,Encoding.UTF8);
+            if(version<0)version=w.PendingPortedState!=null||PortedSave.Applies(w)?8:7;
             if(version<1||version>Version)throw new ArgumentOutOfRangeException(nameof(version));
             b.Write(Magic);b.Write(version);
             b.Write(w.Map.Seed??"");b.Write(w.Map.Width);b.Write(w.Map.Height);b.Write(MapFingerprint(w.Map));
@@ -113,6 +116,13 @@ namespace EmpireCraft.Core
                 b.Write(a.Name??"");b.Write(a.Founder.IdOf());b.Write(a.FoundedMonth);b.Write(a.EndedMonth);
                 Side(b,a.Members);Side(b,a.PastMembers);
             }
+            if(version<8){b.Flush();return stream.ToArray();}
+            // Version 8: the key counter for the records the ported systems make, each realm's war renown, then the ported
+            // systems' own state (PortedSave: the mod's save, compressed; empty when there is none).
+            b.Write(w.NextRecordId);
+            foreach(var r in w.Realms)b.Write(r.WarRenown);
+            byte[] ported=w.PendingPortedState??PortedSave.Capture(w);
+            b.Write(ported.Length);b.Write(ported);
             b.Flush();return stream.ToArray();
         }
 
@@ -252,6 +262,13 @@ namespace EmpireCraft.Core
                     w.LiveAlliances.Add(a);
                     foreach(var r in a.Members){Check(r.Alliance==null,"Realm in two alliances");r.Alliance=a;}
                 }
+            }
+            if(version>=8)
+            {
+                w.NextRecordId=b.ReadInt64();
+                foreach(var r in w.Realms)r.WarRenown=b.ReadInt32();
+                int length=b.ReadInt32();Check(length>=0&&length<=stream.Length-stream.Position,"Invalid ported state length");
+                if(length>0)w.PendingPortedState=b.ReadBytes(length);
             }
             w.Diplomacy.Rebuild();
             Check(stream.Position==stream.Length,"Trailing bytes in EmpireCraft section");

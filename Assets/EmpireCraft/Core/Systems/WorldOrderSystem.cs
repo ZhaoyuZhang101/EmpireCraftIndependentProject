@@ -256,7 +256,6 @@ public static class WorldOrderSystem
 
     #region 年度
 
-#if EC_PENDING
     public static void TryYearlyScan()
     {
         if (EmpireWorld.Current == null || ModClass.EMPIRE_MANAGER == null || ModClass.IS_CLEAR) return;
@@ -274,7 +273,6 @@ public static class WorldOrderSystem
         }
         _indexDirty = true;
     }
-#endif
 
     private static int Cities(Empire empire) =>
         empire.kingdoms_list?.Where(kingdom => kingdom?.Cities != null && !kingdom.IsGone()).Sum(kingdom => kingdom.Cities.Count) ?? 0;
@@ -301,7 +299,6 @@ public static class WorldOrderSystem
         return ConnectivitySystem.CanContactEither(ca, cb) ?? WarReach.Reachable(ca, cb);
     }
 
-#if EC_PENDING
     private static void Scan(double now)
     {
         List<Empire> states = States();
@@ -336,7 +333,6 @@ public static class WorldOrderSystem
         LogService.LogInfo($"[EmpireCraft][世界格局] 近代国家 {states.Count}，大国 {greats.Count}，阵营 {_data.blocs.Count}，" +
                            $"冷战 {_data.cold_wars.Count}，公会 {(_data.league == null ? "无" : _data.league.members.Count + " 国")}，制裁 {_data.sanctions.Count}");
     }
-#endif
 
     // 记一笔：主角的史书与屏幕；其余只进各自的史书
     internal static void Record(string text, Empire main, IEnumerable<Empire> others = null)
@@ -567,7 +563,6 @@ public static class WorldOrderSystem
 
     private static double Years(int years) => years * 12d * GameClock.MonthLength;
 
-#if EC_PENDING
     private static void UpdateColdWars(Dictionary<long, double> power, double now)
     {
         // 理念相左、盟主够得着对方的两个阵营：冷战
@@ -675,7 +670,6 @@ public static class WorldOrderSystem
                 Dissolve(bloc, LeaderOf(bloc), "world_bloc_disbanded_history");
         }
     }
-#endif
 
     private static IEnumerable<Empire> Members(BlocData bloc) =>
         bloc == null ? Enumerable.Empty<Empire>() : bloc.members.Select(Living).Where(member => member != null);

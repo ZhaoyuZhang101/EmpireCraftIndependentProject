@@ -12,40 +12,40 @@ namespace EmpireCraft.Core
 //   · 独立服务器以前没有国家颜色库，离开帝国时换回自己颜色那一步被跳过，一直顶着原帝国的颜色；补换一种(避开原帝国核心的颜色)。
 // 只动不在帝国里、记着离开过哪个帝国(left_empire_id)的国；附庸、朝贡、傀儡这些从属之国套宗主色是有意的，不动颜色。
 // 补过的不再满足条件，每次读档跑也只动没补过的
-public static class LeftEmpireRepair
+public static partial class LeftEmpireRepair
 {
-#if EC_PENDING
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
     public static void AfterLoad()
     {
-        if (EmpireWorld.Current?.LiveRealms == null) return;
+        if (EmpireWorld.Current?.kingdoms == null) return;
         int renamed = 0, recolored = 0;
-        foreach (Realm kingdom in EmpireWorld.Current.LiveRealms.ToList())
+        foreach (Realm kingdom in EmpireWorld.Current.kingdoms.list.ToList())
         {
-            if (kingdom?.Record == null || kingdom.IsGone() || kingdom.IsWild || AncientWarfareCompatibility.Owns(kingdom)) continue;
+            if (kingdom?.data == null || kingdom.IsGone() || kingdom.wild || AncientWarfareCompatibility.Owns(kingdom)) continue;
             if (kingdom.IsInEmpire() || kingdom.IsEmpire()) continue;
             var data = kingdom.GetOrCreate();
             if (data.left_empire_id < 0) continue;
             try
             {
-                Empire former = ModClass.EMPIRE_MANAGER?.Get(data.left_empire_id);
+                Empire former = ModClass.EMPIRE_MANAGER?.get(data.left_empire_id);
                 Realm core = former?.CoreKingdom;
-                if (core?.Record != null && !core.IsGone() && core != kingdom && kingdom.Record.ColorId == core.Record.ColorId &&
+                if (core?.data != null && !core.IsGone() && core != kingdom && kingdom.data.color_id == core.data.color_id &&
                     !EmpireFormationService.IsSubject(kingdom))
                 {
-                    int before = kingdom.Record.ColorId;
-                    KingdomColorService.Restore(kingdom, -1, core.GetColor());
-                    if (kingdom.Record.ColorId != before) recolored++;
+                    int before = kingdom.data.color_id;
+                    KingdomColorService.Restore(kingdom, -1, core.getColor());
+                    if (kingdom.data.color_id != before) recolored++;
                 }
                 if (kingdom.IsAdministrativeKingdomType() || !string.IsNullOrWhiteSpace(data.admin_name) || StaleAdministrativeName(kingdom))
                 {
-                    string before = kingdom.Name;
+                    string before = kingdom.data.name;
                     EmpireCraftKingdomBehCheckKingdomType.SyncKingdomStatus(kingdom, afterIndependence: true);
-                    if (kingdom.Name != before) renamed++;
+                    if (kingdom.data.name != before) renamed++;
                 }
             }
             catch (Exception exception)
             {
-                LogService.LogWarning($"[EmpireCraft][脱离帝国] 补改 {kingdom.Name} 失败: {exception.Message}");
+                LogService.LogWarning($"[EmpireCraft][脱离帝国] 补改 {kingdom.data.name} 失败: {exception.Message}");
             }
         }
         if (renamed + recolored > 0)

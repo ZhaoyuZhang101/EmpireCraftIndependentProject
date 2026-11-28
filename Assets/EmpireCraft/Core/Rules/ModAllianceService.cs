@@ -58,13 +58,12 @@ public static class ModAllianceService
     }
 
     // 世界规则打开时调用：解散原版同盟
-#if EC_PENDING
     public static void DissolveVanillaAlliances()
     {
         if (EmpireWorld.Current?.LiveAlliances == null) return;
         foreach (Alliance alliance in EmpireWorld.Current.LiveAlliances.ToList())
         {
-            if (alliance == null || !alliance.Alive || alliance.isForcedType()) continue;
+            if (alliance == null || !alliance.Alive || alliance.IsForced()) continue;
             if (IsModAlliance(alliance)) continue;
             if (LooksLikeUnionAlliance(alliance))
             {
@@ -75,6 +74,5 @@ public static class ModAllianceService
         }
         ModClass.MOD_ALLIANCE_IDS.RemoveWhere(id => EmpireWorld.Current.AllianceByKey(id) == null);
     }
-#endif
 }
 }
