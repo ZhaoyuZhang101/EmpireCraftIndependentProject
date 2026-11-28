@@ -2,6 +2,15 @@
     "name": "Huaxia",
     "color": "#D4AF37",
     "translate_cz": "华夏",
+    // 故土(独立游戏用，模组不读)：开局按地理分区给各国定民族时，按这里的气候、纬度等与地区比合不合；没有这一段的文化开局不落地(留给剧本)
+    "homeland": {
+        "climates": ["Cwa", "Cfa", "Dwa", "Cwb"], // 柯本气候
+        "latitude": 32, // 故土的纬度(南北都按绝对值)
+        "spread": 10, // 离这个纬度多远还算合
+        "side": "east", // 在大陆的东侧 east / 西侧 west
+        "earth": [100, 123, 20, 41], // 地球图上的故土：西界、东界经度(西经为负)，南界、北界纬度(南纬为负)
+        "earth_priority": 1 // 地球图上几个故土相叠时，数小的先算
+    },
     "setting": {
         "regime": "LvLing",
         "institution_line": "Huaxia",

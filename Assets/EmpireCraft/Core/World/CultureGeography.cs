@@ -15,8 +15,8 @@ namespace EmpireCraft.Core
     // of the continent), and each people's homeland is described the same way; regions take
     // the people that fit them best, each people once while some are still unused.
     //
-    // Only the historical peoples take part. The modern starts, the story and fantasy cultures
-    // and the very small ones are for scenarios to place.
+    // The peoples that take part are those whose rule file describes a homeland (the historical peoples; see LoadHomelands).
+    // The modern starts, the story and fantasy cultures and the very small ones have none: scenarios place them.
     public static class CultureGeography
     {
         sealed class Homeland
@@ -30,43 +30,50 @@ namespace EmpireCraft.Core
             public float West = 999f, East = 999f, North = 999f, SouthEdge = 999f;   // Earth homeland box (longitude, latitude)
         }
 
-        static Homeland H(string family, float latitude, float spread, params Koppen[] climates) =>
-            new Homeland { Family = family, Latitude = latitude, Spread = spread, Climates = climates };
-
-        static readonly Homeland[] Homelands =
+        // Each people's homeland, from its rule file (Locales/Cultures/Culture_<people>/CultureRule.jsonc, "homeland"), for the
+        // peoples whose rules are loaded; a people without one is not placed at the start (scenarios place it). Read when a world
+        // opens, so what the regime editor changes or adds there is what the next world uses. In the order of earth_priority
+        // (where homeland boxes on Earth overlap, the lower number is taken), then by name.
+        static List<Homeland> LoadHomelands()
         {
-            Box(H("Huaxia", 32, 10, Koppen.Cwa, Koppen.Cfa, Koppen.Dwa, Koppen.Cwb), 100, 123, 20, 41, side: 1),
-            Box(H("Japan", 37, 8, Koppen.Cfa, Koppen.Dfa, Koppen.Dfb, Koppen.Cfb), 129, 146, 30, 46, side: 1, island: true),
-            Box(H("Manzhou", 47, 7, Koppen.Dwb, Koppen.Dwa, Koppen.Dfb, Koppen.Dwc, Koppen.Dfa), 118, 135, 41, 54, side: 1),
-            Box(H("Xizang", 33, 8, Koppen.ET, Koppen.Dwc, Koppen.Cwc, Koppen.BWk), 78, 100, 27, 37, height: 3000),
-            Box(H("Youmu", 46, 8, Koppen.BSk, Koppen.BWk, Koppen.Dwc, Koppen.Dfc), 50, 118, 40, 56, interior: true),
-            Box(H("India", 20, 9, Koppen.Aw, Koppen.Am, Koppen.BSh, Koppen.Cwa), 68, 92, 6, 30),
-            Box(H("Persepolis", 32, 6, Koppen.BSk, Koppen.BWh, Koppen.BWk, Koppen.Csa), 44, 64, 25, 40, height: 1000),
-            Box(H("Egypt", 27, 5, Koppen.BWh), 24, 36, 20, 32, river: true),
-            Box(H("Arab", 23, 8, Koppen.BWh, Koppen.BSh), 33, 60, 12, 37),
-            Box(H("Swahili", 6, 8, Koppen.Aw, Koppen.Am, Koppen.Af), 34, 45, -12, 5, side: 1, coast: true, southern: true),
-            Box(H("Bantu", 5, 9, Koppen.Af, Koppen.Aw, Koppen.Am), 8, 34, -15, 8, interior: true),
-            Box(H("Zulu", 28, 7, Koppen.Cfa, Koppen.Cwa, Koppen.BSh, Koppen.Cwb), 15, 36, -35, -15, southern: true),
-            Box(H("Roma", 40, 6, Koppen.Csa, Koppen.Csb), -10, 44, 34, 46, coast: true),
-            Box(H("Frankish", 47, 5, Koppen.Cfb), -5, 8, 43, 51, side: -1),
-            Box(H("Germanic", 52, 5, Koppen.Cfb, Koppen.Dfb), 5, 20, 46, 56),
-            Box(H("Viking", 62, 7, Koppen.Dfc, Koppen.Cfc, Koppen.ET, Koppen.Dfb), 4, 32, 55, 72, coast: true),
-            Box(H("Slavonic", 55, 7, Koppen.Dfb, Koppen.Dfa, Koppen.Dfc), 15, 60, 44, 62, interior: true),
-            Box(H("Aztec", 20, 6, Koppen.Aw, Koppen.Cwb, Koppen.BSh), -118, -86, 14, 33, height: 1500),
-            Box(H("Ojibwe", 47, 6, Koppen.Dfb, Koppen.Dfc, Koppen.Dfa), -100, -70, 40, 55),
-        };
-
-        // The homeland on Earth as a box of longitude (west, east) and latitude (bottom, top), and what kind of land it is.
-        static Homeland Box(Homeland h, float west, float east, float bottom, float top, int side = 0, float height = -1f,
-            bool coast = false, bool interior = false, bool island = false, bool southern = false, bool river = false)
-        {
-            h.West = west; h.East = east; h.SouthEdge = bottom; h.North = top;
-            h.Side = side; h.Height = height; h.Coast = coast; h.Interior = interior; h.Island = island; h.South = southern; h.River = river;
-            return h;
+            var found = new List<(int priority, Homeland home)>();
+            string root = string.IsNullOrEmpty(GameData.Folder) ? null : System.IO.Path.Combine(GameData.Folder, "Locales", "Cultures");
+            if (root == null || !System.IO.Directory.Exists(root)) return new List<Homeland>();
+            foreach (string folder in System.IO.Directory.EnumerateDirectories(root, "Culture_*").OrderBy(f => f, StringComparer.Ordinal))
+            {
+                string file = System.IO.Path.Combine(folder, "CultureRule.jsonc");
+                string family = System.IO.Path.GetFileName(folder).Substring("Culture_".Length);
+                if (!System.IO.File.Exists(file) || !CultureService.IsValidCulture(family)) continue;
+                Newtonsoft.Json.Linq.JObject spec;
+                try { spec = Newtonsoft.Json.Linq.JObject.Parse(System.IO.File.ReadAllText(file))["homeland"] as Newtonsoft.Json.Linq.JObject; }
+                catch (Exception e) { LogService.LogWarning("[EmpireCraft][故土] " + family + " 的故土读不出来: " + e.Message); continue; }
+                if (spec == null) continue;
+                var home = new Homeland
+                {
+                    Family = family,
+                    Latitude = (float?)spec["latitude"] ?? 0f,
+                    Spread = Math.Max(1f, (float?)spec["spread"] ?? 8f),
+                    Height = (float?)spec["height"] ?? -1f,
+                    Side = ((string)spec["side"]) == "east" ? 1 : ((string)spec["side"]) == "west" ? -1 : 0,
+                    Coast = (bool?)spec["coast"] ?? false,
+                    Interior = (bool?)spec["interior"] ?? false,
+                    Island = (bool?)spec["island"] ?? false,
+                    South = (bool?)spec["southern"] ?? false,
+                    River = (bool?)spec["river"] ?? false,
+                    Climates = (spec["climates"] as Newtonsoft.Json.Linq.JArray)?.Select(c => Enum.TryParse((string)c, out Koppen k) ? k : Koppen.Unknown)
+                        .Where(k => k != Koppen.Unknown).ToArray() ?? new Koppen[0]
+                };
+                if (spec["earth"] is Newtonsoft.Json.Linq.JArray box && box.Count == 4)
+                {
+                    home.West = (float)box[0]; home.East = (float)box[1]; home.SouthEdge = (float)box[2]; home.North = (float)box[3];
+                }
+                found.Add(((int?)spec["earth_priority"] ?? int.MaxValue, home));
+            }
+            return found.OrderBy(f => f.priority).ThenBy(f => f.home.Family, StringComparer.Ordinal).Select(f => f.home).ToList();
         }
 
         // The families that can be placed: those of the homelands whose rules are loaded.
-        public static IEnumerable<string> Families => Homelands.Select(h => h.Family).Where(CultureService.IsValidCulture);
+        public static IEnumerable<string> Families => LoadHomelands().Select(h => h.Family);
 
         // Gives every realm, its cities and its people a culture, and each realm the regime and institutions of its people.
         // Does nothing when the culture rules or the regime templates are not loaded. Returns the family of each realm.
@@ -74,7 +81,7 @@ namespace EmpireCraft.Core
         {
             var chosen = new Dictionary<Realm, string>();
             if (w == null || OnomasticsRule.ALL_CULTURE_RULE.Count == 0 || RegimeManager.regimes == null) return chosen;
-            var pool = Homelands.Where(h => CultureService.IsValidCulture(h.Family)).ToList();
+            var pool = LoadHomelands();
             if (pool.Count == 0) return chosen;
             var realms = w.LiveRealms.Where(r => r.Capital != null).OrderBy(r => r.Id).ToList();
             // Each landmass's size, and its centre east-west (as an angle: the map wraps), in one pass over the map.

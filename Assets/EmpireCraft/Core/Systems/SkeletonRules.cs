@@ -99,7 +99,7 @@ namespace EmpireCraft.Core
                         }
                 }
                 if(best<0)continue;
-                City planted=WorldOps.FoundCity(w,best,realm,Names.Place(w,best+w.Month));
+                City planted=WorldOps.FoundCity(w,best,realm,Names.Place(w,best+w.Month,Names.PeopleOf(realm)));
                 // Settlers come from the capital.
                 var capital=realm.Capital;double settlers=Math.Min(400,capital.Population*.1);
                 capital.Population-=settlers;planted.Population=settlers;
@@ -132,9 +132,10 @@ namespace EmpireCraft.Core
                 var p=w.Living[k];int age=w.AgeOf(p);
                 if(p.Sex!=Sex.Male||p.Spouse!=null||age<18||age>45||!reigning.TryGetValue(p.Clan.Id,out int members)||members>=HouseCap)continue;
                 if(w.Chance(Stream,p.Id,3)>=.35)continue;
-                Clan clan=WorldOps.NewClan(w,Names.Surname(w,p.Id*13+w.Month));
+                string people=Names.PeopleOf(p.City);
+                Clan clan=WorldOps.NewClan(w,Names.Surname(w,p.Id*13+w.Month,people));
                 int wifeAge=Math.Max(16,age-2-w.Pick(Stream,p.Id,8,4));
-                Person wife=WorldOps.Birth(w,Names.Given(w,Sex.Female,p.Id*13+w.Month+1),Sex.Female,clan,p.City,null,null,wifeAge);
+                Person wife=WorldOps.Birth(w,Names.Given(w,Sex.Female,p.Id*13+w.Month+1,people),Sex.Female,clan,p.City,null,null,wifeAge);
                 WorldOps.Marry(w,p,wife);
             }
             snapshot=w.Living.Count;
@@ -147,7 +148,7 @@ namespace EmpireCraft.Core
                 if(!reigning.TryGetValue(father.Clan.Id,out int members)||members>=HouseCap)continue;
                 if(w.Chance(Stream,mother.Id,5)>.22)continue;
                 var sex=w.Chance(Stream,mother.Id,6)<.5?Sex.Male:Sex.Female;
-                WorldOps.Birth(w,Names.Given(w,sex,mother.Id*31+w.Month),sex,father.Clan,father.City,father,mother);
+                WorldOps.Birth(w,Names.Given(w,sex,mother.Id*31+w.Month,Names.PeopleOf(father)),sex,father.Clan,father.City,father,mother);
                 reigning[father.Clan.Id]=members+1;
             }
         }
@@ -187,9 +188,10 @@ namespace EmpireCraft.Core
 
         static Person NewHouse(EmpireWorld w,Realm realm)
         {
-            Clan clan=WorldOps.NewClan(w,Names.Surname(w,realm.Id*17+w.Month));
+            string people=Names.PeopleOf(realm);
+            Clan clan=WorldOps.NewClan(w,Names.Surname(w,realm.Id*17+w.Month,people));
             int age=28+w.Pick(Stream,realm.Id,20,8);
-            Person ruler=WorldOps.Birth(w,Names.Given(w,Sex.Male,realm.Id*17+w.Month+1),Sex.Male,clan,realm.Capital,null,null,age);
+            Person ruler=WorldOps.Birth(w,Names.Given(w,Sex.Male,realm.Id*17+w.Month+1,people),Sex.Male,clan,realm.Capital,null,null,age);
             clan.Founder=ruler;return ruler;
         }
 
@@ -202,8 +204,9 @@ namespace EmpireCraft.Core
             if(seat==null)return;
             var group=new List<City>();
             foreach(var c in realm.Cities)if(c!=seat&&c!=capital&&w.Distance(c.Tile,seat.Tile)<w.Distance(c.Tile,capital.Tile)*.8f)group.Add(c);
-            Clan clan=WorldOps.NewClan(w,Names.Surname(w,seat.Id*19+w.Month));
-            Person lord=WorldOps.Birth(w,Names.Given(w,Sex.Male,seat.Id*19+w.Month+1),Sex.Male,clan,seat,null,null,30+w.Pick(Stream,seat.Id,15,9));
+            string people=Names.PeopleOf(seat);
+            Clan clan=WorldOps.NewClan(w,Names.Surname(w,seat.Id*19+w.Month,people));
+            Person lord=WorldOps.Birth(w,Names.Given(w,Sex.Male,seat.Id*19+w.Month+1,people),Sex.Male,clan,seat,null,null,30+w.Pick(Stream,seat.Id,15,9));
             clan.Founder=lord;
             Realm newRealm=WorldOps.FoundRealm(w,Names.RealmOf(seat.Name),Names.Color(w,seat.Id+w.Month),seat,lord);
             foreach(var c in group)if(c.Realm==realm&&realm.Cities.Count>1)WorldOps.TransferCity(w,c,newRealm);

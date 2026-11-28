@@ -22,9 +22,10 @@ namespace EmpireCraft.Core
             if (soldier || world == null || city == null || !city.Alive || city.Realm == null || group == null) return null;
             int subject = world.People.Count * 131 + city.Id;
             Sex sex = world.Chance(SpawnStream, subject) < 0.5 ? Sex.Male : Sex.Female;
-            Clan house = WorldOps.NewClan(world, Names.Surname(world, subject));
+            string people = !string.IsNullOrEmpty(group.culture) ? group.culture : Names.PeopleOf(city);
+            Clan house = WorldOps.NewClan(world, Names.Surname(world, subject, people));
             int age = 25 + world.Pick(SpawnStream, subject, 31, 1);
-            Person person = WorldOps.Birth(world, Names.Given(world, sex, subject + 1), sex, house, city, null, null, age);
+            Person person = WorldOps.Birth(world, Names.Given(world, sex, subject + 1, people), sex, house, city, null, null, age);
             house.Founder = person;
             if (city.HasReligion()) person.SetReligion(city.Religion);
             person.SetCulture(Cultures.OfFamily(world, group.culture) ?? city.Culture);

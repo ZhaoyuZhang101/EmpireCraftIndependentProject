@@ -2,6 +2,15 @@
     "name": "Zulu",
     "color": "#858585",
     "translate_cz": "祖鲁",
+    // 故土(独立游戏用，模组不读)：开局按地理分区给各国定民族时，按这里的气候、纬度等与地区比合不合；没有这一段的文化开局不落地(留给剧本)
+    "homeland": {
+        "climates": ["Cfa", "Cwa", "BSh", "Cwb"], // 柯本气候
+        "latitude": 28, // 故土的纬度(南北都按绝对值)
+        "spread": 7, // 离这个纬度多远还算合
+        "southern": true, // 在南半球
+        "earth": [15, 36, -35, -15], // 地球图上的故土：西界、东界经度(西经为负)，南界、北界纬度(南纬为负)
+        "earth_priority": 12 // 地球图上几个故土相叠时，数小的先算
+    },
     "setting": {
         "regime": "Origin",
         "institution_line": "Origins",

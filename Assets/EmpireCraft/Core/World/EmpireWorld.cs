@@ -43,7 +43,7 @@ namespace EmpireCraft.Core
         public City CityAt(int tile){int c=TileCity[tile];return c<0?null:Cities[c];}
         public Realm RealmAt(int tile){int c=TileCity[tile];return c<0?null:Cities[c].Realm;}
         public int RealmOfTile(int tile)=>RealmAt(tile).IdOf();
-        public string FullName(Person p)=>(p.Clan!=null?p.Clan.Surname:"")+p.Given;
+        public string FullName(Person p)=>Names.Full(p);
 
         // The world the ported systems act on. They are static, as in the mod, and
         // reach the world through this; EmpireSimulation sets it before every step.
@@ -97,7 +97,7 @@ namespace EmpireCraft.Core
         public Clan NewClan(Person founder,bool announce=false)
         {
             if(founder==null)return null;
-            var clan=WorldOps.NewClan(this,Names.Surname(this,founder.Id*31+Month),founder);founder.Clan=clan;return clan;
+            var clan=WorldOps.NewClan(this,Names.Surname(this,founder.Id*31+Month,Names.PeopleOf(founder)),founder);founder.Clan=clan;return clan;
         }
         // Null when there can be no such war: one of them is gone, they are the same realm, or they stand in one alliance.
         public War StartWar(Realm attacker,Realm defender,WarKind kind=null,bool log=true)

@@ -744,8 +744,21 @@ public static class RulesChecks
         }
         Check(desertOk && steppeOk, "deep desert and steppe go to peoples of such land");
         // Same world, same peoples.
+        // The opening names come from each people's own word lists (its rule file), not the placeholder lists: a city's name
+        // is made of its people's city words, a ruler's given name is in its people's given-name or ancient lists.
+        bool FromLists(string people, string name, params string[] groups) =>
+            groups.Select(g => PartySystem.GetCultureWordPool(people, g)).Any(pool => pool.Any(word => word.Length > 0 && name.Contains(word)));
+        var samples = w.LiveRealms.GroupBy(r => CultureService.GetRealmCulture(r)).OrderBy(g => g.Key, StringComparer.Ordinal)
+            .Select(g => g.Key + ": " + string.Join("/", g.Take(2).Select(r => r.Name + " " + (r.Ruler == null ? "-" : r.Ruler.FullName()))));
+        Console.WriteLine("   opening names: " + string.Join("; ", samples));
+        var huaxia = w.LiveRealms.Where(r => CultureService.GetRealmCulture(r) == "Huaxia" && r.Ruler != null).ToList();
+        Check(huaxia.Count == 0 || huaxia.All(r => FromLists("Huaxia", r.Ruler.Given, "UnitNamesMale1", "UnitNamesMale2", "AncientMaleNames") &&
+                                                   FromLists("Huaxia", r.Capital.Name, "CityNames1", "CityNames2", "CityNames3")),
+              "Huaxia realms open with names from Huaxia's word lists");
         var again = Start(map);
         Check(again.LiveRealms.Select(r => CultureService.GetRealmCulture(r)).SequenceEqual(families), "the same world gives the same peoples");
+        Check(again.LiveRealms.Select(r => r.Name + (r.Ruler == null ? "" : r.Ruler.FullName())).SequenceEqual(w.LiveRealms.Select(r => r.Name + (r.Ruler == null ? "" : r.Ruler.FullName()))),
+              "the same world gives the same names");
         // Twenty years on: nothing fails, and realms that came about since have a people too.
         Run(again, 20, world => { var bad = EmpireInvariants.Check(world, 1); Check(bad.Count == 0, "the world stays consistent" + (bad.Count > 0 ? ": " + bad[0] + " " + ForeignFaith(world) : "")); });
         string faults = string.Join("; ", PortedSystems.Slots.Where(s => s.Faults > 0).Select(s => s.Name + " x" + s.Faults + " " + s.LastFault));

@@ -2,6 +2,15 @@
     "name": "Roma",
     "color": "#7B2D26",
     "translate_cz": "罗马",
+    // 故土(独立游戏用，模组不读)：开局按地理分区给各国定民族时，按这里的气候、纬度等与地区比合不合；没有这一段的文化开局不落地(留给剧本)
+    "homeland": {
+        "climates": ["Csa", "Csb"], // 柯本气候
+        "latitude": 40, // 故土的纬度(南北都按绝对值)
+        "spread": 6, // 离这个纬度多远还算合
+        "coast": true, // 滨海
+        "earth": [-10, 44, 34, 46], // 地球图上的故土：西界、东界经度(西经为负)，南界、北界纬度(南纬为负)
+        "earth_priority": 13 // 地球图上几个故土相叠时，数小的先算
+    },
     "setting": {
         "regime": "Feudalism",
         "institution_line": "Roma",

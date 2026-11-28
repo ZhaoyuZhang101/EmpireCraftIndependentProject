@@ -273,7 +273,7 @@ namespace EmpireCraft.Core
                 Given=house.Length>0&&text.StartsWith(house,System.StringComparison.Ordinal)&&text.Length>house.Length?text.Substring(house.Length):text;
             }
         }
-        public string FullName()=>(Clan!=null?Clan.Surname:"")+Given;
+        public string FullName()=>Names.Full(this);
         public bool IsRuler()=>Throne!=null;
         public bool IsCityLeader()=>City!=null&&City.Leader==this;
         // The plot this person is working on (one at a time; see PlotStore.newPlot). Not saved: the decision system raises it again.
@@ -331,16 +331,16 @@ namespace EmpireCraft.Core
         public void GoTo(Cell cell){if(cell!=null&&Alive&&Throne==null){var city=cell.City;if(city!=null&&city.Alive)City=city;}}
         // Two unmarried persons of opposite sex are joined; anything else leaves both as they were.
         public void SetLover(Person other){var world=EmpireWorld.Current;if(world!=null&&other!=null&&other!=this&&Alive&&other.Alive&&Spouse==null&&other.Spouse==null&&Sex!=other.Sex)WorldOps.Marry(world,this,other);}
-        // A name of the kind asked for, from the name lists this game has for now.
+        // A name of the kind asked for, from this person's people's word lists (Names).
         public string GenerateName(EntityKind kind,long id,Sex sex=Sex.None)
         {
             var world=EmpireWorld.Current;if(world==null)return null;
-            int subject=(int)(id*131+world.Month);
+            int subject=(int)(id*131+world.Month);string people=Names.PeopleOf(this);
             switch(kind)
             {
-                case EntityKind.Person:return Names.Given(world,sex==Sex.None?Sex:sex,subject);
-                case EntityKind.Clan:case EntityKind.Family:return Names.Surname(world,subject);
-                case EntityKind.City:case EntityKind.Realm:return Names.Place(world,subject);
+                case EntityKind.Person:return Names.Given(world,sex==Sex.None?Sex:sex,subject,people);
+                case EntityKind.Clan:case EntityKind.Family:return Names.Surname(world,subject,people);
+                case EntityKind.City:case EntityKind.Realm:return Names.Place(world,subject,people);
                 default:return null;
             }
         }

@@ -18,6 +18,7 @@ namespace EmpireCraft.Core
         {
             string data = GameData.Folder;
             if (string.IsNullOrEmpty(data) || !Directory.Exists(data)) return;
+            CultureNames.Reset();
             string locales = Path.Combine(data, "Locales");
             string texts = Path.Combine(locales, LM.Language + ".json");
             if (File.Exists(texts)) LM.LoadFile(texts);

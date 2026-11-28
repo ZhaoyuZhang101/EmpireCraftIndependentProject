@@ -356,7 +356,7 @@ namespace EmpireCraft.Core
         {
             var w=World;if(w==null||founder==null||!founder.Alive||zone==null||w.TileCity[zone.Index]>=0||!w.Settleable(zone.Index))return null;
             var realm=founder.Realm;City built;
-            if(realm!=null&&realm.Alive){built=WorldOps.FoundCity(w,zone.Index,realm,Names.Place(w,zone.Index+w.Month));if(founder.Throne==null)founder.City=built;}
+            if(realm!=null&&realm.Alive){built=WorldOps.FoundCity(w,zone.Index,realm,Names.Place(w,zone.Index+w.Month,Names.PeopleOf(founder)));if(founder.Throne==null)founder.City=built;}
             else
             {
                 if(founder.Throne!=null)return null;
@@ -364,7 +364,7 @@ namespace EmpireCraft.Core
                 {
                     uint h=(uint)zone.Index*2654435761u^(uint)w.Realms.Count*40503u;
                     uint color=(((h&0x7F)+0x60)<<16)|((((h>>8)&0x7F)+0x60)<<8)|(((h>>16)&0x7F)+0x60);
-                    string name=Names.Place(w,zone.Index+w.Month);
+                    string name=Names.Place(w,zone.Index+w.Month,Names.PeopleOf(founder));
                     built=WorldOps.FoundRealmAt(w,name,color,zone.Index,name,founder).Capital;
                 }
             }
